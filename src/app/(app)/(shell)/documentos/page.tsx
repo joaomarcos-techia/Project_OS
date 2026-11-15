@@ -55,6 +55,17 @@ interface DocumentosPageUser {
   permissions: readonly string[];
 }
 
+/**
+ * Ciclo 3 (P1.7): com o botão "Novo documento" na tela, a descrição não manda emitir em outro
+ * lugar. O botão já leva ao prontuário do paciente, e a frase extra ocupava 4 linhas a 320 px.
+ * Sem o botão, o caminho continua dito.
+ */
+export function documentosDescription(canOpenLauncher: boolean): string {
+  return canOpenLauncher
+    ? 'Receitas, atestados e outros documentos já emitidos.'
+    : 'Receitas, atestados e outros documentos já emitidos. Para emitir um novo, use o Consultório ou o prontuário.';
+}
+
 /** Descoberta de UI; as Server Actions reaplicam os mesmos gates no backend. */
 export function documentosPageCapabilities(user: DocumentosPageUser) {
   const has = (permission: Permission) =>
@@ -151,7 +162,7 @@ export default async function DocumentosPage({
           ) : undefined
         }
         title="Documentos emitidos"
-        description="Receitas, atestados e outros documentos já emitidos. Para emitir um novo, use o Consultório ou o prontuário."
+        description={documentosDescription(capabilities.canOpenLauncher)}
         controls={
           <>
             <LinkSegmented

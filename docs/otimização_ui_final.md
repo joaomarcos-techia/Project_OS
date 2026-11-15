@@ -977,8 +977,8 @@ repasses por mês" (mesmo gate de antes) no menu. Testes: `page-actions.test.tsx
 que mudaram de lugar").
 **Financeiro (15/11, commit `26e55130`):** `PageActions` com "Fornecedores" no menu abaixo de 768 px e
 "Novo lançamento" à vista (a 320 px eram 2 linhas). O #55 só mexe no bloco do saldo parcial desse
-arquivo (linha ~416), longe do cabeçalho. Testes do Financeiro 21/21; ESLint e `tsc` 0. Foto no
-navegador pendente da próxima janela.
+arquivo (linha ~416), longe do cabeçalho. Testes do Financeiro 21/21; ESLint e `tsc` 0. **Validado
+no Preview `05e4378c` (25.10)**: 5 larguras; teclado, mouse e toque.
 **Arquivos:** `src/components/ui/page-header.tsx`, `src/components/shared/shell-chrome.tsx`;
 telas: Agenda, Financeiro, Conversas, Documentos, Relatórios.
 **Depois:** abaixo de 768 px, só a ação principal fica visível; as secundárias vão para um menu
@@ -1788,6 +1788,32 @@ Alternativas avaliadas:
 5. Preview: o spec só aceita localhost (`assertDevContext`), e mexer na trava é proibido.
 
 Não rodei de novo, porque as condições não mudaram.
+
+### 25.10 Sonda de navegador do ciclo 3 (`05e4378c`, 15/11 15h48, 1 login)
+
+`.tmp/ui-audit/ciclo3-probe.ts` contra `project-10wc4l3h8-…`, só leitura, fotos e JSON em
+`evidence/2026-11-15/ciclo3/`. A primeira tentativa, às 15h45, gastou 1 login e parou num erro do
+script: com o menu Radix aberto, o resto da página fica `aria-hidden` e o localizador do gatilho some.
+Corrigido, a rodada das 15h48 completou sem nenhum erro de página nem de console.
+
+| Tela | Larguras | Resultado |
+| --- | --- | --- |
+| Login | 375, 1440 | `h1` "Entrar na Qoro"; ordem de Tab: logo → Criar conta → E-mail → Esqueci a senha → Senha → Mostrar senha → Entrar → Termos (segue a ordem visual); foco visível em todas as paradas; links do rodapé com 24 px; sem rolagem lateral. **Achado:** "Criar conta" com 23 px de altura → corrigido no commit seguinte (`.top p a` com 24 px; a foto do Preview fica para a próxima janela). Dois pares de controles focáveis se cruzam, sem identificação na sonda; o provável é o "Mostrar senha" dentro do campo de senha, que é intencional — conferir na próxima |
+| Dashboard | 1440, 375 | `h1` "Dashboard". Ordem a 1440: Precisa de você (171) → Sala de espera (366) → Próximos / Turno (494) → Resumo financeiro (700) → Faturamento / Atividade (881). A 375, a mesma ordem, só que empilhada. **UX-011 validado no Preview** (antes, só no DEV local) |
+| Financeiro | 320, 375, 768, 1024, 1440 | Abaixo de 768: "Mais ações" + "Novo lançamento"; a partir de 768: "Fornecedores" + "Novo lançamento". Teclado: Enter abre, o foco vai ao menu, Esc fecha e devolve o foco ao gatilho. Mouse: os mesmos itens ao reabrir. Toque (`hasTouch`/`isMobile`): abre, com gatilho de 44 px. Sem rolagem lateral. **UX-012 do Financeiro validado no Preview.** O saldo parcial do TISS (`valorGlosado`) não está nesta branch; a fórmula fica com o TISS no rebase (31.R) |
+| Conversas | 320, 375, 768 | Cabeçalho de 368/342/279 px, em 4/4/2 linhas: busca, "Configurar o agente" (a única ação), 2 filtros e "Filtrar" |
+| Documentos | 320, 375, 768 | Cabeçalho de 406/385/230 px, em 5/5/3 linhas: busca, "Novo documento", segmentado (quebra em 2 linhas a 320) e "Filtrar"; descrição de 4 linhas a 320 |
+| Equipe | 1440 | Nota nova presente; promessa antiga e jargão ausentes |
+| Fila LGPD | 1440 | Sem "SLA" e sem "prazo legal". A clínica de teste não tem pedido, então o selo "prazos de resposta" não aparece (coberto por teste unitário) |
+
+**P1.7 — Conversas e Documentos, decisão.** As duas têm **uma** ação. O que empilha é busca + filtros,
+não ação. Levar "Configurar o agente" para "Mais ações" não reduz linha: o gatilho ⋮ ocuparia a
+mesma linha. O ganho real exige mudar o `PageHeader` no celular (ação ao lado do título, filtros
+recolhíveis), e isso vale para todas as telas. Fica como **proposta UX-021**, para decisão de design;
+não foi implementado. Feito agora: em Documentos, com o botão "Novo documento" na tela, a descrição
+passa a ser só "Receitas, atestados e outros documentos já emitidos." A frase "use o Consultório ou o
+prontuário" contradizia o botão e ocupava 2 das 4 linhas a 320 px; sem o botão, ela continua
+(`documentosDescription`, com teste).
 
 ## 26. Riscos e decisões
 

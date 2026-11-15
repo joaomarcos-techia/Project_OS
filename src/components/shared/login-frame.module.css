@@ -64,6 +64,14 @@ main:has(> .split) {
   font-size: 13px;
   line-height: 1.5;
 }
+/* Ciclo 3 (WCAG 2.5.8): o "Criar conta" do topo media 23 px de altura na sonda do Preview; o
+   estilo do link vem do signup-frame (arquivo do billing), por isso o alvo é ajustado aqui. */
+.top p a {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+}
+
 .foot a {
   /* UX-018 (WCAG 2.5.8): 24 px de alvo mesmo com o texto de 13 px — a linha de
      19,5 px ficava abaixo do mínimo e dependia da exceção de espaçamento. */

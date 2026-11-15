@@ -71,5 +71,9 @@ describe('fundação de movimento e alvos de interação', () => {
     const regra = loginCss.match(/\.foot a \{[^}]*\}/)?.[0] ?? '';
     expect(regra).toContain('min-height: 24px');
     expect(regra).toContain('display: inline-flex');
+    // Ciclo 3: o "Criar conta" do topo (23 px na sonda do Preview) ganhou o mesmo alvo.
+    const topo = loginCss.match(/\.top p a \{[^}]*\}/)?.[0] ?? '';
+    expect(topo).toContain('min-height: 24px');
+    expect(topo).toContain('display: inline-flex');
   });
 });
