@@ -1,5 +1,15 @@
 # Gate B — proposta de deploy técnico com aquisição fechada
 
+## Alternativa remota autorizada — 15/11/2026
+
+**Checkpoint prevalente:** o titular informou que não consegue liberar mais RAM e autorizou executar o ensaio no GitHub enquanto Claude retoma TISS. Não será iniciado Docker/build pesado local. O diagnóstico anterior e a CI GREEN do HEAD documental `5b80efa6` (run `43755905739`, 7.266 testes / 22 E2E / zero SKIP) permanecem como evidências históricas.
+
+Workflow dedicado: `.github/workflows/gate-b-synthetic.yml`, somente branch AbacatePay, runner padrão `ubuntu-24.04`, limite de 35 minutos, sem secrets de Production e sem ampliação de orçamento. Dois passos sequenciais: `gate-b-synthetic-ci.ts` cria somente fixture sintética, executa ferramentas reais e descarta seus recursos; `gate-b-composed-build.ts` exige o descarte antes de extrair e compilar o TAR exato, sem injetar o harness de `security:build`. O mínimo de 4 GiB de memória física disponível continua obrigatório no runner. Nenhum resultado de execução remota é presumido nesta preparação.
+
+O TAR original foi transportado para um **rascunho privado**, não publicado: `qoro-gate-b-synthetic-94f6da4a`, asset `752472125`, 234.562.048 bytes. O digest retornado pelo GitHub coincide com `3902f2007742df4016450eeaece806a8f2bc0b535631d33da9a5e691b59ce3f6`. Apenas fontes já versionadas e a composição SQL congelada, sem dump/credenciais locais. Download com token efêmero `contents:read` restrito ao passo de transporte; checkout sem persistir credenciais; build com HOME novo e allowlist de variáveis sintéticas. Relatórios sanitizados têm retenção de um dia; nenhum banco, cifra de fixture ou saída `.next` será publicado. Não utilizar `db-backup.yml`, que acessa Production.
+
+O teste de interrupção realizado nesse runner prova Linux. **Não comprova Ctrl+C/processos no Windows**, proteção do host local, backup gerenciado Supabase ou restauração real. Permanecem **B1-B real NÃO APTO/NÃO AUTORIZADO; B2/B3 não autorizados; Production NO-GO; R1–R4 PARTIAL sem aceite**. Código financeiro, manifesto, migrations e TAR não serão modificados. A CI do novo código de ensaio deverá validar seu próprio SHA.
+
 ## Diagnóstico nativo de RAM e decisões seguras — 15/11/2026
 
 **Checkpoint prevalente:** UI/TISS continuam pausados por informação do titular. Autorizados diagnóstico somente de leitura e parada graciosa apenas de processos próprios comprovadamente descartáveis. **Nenhum processo atendeu a esse critério**, portanto zero encerramentos. Não houve nova solicitação de pausa dos agentes, acesso a Production, reset, limpeza de cache, alteração de serviço, pagefile/hibernação ou redução do mínimo de4GiB. Os três documentos locais do ciclo anterior foram preservados; este diagnóstico completa a atualização documental para um único commit/push no PR53 solicitado pelo titular, sem alteração de código financeiro/SQL/CI.
