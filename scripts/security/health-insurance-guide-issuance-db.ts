@@ -17,7 +17,7 @@ import { randomUUID } from 'node:crypto';
 
 import { startScratchSchema, grantPaidSubscription, credentialAllPlans } from './scratch-schema';
 
-const cluster = await startScratchSchema({ port: 55505, maxConnections: 24 });
+const cluster = await startScratchSchema({ port: Number(process.env.PORT ?? 55505), maxConnections: 24 });
 const { sql } = cluster;
 process.env.DATABASE_URL = cluster.url;
 delete process.env.DATABASE_URL_RUNTIME;
@@ -27,7 +27,7 @@ process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_ci';
 process.env.CRYPTO_SECRET_BACKEND = 'env';
 process.env.CRYPTO_MASTER_KEY_V1 = Buffer.alloc(32, 7).toString('base64');
 process.env.CRYPTO_LOOKUP_SALT = Buffer.alloc(32, 9).toString('base64');
-if (!/@(?:127\.0\.0\.1|localhost):55505\//u.test(cluster.url))
+if (!new RegExp(`@(?:127\\.0\\.0\\.1|localhost):${process.env.PORT ?? 55505}/`, 'u').test(cluster.url))
   throw new Error('não é o cluster local');
 
 const { withTenant } = await import('../../src/lib/db/tenant');

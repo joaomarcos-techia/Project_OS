@@ -22,9 +22,9 @@ import { randomUUID } from 'node:crypto';
 
 import { startScratchSchema } from './scratch-schema';
 
-const cluster = await startScratchSchema({ port: 55513, maxConnections: 32 });
+const cluster = await startScratchSchema({ port: Number(process.env.PORT ?? 55513), maxConnections: 32 });
 const { sql } = cluster;
-if (!/@(?:127\.0\.0\.1|localhost):55513\//u.test(cluster.url)) throw new Error('não é o cluster local');
+if (!new RegExp(`@(?:127\\.0\\.0\\.1|localhost):${process.env.PORT ?? 55513}/`, 'u').test(cluster.url)) throw new Error('não é o cluster local');
 process.env.DATABASE_URL = cluster.url;
 delete process.env.DATABASE_URL_RUNTIME;
 process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://ci.supabase.co';

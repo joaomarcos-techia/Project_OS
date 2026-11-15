@@ -185,8 +185,10 @@ try {
 
   // ── 1. A mesma consulta finalizada 4 vezes ao mesmo tempo ───────────────────────────────────
   const ap1 = await attended();
-  const numbersBefore = (await sql<{ n: number }[]>`
-    select count(*)::int as n from public.hi_guides where clinic_id = ${clinicId}::uuid`)[0]!.n;
+  const numbersBefore = (
+    await sql<{ n: number }[]>`
+    select count(*)::int as n from public.hi_guides where clinic_id = ${clinicId}::uuid`
+  )[0]!.n;
   const outs1 = await Promise.allSettled(Array.from({ length: 4 }, () => finalize(ap1)));
   const fulfilled1 = outs1.flatMap((o) => (o.status === 'fulfilled' ? [o.value] : []));
   const rejected1 = outs1.flatMap((o) => (o.status === 'rejected' ? [o.reason as unknown] : []));
@@ -207,8 +209,10 @@ try {
   assert.equal(guides1.length, 1);
   const ids1 = new Set(fulfilled1.map((o) => ('guideId' in o ? o.guideId : null)));
   assert.deepEqual([...ids1], [guides1[0]!.id], 'todos os caminhos devolvem a MESMA guia');
-  const numbersAfter = (await sql<{ n: number }[]>`
-    select count(*)::int as n from public.hi_guides where clinic_id = ${clinicId}::uuid`)[0]!.n;
+  const numbersAfter = (
+    await sql<{ n: number }[]>`
+    select count(*)::int as n from public.hi_guides where clinic_id = ${clinicId}::uuid`
+  )[0]!.n;
   assert.equal(numbersAfter - numbersBefore, 1);
   pass(
     `mesma consulta finalizada 4 vezes ao mesmo tempo: 1 guia (nº ${guides1[0]!.number}), ${kinds1.filter((k) => k === 'existing').length} caminhos recebem a existente, nenhum erro`,
@@ -281,6 +285,10 @@ try {
   const lost3 = outs3.flatMap((o) => (o.status === 'rejected' ? [o.reason as unknown] : []));
   assert.equal(won3.length, 1, `lotes criados: ${won3.length}`);
   assert.equal(lost3.length, 1);
+  assert.ok(
+    lost3[0] instanceof svc.BatchRuleError && lost3[0].code === 'GUIDE_IN_ACTIVE_BATCH',
+    `o perdedor deve receber a regra de negócio, não erro do banco (${describe(lost3[0])})`,
+  );
   const inTwo = await sql<{ guide_id: string; n: number }[]>`
     select bg.guide_id::text, count(*)::int as n
       from public.hi_batch_guides bg join public.hi_batches b on b.id = bg.batch_id
@@ -299,7 +307,7 @@ try {
     : 0;
   assert.equal(freed[0]!.n, winnerHasGc, 'as guias do pedido perdedor ficam livres');
   pass(
-    `dois usuários montando lotes com uma guia em comum ao mesmo tempo: 1 lote criado, o outro recusado (${rawDbCode(lost3[0]) ?? 'regra'}: ${String((lost3[0] as Error).message).slice(0, 90)}); nenhuma guia em dois lotes ativos`,
+    `dois usuários montando lotes com uma guia em comum ao mesmo tempo: 1 lote criado, o outro recusado com a regra ("${(lost3[0] as Error).message}"); nenhuma guia em dois lotes ativos`,
   );
 
   // ── 4. O mesmo pedido de lote reenviado em paralelo ─────────────────────────────────────────
@@ -312,16 +320,20 @@ try {
   const rej4 = outs4.flatMap((o) => (o.status === 'rejected' ? [o.reason as unknown] : []));
   assert.deepEqual(rej4.map(describe), [], 'reenvio com a mesma chave não pode falhar');
   assert.equal(ids4.size, 1, `lotes distintos para a mesma chave: ${ids4.size}`);
-  const batches4 = (await sql<{ n: number }[]>`
-    select count(*)::int as n from public.hi_batches where clinic_id = ${clinicId}::uuid and idempotency_key = ${key4}`)[0]!.n;
+  const batches4 = (
+    await sql<{ n: number }[]>`
+    select count(*)::int as n from public.hi_batches where clinic_id = ${clinicId}::uuid and idempotency_key = ${key4}`
+  )[0]!.n;
   assert.equal(batches4, 1);
   pass(
     'o mesmo pedido de lote reenviado 3 vezes ao mesmo tempo (mesma chave): 1 lote, as 3 respostas com o mesmo id',
   );
 
   // ── Efeito financeiro: nada disso cria lançamento ───────────────────────────────────────────
-  const lanc = (await sql<{ n: number }[]>`
-    select count(*)::int as n from public.lancamentos where clinic_id = ${clinicId}::uuid`)[0]!.n;
+  const lanc = (
+    await sql<{ n: number }[]>`
+    select count(*)::int as n from public.lancamentos where clinic_id = ${clinicId}::uuid`
+  )[0]!.n;
   assert.equal(lanc, 0);
   pass(
     'nenhum lançamento financeiro nasce de finalização, aprovação ou formação de lote concorrentes',

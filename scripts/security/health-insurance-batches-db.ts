@@ -28,7 +28,9 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import { startScratchSchema, grantPaidSubscription, credentialAllPlans } from './scratch-schema';
 
-const cluster = await startScratchSchema({ port: 55508, maxConnections: 24 });
+// Porta configurável: o Windows reserva faixas dinâmicas (WinNAT) que podem cobrir a padrão.
+const PORT = Number(process.env.PORT ?? 55508);
+const cluster = await startScratchSchema({ port: PORT, maxConnections: 24 });
 const { sql } = cluster;
 process.env.DATABASE_URL = cluster.url;
 delete process.env.DATABASE_URL_RUNTIME;
@@ -37,7 +39,7 @@ process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_ci';
 process.env.CRYPTO_SECRET_BACKEND = 'env';
 process.env.CRYPTO_MASTER_KEY_V1 = Buffer.alloc(32, 7).toString('base64');
 process.env.CRYPTO_LOOKUP_SALT = Buffer.alloc(32, 9).toString('base64');
-if (!/@(?:127\.0\.0\.1|localhost):55508\//u.test(cluster.url)) throw new Error('não é o cluster local');
+if (!new RegExp(`@(?:127\\.0\\.0\\.1|localhost):${PORT}/`, 'u').test(cluster.url)) throw new Error('não é o cluster local');
 
 const { withTenant } = await import('../../src/lib/db/tenant');
 const { createConsultaGuideForAppointment } =
@@ -356,7 +358,20 @@ try {
   await rejects('23514', () => create(A, [gFree, gOther]), /operadora/u);
   await rejects('23514', () => create(A, [gFree], { type: 'sp_sadt' }), /tipo/u);
   await rejects('23514', () => create(A, [gFree, gFree]), /mais de uma vez/u);
-  await rejects('23505', () => create(A, [gFree, g1]), /outro lote ativo/u);
+  // A função do banco recusa com 23505; o serviço entrega a regra de negócio (P14.2: a ação genérica
+  // traduziria 23505 para "Este registro já existe.").
+  await rejects('GUIDE_IN_ACTIVE_BATCH', () => create(A, [gFree, g1]), /outro lote ativo/u);
+  await rejects(
+    '23505',
+    () =>
+      inTenant(A, (tx) =>
+        tx.execute(
+          sqlTag`SELECT public.hi_batch_create(${A.clinicId}::uuid, ${A.ins1}::uuid, 'consulta',
+            ARRAY[${gFree}::uuid, ${g1}::uuid], ${`lote-direto-${randomUUID()}`}, NULL::uuid)`,
+        ),
+      ),
+    /outro lote ativo/u,
+  );
   await sql`update public.hi_guides set status = 'ready_for_review', transition_note = 'Reaberta para conferir de novo' where id = ${gFree}::uuid`; // reaberta (dono): sai de "aprovada"
   await rejects('23514', () => create(A, [gFree]), /estado/u);
   await assert.rejects(

@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 266 actions (0 inline); 66 métodos em 62 handlers; 81 props com referência de action; 740 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
+Contagem: 266 actions (0 inline); 66 métodos em 62 handlers; 81 props com referência de action; 758 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -731,13 +731,15 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/health-insurance-batch-export-async-db.ts:37`              | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                                         |
 | `scripts/security/health-insurance-batch-export-async-db.ts:38`              | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
 | `scripts/security/health-insurance-batch-export-async-db.ts:39`              | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
-| `scripts/security/health-insurance-batches-db.ts:33`                         | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
-| `scripts/security/health-insurance-batches-db.ts:34`                         | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
-| `scripts/security/health-insurance-batches-db.ts:35`                         | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
-| `scripts/security/health-insurance-batches-db.ts:36`                         | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
-| `scripts/security/health-insurance-batches-db.ts:37`                         | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                                         |
-| `scripts/security/health-insurance-batches-db.ts:38`                         | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
-| `scripts/security/health-insurance-batches-db.ts:39`                         | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
+| `scripts/security/health-insurance-batches-db.ts:32`                         | `PORT`                                 | `process.env.PORT`                                                          |
+| `scripts/security/health-insurance-batches-db.ts:35`                         | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
+| `scripts/security/health-insurance-batches-db.ts:36`                         | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
+| `scripts/security/health-insurance-batches-db.ts:37`                         | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
+| `scripts/security/health-insurance-batches-db.ts:38`                         | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
+| `scripts/security/health-insurance-batches-db.ts:39`                         | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                                         |
+| `scripts/security/health-insurance-batches-db.ts:40`                         | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
+| `scripts/security/health-insurance-batches-db.ts:41`                         | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
+| `scripts/security/health-insurance-billing-reconcile-db.ts:29`               | `PORT`                                 | `process.env.PORT`                                                          |
 | `scripts/security/health-insurance-billing-reconcile-db.ts:31`               | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/health-insurance-billing-reconcile-db.ts:32`               | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
 | `scripts/security/health-insurance-billing-reconcile-db.ts:33`               | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
@@ -746,6 +748,8 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/health-insurance-billing-reconcile-db.ts:37`               | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                                         |
 | `scripts/security/health-insurance-billing-reconcile-db.ts:38`               | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
 | `scripts/security/health-insurance-billing-reconcile-db.ts:39`               | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
+| `scripts/security/health-insurance-billing-reconcile-db.ts:40`               | `PORT`                                 | `process.env.PORT`                                                          |
+| `scripts/security/health-insurance-clinic-db.ts:24`                          | `PORT`                                 | `process.env.PORT`                                                          |
 | `scripts/security/health-insurance-concurrency-db.ts:27`                     | `PORT`                                 | `process.env.PORT`                                                          |
 | `scripts/security/health-insurance-concurrency-db.ts:31`                     | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/health-insurance-concurrency-db.ts:32`                     | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
@@ -777,6 +781,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/health-insurance-copay-charge-db.ts:25`                    | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                                         |
 | `scripts/security/health-insurance-copay-charge-db.ts:26`                    | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
 | `scripts/security/health-insurance-copay-charge-db.ts:27`                    | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
+| `scripts/security/health-insurance-coverage-db.ts:28`                        | `PORT`                                 | `process.env.PORT`                                                          |
 | `scripts/security/health-insurance-coverage-db.ts:30`                        | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/health-insurance-coverage-db.ts:31`                        | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
 | `scripts/security/health-insurance-coverage-db.ts:32`                        | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
@@ -785,6 +790,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/health-insurance-coverage-db.ts:36`                        | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                                         |
 | `scripts/security/health-insurance-coverage-db.ts:37`                        | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
 | `scripts/security/health-insurance-coverage-db.ts:38`                        | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
+| `scripts/security/health-insurance-coverage-db.ts:39`                        | `PORT`                                 | `process.env.PORT`                                                          |
 | `scripts/security/health-insurance-credentials-db.ts:36`                     | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/health-insurance-credentials-db.ts:37`                     | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
 | `scripts/security/health-insurance-credentials-db.ts:38`                     | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
@@ -792,6 +798,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/health-insurance-credentials-db.ts:40`                     | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                                         |
 | `scripts/security/health-insurance-credentials-db.ts:41`                     | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
 | `scripts/security/health-insurance-credentials-db.ts:42`                     | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
+| `scripts/security/health-insurance-glosses-payments-db.ts:26`                | `PORT`                                 | `process.env.PORT`                                                          |
 | `scripts/security/health-insurance-glosses-payments-db.ts:28`                | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/health-insurance-glosses-payments-db.ts:29`                | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
 | `scripts/security/health-insurance-glosses-payments-db.ts:30`                | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
@@ -799,6 +806,8 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/health-insurance-glosses-payments-db.ts:32`                | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                                         |
 | `scripts/security/health-insurance-glosses-payments-db.ts:33`                | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
 | `scripts/security/health-insurance-glosses-payments-db.ts:34`                | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
+| `scripts/security/health-insurance-glosses-payments-db.ts:35`                | `PORT`                                 | `process.env.PORT`                                                          |
+| `scripts/security/health-insurance-guide-issuance-db.ts:20`                  | `PORT`                                 | `process.env.PORT`                                                          |
 | `scripts/security/health-insurance-guide-issuance-db.ts:22`                  | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/health-insurance-guide-issuance-db.ts:23`                  | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
 | `scripts/security/health-insurance-guide-issuance-db.ts:24`                  | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
@@ -806,10 +815,14 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/health-insurance-guide-issuance-db.ts:27`                  | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                                         |
 | `scripts/security/health-insurance-guide-issuance-db.ts:28`                  | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
 | `scripts/security/health-insurance-guide-issuance-db.ts:29`                  | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
+| `scripts/security/health-insurance-guide-issuance-db.ts:30`                  | `PORT`                                 | `process.env.PORT`                                                          |
+| `scripts/security/health-insurance-guide-service-db.ts:29`                   | `PORT`                                 | `process.env.PORT`                                                          |
 | `scripts/security/health-insurance-guide-service-db.ts:33`                   | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/health-insurance-guide-service-db.ts:34`                   | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
 | `scripts/security/health-insurance-guide-service-db.ts:35`                   | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
 | `scripts/security/health-insurance-guide-service-db.ts:36`                   | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
+| `scripts/security/health-insurance-guide-service-db.ts:37`                   | `PORT`                                 | `process.env.PORT`                                                          |
+| `scripts/security/health-insurance-guides-db.ts:28`                          | `PORT`                                 | `process.env.PORT`                                                          |
 | `scripts/security/health-insurance-insurer-credentials-db.ts:16`             | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/health-insurance-insurer-credentials-db.ts:17`             | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
 | `scripts/security/health-insurance-insurer-credentials-db.ts:18`             | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
@@ -818,6 +831,8 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/health-insurance-insurer-credentials-db.ts:21`             | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
 | `scripts/security/health-insurance-insurer-credentials-db.ts:22`             | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
 | `scripts/security/health-insurance-insurer-credentials-db.ts:23`             | `LOG_LEVEL`                            | `process.env.LOG_LEVEL`                                                     |
+| `scripts/security/health-insurance-ledger-bridge-db.ts:25`                   | `PORT`                                 | `process.env.PORT`                                                          |
+| `scripts/security/health-insurance-ledger-bridge-db.ts:27`                   | `PORT`                                 | `process.env.PORT`                                                          |
 | `scripts/security/health-insurance-ledger-bridge-db.ts:28`                   | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/health-insurance-ledger-bridge-db.ts:29`                   | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
 | `scripts/security/health-insurance-ledger-bridge-db.ts:30`                   | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
@@ -843,6 +858,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/health-insurance-payout-db.ts:28`                          | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                                         |
 | `scripts/security/health-insurance-payout-db.ts:29`                          | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
 | `scripts/security/health-insurance-payout-db.ts:30`                          | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
+| `scripts/security/health-insurance-premium-gate-db.ts:23`                    | `PORT`                                 | `process.env.PORT`                                                          |
 | `scripts/security/health-insurance-premium-gate-db.ts:26`                    | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/health-insurance-premium-gate-db.ts:27`                    | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
 | `scripts/security/health-insurance-premium-gate-db.ts:28`                    | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
@@ -895,6 +911,8 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/health-insurance-tenant-isolation-db.ts:24`                | `PR53_REF`                             | `process.env.PR53_REF`                                                      |
 | `scripts/security/health-insurance-tenant-isolation-db.ts:33`                | `TENANT_ISOLATION_CHAIN`               | `process.env.TENANT_ISOLATION_CHAIN`                                        |
 | `scripts/security/health-insurance-tenant-isolation-db.ts:35`                | `PORT`                                 | `process.env.PORT`                                                          |
+| `scripts/security/health-insurance-ui-data-db.ts:16`                         | `PORT`                                 | `process.env.PORT`                                                          |
+| `scripts/security/health-insurance-ui-data-db.ts:18`                         | `PORT`                                 | `process.env.PORT`                                                          |
 | `scripts/security/health-insurance-ui-data-db.ts:19`                         | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/health-insurance-ui-data-db.ts:20`                         | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
 | `scripts/security/health-insurance-ui-data-db.ts:21`                         | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |

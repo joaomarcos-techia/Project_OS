@@ -104,8 +104,9 @@ clique. A tela só muda depois do `refresh`, com o estado lido de novo do banco.
   - `patient-insurance-state.test.ts` 8/8.
 - **Para a UI:** pode trocar a moldura (cards, densidade, ícones). Manter os `data-testid` acima e a ordem das seções:
   carteirinhas, cobertura, autorizações, guias.
-- **Rótulo da guia (14/11, fim da noite):** a aba passou a usar o mesmo rótulo da lista de guias, tipo + número ("Consulta 1",
-  "SP/SADT 1"). Antes dizia "Guia 1" e a jornada E2E pegou a diferença.
+- **Rótulo da guia:** "Guia de consulta nº 1" / "Guia de SP/SADT nº 1", pelo helper único `_lib/guide-label.ts` (decisão
+  de UX, §8). A jornada E2E de 14/11 pegou a aba dizendo "Guia 1" enquanto a lista dizia "Consulta 1"; as duas formas
+  saíram.
 - **Permissões revisadas (14/11, fim da noite):**
   - A regra da aba é a do módulo inteiro: `conveniosAccess` exige `view:financial` em todas as telas de Convênios,
     inclusive Carteirinhas ("ver Convênios = ver o financeiro"). A aba não amplia nem restringe nada.
@@ -181,6 +182,13 @@ UI. O TISS repassa o HTML do servidor, o DOM e a pilha capturados quando houver 
 - A hipótese do layout compartilhado **não está provada**. Sem reprodução, a causa não é atribuída a ninguém.
 - A branch de UI não altera Sentry nem instrumentação (conferido no diff do fim da noite de 14/11). O Preview continua rotulado
   `preview`.
+- **Pista da UI (14/11):** no DEV local, aviso de hidratação de **atributo** (id do `useId` divergente acima do
+  `PainelShell`; `/equipe` 5 em 30 cargas, `/pacientes` 1 em 10). O #418 do R51 é de texto.
+  - Em produção o React não avisa divergência de atributo; o efeito mensurável seria `aria-labelledby` apontando para
+    id inexistente.
+  - Conferido no Preview `12ab24f6` da UI, só leitura, conta sintética: 10 cargas de `/equipe` com o menu "Ações de …"
+    aberto, **0 quebradas**, nenhum aviso no console (`evidence/tiss-ciclo-2026-11-14-fim-noite-preview-preflight/`).
+  - Causa ainda aberta, com a UI; não atribuída.
 
 ## 8. Divisão de arquivos com a branch de UI (14/11, fim da noite)
 
@@ -205,6 +213,24 @@ comum**. Proposta, sem alterar a branch da UI:
 - Depois roda o `page.test.tsx`, os testes de agenda e caixa e a jornada E2E inteira no Preview.
 - Se o #55 entrar antes, a UI faz o mesmo com os trechos do TISS.
 
-**Terminologia de guias** (para a revisão de linguagem da UI): hoje a lista de guias e a ficha usam "Consulta 1" e
-"SP/SADT 1"; repasses e solicitações usam "Guia 1"; o lote mostra só o número. Uma forma única é decisão de UX. O TISS
-só pede que o número da guia continue visível.
+**Resposta da UI (14/11):** de acordo com §4 e §8, e com a ordem "UI primeiro". Os commits do agente de UI desde
+`e47ec2f0` cruzam com o #55 em só 3 arquivos:
+
+- o drawer da agenda (UX-005/006/007 e foco depois do cadastro rápido);
+- `agenda/data.ts` (`canManageProcedures`, `canCreatePatient`);
+- o subtítulo da ficha.
+
+Os demais arquivos em comum vêm da base de UI (`ui/refactor-qoro-20261108`).
+
+**Terminologia de guias** (decidida pela UI, aplicada pelo TISS em 14/11):
+
+- forma longa "Guia de consulta nº 1" / "Guia de SP/SADT nº 1" em links, títulos, avisos, ficha, repasses e
+  solicitações;
+- forma curta "nº 1" só onde o tipo está dito ao lado;
+- nunca "Consulta 1" sozinho;
+- número sempre como gravado.
+
+O helper é `convenios/_lib/guide-label.ts`, com teste.
+
+**Títulos de página:** o gate `page-titles.test.ts` da UI (WCAG 2.4.2) exige `metadata.title` em toda página, sem
+"Qoro". As 13 páginas de Convênios já têm, desde `e552a692`.

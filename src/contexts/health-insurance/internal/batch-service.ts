@@ -168,11 +168,50 @@ export async function createBatchInTx(
     args.guideIds.map((id) => sql`${id}::uuid`),
     sql`, `,
   );
-  return one<string>(
-    tx,
-    sql`SELECT public.hi_batch_create(${args.clinicId}::uuid, ${args.insurerId}::uuid, ${args.guideType},
+  const create = (q: Tx) =>
+    one<string>(
+      q,
+      sql`SELECT public.hi_batch_create(${args.clinicId}::uuid, ${args.insurerId}::uuid, ${args.guideType},
           ARRAY[${ids}]::uuid[], ${args.idempotencyKey}, ${args.replacesBatchId ?? null}::uuid) AS id`,
-  );
+    );
+  // P14.2 (G.7): pedidos simultâneos. A função do banco já é idempotente pela chave em sequência;
+  // em paralelo, o perdedor esbarra na unicidade. O savepoint isola a tentativa para a transação
+  // de quem chama continuar válida.
+  try {
+    return await tx.transaction((sp) => create(sp as unknown as Tx));
+  } catch (error) {
+    const e = error as {
+      code?: string;
+      cause?: { code?: string; constraint_name?: string; message?: string };
+    };
+    const code = e.code ?? e.cause?.code;
+    const constraint = e.cause?.constraint_name;
+    // O mesmo pedido (mesma chave) acabou de ser gravado por outra requisição (duplo clique,
+    // retentativa de rede). O conflito pode vir pela chave ou pelas guias, que o pedido gêmeo pegou
+    // primeiro; com a chave já gravada, repetir devolve o lote existente pela idempotência da função
+    // (que recusa se o pedido gravado for outro).
+    if (code === '23505') {
+      const [twin] = (await tx.execute(
+        sql`SELECT 1 AS found FROM public.hi_batches
+             WHERE clinic_id = ${args.clinicId}::uuid AND idempotency_key = ${args.idempotencyKey}`,
+      )) as unknown as Array<{ found: number }>;
+      if (twin || constraint === 'hi_batches_idem_uniq') return create(tx);
+    }
+    // A guia já está (ou acabou de entrar, por outra pessoa) num lote ativo: pelo índice ou pela
+    // própria função, que levanta 23505 com mensagem. A ação genérica traduziria 23505 para "Este
+    // registro já existe."; aqui vira a regra de negócio, com o que fazer.
+    if (
+      code === '23505' &&
+      (constraint === 'hi_batch_guides_active_uniq' ||
+        /outro lote ativo/u.test(e.cause?.message ?? ''))
+    ) {
+      throw new BatchRuleError(
+        'Uma das guias escolhidas já está em outro lote ativo. Atualize a lista e escolha de novo.',
+        'GUIDE_IN_ACTIVE_BATCH',
+      );
+    }
+    throw error;
+  }
 }
 
 // ── 2/3. Validar e exportar ─────────────────────────────────────────────

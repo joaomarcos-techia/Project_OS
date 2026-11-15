@@ -26,7 +26,7 @@ import {
 
 import { startScratchSchema, grantPaidSubscription, credentialAllPlans } from './scratch-schema';
 
-const cluster = await startScratchSchema({ port: 55503, maxConnections: 24 });
+const cluster = await startScratchSchema({ port: Number(process.env.PORT ?? 55503), maxConnections: 24 });
 const { sql } = cluster;
 // O pool do app lê o ambiente ao ser importado: aponta para o cluster local ANTES do import.
 // As variáveis públicas são os mesmos valores falsos do CI; nada aponta para DEV ou produção.
@@ -34,7 +34,7 @@ process.env.DATABASE_URL = cluster.url;
 delete process.env.DATABASE_URL_RUNTIME;
 process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://ci.supabase.co';
 process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_ci';
-if (!/@(?:127\.0\.0\.1|localhost):55503\//u.test(cluster.url))
+if (!new RegExp(`@(?:127\\.0\\.0\\.1|localhost):${process.env.PORT ?? 55503}/`, 'u').test(cluster.url))
   throw new Error('não é o cluster local');
 const { withTenant } = await import('../../src/lib/db/tenant');
 const SYS = '00000000-0000-0000-0000-0000000000aa';

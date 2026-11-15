@@ -20,7 +20,7 @@ import { randomUUID } from 'node:crypto';
 
 import { grantPaidSubscription, startScratchSchema, credentialAllPlans } from './scratch-schema';
 
-const PORT = 55509;
+const PORT = Number(process.env.PORT ?? 55509);
 const cluster = await startScratchSchema({ port: PORT, maxConnections: 32 });
 const { sql } = cluster;
 process.env.DATABASE_URL = cluster.url;

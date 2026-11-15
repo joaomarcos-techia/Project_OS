@@ -25,7 +25,7 @@ import { startScratchSchema, type ScratchCluster, grantPaidSubscription } from '
 
 type Sql = ScratchCluster['sql'];
 
-const cluster = await startScratchSchema({ port: 55502, maxConnections: 48 });
+const cluster = await startScratchSchema({ port: Number(process.env.PORT ?? 55502), maxConnections: 48 });
 const { sql } = cluster;
 const SYS = '00000000-0000-0000-0000-0000000000aa';
 const HASH = (c: string): string => c.repeat(64).slice(0, 64);

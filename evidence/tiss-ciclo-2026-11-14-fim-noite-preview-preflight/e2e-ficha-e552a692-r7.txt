@@ -1,0 +1,9 @@
+E2E_RUN=848YD
+
+Running 2 tests using 1 worker
+
+E2E_RUN=848YD
+  ok 1 [chromium] › e2e\convenios-config-preview.spec.ts:1115:1 › ficha do paciente: aba Convênios com carteirinha mascarada, cobertura e guia; quem não vê o financeiro não tem a aba (39.8s)
+  ok 2 [chromium] › e2e\convenios-config-preview.spec.ts:1163:1 › ficha do paciente: aba Convênios por teclado, outra clínica, vazio, duas carteirinhas (uma vencida), trial e suspensa (48.5s)
+
+  2 passed (1.5m)
