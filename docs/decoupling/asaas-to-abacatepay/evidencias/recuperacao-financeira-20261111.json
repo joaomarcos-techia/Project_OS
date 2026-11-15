@@ -25686,5 +25686,368 @@
     "otherWorktreesOrFilesModified": false,
     "previousLocalEvidenceBlocksPreserved": 47,
     "previousCommittedEvidenceBlocksPreserved": 46
+  },
+  "remoteSyntheticAndComposedBuild20261115": {
+    "observedAt": "2026-11-15T22:23:13.596Z",
+    "authorization": "Owner authorized standard GitHub Actions synthetic-only alternative; Claude/TISS may resume. No new authorization for real data or Production.",
+    "sourceRef": "59695b9b2e1c7cd7487d76ca02cc56796eb96f3f",
+    "run": 43768247372,
+    "runUrl": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43768247372",
+    "conclusion": "success",
+    "sourceTransport": {
+      "privateRepository": true,
+      "draftOnly": true,
+      "releaseTag": "qoro-gate-b-synthetic-94f6da4a",
+      "assetId": 752472125,
+      "bytes": 234562048,
+      "sha256": "3902f2007742df4016450eeaece806a8f2bc0b535631d33da9a5e691b59ce3f6",
+      "downloadJobOnlyContentsWrite": true,
+      "projectExecutionJobContentsRead": true,
+      "personalTokenOrProductionSecretCopied": false,
+      "artifactsRetentionDays": 1
+    },
+    "initialAttempts": [
+      {
+        "ref": "f909f25127ddc1cf515220e452ec5289160e3521",
+        "syntheticRun": 43767582248,
+        "ciRun": 43767586812,
+        "result": "FAIL",
+        "cause": "Draft asset needs push access (HTTP403); two newly added environment fixtures missed required NODE_ENV. No database or build ran."
+      },
+      {
+        "ref": "e2936e7a4f2f49976129c7a259c19b9587d79c83",
+        "syntheticRun": 43767903554,
+        "result": "FAIL",
+        "cause": "Strict container guard rejected cron setting embedded in bash text; synthetic CRON_SECRET shorter than 32 chars. Confinement was not weakened; separate argv and compliant fake secret fixed the harness.",
+        "cleanupComplete": true
+      }
+    ],
+    "restore": {
+      "status": "PASS",
+      "stage": "cleanup",
+      "checks": [
+        {
+          "name": "official_pinned_image",
+          "status": "PASS",
+          "evidence": {
+            "Id": "sha256:75e157ef7b7e35e286a2df56e2fb1be697bbf0b07fae0565f3c1da0b33f4629a",
+            "RepoDigests": [
+              "public.ecr.aws/supabase/postgres@sha256:c141fd17ac6a76c4323e90b3aee8ff1a23d2e89e547c2b963cfadc309c079cc2"
+            ]
+          }
+        },
+        {
+          "name": "versions",
+          "status": "PASS",
+          "evidence": {
+            "docker": "28.0.4 / 28.0.4",
+            "gpg": "gpg (GnuPG) 2.4.4"
+          }
+        },
+        {
+          "name": "pg_dump_gpg_AES256_stream",
+          "status": "PASS",
+          "evidence": {
+            "bytes": 1170,
+            "sha256": "7686e73857df91f59bbbb998c06fb187a34a9cb0602008bbfd521403a6bd51e2",
+            "dumpExit": 0,
+            "gpgExit": 0,
+            "postgres": "17.11"
+          }
+        },
+        {
+          "name": "restored_schema_data_indexes_constraints_functions_journal",
+          "status": "PASS",
+          "evidence": {
+            "exitCodes": { "gpg": 0, "psql": 0 },
+            "snapshot": {
+              "parents": [
+                { "id": 1, "label": "Clínica sintética — João" },
+                { "id": 2, "label": "漢字 — fixture" }
+              ],
+              "children": [
+                { "id": 1, "parent_id": 1, "amount": 1.05, "note": "ação" },
+                { "id": 2, "parent_id": 1, "amount": 2.1, "note": "UTF8" },
+                {
+                  "id": 3,
+                  "parent_id": 2,
+                  "amount": 3.15,
+                  "note": "sem dados reais"
+                }
+              ],
+              "journal": [
+                {
+                  "id": 1,
+                  "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                },
+                {
+                  "id": 2,
+                  "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                }
+              ],
+              "tables": ["children", "journal", "parents"],
+              "indexes": [
+                [
+                  "children_parent_idx",
+                  "CREATE INDEX children_parent_idx ON qoro_synthetic.children USING btree (parent_id)"
+                ],
+                [
+                  "children_pkey",
+                  "CREATE UNIQUE INDEX children_pkey ON qoro_synthetic.children USING btree (id)"
+                ],
+                [
+                  "journal_pkey",
+                  "CREATE UNIQUE INDEX journal_pkey ON qoro_synthetic.journal USING btree (id)"
+                ],
+                [
+                  "parents_label_key",
+                  "CREATE UNIQUE INDEX parents_label_key ON qoro_synthetic.parents USING btree (label)"
+                ],
+                [
+                  "parents_pkey",
+                  "CREATE UNIQUE INDEX parents_pkey ON qoro_synthetic.parents USING btree (id)"
+                ]
+              ],
+              "constraints": [
+                [
+                  "children_amount_check",
+                  "c",
+                  "CHECK ((amount >= (0)::numeric))",
+                  true
+                ],
+                [
+                  "children_parent_id_fkey",
+                  "f",
+                  "FOREIGN KEY (parent_id) REFERENCES qoro_synthetic.parents(id)",
+                  true
+                ],
+                ["children_pkey", "p", "PRIMARY KEY (id)", true],
+                [
+                  "journal_hash_check",
+                  "c",
+                  "CHECK ((length(hash) = 64))",
+                  true
+                ],
+                ["journal_pkey", "p", "PRIMARY KEY (id)", true],
+                ["parents_label_key", "u", "UNIQUE (label)", true],
+                ["parents_pkey", "p", "PRIMARY KEY (id)", true]
+              ],
+              "functionCount": 3,
+              "orphans": 0,
+              "invalidIndexes": 0
+            },
+            "snapshotSha256": "2ae591574f5384e62e7c253ae5ae67186e342b4373268534f38cda7cd4305ffa"
+          }
+        },
+        { "name": "foreign_key_enforced", "status": "PASS" },
+        {
+          "name": "wrong_passphrase",
+          "status": "PASS",
+          "evidence": { "gpg": 2, "psql": 0 }
+        },
+        {
+          "name": "hash_mismatch_before_restore",
+          "status": "PASS",
+          "evidence": { "rejected": true }
+        },
+        {
+          "name": "tampered_ciphertext",
+          "status": "PASS",
+          "evidence": { "gpg": 2, "psql": 3 }
+        },
+        {
+          "name": "truncated_ciphertext",
+          "status": "PASS",
+          "evidence": { "gpg": 2, "psql": 0 }
+        },
+        {
+          "name": "invalid_SQL_psql_nonzero",
+          "status": "PASS",
+          "evidence": { "gpg": 0, "psql": 3 }
+        },
+        { "name": "journal_divergence", "status": "PASS" },
+        { "name": "data_integrity_divergence", "status": "PASS" },
+        { "name": "missing_label_inspection_contract", "status": "PASS" },
+        { "name": "network_enabled_inspection_contract", "status": "PASS" },
+        { "name": "published_port_inspection_contract", "status": "PASS" },
+        { "name": "unexpected_target_inspection_contract", "status": "PASS" },
+        {
+          "name": "cancel",
+          "status": "PASS",
+          "evidence": {
+            "hostChildrenClosed": true,
+            "partialDestinationDisposed": true,
+            "platform": "linux"
+          }
+        },
+        {
+          "name": "deadline",
+          "status": "PASS",
+          "evidence": {
+            "hostChildrenClosed": true,
+            "partialDestinationDisposed": true,
+            "platform": "linux"
+          }
+        },
+        {
+          "name": "postgres_terminated",
+          "status": "PASS",
+          "evidence": {
+            "hostChildrenClosed": true,
+            "partialDestinationDisposed": true,
+            "platform": "linux"
+          }
+        },
+        {
+          "name": "gpg_terminated",
+          "status": "PASS",
+          "evidence": {
+            "hostChildrenClosed": true,
+            "partialDestinationDisposed": true,
+            "platform": "linux"
+          }
+        }
+      ],
+      "resources": {
+        "availablePhysicalMiB": 6774,
+        "freeDiskGiB": 10.755912780761719
+      },
+      "dockerEndpoint": "unix:///var/run/docker.sock",
+      "cleanupComplete": true,
+      "cleanupFailures": [],
+      "realDataUsed": false,
+      "productionAccess": false,
+      "windowsInterruptionValidated": false,
+      "completedAt": "2026-11-15T22:16:53.225Z"
+    },
+    "composedBuild": {
+      "status": "PASS",
+      "stage": "parity",
+      "source": "94f6da4aeb32b1ae7da856dc9afa105120ce6dd9",
+      "sharedSql": "4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269",
+      "archiveSha256": "3902f2007742df4016450eeaece806a8f2bc0b535631d33da9a5e691b59ce3f6",
+      "archiveBytes": 234562048,
+      "files": 2785,
+      "sqlHashes": 160,
+      "manifestSha256": "bf2775be25ae3bdb2d58d52b99708a3d1ee32620425f1d98ac214a849185af5f",
+      "resources": {
+        "availablePhysicalMiB": 6661,
+        "freeDiskGiB": 9.514144897460938
+      },
+      "node": "v22.23.4",
+      "commands": [
+        {
+          "command": "pnpm install --frozen-lockfile",
+          "exitCode": 0,
+          "durationMs": 18652
+        },
+        {
+          "command": "/opt/hostedtoolcache/node/22.23.4/x64/bin/node --max-old-space-size=4096 /tmp/qoro-composed-build-hFcssF/node_modules/next/dist/bin/next build",
+          "exitCode": 0,
+          "durationMs": 245025
+        }
+      ],
+      "startedAt": "2026-11-15T22:16:54.730Z",
+      "completedAt": "2026-11-15T22:21:28.222Z",
+      "environment": "allowlist; new HOME; synthetic values only; no inherited tokens/DSNs/financial URLs",
+      "securityHarnessInjected": false,
+      "cleanupComplete": true,
+      "deployed": false,
+      "productionAccess": false
+    },
+    "runJobs": [
+      {
+        "name": "private-input",
+        "startedAt": "2026-11-15T22:15:17Z",
+        "completedAt": "2026-11-15T22:15:26Z",
+        "conclusion": "success"
+      },
+      {
+        "name": "synthetic-and-composed",
+        "startedAt": "2026-11-15T22:15:28Z",
+        "completedAt": "2026-11-15T22:21:32Z",
+        "conclusion": "success"
+      }
+    ],
+    "platformLimits": [
+      "Linux only: Windows Ctrl+C/process cancellation not validated",
+      "Deadline uses AbortSignal.timeout; native 120s timer retains prior unit-test evidence",
+      "Unsafe network/port/label/name cases use mutated inspection contracts, not unsafe live containers",
+      "No managed Supabase backup restore or real data recovery claim"
+    ],
+    "productionAccess": false,
+    "financialProviderCallsAuthorizedOrExecuted": false,
+    "windowsSettingsChanged": false,
+    "otherWorktreeChanges": false,
+    "frozenFinancialCodeModified": false,
+    "frozenMigrationsOrTarModified": false,
+    "realB1B": "NOT_READY_NOT_AUTHORIZED",
+    "B2_B3": "NOT_AUTHORIZED",
+    "production": "NO_GO",
+    "R1_R4": "PARTIAL_NOT_ACCEPTED",
+    "reports": [
+      {
+        "name": "restore.json",
+        "sha256": "d8b81996a59b8beca66b00e3792e34d02d3c03071477835a3c1664d44ff45ddb"
+      },
+      {
+        "name": "composed-build.json",
+        "sha256": "d28167ba64b044223f6721e063360549430dcc9a4108af575f9de3de2a3679df"
+      },
+      {
+        "name": "install.log",
+        "sha256": "e8a68101308fa93a9351cc77034be6ee696e4a342e2c17e0037077d65c7a4587"
+      },
+      {
+        "name": "next-build.log",
+        "sha256": "9f19667b85790c4172094b2a66e57c7e80423240579873c9b1601ec362638dad"
+      }
+    ],
+    "artifactCleanup": {
+      "observedAt": "2026-11-15T22:23:57.967Z",
+      "removed": [
+        {
+          "run": 43767903554,
+          "id": 14182419032,
+          "name": "gate-b-frozen-private-input",
+          "bytes": 234562194,
+          "verifiedAbsent": true
+        },
+        {
+          "run": 43768247372,
+          "id": 14182594742,
+          "name": "gate-b-frozen-private-input",
+          "bytes": 234562194,
+          "verifiedAbsent": true
+        }
+      ],
+      "reportsPreserved": true,
+      "privateDraftAndOriginalTarPreserved": true,
+      "remainingRepositoryArtifactCount": 33,
+      "remainingRepositoryArtifactBytes": 19051128
+    },
+    "localHostFinal": {
+      "observedAt": "2026-11-15T22:24:22.5659466Z",
+      "physicalTotalMiB": 7877,
+      "physicalFreeMiB": 1032,
+      "freeDiskGiB": 17.05,
+      "dockerStartedByThisRun": false,
+      "localHeavyBuildStarted": false,
+      "otherAgentProcessesStopped": false
+    },
+    "warnings": [
+      "Frozen Sentry withSentryConfig import deprecated for future v11",
+      "Webpack cache serialization of large strings",
+      "GitHub forces Actions v4 Node20 runtime to Node24; project build used Node22.23.4"
+    ],
+    "billingLimit": "Standard runners only; 5/35 minute caps; no plan/budget increase. Current remaining allowance unavailable to API; no claim of measured zero monetary cost.",
+    "finalHeadCI": "Must independently pass on final documentation HEAD; final readback recorded in PR53, not inferred from dedicated run.",
+    "utf8DecodedFromDownloadedReportVerified": true,
+    "generalCIFirstRun": {
+      "run": 43768252738,
+      "conclusion": "FAIL",
+      "gate": "security inventory",
+      "cause": "The added environment access was listed, but generated document count remained545 instead of546. No guard, registry, scanner or baseline was weakened. Count corrected to observed AST result; final HEAD requires independent GREEN CI."
+    }
   }
 }

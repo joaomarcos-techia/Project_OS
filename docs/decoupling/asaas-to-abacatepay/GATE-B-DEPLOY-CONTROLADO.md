@@ -1,5 +1,32 @@
 # Gate B — proposta de deploy técnico com aquisição fechada
 
+## Ensaio remoto concluído — 15/11/2026
+
+**Checkpoint prevalente: RESTORE SINTÉTICO PASS (Linux); BUILD COMPOSTO PASS.** [Execução dedicada `43768247372`](https://github.com/joaomarcos-techia/Project_OS/actions/runs/43768247372), operadores `59695b9b2e1c7cd7487d76ca02cc56796eb96f3f`, ambos jobs SUCCESS. Resolvido o impedimento de RAM para estes testes pelo runner padrão, sem usar a máquina Windows para Docker/build pesado e sem interromper Claude/TISS. Isto não demonstra capacidade/proteção do host local para dados reais.
+
+| Verificação | Evidência observada |
+|---|---|
+| Capacidade remota | Antes do restore: 6.774 MiB físicos disponíveis / 10,76 GiB disco. Antes do build: 6.661 MiB / 9,51 GiB. Mínimo de 4 GiB preservado |
+| Ferramentas reais | Docker Client/Server 28.0.4; PostgreSQL/pg_dump/psql da imagem 17.11; GPG 2.4.4; AES256 em stream. Dump, GPG e psql retornaram zero no caso positivo |
+| Conteúdo recuperado | 3 tabelas, 2 pais, 3 filhos, 2 entradas de journal, 5 índices, 7 constraints, FK efetivamente rejeitando órfão e função retornando 3. Igualdade com snapshot da origem, UTF8, hash de conteúdo; zero órfãos/índices inválidos |
+| Falhas reais | Senha errada GPG2/psql0; adulteração GPG2/psql3; truncamento GPG2/psql0; SQL inválido GPG0/psql3. Nenhum resultado aceito por psql0 isoladamente; hash, journal e conteúdo divergentes também recusados |
+| Confinamento | Imagem oficial versionada, digest `c141fd17ac6a76c4323e90b3aee8ff1a23d2e89e547c2b963cfadc309c079cc2`; IDs completos, label, rede none, sem portas, logs none, PGDATA/tmp tmpfs, 2 GiB RAM/swap igual, cron off. Inspeções adulteradas de nome/label/rede/porta recusadas por contrato, sem criar contêineres inseguros |
+| Interrupções reais Linux | Abort, deadline curto com AbortSignal, PostgreSQL encerrado e GPG encerrado sob backpressure. Cadeia rejeitada; filhos Docker/GPG fechados e destino parcial descartado. Não prova Ctrl+C Windows nem substitui a evidência unitária do timer interno de 120 s |
+| Descarte antes do build | Todos os contêineres próprios removidos por ID/label conferidos; diretório sintético, cifras e keyring/agent exclusivos descartados. `cleanupComplete=true`, sem falha de limpeza; o build confirmou zero contêineres do ensaio |
+| TAR exato | SHA256 `3902f2007742df4016450eeaece806a8f2bc0b535631d33da9a5e691b59ce3f6`; 234.562.048 bytes; 2.785 arquivos/nome UTF8; 160 hashes SQL/journal ordenado; manifesto bf2775be…; 0160/0161 e código funcional TISS ausentes |
+| Build real | Node22.23.4 / pnpm11.17.0 / Next15.5.28; instalação frozen zero; `node --max-old-space-size=4096 <extração>/node_modules/next/dist/bin/next build` zero em **245.025 ms**, após o restore. Lint/types do Next incluídos; 2.785 arquivos de entrada permanecem idênticos, sem harness injetado/alteração de lockfile |
+| Avisos preservados | Depreciação `withSentryConfig` para futura versão11 e cache webpack de strings grandes, sem erro de build. Actions v4 usam runtime Node24 forçado pelo GitHub; o projeto foi compilado em Node22.23.4. Nenhuma atualização oportunista do pacote congelado |
+
+Total **20 verificações integradas PASS**. Evidências permanentes: bloco `remoteSyntheticAndComposedBuild20261115` no [registro existente](evidencias/recuperacao-financeira-20261111.json), incluindo hashes dos quatro relatórios/logs; cópias locais em `dist/gate-b-ci-59695b9b`. Relatórios no Actions têm retenção de um dia. Os dois artefatos privados temporários de transporte foram removidos e a ausência foi conferida; cerca de469 MB liberados no Actions, com 19.051.128 bytes remanescentes no inventário do repositório naquele instante. TAR original e rascunho privado preservados. Nenhum dado real, passphrase, SQL decifrado ou saída `.next` foi enviado como relatório.
+
+As tentativas iniciais FAIL ficam registradas: rascunho exigia token com acesso de push (403), dois objetos de teste sem NODE_ENV, argumentos de cron embutidos no bootstrap recusados pelo guard e CRON_SECRET sintético curto. Correções somente no ensaio/transporte; guard, código financeiro e SQL congelados preservados. O job de transporte tem `contents:write` e não executa checkout/código do projeto; a VM de execução tem apenas `contents:read`. Não copiar PAT/segredos para contornar esse limite.
+
+**CI geral é gate independente:** conferir o HEAD final e seus checks no PR53; não usar apenas o workflow sintético ou a CI antiga como prova do novo SHA. O teste dedicado comprova o pacote TAR identificado, sem publicar/deployar o build. Foram usados runners padrão, timeouts de5/35 minutos e retenção curta; nenhum plano/orçamento foi aumentado. A API de billing não concede leitura do saldo atual da franquia, portanto não declarar custo financeiro zero medido.
+
+**Devolução da máquina:** leitura22:24:22UTC /19:24:22 Brasília: RAM física livre1.032MiB/7.877MiB e C:17,05GiB. Variações de disco/RAM locais não são atribuídas a limpeza desta execução; nenhuma carga pesada local foi iniciada, nenhum processo alheio foi parado e nenhuma configuração Windows foi alterada. Claude/TISS podem continuar; a capacidade global da máquina não é reservada pelo operador.
+
+**B1-B REAL: NÃO APTO / NÃO AUTORIZADO. PRODUCTION: NO-GO.** Faltam ambiente aprovado para dados reais (proteção disco/pagefile/hibernação/WSL; TLS real), plano/retenção efetivos, procedimento/backup real identificado e responsáveis/autorização. O ensaio sintético remoto não valida backup físico gerenciado nem recuperação do serviço completo. B2-A/B2-B/B3, webhook/consumidores live, contratação real e aceite de R1–R4 permanecem fora da autorização. Não há novo desenvolvimento financeiro necessário para reconhecer os dois PASS acima.
+
 ## Alternativa remota autorizada — 15/11/2026
 
 **Checkpoint prevalente:** o titular informou que não consegue liberar mais RAM e autorizou executar o ensaio no GitHub enquanto Claude retoma TISS. Não será iniciado Docker/build pesado local. O diagnóstico anterior e a CI GREEN do HEAD documental `5b80efa6` (run `43755905739`, 7.266 testes / 22 E2E / zero SKIP) permanecem como evidências históricas.
