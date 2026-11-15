@@ -11,10 +11,16 @@
  *   5. comprovante adulterado e ausente: nunca entregues, e a auditoria da falha fica gravada;
  *   6. compensação: transação que não confirma remove o objeto gravado;
  *   7. conteúdo que não bate com o tipo e autorização cancelada: recusados, nada gravado;
- *   8. outra clínica não lê nem anexa (RLS): "inexistente nesta clínica".
+ *   8. outra clínica não lê nem anexa (RLS): "inexistente nesta clínica";
+ *   9. pedido manual da Guia de Consulta nasce "solicitada"; resposta com evidência vira autorizada
+ *      (senha cifrada, autor, histórico) ou autorizada em parte;
+ *  10. sem evidência, data no futuro ou antes do pedido, quantidade acima da pedida, nada concedido e
+ *      número da operadora repetido: recusados sem mudar nada;
+ *  11. versão antiga, autorização da SP/SADT (responde pela solicitação), já respondida, outra clínica
+ *      e carteirinha de outra clínica: recusados;
+ *  12. negativa com motivo; em trial o pedido é recusado (D24) e nada é gravado.
  *
- *   PORT=55548 NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs" npx tsx --tsconfig tsconfig.scripts.json \
- *     --conditions=react-server scripts/security/health-insurance-authorization-db.ts
+ *   PORT=55548 NODE_OPTIONS="--conditions=react-server" npx tsx scripts/security/health-insurance-authorization-db.ts
  */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -237,8 +243,100 @@ try {
   );
   pass('outra clínica não lê o comprovante nem anexa na autorização desta (RLS)');
 
-  assert.equal(passed, 8);
-  console.log(`\nOK: ${passed}/8 provas da P6.1 (autorização: vencimento, comprovante, isolamento)`);
+  // 9. Pedido manual da Guia de Consulta e resposta com evidência (total e parcial).
+  const kind = (k: string) => (e: unknown) => (e as { kind?: string }).kind === k;
+  const authRow = async (id: string) =>
+    (await sql`select status, version, guide_type, password_encrypted, operator_guide_number, recorded_by from public.hi_authorizations where id = ${id}::uuid`)[0]!;
+  const itemsOf = async (id: string) =>
+    sql`select id, procedure_code, quantity_requested, quantity_authorized from public.hi_authorization_items where authorization_id = ${id}::uuid order by procedure_code`;
+  const requestConsulta = (c: Clinic, m: string, codes: string[]) =>
+    run(c)((tx) =>
+      auth.requestManualAuthorizationTx(tx, {
+        clinicId: c.clinicId, insurerId: c.insurerId, membershipId: m, requestedOn: addDays(today, -3),
+        items: codes.map((procedureCode) => ({ tableCode: '22', procedureCode, quantityRequested: 1 })), actorUserId: c.doctorId,
+      }),
+    );
+  const respond = (c: Clinic, id: string, over: Record<string, unknown>) =>
+    run(c)(async (tx) =>
+      auth.recordManualAuthorizationResponseTx(tx, {
+        decision: 'authorized', clinicId: c.clinicId, authorizationId: id, version: Number((await authRow(id)).version),
+        authorizedOn: addDays(today, -1), actorUserId: c.doctorId, items: [], ...over,
+      } as Parameters<typeof auth.recordManualAuthorizationResponseTx>[1]),
+    );
+  const { authorizationId: c1 } = await requestConsulta(A, mA, ['10101012']);
+  assert.deepEqual(
+    [await authRow(c1)].map((r) => [r.status, r.guide_type]),
+    [['requested', 'consulta']],
+  );
+  const [it1] = await itemsOf(c1);
+  const OPNUM = `OPC${randomUUID().slice(0, 6)}`;
+  assert.deepEqual(
+    await respond(A, c1, { operatorGuideNumber: OPNUM, password: 'SENHA-SINTETICA-1', passwordValidUntil: addDays(today, 30), items: [{ itemId: it1!.id, quantityAuthorized: 1 }] }),
+    { status: 'authorized' },
+  );
+  const r1 = await authRow(c1);
+  assert.equal(r1.status, 'authorized');
+  assert.equal(String(r1.password_encrypted).includes('SENHA-SINTETICA-1'), false, 'senha em claro no banco');
+  assert.equal(r1.recorded_by, A.doctorId);
+  assert.deepEqual(
+    (await sql`select from_status, to_status from public.hi_authorization_events where authorization_id = ${c1}::uuid order by created_at`).map((e) => [e.from_status, e.to_status]),
+    [[null, 'requested'], ['requested', 'authorized']],
+  );
+  const { authorizationId: c2 } = await requestConsulta(A, mA, ['10101012', '10101039']);
+  const its2 = await itemsOf(c2);
+  assert.deepEqual(
+    await respond(A, c2, { operatorProtocol: 'PROT-SINT-2', items: [{ itemId: its2[0]!.id, quantityAuthorized: 1 }] }),
+    { status: 'partially_authorized' },
+  );
+  assert.deepEqual((await itemsOf(c2)).map((i) => i.quantity_authorized), [1, 0]);
+  pass('pedido manual de Consulta nasce solicitado; resposta com evidência: autorizada (senha cifrada, autor, histórico) e em parte');
+
+  // 10. Sem evidência, datas incoerentes, quantidade maior que a pedida e número repetido: recusados, nada muda.
+  const { authorizationId: c3 } = await requestConsulta(A, mA, ['10101012']);
+  const [it3] = await itemsOf(c3);
+  const v3 = Number((await authRow(c3)).version);
+  const one = [{ itemId: it3!.id, quantityAuthorized: 1 }];
+  await assert.rejects(respond(A, c3, { items: one }), kind('evidence_required'));
+  await assert.rejects(respond(A, c3, { operatorProtocol: 'P-1', authorizedOn: addDays(today, 2), items: one }), kind('invalid'));
+  await assert.rejects(respond(A, c3, { operatorProtocol: 'P-1', authorizedOn: addDays(today, -10), items: one }), kind('invalid'));
+  await assert.rejects(respond(A, c3, { operatorProtocol: 'P-1', items: [{ itemId: it3!.id, quantityAuthorized: 2 }] }), kind('invalid'));
+  await assert.rejects(respond(A, c3, { operatorProtocol: 'P-1', items: [{ itemId: it3!.id, quantityAuthorized: 0 }] }), kind('invalid'));
+  await assert.rejects(respond(A, c3, { operatorGuideNumber: OPNUM, items: one }), kind('duplicate_operator_number'));
+  const r3 = await authRow(c3);
+  assert.deepEqual([r3.status, Number(r3.version)], ['requested', v3]);
+  pass('sem evidência, data no futuro ou antes do pedido, quantidade acima da pedida, nada concedido e número repetido: recusados, nada muda');
+
+  // 11. Versão antiga, autorização da SP/SADT, já respondida, outra clínica e carteirinha de outra clínica.
+  await assert.rejects(
+    run(A)((tx) => auth.recordManualAuthorizationResponseTx(tx, { decision: 'authorized', clinicId: A.clinicId, authorizationId: c3, version: v3 + 5, authorizedOn: addDays(today, -1), operatorProtocol: 'P-2', items: one, actorUserId: A.doctorId })),
+    kind('conflict'),
+  );
+  const sadtAuth = await authorization(A, mA, 'requested', null);
+  await assert.rejects(respond(A, sadtAuth.id, { operatorProtocol: 'P-3', items: [{ itemId: sadtAuth.itemId, quantityAuthorized: 1 }] }), kind('state'));
+  await assert.rejects(respond(A, c1, { operatorProtocol: 'P-4', items: [{ itemId: it1!.id, quantityAuthorized: 1 }] }), kind('state'));
+  await assert.rejects(respond(B, c3, { operatorProtocol: 'P-5', items: one }), kind('not_found'));
+  await assert.rejects(requestConsulta(B, mA, ['10101012']), kind('invalid'));
+  pass('versão antiga, autorização da SP/SADT, já respondida, outra clínica e carteirinha de outra clínica: recusados');
+
+  // 12. Negativa com motivo; em trial, o pedido é recusado (D24) e nada é gravado.
+  assert.deepEqual(
+    await run(A)(async (tx) => auth.recordManualAuthorizationResponseTx(tx, { decision: 'denied', clinicId: A.clinicId, authorizationId: c3, version: Number((await authRow(c3)).version), denialReason: 'Negado pela operadora (sintético).', actorUserId: A.doctorId })),
+    { status: 'denied' },
+  );
+  assert.equal((await authRow(c3)).status, 'denied');
+  const countA = async () => Number((await sql`select count(*)::int as n from public.hi_authorizations where clinic_id = ${A.clinicId}::uuid`)[0]!.n);
+  const nBefore = await countA();
+  await sql`update public.subscriptions set billing_status = 'trial', trial_ends_at = now() + interval '10 days', enforce_trial_deadline = true where clinic_id = ${A.clinicId}::uuid`;
+  try {
+    await assert.rejects(requestConsulta(A, mA, ['10101012']), (e: unknown) => /disponível para clínicas com assinatura ativa/u.test(String((e as Error).message)));
+  } finally {
+    await sql`update public.subscriptions set billing_status = 'active', trial_ends_at = null, enforce_trial_deadline = false where clinic_id = ${A.clinicId}::uuid`;
+  }
+  assert.equal(await countA(), nBefore);
+  pass('negativa com motivo registrada; em trial o pedido manual é recusado (D24) e nada é gravado');
+
+  assert.equal(passed, 12);
+  console.log(`\nOK: ${passed}/12 provas da P6.1 (autorização: vencimento, comprovante, pedido manual de Consulta, isolamento)`);
 } finally {
   await cluster.stop();
 }

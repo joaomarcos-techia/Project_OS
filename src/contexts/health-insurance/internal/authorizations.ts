@@ -18,6 +18,7 @@ import 'server-only';
 import { createHash, randomUUID } from 'node:crypto';
 
 import { and, eq, sql } from 'drizzle-orm';
+import { z } from 'zod';
 
 import { logAudit } from '@/lib/audit/log';
 import type { RequestContext } from '@/lib/audit/types';
@@ -25,9 +26,16 @@ import { decryptForTenant, encryptForTenant } from '@/lib/crypto/encryption';
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 import { metrics } from '@/lib/observability/metrics';
+import { assertPremiumFeatureTx } from '@/lib/premium-access';
 import { TissStorageError, type TissObjectStore } from '@/lib/storage/tiss-files';
 
-import { hiAuthorizationAttachments, hiAuthorizationEvents, hiAuthorizations } from '../schema-clinic';
+import {
+  hiAuthorizationAttachments,
+  hiAuthorizationEvents,
+  hiAuthorizationItems,
+  hiAuthorizations,
+  hiMemberships,
+} from '../schema-clinic';
 
 import { checkReceipt } from './authorization-rules';
 
@@ -36,11 +44,236 @@ const sha256 = (b: Uint8Array | string) => createHash('sha256').update(b).digest
 export class AuthorizationError extends Error {
   constructor(
     message: string,
-    readonly kind: 'not_found' | 'state' | 'invalid_receipt',
+    readonly kind:
+      | 'not_found'
+      | 'state'
+      | 'invalid_receipt'
+      | 'invalid'
+      | 'conflict'
+      | 'evidence_required'
+      | 'duplicate_operator_number',
   ) {
     super(message);
     this.name = 'AuthorizationError';
   }
+}
+
+// ── Pedido manual fora da SP/SADT (Consulta que o contrato manda autorizar) ───────────────────
+
+const uuid = z.string().uuid();
+const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u, 'Data inválida');
+
+const ManualRequestInput = z.object({
+  clinicId: uuid,
+  insurerId: uuid,
+  planId: uuid.nullable().optional(),
+  membershipId: uuid,
+  requestedOn: day,
+  items: z
+    .array(
+      z.object({
+        tableCode: z.string().regex(/^\d{2}$/u),
+        procedureCode: z.string().trim().min(1).max(10),
+        quantityRequested: z.number().int().min(1).max(999),
+      }),
+    )
+    .min(1)
+    .max(20),
+  actorUserId: uuid,
+});
+
+/**
+ * Pedido de autorização da Guia de Consulta (a SP/SADT pede pela solicitação, P6.2). Nasce
+ * "solicitada": a clínica pede no canal da operadora (adaptador manual, P6.4) e registra a resposta
+ * em `recordManualAuthorizationResponseTx`. Operação nova de Convênios (D24).
+ */
+export async function requestManualAuthorizationTx(
+  tx: Tx,
+  raw: z.input<typeof ManualRequestInput>,
+): Promise<{ authorizationId: string }> {
+  const input = ManualRequestInput.parse(raw);
+  await assertPremiumFeatureTx(tx, input.clinicId, 'health_insurance');
+  const [card] = await tx
+    .select({ id: hiMemberships.id })
+    .from(hiMemberships)
+    .where(
+      and(
+        eq(hiMemberships.clinicId, input.clinicId),
+        eq(hiMemberships.id, input.membershipId),
+        eq(hiMemberships.insurerId, input.insurerId),
+      ),
+    )
+    .limit(1);
+  if (!card) throw new AuthorizationError('A carteirinha não é desta operadora nesta clínica.', 'invalid');
+  const [auth] = await tx
+    .insert(hiAuthorizations)
+    .values({
+      clinicId: input.clinicId,
+      insurerId: input.insurerId,
+      planId: input.planId ?? null,
+      membershipId: input.membershipId,
+      guideType: 'consulta',
+      status: 'requested',
+      origin: 'manual',
+      requestedOn: input.requestedOn,
+      createdBy: input.actorUserId,
+    })
+    .returning({ id: hiAuthorizations.id });
+  for (const it of input.items) {
+    await tx.insert(hiAuthorizationItems).values({
+      clinicId: input.clinicId,
+      authorizationId: auth!.id,
+      tableCode: it.tableCode,
+      procedureCode: it.procedureCode,
+      quantityRequested: it.quantityRequested,
+    });
+  }
+  await tx.insert(hiAuthorizationEvents).values({
+    clinicId: input.clinicId,
+    authorizationId: auth!.id,
+    fromStatus: null,
+    toStatus: 'requested',
+    actorId: input.actorUserId,
+    note: 'pedido manual (Guia de Consulta)',
+  });
+  return { authorizationId: auth!.id };
+}
+
+const ResponseBase = { clinicId: uuid, authorizationId: uuid, version: z.number().int().min(1), actorUserId: uuid };
+const ManualResponseInput = z.discriminatedUnion('decision', [
+  z.object({ decision: z.literal('denied'), ...ResponseBase, denialReason: z.string().trim().min(3).max(500) }),
+  z.object({
+    decision: z.literal('authorized'),
+    ...ResponseBase,
+    authorizedOn: day,
+    operatorGuideNumber: z.string().trim().min(1).max(20).optional(),
+    operatorProtocol: z.string().trim().min(1).max(40).optional(),
+    password: z.string().trim().min(1).max(64).optional(),
+    passwordValidUntil: day.optional(),
+    items: z.array(z.object({ itemId: uuid, quantityAuthorized: z.number().int().min(0).max(999) })).min(1),
+  }),
+]);
+
+/**
+ * Resposta da operadora a um pedido manual de Consulta. "Autorizada" só com evidência (número da
+ * guia na operadora, senha ou protocolo) e autor; data da resposta nem no futuro (data da clínica)
+ * nem antes do pedido; número da operadora sem repetição; o que não foi concedido fica 0. A SP/SADT
+ * responde pela solicitação (P6.2), para a solicitação e a autorização não divergirem.
+ */
+export async function recordManualAuthorizationResponseTx(
+  tx: Tx,
+  raw: z.input<typeof ManualResponseInput>,
+): Promise<{ status: 'authorized' | 'partially_authorized' | 'denied' }> {
+  const input = ManualResponseInput.parse(raw);
+  const { clinicId } = input;
+  await assertPremiumFeatureTx(tx, clinicId, 'health_insurance');
+  const [auth] = await tx
+    .select({
+      id: hiAuthorizations.id,
+      status: hiAuthorizations.status,
+      version: hiAuthorizations.version,
+      guideType: hiAuthorizations.guideType,
+      insurerId: hiAuthorizations.insurerId,
+      requestedOn: hiAuthorizations.requestedOn,
+    })
+    .from(hiAuthorizations)
+    .where(and(eq(hiAuthorizations.clinicId, clinicId), eq(hiAuthorizations.id, input.authorizationId)))
+    .limit(1);
+  if (!auth) throw new AuthorizationError('Autorização inexistente nesta clínica.', 'not_found');
+  if (auth.guideType !== 'consulta')
+    throw new AuthorizationError('Responda esta autorização pela solicitação SP/SADT.', 'state');
+  if (!['requested', 'pending_operator'].includes(auth.status))
+    throw new AuthorizationError(`A autorização não aguarda resposta (estado: ${auth.status}).`, 'state');
+  if (auth.version !== input.version)
+    throw new AuthorizationError('A autorização mudou desde que a tela foi aberta. Atualize e tente de novo.', 'conflict');
+
+  const update = async (values: Partial<typeof hiAuthorizations.$inferInsert>) => {
+    const rows = await tx
+      .update(hiAuthorizations)
+      .set(values)
+      .where(
+        and(
+          eq(hiAuthorizations.clinicId, clinicId),
+          eq(hiAuthorizations.id, auth.id),
+          eq(hiAuthorizations.version, input.version),
+        ),
+      )
+      .returning({ id: hiAuthorizations.id });
+    if (rows.length === 0)
+      throw new AuthorizationError('A autorização mudou desde que a tela foi aberta. Atualize e tente de novo.', 'conflict');
+  };
+
+  if (input.decision === 'denied') {
+    await update({ status: 'denied', denialReason: input.denialReason, recordedBy: input.actorUserId });
+    await tx.insert(hiAuthorizationEvents).values({ clinicId, authorizationId: auth.id, fromStatus: auth.status, toStatus: 'denied', actorId: input.actorUserId });
+    return { status: 'denied' };
+  }
+  if (!input.operatorGuideNumber && !input.password && !input.operatorProtocol)
+    throw new AuthorizationError(
+      'Autorização só com evidência da operadora: número da guia na operadora, senha ou protocolo.',
+      'evidence_required',
+    );
+  const [today] = (await tx.execute(sql`
+    SELECT (now() AT TIME ZONE coalesce(c.timezone, 'America/Sao_Paulo'))::date::text AS d
+      FROM public.clinics c WHERE c.id = ${clinicId}::uuid`)) as unknown as Array<{ d: string }>;
+  if (today && input.authorizedOn > today.d)
+    throw new AuthorizationError('A data da autorização está no futuro; use a data em que a operadora respondeu.', 'invalid');
+  if (auth.requestedOn && input.authorizedOn < auth.requestedOn)
+    throw new AuthorizationError('A data da autorização é anterior à do pedido.', 'invalid');
+  if (input.passwordValidUntil && input.passwordValidUntil < input.authorizedOn)
+    throw new AuthorizationError('A validade da senha é anterior à data da autorização.', 'invalid');
+  if (input.operatorGuideNumber) {
+    const [dup] = await tx
+      .select({ id: hiAuthorizations.id })
+      .from(hiAuthorizations)
+      .where(
+        and(
+          eq(hiAuthorizations.clinicId, clinicId),
+          eq(hiAuthorizations.insurerId, auth.insurerId),
+          eq(hiAuthorizations.operatorGuideNumber, input.operatorGuideNumber),
+        ),
+      )
+      .limit(1);
+    if (dup && dup.id !== auth.id)
+      throw new AuthorizationError(
+        'Este número da guia na operadora já está registrado em outra autorização.',
+        'duplicate_operator_number',
+      );
+  }
+  const items = await tx
+    .select({ id: hiAuthorizationItems.id, quantityRequested: hiAuthorizationItems.quantityRequested })
+    .from(hiAuthorizationItems)
+    .where(and(eq(hiAuthorizationItems.clinicId, clinicId), eq(hiAuthorizationItems.authorizationId, auth.id)));
+  const given = new Map(input.items.map((i) => [i.itemId, i.quantityAuthorized]));
+  for (const id of given.keys())
+    if (!items.some((it) => it.id === id)) throw new AuthorizationError('Item de outra autorização.', 'invalid');
+  let total = 0;
+  let full = true;
+  for (const it of items) {
+    const q = given.get(it.id) ?? 0;
+    if (q > it.quantityRequested)
+      throw new AuthorizationError('A quantidade autorizada passa da pedida; confira a resposta da operadora.', 'invalid');
+    total += q;
+    if (q < it.quantityRequested) full = false;
+    await tx
+      .update(hiAuthorizationItems)
+      .set({ quantityAuthorized: q })
+      .where(and(eq(hiAuthorizationItems.clinicId, clinicId), eq(hiAuthorizationItems.id, it.id)));
+  }
+  if (total === 0)
+    throw new AuthorizationError('Nenhuma quantidade autorizada: registre como negada, com o motivo.', 'invalid');
+  const status = full ? 'authorized' : 'partially_authorized';
+  await update({
+    status,
+    authorizedOn: input.authorizedOn,
+    operatorGuideNumber: input.operatorGuideNumber ?? null,
+    operatorProtocol: input.operatorProtocol ?? null,
+    passwordEncrypted: input.password ? await encryptForTenant(clinicId, input.password) : null,
+    passwordValidUntil: input.passwordValidUntil ?? null,
+    recordedBy: input.actorUserId,
+  });
+  await tx.insert(hiAuthorizationEvents).values({ clinicId, authorizationId: auth.id, fromStatus: auth.status, toStatus: status, actorId: input.actorUserId });
+  return { status };
 }
 
 // ── Vencimento ────────────────────────────────────────────────────────────────────────────
