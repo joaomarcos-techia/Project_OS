@@ -1551,6 +1551,23 @@ lidos; o status "success" vem da API do GitHub.
 | `production-financial-lifecycle-a` | "Registrar pagamento", "Registrar recebimento", "Registrar o restante" | Production | **BLOQUEADO (política)** — compila e lista |
 | `production-role-journeys-a` | financeiro registra recebimento | Production | **BLOQUEADO (política)** — compila e lista |
 
+**Revalidação do SHA resultante (P0.4), `a15891e9` (15/11, 14h):** inclui a correção de rede
+(`b3ce5501`), Equipe, fila LGPD, Financeiro e alvos do login. Preview `project-2y5e4k5c5-…` com build
+"success". `preview-check.ts`: **prova assinada PASS** (preview, DEV, Asaas sandbox); login ok; Caixa
+só com os nomes novos; Conversas e fila LGPD sem "SLA"; Equipe com a nota do suporte e sem
+"fora do tenant"/"Super admin"; Financeiro com "Fornecedores" + "Novo lançamento" a 1440 e "Mais
+ações" + "Novo lançamento" a 375; 0 erro de página/console. A primeira região do Dashboard saiu
+`null` nessa leitura: a sonda lê logo depois da navegação do login (do cliente), com o esqueleto ainda
+na tela; o Dashboard não mudou desde `23d0c648`, onde a mesma leitura deu "Precisa de você".
+`payout-review-preview` no `a15891e9`: **rodada 1** — testes 1–6 PASS (inclui o teste 1 do Caixa, que
+passa pelo `run` corrigido, e o 3, com mesma chave e outra clínica); teste 7 **FAIL por tempo** — a
+ação de "Registrar consentimento" ainda estava em andamento (botões desabilitados) quando estourou
+o limite padrão de 10 s da verificação; 8–13 não rodaram (serial). **Rodada 2** — 1–2 PASS; teste 3
+**BLOQUEADO pelo limite de login** ("Muitas tentativas. Aguarde alguns minutos…", 10 por IP a cada
+15 min, estourado pelas rodadas seguidas). Estado: o SHA resultante tem as telas e os testes 1–6
+aprovados; 7–13 **pendentes** de uma rodada limpa (o mesmo spec deu 13/13 em `23d0c648`, e nenhum
+commit desde então toca o consentimento, os repasses ou os planos).
+
 **Regressão financeira (P0.3) — onde cada caso está coberto:**
 
 | Caso | Evidência | Estado |
