@@ -24656,5 +24656,298 @@
     "productionMutations": 0,
     "actualBackupOrRestorePerformed": false,
     "preservedPriorBlocks": 40
+  },
+  "backupMetadataOnlyB1A20261115": {
+    "observedAt": "2026-11-15T15:41:24.291Z",
+    "authorization": "B1-A administrative metadata only and exclusively synthetic tests; no B1-B/B2/B3",
+    "baseline": {
+      "operational": "787276a1843eae25bb03252512f849d7013abe18",
+      "officialCI": 43712300581,
+      "tests": 7243,
+      "testFiles": 640,
+      "e2e": 22,
+      "testSkips": 0,
+      "financial": "94f6da4aeb32b1ae7da856dc9afa105120ce6dd9"
+    },
+    "status": "PASS_ACCESSIBLE_ADMIN_METADATA__PARTIAL_PLAN_RETENTION_AND_RECOVERY",
+    "metadata": {
+      "observedAt": "2026-11-15T15:21:00.279Z",
+      "project": {
+        "ref": "shlcbxawrxuaebazuiue",
+        "name": "qoro-prod",
+        "organizationId": "srbucltkichbsehsirun",
+        "region": "us-east-1",
+        "platformStatus": "ACTIVE_HEALTHY",
+        "postgresVersion": "17.6.1.127"
+      },
+      "scope": "B1-A administrative metadata only",
+      "operations": [
+        {
+          "command": "supabase backups list --project-ref <confirmed prod> --output json",
+          "status": "PASS"
+        },
+        {
+          "command": "supabase orgs list --output json; filtered matching organization only",
+          "status": "PASS"
+        }
+      ],
+      "productionDatabaseQueries": 0,
+      "productionMutations": 0,
+      "backupDownloads": 0,
+      "backupMetadata": {
+        "responseKeys": [
+          "backups",
+          "physical_backup_data",
+          "pitr_enabled",
+          "region",
+          "walg_enabled"
+        ],
+        "region": "us-east-1",
+        "walg_enabled": true,
+        "pitr_enabled": false,
+        "physical_backup_data": {},
+        "backups": [
+          {
+            "id": 2273462739,
+            "is_physical_backup": true,
+            "status": "COMPLETED",
+            "inserted_at": "2026-11-15T09:14:14.727Z"
+          },
+          {
+            "id": 2263471358,
+            "is_physical_backup": true,
+            "status": "COMPLETED",
+            "inserted_at": "2026-11-14T09:14:17.252Z"
+          },
+          {
+            "id": 2253434588,
+            "is_physical_backup": true,
+            "status": "COMPLETED",
+            "inserted_at": "2026-11-13T09:12:06.709Z"
+          },
+          {
+            "id": 2243466820,
+            "is_physical_backup": true,
+            "status": "COMPLETED",
+            "inserted_at": "2026-11-12T09:13:54.706Z"
+          },
+          {
+            "id": 2233470439,
+            "is_physical_backup": true,
+            "status": "COMPLETED",
+            "inserted_at": "2026-11-11T09:13:56.444Z"
+          },
+          {
+            "id": 2223489941,
+            "is_physical_backup": true,
+            "status": "COMPLETED",
+            "inserted_at": "2026-11-10T09:10:02.506Z"
+          },
+          {
+            "id": 2213587328,
+            "is_physical_backup": true,
+            "status": "COMPLETED",
+            "inserted_at": "2026-11-09T09:11:34.153Z"
+          },
+          {
+            "id": 2203783547,
+            "is_physical_backup": true,
+            "status": "COMPLETED",
+            "inserted_at": "2026-11-08T09:10:06.816Z"
+          }
+        ]
+      },
+      "organization": {
+        "id": "srbucltkichbsehsirun",
+        "slug": "srbucltkichbsehsirun",
+        "name": "joaomarcos-techia's Org"
+      },
+      "organizationResponseKeys": [
+        "id",
+        "name",
+        "slug"
+      ]
+    },
+    "administrativeLimitations": {
+      "plan": "NOT VERIFIED; official orgs list omits tier",
+      "contractualRetention": "NOT VERIFIED; eight observed rows do not define policy",
+      "exactCompletionAndRestorePoint": "NOT VERIFIED; inserted_at is registration timestamp and physical_backup_data empty",
+      "backupIntegrityOrRestore": "NOT VERIFIED; no backup content accessed",
+      "managedRestorePermission": "NOT EXERCISED; read scope not proof of write permission"
+    },
+    "access": {
+      "existingCLI": "2.122.0",
+      "credentialReadOrCopied": false,
+      "envFilesRead": false,
+      "extraPATRequested": false,
+      "defaultNodeCAProbe": "certificate validation failure",
+      "systemTrustProbe": "HTTP401 unauthenticated reachability only",
+      "authenticatedCLIWithSystemCA": "PASS",
+      "tlsVerificationDisabled": false,
+      "browser": "UNAVAILABLE; native pipe and browser host absent"
+    },
+    "toolReview": {
+      "source": "scripts/gate-b-isolated-restore.ts",
+      "runtimeChanged": false,
+      "dockerContext": "desktop-linux; local named pipe; SkipTLSVerify false",
+      "dockerOverridesPresent": false,
+      "endpointNotPinnedInHelper": "Mandatory operator preflight each time; refuse remote daemon",
+      "engine": "STOPPED/PIPE_UNAVAILABLE",
+      "client": "29.9.2",
+      "observedFreeMemoryMB": {
+        "initial": 702,
+        "later": 250
+      },
+      "observedFreeDiskGB": 9.2,
+      "heavyDockerStarted": false,
+      "otherAgentProcessesTerminated": false,
+      "localUnitTests": 27,
+      "utf8Test": 1,
+      "localTestFiles": 2,
+      "newRegressionCases": 5,
+      "processDoubles": true,
+      "realSyntheticDockerRestore": "NOT RUN; insufficient resource budget",
+      "nativeGpgSyntheticHarness": "BLOCKED on GPG agent initialization in new home; initial fd3 harness corrected to fd0; no real data",
+      "cleanup": {
+        "observedAt": "2026-11-15T15:40:16.563Z",
+        "scope": "four exact fixtures created by B1-A GPG harness only",
+        "results": [
+          {
+            "name": "qoro-b1a-gpg-KnjR2I",
+            "status": "DISCARDED_SYNTHETIC_ONLY"
+          },
+          {
+            "name": "qoro-b1a-gpg-kQtrw5",
+            "status": "DISCARDED_SYNTHETIC_ONLY"
+          },
+          {
+            "name": "qoro-b1a-gpg-OfrB49",
+            "status": "DISCARDED_SYNTHETIC_ONLY"
+          },
+          {
+            "name": "qoro-b1a-gpg-x6t35B",
+            "status": "DISCARDED_SYNTHETIC_ONLY"
+          }
+        ],
+        "recursiveDelete": false,
+        "oldScratchDirectoriesTouched": false,
+        "productionDataTouched": false
+      }
+    },
+    "provenance": {
+      "observedAt": "2026-11-15T15:34:02.802Z",
+      "status": "PASS_PROVENANCE_AND_FILE_INTEGRITY",
+      "financialRef": "94f6da4aeb32b1ae7da856dc9afa105120ce6dd9",
+      "financialCI": 43666101807,
+      "toolingRef": "787276a1843eae25bb03252512f849d7013abe18",
+      "toolingCI": 43712300581,
+      "sharedSqlRef": "4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269",
+      "frozenManifestSha256": "bf2775be25ae3bdb2d58d52b99708a3d1ee32620425f1d98ac214a849185af5f",
+      "packagingOperatorFiles": [
+        {
+          "file": "scripts/abacatepay-saas-release.ts",
+          "gitBlob": "0528b90814a9ec4e6c0e6462617e7ef3e39fe7ef",
+          "sha256": "ae9c02c23e8cf9666c2a9117b1502f2469e886dc4579a9db61e81e6608dd514a",
+          "role": "export operator outside app runtime"
+        },
+        {
+          "file": "scripts/release-archive.ts",
+          "gitBlob": "3f9e26761399a1a804ca7adca993f56a8c0fe703",
+          "sha256": "44725c68dbfcaa2962b423687738cf56e871a80e628eae01ae084d8e15fd632d",
+          "role": "export operator outside app runtime"
+        },
+        {
+          "file": "scripts/gate-b-isolated-restore.ts",
+          "gitBlob": "9933860144f2cf16e7d60dc388708abc3cd5d842",
+          "sha256": "380c0f24d52d58257a1148bdc181c4125e4c6722d542db5bf242d5112125376a",
+          "role": "B1 recovery operator outside deploy package"
+        }
+      ],
+      "packagingOperatorsEqualToCreationCommit": true,
+      "archive": {
+        "file": "dist/qoro-saas-94f6da4a-gate-b0.tar",
+        "sha256": "3902f2007742df4016450eeaece806a8f2bc0b535631d33da9a5e691b59ce3f6",
+        "bytes": 234562048,
+        "treeSha256": "86de613d0ff86057a682e1da6ac837f3524564650d1e64b47874ad1c14b5d052"
+      },
+      "files": 2785,
+      "nonMigrationFilesEqualApprovedGitBlobs": 2593,
+      "sqlHashesVerifiedAgainstGit": 160,
+      "pending": "0136-0159",
+      "excluded": [
+        "0160",
+        "0161"
+      ],
+      "exactNamesAndContentRecheckedInExistingExportAndRoundtrip": true,
+      "utf8WindowsLocalTest": true,
+      "utf8LinuxCI": 43712300581,
+      "appRuntimeChangesAfterFinancial": 0,
+      "composition": "automated pinned Git source plus frozen shared SQL journal; not a claim that a single git archive equals transformed SQL package",
+      "operationalToolsDeploymentRequired": false,
+      "operatorExecution": "from approved operational worktree outside clean deployment directory",
+      "deploymentMustRecord": "financial source SHA, shared SQL SHA, manifest/archive hashes, operational tooling SHA and Vercel deployment ID",
+      "exactTransformedExportBuild": "NOT RUN this cycle; mandatory validation before B3 deployment authorization",
+      "backupOrProductionDataRead": false,
+      "productionMutations": 0
+    },
+    "B1B": {
+      "status": "PREPARED_NOT_AUTHORIZED_AND_LOCAL_PREREQUISITES_UNMET",
+      "recommended": "new encrypted logical copy plus isolated local restore only after full synthetic drill",
+      "managedClone": "not selected: new project cost and jobs/extensions can auto-start",
+      "source": "qoro-prod confirmed ref; new copy not yet generated",
+      "protectedDestination": "LOCALAPPDATA/Qoro/Recovery/gate-b1b-<APPROVED_ID>",
+      "excludesManagedStorageVaultRealtimeAndOtherSchemas": true,
+      "noOwnerNoAcl": true,
+      "sourceTLSRequirement": "Existing helper uses require; certificate/source identity must be validated before real transfer",
+      "secrets": "Owner-approved existing vault; no credential values recorded",
+      "dataRetentionProposal": "Seven days after approved B3; specific reviewed disposal, no automatic deletion",
+      "preconditions": "capacity, encrypted host, key, TLS, project, cost/egress, official image, local Docker context, synthetic drill, designated operator and explicit approval",
+      "originalProductionOrManagedBackupDeletion": false,
+      "costApprovalRequiredIfNewCharges": true
+    },
+    "integration": {
+      "tissPR": 55,
+      "tissHeadObserved": "5ed630af2db0e0ba2076f011cf79e9241ba09a56",
+      "tissDraft": true,
+      "developmentJournalIncludes0161": true,
+      "dev0161Applied": "NOT VERIFIED; no DB queried",
+      "packageExcludes": [
+        "0160",
+        "0161"
+      ],
+      "tissWorktreeChanged": false,
+      "uiHandoffReadConfirmed": false,
+      "asaasLiveWithDev": "Existing reported risk remains with UI/Payments; no secrets inspected or monetary test"
+    },
+    "gates": {
+      "B0": "RECOGNIZED_COMPLETE",
+      "B1A": "ADMIN_METADATA_OBSERVED; plan/retention partial",
+      "B1B": "NOT AUTHORIZED",
+      "B2A": "NOT AUTHORIZED",
+      "B2B": "NOT AUTHORIZED",
+      "B3": "NOT AUTHORIZED",
+      "C": "NOT AUTHORIZED",
+      "D": "NOT AUTHORIZED",
+      "E": "NOT AUTHORIZED"
+    },
+    "risks": {
+      "R1": "PARTIAL not accepted",
+      "R2": "PARTIAL not accepted; natural renewal 2026-12-13 future",
+      "R3": "PARTIAL not accepted",
+      "R4": "PARTIAL not accepted"
+    },
+    "mutations": {
+      "productionSQL": 0,
+      "productionConfigurations": 0,
+      "productionDeployments": 0,
+      "backupRealDownloadsOrDumps": 0,
+      "realRestores": 0,
+      "liveProviderOperations": 0,
+      "realChargesOrSubscriptions": 0,
+      "otherWorktrees": 0,
+      "oldBlockedScratchDeletes": 0
+    },
+    "preservedPriorBlocks": 41,
+    "newHeadCI": "Required on resulting documentation/test commit; no prior CI attributed to new SHA"
   }
 }

@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ spawn: vi.fn() }));
 vi.mock(import('node:child_process'), async (importOriginal) => ({
@@ -99,6 +99,7 @@ class ProcessDouble extends EventEmitter {
   }
 }
 beforeEach(() => mocks.spawn.mockReset());
+afterEach(() => vi.useRealTimers());
 
 describe('encrypted restore binary pipe and exit codes (process doubles, not Docker proof)', () => {
   function pipeline(gpgCode: number, psqlCode: number) {
@@ -150,4 +151,60 @@ describe('encrypted restore binary pipe and exit codes (process doubles, not Doc
       expect(mocks.spawn).not.toHaveBeenCalled();
     },
   );
+
+  it.each(['qoro-prod', 'tcp://production:5432'])(
+    'refuses an unapproved destination before launching any process: %s',
+    async (destination) => {
+      await expect(
+        streamIsolatedRestore('synthetic.sql.gpg', 'synthetic', destination),
+      ).rejects.toThrow();
+      expect(mocks.spawn).not.toHaveBeenCalled();
+    },
+  );
+
+  it('terminates both children when a process cannot start', async () => {
+    const decrypt = new ProcessDouble(),
+      restore = new ProcessDouble();
+    mocks.spawn.mockReturnValueOnce(decrypt).mockReturnValueOnce(restore);
+    const result = streamIsolatedRestore('synthetic.sql.gpg', 'synthetic', name);
+    const rejected = expect(result).rejects.toThrow('Synthetic process unavailable');
+    restore.emit('error', new Error('Synthetic process unavailable'));
+    await rejected;
+    expect(decrypt.kill).toHaveBeenCalled();
+    expect(restore.kill).toHaveBeenCalled();
+  });
+
+  it('stops decryption when psql exits before accepting the complete input', async () => {
+    const decrypt = new ProcessDouble(),
+      restore = new ProcessDouble();
+    decrypt.kill.mockImplementation(() => {
+      if (decrypt.exitCode === null) decrypt.complete(-1);
+      return true;
+    });
+    mocks.spawn.mockReturnValueOnce(decrypt).mockReturnValueOnce(restore);
+    const result = streamIsolatedRestore('synthetic.sql.gpg', 'synthetic', name);
+    const rejected = expect(result).rejects.toMatchObject({ gpg: -1, psql: 3 });
+    restore.complete(3);
+    await rejected;
+    expect(decrypt.kill).toHaveBeenCalled();
+  });
+
+  it('bounds a stalled restore and refuses to report success after timeout', async () => {
+    vi.useFakeTimers();
+    const decrypt = new ProcessDouble(),
+      restore = new ProcessDouble();
+    for (const child of [decrypt, restore]) {
+      child.kill.mockImplementation(() => {
+        if (child.exitCode === null) child.complete(-1);
+        return true;
+      });
+    }
+    mocks.spawn.mockReturnValueOnce(decrypt).mockReturnValueOnce(restore);
+    const result = streamIsolatedRestore('synthetic.sql.gpg', 'synthetic', name);
+    const rejected = expect(result).rejects.toMatchObject({ gpg: -1, psql: -1 });
+    await vi.advanceTimersByTimeAsync(120_000);
+    await rejected;
+    expect(decrypt.kill).toHaveBeenCalled();
+    expect(restore.kill).toHaveBeenCalled();
+  });
 });

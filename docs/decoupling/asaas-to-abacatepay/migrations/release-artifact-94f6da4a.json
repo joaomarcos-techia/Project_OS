@@ -19,5 +19,61 @@
   "noLocalEnvironmentRuntimeStateOrInstalledDependenciesAdded": true,
   "exportedBuildExecutedThisRound": false,
   "meaning": "Immutable local source package. Non-migration files equal approved Git blobs; SQL equals frozen composition. New production build and B1/B2/B3 approvals remain required.",
-  "productionWrites": 0
+  "productionWrites": 0,
+  "provenanceVerification": {
+    "observedAt": "2026-11-15T15:34:02.802Z",
+    "status": "PASS_PROVENANCE_AND_FILE_INTEGRITY",
+    "financialRef": "94f6da4aeb32b1ae7da856dc9afa105120ce6dd9",
+    "financialCI": 43666101807,
+    "toolingRef": "787276a1843eae25bb03252512f849d7013abe18",
+    "toolingCI": 43712300581,
+    "sharedSqlRef": "4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269",
+    "frozenManifestSha256": "bf2775be25ae3bdb2d58d52b99708a3d1ee32620425f1d98ac214a849185af5f",
+    "packagingOperatorFiles": [
+      {
+        "file": "scripts/abacatepay-saas-release.ts",
+        "gitBlob": "0528b90814a9ec4e6c0e6462617e7ef3e39fe7ef",
+        "sha256": "ae9c02c23e8cf9666c2a9117b1502f2469e886dc4579a9db61e81e6608dd514a",
+        "role": "export operator outside app runtime"
+      },
+      {
+        "file": "scripts/release-archive.ts",
+        "gitBlob": "3f9e26761399a1a804ca7adca993f56a8c0fe703",
+        "sha256": "44725c68dbfcaa2962b423687738cf56e871a80e628eae01ae084d8e15fd632d",
+        "role": "export operator outside app runtime"
+      },
+      {
+        "file": "scripts/gate-b-isolated-restore.ts",
+        "gitBlob": "9933860144f2cf16e7d60dc388708abc3cd5d842",
+        "sha256": "380c0f24d52d58257a1148bdc181c4125e4c6722d542db5bf242d5112125376a",
+        "role": "B1 recovery operator outside deploy package"
+      }
+    ],
+    "packagingOperatorsEqualToCreationCommit": true,
+    "archive": {
+      "file": "dist/qoro-saas-94f6da4a-gate-b0.tar",
+      "sha256": "3902f2007742df4016450eeaece806a8f2bc0b535631d33da9a5e691b59ce3f6",
+      "bytes": 234562048,
+      "treeSha256": "86de613d0ff86057a682e1da6ac837f3524564650d1e64b47874ad1c14b5d052"
+    },
+    "files": 2785,
+    "nonMigrationFilesEqualApprovedGitBlobs": 2593,
+    "sqlHashesVerifiedAgainstGit": 160,
+    "pending": "0136-0159",
+    "excluded": [
+      "0160",
+      "0161"
+    ],
+    "exactNamesAndContentRecheckedInExistingExportAndRoundtrip": true,
+    "utf8WindowsLocalTest": true,
+    "utf8LinuxCI": 43712300581,
+    "appRuntimeChangesAfterFinancial": 0,
+    "composition": "automated pinned Git source plus frozen shared SQL journal; not a claim that a single git archive equals transformed SQL package",
+    "operationalToolsDeploymentRequired": false,
+    "operatorExecution": "from approved operational worktree outside clean deployment directory",
+    "deploymentMustRecord": "financial source SHA, shared SQL SHA, manifest/archive hashes, operational tooling SHA and Vercel deployment ID",
+    "exactTransformedExportBuild": "NOT RUN this cycle; mandatory validation before B3 deployment authorization",
+    "backupOrProductionDataRead": false,
+    "productionMutations": 0
+  }
 }

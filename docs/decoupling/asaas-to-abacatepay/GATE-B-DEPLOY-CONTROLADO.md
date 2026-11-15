@@ -1,5 +1,80 @@
 # Gate B — proposta de deploy técnico com aquisição fechada
 
+## B1-A — consulta administrativa de 15/11/2026
+
+**Escopo vigente:** somente B1-A autorizado e testes exclusivamente sintéticos. B0 reconhecido pelo titular. B1-B, B2-A/B, B3 e C/D/E continuam não autorizados. Os checkpoints abaixo são históricos quando conflitarem com esta seção. Não há janela reservada, restore real, dump, download, SQL Production, configuração ou deploy autorizado por esta consulta.
+
+**Resultado:** PASS para identificação e metadados acessíveis; PARTIAL para plano/retenção efetiva e capacidade de recuperação. O registro administrativo não certifica integridade ou restauração.
+
+| Item | Evidência administrativa atual |
+|---|---|
+| Projeto | `qoro-prod`, REF `shlcbxawrxuaebazuiue`, organização `srbucltkichbsehsirun` |
+| Região / serviço | `us-east-1`, `ACTIVE_HEALTHY`, PostgreSQL `17.6.1.127`; CLI autenticada |
+| Acesso | CLI oficial `2.122.0`, credencial já existente; sem ler/copiar token ou arquivo `.env` |
+| Backup físico | `walg_enabled=true`; oito registros físicos, todos `COMPLETED` |
+| Mais recente | ID `2273462739`, `inserted_at=2026-11-15T09:14:14.727Z` (06:14:14 de São Paulo) |
+| Mais antigo listado | ID `2203783547`, `2026-11-08T09:10:06.816Z`; cópias diárias até 15/11 |
+| PITR | `pitr_enabled=false`, confirmado; não será ativado |
+| Plano / retenção contratual | **NÃO VERIFICADOS:** `orgs list` retorna identidade, sem plano; listagem de backups não informa retenção |
+| Janela física exata / conclusão | `physical_backup_data={}`; não foram retornados LSN, checksum ou horário exato de conclusão. `inserted_at` é o registro administrativo, não prova de ponto transacional exato |
+| Integridade / restore atual | **NÃO VERIFICADOS:** nenhum conteúdo foi acessado, baixado ou restaurado |
+
+Fontes autenticadas: `supabase projects list --output json`, `supabase backups list --project-ref shlcbxawrxuaebazuiue --output json`, `supabase orgs list --output json`, filtradas para o projeto/organização correspondentes. Consulta de backups iniciada em **15:21:00 UTC**. A CLI foi executada fora dos worktrees, sem carregar `.env`, usando a cadeia de certificados do Windows (`NODE_USE_SYSTEM_CA=1`) no processo. O primeiro acesso falhou na validação da cadeia padrão; TLS permaneceu habilitado. Browser da automação indisponível. Permissão documentada para listar: `backups_read`, com `project_admin_read` opcional; nenhum privilégio foi ampliado.
+
+A [política oficial](https://supabase.com/docs/guides/platform/backups) prevê sete dias de backups diários no Pro, 14 no Team e até 30 no Enterprise. **Oito registros visíveis não comprovam contrato de oito dias.** Falta conferir no painel o plano vigente e a retenção aplicável, sem criar token ou recurso pago. A cobertura observada é diária; o risco entre cópias e falhas de execução permanece. Não declarar RPO zero, RTO medido ou B1 integral aprovado.
+
+### Ferramenta, recursos e testes sintéticos
+
+- Revisada `scripts/gate-b-isolated-restore.ts`: sem URL de banco de destino, usa `docker exec` no contêiner nomeado/rotulado; exige imagem oficial, rede `none`, nenhuma porta, logs `none`, tmpfs, cron desligado, hash da entrada, autorização explícita, histórico exato e saídas GPG/psql. Não executa migrator, serviços financeiros, aplicação Qoro ou telemetria.
+- O contexto atual `desktop-linux` aponta para o pipe **local** `dockerDesktopLinuxEngine`, com `SkipTLSVerify=false`; nenhum override `DOCKER_HOST`/`DOCKER_CONTEXT` foi encontrado. O helper não fixa sozinho o endpoint do Docker: **revalidar contexto/overrides em cada execução e parar se houver daemon remoto ou ambíguo**. Nunca usar contêiner com nome semelhante sem validar todos os atributos.
+- Docker Client `29.9.2` instalado; Engine sem pipe operacional. Memória livre observada entre **250 e 702 MB**, disco C: **9,2 GB**. Não iniciar Docker/contêiner de 2 GiB sob esse orçamento. Nenhum processo de UI/TISS foi encerrado, nenhum serviço global alterado.
+- **27 testes da ferramenta + 1 regressão UTF8 PASS**, com processos sintéticos/doubles. Cinco novos casos cobrem destino indevido, erro de inicialização de processo, fechamento antecipado de psql e timeout. Não são restore PostgreSQL real nem teste de SIGINT do Windows.
+- Tentativa complementar de GPG real, com SQL exclusivamente sintético: **BLOCKED na inicialização do ambiente GPG/agent isolado**. O primeiro harness usou um descritor incompatível; o teste adaptado ao fd0 ainda não iniciou o agent nesse diretório novo. Isso não demonstra defeito financeiro nem foi registrado como sucesso. Exigir ensaio criptográfico positivo antes de qualquer dado real.
+- Restauração sintética completa Docker/GPG/psql e descarte do contêiner: **NOT RUN**. Recuperação real: **NOT AUTHORIZED / NOT RUN**. As quatro fixtures novas do ensaio GPG foram descartadas após verificar nomes/caminhos e conteúdo sintético, removendo apenas arquivos e pastas vazias, sem exclusão recursiva. Scratches antigos bloqueados por política não foram tocados.
+
+### Proveniência do pacote — conferência B1-A
+
+**Código financeiro `94f6da4a` / CI43666101807 → operadores `787276a1` / CI43712300581 → manifesto congelado + SQL compartilhado `4d0ed1d5` → 160 hashes SQL → arquivo TAR SHA256 `3902f2007742df4016450eeaece806a8f2bc0b535631d33da9a5e691b59ce3f6`.**
+
+O [atestado atualizado](migrations/release-artifact-94f6da4a.json) registra os blobs Git dos operadores, hash do manifesto e a separação dos papéis. Foram reconferidos nomes e SHA256 dos **2.785 arquivos** no export e na extração já existente, mais os 160 corpos SQL contra seus Git refs. Prova anterior de 2.593 arquivos fora das migrations contra os blobs aprovados preservada. O teste nativo UTF8 passou no Windows e na CI Linux do HEAD operacional.
+
+Não é montagem manual nem alegação de que um único `git archive` contém a composição SQL transformada. O exporter automatizado usa refs fixos e recusa drift. Os operadores de backup/preflight/exportação rodam do worktree operacional aprovado **fora da pasta limpa de deploy**; suas correções não são ignoradas por usar fonte financeira congelada. Nenhum módulo de runtime depende dos operadores novos. Código funcional TISS ausente; `0160` e `0161` fora do pacote.
+
+**Limite mantido:** o build específico do export transformado não foi executado nesta rodada. A CI da fonte e a dos operadores são provas distintas; não atribuir uma delas ao build desse diretório. B3 exige build desse pacote, SHA financeiro, SHA operacional, ref SQL, hashes do manifesto/TAR e ID do deployment registrados juntos.
+
+### B1-B preparado — pedido específico, sem execução
+
+**Recomendação: cópia lógica cifrada em destino local protegido, condicionada ao ensaio sintético completo.**
+
+| Alternativa | Avaliação |
+|---|---|
+| A — restaurar o backup físico gerenciado em novo projeto | Documentado para planos pagos com backup físico; cria cobrança de recursos espelhados, valor apresentado pelo painel. Não contratado. O clone copia extensões e pode iniciar jobs externos imediatamente, sem opção de pausá-los antes. Não satisfaz por si só o isolamento financeiro exigido |
+| B — novo dump lógico cifrado e restore local isolado | Evita novo projeto e integrações live no destino. Exige recursos locais, GPG operacional, fonte TLS validada e autorização para tratar dados reais. Não foi executado |
+
+Fontes: [clone gerenciado](https://supabase.com/docs/guides/platform/clone-project) e [restore lógico](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore). A alternativa B testa uma **nova cópia lógica**, não a restauração do backup físico ID2273462739. O backup gerenciado permanece preservado como mecanismo distinto.
+
+**Operação a autorizar:** depois de confirmar projeto/host, permissões, recursos, egress e proteção do destino, gerar uma cópia lógica atual de `qoro-prod`, em stream cifrado AES256, com UTC, tamanho e SHA256 registrados; restaurar somente em contêiner local descartável sem rede. O backup ainda não existe e seu identificador será gerado na janela autorizada. Não haverá dump/restore sobre DEV, banco original, Preview, gateway ou CI externo.
+
+**Dados e chaves:** arquivo `.sql.gpg` sob `%LOCALAPPDATA%\Qoro\Recovery\gate-b1b-<ID_APROVADO>`, fora de Git/sincronizadores e com ACL privada. Chave recuperável sob controle do titular/cofre existente, apenas em memória do processo; nunca em argv, chat ou relatório. SQL decifrado somente em pipe/RAM e tmpfs. Antes da cópia, conferir criptografia do host/pagefile/WSL e impedir swap persistente do contêiner. Acesso restrito ao titular e ao operador expressamente designado; papéis ainda não nomeados.
+
+**Pré-condições técnicas:** liberar capacidade sem encerrar processos de outros agentes; iniciar Engine apenas quando houver orçamento para 2 GiB do contêiner mais overhead medido do Docker; executar primeiro fixture exclusivamente sintética com GPG/psql reais, erro controlado, interrupção e descarte verificados. Confirmar versões/extensões exigidas. O helper de backup existente usa `PGSSLMODE=require`, que não prova `verify-full`; a identidade/cadeia TLS da fonte deve ser validada antes da operação real, sem desativar verificação de certificados. Nenhuma configuração dessa fonte foi alterada neste ciclo.
+
+**Escopo de recuperação:** o helper inclui Auth e dados da aplicação no mesmo snapshot, mas exclui schemas gerenciados como Storage, Vault e Realtime; usa `--no-owner --no-acl`. O dump não comprova binários Storage, configurações Auth, passwords de roles, raiz de criptografia Vault nem todos os grants. Essas dependências exigem inventário/cofre e reconstrução separada; não declarar recuperação integral do serviço ou RTO com base em tabelas restauradas.
+
+**Custo:** sem PITR, novo projeto ou snapshot pago. Verificar franquia de egress/espaço antes da transferência; se exigir cobrança adicional, parar sem contratar. Alternativa para recursos locais insuficientes: janela tranquila na estação existente ou outra máquina já disponível e aprovada com os mesmos controles; não enviar cópia real a GitHub/CI/cloud/terceiros automaticamente.
+
+**Sucesso:** GPG e psql exit0, prefixo136 exato e inventário/relacionamentos/schema consistentes com a origem aprovada, índices/constraints íntegros, ausência de egress e evidência sanitizada. A ferramenta termina em `LOCAL_RESTORE_COMPLETE_REQUIRES_MANIFEST_REVIEW`; revisão do inventário/grants continua obrigatória. O ensaio não aplica migrations e não aprova B2/B3.
+
+**Retenção/descarte:** ao terminar, parar e remover somente o contêiner/volumes descartáveis identificados na autorização, após validar confinamento; nunca o backup gerenciado/original. Reter a cópia cifrada no cofre por proposta de sete dias após a janela B3, sob responsabilidade definida, com exclusão específica revisada; não há agendamento automático. Dados decifrados não devem permanecer em disco/volume ou log. Se o descarte estiver bloqueado, preservar e registrar, sem contornar política.
+
+**Interromper antes de dados reais** se recursos, criptografia, chave, TLS, contexto Docker, ensaio sintético, projeto, versão/extensão, custo ou responsável não estiverem comprovados. Durante o restore, qualquer saída não zero, hash divergente, egress, histórico/schema inesperado ou dado sensível em log impede PASS. B1-B só é executável após essas condições e aprovação expressa. B2/B3 e R1–R4 não recebem autorização/aceite por consequência.
+
+### Integrações e próximos gates
+
+PR55 TISS continua draft, HEAD observado `5ed630af2db0e0ba2076f011cf79e9241ba09a56`; journal de desenvolvimento contém a `0161_hi_guide_consulta_overrides`. **Aplicação da0161 no DEV NÃO VERIFICADA**: nenhum banco foi consultado nesta rodada. Não misturar seu journal ao SaaS160. Handoff UI/Payments permanece disponível, sem confirmação de leitura; risco relatado de credencial Asaas live com DEV continua separado, sem inspeção de `.env`, teste monetário ou alteração de contratos/worktrees.
+
+B2-A e B2-B seguem preparados e não executados; as duas rotas WAF não cobrem API autenticada, Server Actions, chamadas internas e links externos. Revalidar guard/flags/coorte/runtime no deployment efetivo e preservar Asaas/pacientes/cron/retorno pago. B3 exige B1-B demonstrado, B2 aprovado, build do pacote e janela/responsáveis. **R1–R4 PARTIAL, nenhum aceite; renovação13/12 futura.** Datas16/17 de novembro permanecem propostas, sem agendamento.
+
 > **Checkpoint prevalente — 15/11/2026:** a execução foi separada em **B0, B1, B2 e B3**, sem autorização implícita entre eles. Somente B0 está autorizado. Os pedidos conjuntos e a janela de 15/11 abaixo são histórico, não uma autorização. O candidato financeiro continua exatamente `94f6da4aeb32b1ae7da856dc9afa105120ce6dd9`, CI `43666101807` aprovada (7.209 testes/637 arquivos/22 E2E, zero teste ignorado). Alterações posteriores são ferramentas de operação, testes e documentação, com checks próprios no PR. **Production NO-GO; B1/B2/B3, Gate C e Gate D não executados.**
 
 ## B0 — resultado e limites da preparação de 15/11
