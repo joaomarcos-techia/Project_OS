@@ -1,5 +1,6 @@
 'use client';
 
+import { Banknote } from 'lucide-react';
 import { Fragment, useState } from 'react';
 
 import type {
@@ -34,6 +35,7 @@ import {
   cashActionLabel,
   ConfirmPaymentPanel,
   RefundPaymentPanel,
+  registerActionLabel,
   type RefundInput,
 } from './cash-action-panels';
 import { outstandingBalance } from './caixa-money';
@@ -359,7 +361,8 @@ function ItemRows({
   // UX-015: sem paciente, o título é a descrição; a ausência vai para o apoio.
   const subject = cashItemTitle(item);
   const detail = cashItemDetail(item);
-  const actionLabel = item.tipo === 'pagar' ? 'Pagar' : 'Receber';
+  // UX-015: o clique abre a conferência e registra; não cobra ninguém.
+  const actionLabel = registerActionLabel(item);
   const panelId = panelMode ? `cash-panel-${item.id}-${panelMode}` : undefined;
 
   return (
@@ -418,7 +421,7 @@ function ItemRows({
                   size="sm"
                   variant="primary"
                   className="min-h-(--hit-target)"
-                  aria-label={`${actionLabel} ${subject}`}
+                  aria-label={`${actionLabel}: ${subject}`}
                   aria-expanded={panelMode === 'confirm'}
                   aria-controls={panelMode === 'confirm' ? panelId : undefined}
                   onClick={() => onOpenPanel('confirm')}
@@ -438,6 +441,7 @@ function ItemRows({
                     onClick={() => onOpenPanel('cash')}
                     disabled={pending}
                   >
+                    <Banknote aria-hidden="true" className="size-4" />
                     {cashActionLabel(item)}
                   </Button>
                 ) : null}

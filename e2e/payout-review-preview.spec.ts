@@ -599,8 +599,8 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
       .locator('section[aria-label="A receber"]')
       .locator('div[data-status]')
       .filter({ hasText: patientName });
-    await card.getByRole('button', { name: 'Confirmar pagamento' }).click();
-    await card.getByRole('button', { name: /^Receber R\$\s?150,00$/u }).click();
+    await card.getByRole('button', { name: 'Registrar recebimento' }).click();
+    await card.getByRole('button', { name: /^Registrar R\$\s?150,00$/u }).click();
     await expect(receivedRow(page)).toBeVisible({ timeout: 30_000 });
     const [receivable] = await db()<{ status: string; paid: string }[]>`
       select status, valor_pago::text paid from lancamentos where id = ${fixture.lancamentoId}::uuid

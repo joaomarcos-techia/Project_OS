@@ -122,19 +122,19 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
     expect(screen.getByText(/Consulta · Dra\. Smoke/)).toBeTruthy();
   });
 
-  it('usa Confirmar pagamento para recebível e Pagar para pagável, mantendo os formulários inline', () => {
+  it('usa Registrar recebimento para recebível e Registrar pagamento para pagável, mantendo os formulários inline', () => {
     render(<CaixaView {...base} pendentes={[item()]} aPagar={[payable()]} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar pagamento' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar recebimento' }));
     expect(screen.getByLabelText('Valor recebido')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Receber R\$\s*200,00/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Registrar R\$\s*200,00/ })).toBeTruthy();
 
     // Sem abas: as filas convivem, então o pagável já está na tela.
     expect(screen.getByRole('region', { name: 'A pagar' })).toBeTruthy();
     expect(screen.getByText('Aluguel da sala')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Pagar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar pagamento' }));
     expect(screen.getByLabelText('Valor pago')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Pagar R\$\s*1\.200,00/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Registrar R\$\s*1\.200,00/ })).toBeTruthy();
   });
 
   it('oferece somente a forma comercial acordada no recebível do atendimento', () => {
@@ -150,7 +150,7 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar pagamento' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar recebimento' }));
     const select = screen.getByLabelText('Forma de pagamento');
     expect(within(select).getAllByRole('option')).toHaveLength(1);
     expect(within(select).getByRole('option', { name: 'Dinheiro' })).toBeTruthy();
@@ -169,7 +169,7 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar pagamento' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar recebimento' }));
     const select = screen.getByLabelText('Forma de pagamento');
     expect(
       within(select)
@@ -178,7 +178,7 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
     ).toEqual(['PIX', 'Dinheiro']);
   });
 
-  it('Pagou em dinheiro: painel só com dinheiro e o saldo inteiro', () => {
+  it('Recebido em dinheiro: painel só com dinheiro e o saldo inteiro', () => {
     render(
       <CaixaView
         {...base}
@@ -192,7 +192,7 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pagou em dinheiro' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Recebido em dinheiro' }));
     const select = screen.getByLabelText('Forma de pagamento');
     expect(
       within(select)
@@ -205,7 +205,7 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
     ).toBeTruthy();
   });
 
-  it('com o sinal pago, a ação vira Pagou o restante em dinheiro', () => {
+  it('com o sinal pago, a ação vira Restante em dinheiro', () => {
     render(
       <CaixaView
         {...base}
@@ -219,12 +219,14 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pagou o restante em dinheiro' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Restante em dinheiro' }));
     expect((screen.getByLabelText('Valor recebido') as HTMLInputElement).value).toBe('100.00');
   });
 
   it('sem dinheiro no catálogo, nem conta a pagar, não há botão de dinheiro', () => {
     render(<CaixaView {...base} canOperate pendentes={[item(), payable()]} />);
+    expect(screen.queryByRole('button', { name: /(Recebido|Restante) em dinheiro/ })).toBeNull();
+    // Os nomes antigos também não podem voltar.
     expect(screen.queryByRole('button', { name: /Pagou (o restante )?em dinheiro/ })).toBeNull();
   });
 
@@ -232,12 +234,12 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
     // Cancelar vive DENTRO do painel de confirmação (uma ação por linha na
     // fila) — por isso o teste abre o painel antes de procurá-lo.
     const { unmount } = render(<CaixaView {...base} canOperate pendentes={[item()]} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar pagamento' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar recebimento' }));
     expect(screen.getByRole('button', { name: 'Cancelar cobrança de João Silva' })).toBeTruthy();
 
     unmount();
     render(<CaixaView {...base} canOperate={false} canRefund={false} pendentes={[item()]} />);
-    expect(screen.queryByRole('button', { name: 'Confirmar pagamento' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Registrar recebimento' })).toBeNull();
     expect(screen.queryByRole('button', { name: /Cancelar cobrança/ })).toBeNull();
   });
 
@@ -273,7 +275,7 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
   it('cancelamento exige confirmação contextual antes da action idempotente', async () => {
     render(<CaixaView {...base} pendentes={[item()]} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar pagamento' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar recebimento' }));
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar cobrança de João Silva' }));
     expect(cancelLancamentoAction).not.toHaveBeenCalled();
     expect(

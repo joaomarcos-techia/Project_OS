@@ -1,5 +1,7 @@
 'use client';
 
+import { Banknote } from 'lucide-react';
+
 import type {
   CaixaItem,
   PaymentMethodDTO,
@@ -17,6 +19,7 @@ import {
   cashActionLabel,
   ConfirmPaymentPanel,
   RefundPaymentPanel,
+  registerActionLabel,
   type RefundInput,
 } from './cash-action-panels';
 import { outstandingBalance } from './caixa-money';
@@ -269,17 +272,9 @@ export function CashItemCard({
   const hoje = todayYmd(timeZone);
   const vencido = emAberto && item.dueDate != null && item.dueDate < hoje;
 
-  /*
-    Rótulo do design: "Confirmar pagamento" diz o que o clique FAZ. "Receber"
-    sozinho era ambíguo — parecia registrar o dinheiro na hora, sem o painel de
-    conferência que na verdade abre em seguida.
-  */
-  const actionLabel =
-    item.tipo === 'pagar'
-      ? 'Pagar'
-      : item.status === 'parcial'
-        ? 'Receber saldo'
-        : 'Confirmar pagamento';
+  // UX-015: "Registrar recebimento" / "Registrar o restante" / "Registrar
+  // pagamento" — o clique abre a conferência e registra; não cobra ninguém.
+  const actionLabel = registerActionLabel(item);
 
   const badge = (
     <PaymentStatusBadge
@@ -315,13 +310,14 @@ export function CashItemCard({
         <Button
           type="button"
           size="sm"
-          variant="secondary"
+          variant="ghost"
           className="min-h-(--hit-target)"
           aria-expanded={panelMode === 'cash'}
           aria-controls={panelMode === 'cash' ? panelId : undefined}
           onClick={() => onOpenPanel('cash')}
           disabled={pending}
         >
+          <Banknote aria-hidden="true" className="size-4" />
           {cashActionLabel(item)}
         </Button>
       ) : null}
