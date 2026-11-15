@@ -115,6 +115,15 @@ describe('ações de Convênios', () => {
     expect(m.logAudit).not.toHaveBeenCalled();
   });
 
+  it('código adulterado nos dados da consulta: mensagem em português, sem chegar ao serviço', async () => {
+    const r = await updateConsultaFieldsAction({ guideId: GUIDE, version: 1, tipoConsulta: '44' });
+    expect(r).toEqual({
+      ok: false,
+      error: 'Tipo de consulta: código fora da terminologia da ANS. Escolha uma opção da lista.',
+    });
+    expect(m.updateConsultaOverridesInTx).not.toHaveBeenCalled();
+  });
+
   it('valida a entrada (UUID, motivo) antes de chamar o serviço', async () => {
     const bad = await createBatchAction({ insurerId: 'x', guideIds: [], idempotencyKey: 'k' });
     expect(bad.ok).toBe(false);

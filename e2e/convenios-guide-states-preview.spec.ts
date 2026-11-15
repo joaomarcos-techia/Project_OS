@@ -562,7 +562,9 @@ test('código fora da terminologia por requisição adulterada: recusa legível,
   expect(tampered, 'a requisição não foi adulterada (formato do corpo mudou?)').toBe(true);
   const text = (await alert.textContent()) ?? '';
   console.log(`código adulterado: "${text}"`);
-  expect(text.length).toBeGreaterThan(10);
+  expect(text).toBe(
+    'Tipo de consulta: código fora da terminologia da ANS. Escolha uma opção da lista.',
+  );
   expect(text).not.toMatch(INTERNAL);
   await expect(s.page.getByText('Dados da consulta salvos')).toHaveCount(0);
   await s.page.unroute(`**${g1()}`);

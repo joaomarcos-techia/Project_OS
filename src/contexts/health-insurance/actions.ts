@@ -228,12 +228,16 @@ export async function reviewGuideAction(
   });
 }
 
+// Mensagens em português: a tela só manda códigos da terminologia, mas uma requisição adulterada
+// mostrava o texto padrão do Zod, em inglês (P0.3 de 15/11).
+const code = (label: string, max: number) =>
+  z.string().max(max, `${label}: código fora da terminologia da ANS. Escolha uma opção da lista.`).nullish();
 const ConsultaFields = GuideRef.extend({
-  regimeAtendimento: z.string().max(2).nullish(),
-  indicacaoAcidente: z.string().max(1).nullish(),
-  tipoConsulta: z.string().max(1).nullish(),
-  coberturaEspecial: z.string().max(2).nullish(),
-  saudeOcupacional: z.string().max(2).nullish(),
+  regimeAtendimento: code('Regime de atendimento', 2),
+  indicacaoAcidente: code('Indicação de acidente', 1),
+  tipoConsulta: code('Tipo de consulta', 1),
+  coberturaEspecial: code('Cobertura especial', 2),
+  saudeOcupacional: code('Saúde ocupacional', 2),
   observacao: z.string().max(500, 'Observação: até 500 caracteres (padrão TISS).').nullish(),
 });
 
