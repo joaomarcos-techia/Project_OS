@@ -4,7 +4,7 @@ import { Check, Search, X } from 'lucide-react';
 import { useEffect, useId, useRef, useState, useTransition } from 'react';
 
 import { cn } from '@/lib/ui/cn';
-import { fieldControlClassName } from './input';
+import { fieldControlClassName, fieldControlInvalidClassName } from './input';
 
 export type ComboboxItem = { id: string; label: string; hint?: string };
 
@@ -24,6 +24,8 @@ export function Combobox({
   disabled = false,
   id,
   'aria-label': ariaLabel,
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid,
 }: {
   value: ComboboxItem | null;
   onSelect: (item: ComboboxItem | null) => void;
@@ -40,6 +42,12 @@ export function Combobox({
    */
   id?: string;
   'aria-label'?: string;
+  /**
+   * UX-001/UX-005 — o `Field` liga a dica ou o erro ao controle; aqui eles chegam
+   * ao `<input>` de busca, que é o que recebe o foco.
+   */
+  'aria-describedby'?: string;
+  'aria-invalid'?: boolean | 'true' | 'false';
 }) {
   const listId = useId();
   const [term, setTerm] = useState('');
@@ -122,6 +130,8 @@ export function Combobox({
         <input
           {...(id ? { id } : {})}
           {...(ariaLabel ? { 'aria-label': ariaLabel } : {})}
+          {...(ariaDescribedBy ? { 'aria-describedby': ariaDescribedBy } : {})}
+          {...(ariaInvalid !== undefined ? { 'aria-invalid': ariaInvalid } : {})}
           role="combobox"
           aria-expanded={open}
           aria-controls={listId}
@@ -151,7 +161,11 @@ export function Combobox({
             }
           }}
           placeholder={placeholder}
-          className={cn(fieldControlClassName, 'pl-9')}
+          className={cn(
+            fieldControlClassName,
+            'pl-9',
+            (ariaInvalid === true || ariaInvalid === 'true') && fieldControlInvalidClassName,
+          )}
         />
       </span>
       {searching ? <p className="mt-1 text-(length:--fs-xs) text-fg-subtle">buscando…</p> : null}

@@ -110,6 +110,12 @@ export interface AgendaData {
   selfDoctorId: string | null;
   canEditAgenda: boolean;
   canManageAvailability: boolean;
+  /**
+   * UX-007 — com o catálogo vazio, quem pode cadastrar procedimentos recebe o
+   * atalho; quem não pode, a orientação de pedir a quem administra. Opcional:
+   * ausente = sem permissão.
+   */
+  canManageProcedures?: boolean;
   appointments: AgendaAppt[];
   /** UX-003 — séries recorrentes presentes na faixa exibida. */
   recurrenceSeries: RecurrenceSeriesSummary[];
@@ -319,6 +325,7 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
     selfDoctorId: isPractitioner ? user.userId : null,
     canEditAgenda: user.permissions.includes(PERMISSIONS.EDIT_AGENDA),
     canManageAvailability: user.permissions.includes(PERMISSIONS.MANAGE_AVAILABILITY),
+    canManageProcedures: user.permissions.includes(PERMISSIONS.MANAGE_PROCEDURES),
     appointments,
     recurrenceSeries,
     procedures,
