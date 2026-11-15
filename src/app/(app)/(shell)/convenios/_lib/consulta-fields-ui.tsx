@@ -6,7 +6,7 @@
  * guia em edição (o servidor e o banco conferem de novo). As opções vêm da terminologia da ANS
  * carregada para a guia: a tela não inventa código.
  */
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
@@ -94,6 +94,19 @@ export function ConsultaFieldsPanel({
   const [values, setValues] = useState<Overrides>(current);
   const { pending, runAction } = useRunner();
   const obs = values.observacao ?? '';
+  // Recusa do servidor (estado mudou, assinatura, permissão) fica escrita no formulário até o
+  // próximo envio: o aviso flutuante some sozinho e quem usa leitor de tela pode perdê-lo.
+  const [error, setError] = useState<string | null>(null);
+  // Foco (P0.4 de 15/11): o botão que abre o formulário sai da tela ao abrir, e o formulário sai
+  // ao salvar ou voltar. Sem mover o foco, o teclado e o leitor de tela caíam no início da página.
+  const openRef = useRef<HTMLButtonElement>(null);
+  const firstFieldRef = useRef<HTMLSelectElement>(null);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (open) firstFieldRef.current?.focus();
+    else if (wasOpen.current) openRef.current?.focus();
+    wasOpen.current = open;
+  }, [open]);
 
   return (
     <div className="flex flex-col gap-(--sp-3)" data-testid="consulta-fields">
@@ -126,11 +139,13 @@ export function ConsultaFieldsPanel({
       {editable && !open ? (
         <div>
           <Button
+            ref={openRef}
             type="button"
             size="sm"
             variant="secondary"
             onClick={() => {
               setValues(current);
+              setError(null);
               setOpen(true);
             }}
           >
@@ -142,8 +157,10 @@ export function ConsultaFieldsPanel({
         <form
           className="flex flex-col gap-(--sp-3) rounded-(--r-md) border border-border p-(--sp-3)"
           aria-label="Ajustar dados da consulta"
+          aria-busy={pending}
           onSubmit={(e) => {
             e.preventDefault();
+            setError(null);
             runAction(
               () =>
                 action({
@@ -154,16 +171,27 @@ export function ConsultaFieldsPanel({
                 }),
               'Dados da consulta salvos',
               () => setOpen(false),
+              false,
+              setError,
             );
           }}
         >
+          {error ? (
+            <p
+              role="alert"
+              className="rounded-(--r-md) border border-danger-600 p-(--sp-2) text-(length:--fs-sm) text-danger-700"
+            >
+              {error}
+            </p>
+          ) : null}
           <div className="grid grid-cols-1 gap-(--sp-3) sm:grid-cols-2">
-            {FIELDS.map((f) => {
+            {FIELDS.map((f, index) => {
               const opts = options?.[f.key] ?? [];
               const defaultTerm = f.defaultCode ? termOf(opts, f.defaultCode) : null;
               return (
                 <Field key={f.key} label={f.label} htmlFor={`${id}-${f.key}`}>
                   <Select
+                    ref={index === 0 ? firstFieldRef : undefined}
                     id={`${id}-${f.key}`}
                     value={values[f.key] ?? ''}
                     onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
@@ -183,18 +211,19 @@ export function ConsultaFieldsPanel({
               );
             })}
           </div>
-          <Field
-            label="Observação"
-            htmlFor={`${id}-obs`}
-            hint={`${obs.trim().length}/500 (padrão TISS). Não escreva diagnóstico nem dado clínico: a Guia de Consulta não leva CID.`}
-          >
+          <Field label="Observação" htmlFor={`${id}-obs`}>
             <Textarea
               id={`${id}-obs`}
               value={obs}
               onChange={(e) => setValues((v) => ({ ...v, observacao: e.target.value }))}
               rows={3}
               maxLength={500}
+              aria-describedby={`${id}-obs-hint`}
             />
+            {/* Dica ligada ao campo (o `hint` do Field não tem id): o leitor de tela lê o limite e o aviso de CID. */}
+            <p id={`${id}-obs-hint`} className="text-(length:--fs-xs) text-fg-subtle">
+              {`${obs.trim().length}/500 (padrão TISS). Não escreva diagnóstico nem dado clínico: a Guia de Consulta não leva CID.`}
+            </p>
           </Field>
           <div className="flex flex-wrap gap-(--sp-2)">
             <Button type="submit" size="sm" disabled={pending}>

@@ -22,7 +22,12 @@ vi.mock('server-only', () => ({}));
 vi.mock('next/cache', () => ({ revalidatePath: m.revalidatePath }));
 vi.mock('@/lib/auth/tenant-context', async () => {
   class AuthError extends Error {
-    constructor(message: string, readonly code: string) {
+    constructor(
+      message: string,
+      readonly code: string,
+      readonly httpStatus?: number,
+      readonly reason?: string,
+    ) {
       super(message);
     }
   }
@@ -61,6 +66,7 @@ import {
   createBatchAction,
   decideGlossAction,
   recordPaymentAction,
+  returnGuideAction,
   reviewGuideAction,
   updateConsultaFieldsAction,
 } from './actions';
@@ -92,6 +98,23 @@ describe('ações de Convênios', () => {
     expect(m.logAudit).not.toHaveBeenCalled();
   });
 
+  it('sessão terminada, acesso desativado e conta removida têm mensagens distintas e não chegam ao banco', async () => {
+    type Ctor = new (msg: string, code: string, status: number, reason: string) => Error;
+    const Err = AuthError as unknown as Ctor;
+    const input = { guideId: GUIDE, version: 1, tipoConsulta: '4' };
+    m.requireUser.mockRejectedValueOnce(new Err('Autenticação necessária', 'unauthenticated', 401, 'TOKEN_INVALID'));
+    expect(await updateConsultaFieldsAction(input)).toEqual({ ok: false, error: 'Sua sessão terminou. Entre de novo para continuar.' });
+    m.requireUser.mockRejectedValueOnce(new Err('Acesso desativado.', 'unauthenticated', 401, 'USER_DISABLED'));
+    expect(await updateConsultaFieldsAction(input)).toEqual({
+      ok: false,
+      error: 'Seu acesso a esta clínica foi desativado. Fale com o administrador da clínica.',
+    });
+    m.requireUser.mockRejectedValueOnce(new Err('Conta removida.', 'unauthenticated', 401, 'USER_DELETED'));
+    expect((await updateConsultaFieldsAction(input)).ok).toBe(false);
+    expect(m.updateConsultaOverridesInTx).not.toHaveBeenCalled();
+    expect(m.logAudit).not.toHaveBeenCalled();
+  });
+
   it('valida a entrada (UUID, motivo) antes de chamar o serviço', async () => {
     const bad = await createBatchAction({ insurerId: 'x', guideIds: [], idempotencyKey: 'k' });
     expect(bad.ok).toBe(false);
@@ -118,9 +141,28 @@ describe('ações de Convênios', () => {
   });
 
   it('conferência com versão desatualizada é recusada (outra pessoa mexeu na guia)', async () => {
-    m.execute.mockResolvedValueOnce([]);
+    // 1º: decisão comercial (liberado); 2º: o UPDATE com a versão antiga não acha a linha.
+    m.execute.mockResolvedValueOnce([{ denial: null }]).mockResolvedValueOnce([]);
     const r = await reviewGuideAction({ guideId: GUIDE, version: 3 });
     expect(r).toEqual({ ok: false, error: 'A guia mudou desde que a tela foi aberta. Atualize e confira de novo.' });
+    expect(m.logAudit).not.toHaveBeenCalled();
+  });
+
+  it('D24: conferir e devolver são recusados em trial e com a clínica suspensa, antes de tocar a guia', async () => {
+    for (const denial of ['trial', 'clinic_suspended']) {
+      m.execute.mockReset();
+      m.execute.mockResolvedValueOnce([{ denial }]);
+      const reviewed = await reviewGuideAction({ guideId: GUIDE, version: 3 });
+      expect(reviewed.ok).toBe(false);
+      expect(reviewed.ok ? '' : reviewed.error).toMatch(
+        denial === 'trial' ? /^Convênios: este recurso está disponível para clínicas com assinatura ativa/u : /^Convênios: a assinatura da clínica não está ativa/u,
+      );
+      expect(m.execute).toHaveBeenCalledTimes(1);
+      m.execute.mockResolvedValueOnce([{ denial }]);
+      const returned = await returnGuideAction({ guideId: GUIDE, version: 3, note: 'Corrigir o tipo de consulta.' });
+      expect(returned.ok).toBe(false);
+      expect(m.execute).toHaveBeenCalledTimes(2);
+    }
     expect(m.logAudit).not.toHaveBeenCalled();
   });
 

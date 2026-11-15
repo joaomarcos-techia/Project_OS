@@ -27,6 +27,8 @@ export function useRunner() {
     success: string,
     after?: () => void,
     describe = false,
+    /** Recusa também escrita na tela (formulário), além do aviso flutuante que some sozinho. */
+    onError?: (message: string) => void,
   ) =>
     start(async () => {
       const r = await fn();
@@ -37,6 +39,7 @@ export function useRunner() {
         router.refresh();
       } else {
         toast.error(r.error);
+        onError?.(r.error);
       }
     });
   return { pending, runAction };

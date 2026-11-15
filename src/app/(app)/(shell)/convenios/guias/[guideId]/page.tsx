@@ -52,6 +52,10 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
   const g = await getGuideDetail(access.clinicId, guideId);
   if (!g) notFound();
   const m = access.canManage;
+  // D24 (P0.3 de 15/11): em trial ou com a assinatura parada, a tela não oferece o que o
+  // servidor recusa (ajustar, conferir, aprovar, devolver). Cancelar, conciliar e o que é da
+  // conta com a operadora (preservação) seguem com o servidor decidindo.
+  const operable = m && !access.commercial;
   const ref = { guideId: g.id, version: g.version };
   const label = guideLabel(g.guideType, g.number);
   // D11 (P4.6): opções da terminologia da própria guia, vigentes na data do atendimento.
@@ -100,13 +104,13 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
           {m ? (
             <div className="mt-(--sp-3)">
               <Actions>
-                {g.status === 'ready_for_review' && g.issues.length === 0 ? (
+                {operable && g.status === 'ready_for_review' && g.issues.length === 0 ? (
                   <ActionButton label="Marcar como conferida" success="Guia conferida" variant="primary" action={reviewGuideAction.bind(null, ref)} />
                 ) : null}
-                {g.status === 'reviewed' ? (
+                {operable && g.status === 'reviewed' ? (
                   <ActionButton label="Aprovar e emitir" success="Guia aprovada e emitida" variant="primary" action={approveGuideAction.bind(null, { guideId: g.id })} />
                 ) : null}
-                {['reviewed', 'approved'].includes(g.status) ? (
+                {operable && ['reviewed', 'approved'].includes(g.status) ? (
                   <TextAction label="Devolver para correção" success="Guia devolvida para correção" action={returnGuideAction} base={ref} field="note" fieldLabel="O que precisa ser corrigido" />
                 ) : null}
                 {['pending_data', 'ready_for_review', 'reviewed', 'approved'].includes(g.status) ? (
@@ -142,7 +146,7 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
             version={g.version}
             overrides={g.consultaOverrides}
             options={consultaOptions}
-            editable={m && EDITABLE.includes(g.status)}
+            editable={operable && EDITABLE.includes(g.status)}
             issued={ISSUED.includes(g.status)}
             action={updateConsultaFieldsAction}
           />

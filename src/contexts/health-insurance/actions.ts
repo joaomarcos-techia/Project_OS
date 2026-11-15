@@ -27,7 +27,11 @@ import {
   requireUser,
 } from '@/lib/auth/tenant-context';
 import { withTenant } from '@/lib/db/tenant';
-import { premiumAccessErrorFrom, premiumDenialMessage } from '@/lib/premium-access';
+import {
+  assertPremiumFeatureTx,
+  premiumAccessErrorFrom,
+  premiumDenialMessage,
+} from '@/lib/premium-access';
 // eslint-disable-next-line boundaries/element-types -- paymentsApiV1 é a API pública do Pagamentos (M14): o único caminho Asaas do convênio é o da coparticipação.
 import { paymentsApiV1 } from '@/contexts/payments/api';
 import { supabaseTissObjectStore, TissStorageError } from '@/lib/storage/tiss-files';
@@ -88,6 +92,10 @@ function guideIssuanceMessage(raw: string): string {
 /** Mensagem para o usuário: regra de negócio do banco fica; o resto vira mensagem genérica. */
 function messageOf(error: unknown): string {
   if (error instanceof AuthError) {
+    // Acesso desativado ou conta removida não é "sessão terminou": entrar de novo não resolve, e
+    // dizer isso mandava a pessoa para o login só para descobrir o bloqueio lá (P0.3 de 15/11).
+    if (error.reason === 'USER_DISABLED' || error.reason === 'USER_DELETED')
+      return 'Seu acesso a esta clínica foi desativado. Fale com o administrador da clínica.';
     return error.code === 'unauthenticated'
       ? 'Sua sessão terminou. Entre de novo para continuar.'
       : 'Seu perfil não tem permissão para esta operação de convênios.';
@@ -202,6 +210,10 @@ export async function reviewGuideAction(
       'health_insurance.guide.reviewed',
       { type: 'hi_guide', id: d.guideId },
       async (tx, ctx) => {
+        // D24: conferir prepara cobrança nova da operadora; em trial ou com a assinatura parada,
+        // não. O gatilho do banco em `hi_guides` só barra a CRIAÇÃO da guia, por isso a
+        // checagem fica aqui, na mesma transação (P0.3 de 15/11: antes passava com a clínica suspensa).
+        await assertPremiumFeatureTx(tx, ctx.clinicId, 'health_insurance');
         const rows =
           await tx.execute(sql`UPDATE public.hi_guides SET status = 'reviewed', reviewed_by = ${ctx.userId}::uuid
           WHERE clinic_id = ${ctx.clinicId}::uuid AND id = ${d.guideId}::uuid AND version = ${d.version} RETURNING id`);
@@ -262,6 +274,9 @@ export async function returnGuideAction(
       'health_insurance.guide.returned',
       { type: 'hi_guide', id: d.guideId },
       async (tx, ctx) => {
+        // D24: devolver reabre a guia para nova emissão (operação nova); com a assinatura parada,
+        // não. Cancelar continua permitido: não gera cobrança e encerra o que não será faturado.
+        await assertPremiumFeatureTx(tx, ctx.clinicId, 'health_insurance');
         const rows =
           await tx.execute(sql`UPDATE public.hi_guides SET status = 'ready_for_review', transition_note = ${d.note}
           WHERE clinic_id = ${ctx.clinicId}::uuid AND id = ${d.guideId}::uuid AND version = ${d.version} RETURNING id`);

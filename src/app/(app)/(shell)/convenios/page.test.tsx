@@ -111,6 +111,22 @@ describe('interface de Convênios', () => {
     expect(screen.queryByRole('button', { name: 'Cancelar guia' })).toBeNull();
   });
 
+  it('D24: em trial ou suspensa, quem gerencia não vê conferir/aprovar/devolver/ajustar (o servidor recusa); cancelar continua', async () => {
+    m.listConsultaFieldOptions.mockResolvedValue(null);
+    for (const commercial of ['trial', 'clinic_suspended'] as const) {
+      for (const status of ['ready_for_review', 'reviewed']) {
+        m.getGuideDetail.mockResolvedValue({ ...guide, status, issues: [], consultaOverrides: null });
+        m.conveniosAccess.mockResolvedValue({ ok: true, clinicId: 'c1', canManage: true, commercial });
+        render(await GuiaPage({ params: Promise.resolve({ guideId: GUIDE }) }));
+        for (const name of ['Marcar como conferida', 'Aprovar e emitir', 'Devolver para correção', 'Ajustar dados da consulta'])
+          expect(screen.queryByRole('button', { name }), `${commercial}/${status}: ${name}`).toBeNull();
+        expect(screen.getByRole('button', { name: 'Cancelar guia' })).toBeTruthy();
+        expect(screen.getByTestId('convenios-commercial-notice').getAttribute('data-denial')).toBe(commercial);
+        cleanup();
+      }
+    }
+  });
+
   it('D11: dados da consulta com padrão e ajuste; só quem gerencia ajusta, e só com a guia em edição', async () => {
     m.listConsultaFieldOptions.mockResolvedValue({
       regimeAtendimento: [{ code: '01', term: 'Ambulatorial' }, { code: '02', term: 'Emergência' }],
