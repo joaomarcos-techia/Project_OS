@@ -33,6 +33,7 @@ describe('dedicated synthetic CI boundaries', () => {
     expect(env.NODE_OPTIONS).toBeUndefined();
     expect(env.npm_config_userconfig).toBeUndefined();
     expect(env.DATABASE_URL).toContain('127.0.0.1');
+    expect(env.CRON_SECRET?.length).toBeGreaterThanOrEqual(32);
   });
 
   it('rejects traversal, duplicate members, runtime env and excluded TISS migrations', () => {

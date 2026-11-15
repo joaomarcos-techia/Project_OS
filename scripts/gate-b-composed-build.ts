@@ -74,7 +74,7 @@ export function syntheticBuildEnvironment(
     NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:55440',
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_synthetic_build',
     NEXT_PUBLIC_SENTRY_DSN: 'http://public@127.0.0.1:55441/1',
-    CRON_SECRET: 'synthetic-build-cron-not-real',
+    CRON_SECRET: 'synthetic-build-cron-fixture-not-a-real-secret',
     META_APP_SECRET: 'synthetic-build-meta',
     META_WEBHOOK_VERIFY_TOKEN: 'synthetic-build-meta-verify',
     ASAAS_WEBHOOK_TOKEN: 'synthetic-build-asaas',

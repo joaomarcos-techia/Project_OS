@@ -196,7 +196,18 @@ async function main(): Promise<void> {
       'bash',
       RESTORE_IMAGE,
       '-ceu',
-      'initdb -D "$PGDATA" --username=supabase_admin --auth-local=trust --auth-host=reject --encoding=UTF8 --locale=C.UTF-8 >/dev/null; exec postgres -D "$PGDATA" -c listen_addresses= -c shared_preload_libraries=pg_cron -c cron.launch_active_jobs=off -c shared_buffers=32MB -c max_connections=20',
+      'initdb -D "$PGDATA" --username=supabase_admin --auth-local=trust --auth-host=reject --encoding=UTF8 --locale=C.UTF-8 >/dev/null; exec postgres -D "$PGDATA" "$@"',
+      '--',
+      '-c',
+      'listen_addresses=',
+      '-c',
+      'shared_preload_libraries=pg_cron',
+      '-c',
+      'cron.launch_active_jobs=off',
+      '-c',
+      'shared_buffers=32MB',
+      '-c',
+      'max_connections=20',
     ]);
     assert.match(id, /^[a-f0-9]{64}$/u);
     const item = { name, id };
