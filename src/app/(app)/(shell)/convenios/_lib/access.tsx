@@ -1,10 +1,11 @@
+import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 import { getConveniosCommercialDenial, isInsuranceSchemaInstalled } from '@/contexts/health-insurance/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { getCurrentUser, requireClinicId } from '@/lib/auth/tenant-context';
 import { premiumDenialMessage, type PremiumDenial } from '@/lib/premium-access';
 
 import { ConveniosTabs } from './tabs';
@@ -25,7 +26,12 @@ export type ConveniosAccess =
  * gerenciar o financeiro. O médico não precisa entrar aqui: a guia nasce do atendimento.
  */
 export async function conveniosAccess(title: string): Promise<ConveniosAccess> {
-  const user = await requireUser();
+  // Sessão expirada, revogada ou acesso desativado é estado esperado: vai para o login (mesmo
+  // padrão do dashboard). Com `requireUser()`, o AuthError da página vencia a corrida com o
+  // redirect do layout e a tela mostrava "Algo deu errado" — achado no Preview em 15/11, ao salvar
+  // os dados da consulta com a sessão expirada (a resposta da action renderiza a página de novo).
+  const user = await getCurrentUser();
+  if (!user) redirect('/login');
   await requireClinicId();
   if (!user.clinicId || !user.permissions.includes(PERMISSIONS.VIEW_FINANCIAL)) {
     return {

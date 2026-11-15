@@ -383,3 +383,39 @@ suspensa no meio da sessão, sessão expirada, código adulterado, duplo clique 
 da recepção e de outra clínica, acesso desativado e controle positivo. A fixture é `hi-dev-e2e-fixture.ts setup-states`
 (3 guias novas na clínica `e2e-hi-paga`); os estados são trocados e restaurados por `set-state`/`set-active`.
 O `axe-core` vem do `eslint-config-next` (já no lockfile), sem pacote novo.
+
+### 9.8 Contraste do selo âmbar (axe no Preview `0206d7d1`, 15/11)
+
+- **Achado:** `color-contrast` (grave) no `Badge` de tom âmbar: `text-warning-700` sobre `bg-warning-50` = **4,44:1**
+  (texto `#a4622a` sobre `#fff5e0`, 11,5 px; mínimo WCAG AA 4,5:1). Aparece na guia no selo da etapa ("Para conferir",
+  "Falta dado") e em todo selo âmbar do app.
+- **Dono:** design system (`src/components/ui/badge.tsx` + tokens de `globals.css`). Na branch de UI o token novo
+  (`--warning-700: #7a4a00` sobre `--warning-50: #fff3d6`) passa com folga; o TISS não altera token.
+- **Teste:** o painel "Dados da consulta" exige zero violações, contraste incluído (passou). Na página inteira da
+  guia, só o contraste fica registrado sem reprovar até o rebase; qualquer outra violação reprova. Depois do rebase,
+  `e2e/convenios-guide-states-preview.spec.ts` volta a exigir zero violações sem exceção (comentário no próprio teste).
+
+### 9.9 Sessão expirada em telas com server action (achado do Preview, 15/11)
+
+- Com a sessão expirada, salvar os dados da consulta mostrava "Algo deu errado. O erro foi registrado…": a resposta da
+  server action renderiza a página de novo, e o `requireUser()` da página lançava antes do `redirect('/login')` do
+  layout (a mesma corrida que o dashboard já documenta e evita).
+- **TISS:** `convenios/_lib/access.tsx` agora usa `getCurrentUser()` + `redirect('/login')` (teste `access.test.tsx`).
+- **UI:** vale conferir as páginas do shell que chamam `requireUser()` direto no render.
+
+### 9.10 Simulação de merge da UI (informada pela UI em 15/11, ~15h10)
+
+A UI simulou o merge `ui/otimizacao-ui-final-20261114` × `0206d7d1` (só objetos; nada no worktree do TISS): **8 arquivos
+em conflito** (a lista de 19 do §9.5 é de arquivos tocados pelas duas branches; nem todos conflitam).
+
+| Arquivo | Resolução combinada |
+| --- | --- |
+| `caixa/caixa-view.tsx`, `caixa/cash-item-card.tsx` | fica o "hoje" da UI (`todayYmd(timeZone)` com o fuso da clínica); sai o `todayYmd()` local do card e os imports `QORO_DATE_TIME_ZONE`/`todayYmdIn` que ficarem sem uso |
+| `financeiro/page.tsx` | **regra financeira:** o saldo parcial fica `l.valor - l.valorPago - l.valorGlosado` (TISS); o visual do selo é o da UI |
+| `agenda/lista-espera/waitlist-manager.tsx`, `consultorio/format.ts` | mesmo tema de fuso: fica o fuso da clínica da UI, preservando o efeito do R51 |
+| `consultorio/waiting-card.tsx` | preservar os dois: `timeZone` (UI) e `now: number \| null` (relógio do R51, TISS) |
+| `agenda/new-appointment-drawer.tsx` | UX-005/006 da UI (fieldErrors, formError, cadastro rápido) **e** o faturamento de convênio do TISS (`BillingValue`); o `setError` do TISS passa a `setFormError`/`fieldErrors` |
+| `drizzle/migrations/meta/_journal.json` | conflito #53 × #55 (a branch de UI trouxe a 0136 do #53 pela base v5): resolver pela composição de `coordenacao-migrations.md`, nunca à mão |
+
+Depois do rebase: `page.test.tsx` da ficha, testes de agenda, caixa e consultório, a jornada E2E do TISS e as
+regressões `convenios-guide-states-preview.spec.ts` (com o axe da página inteira voltando a exigir zero, §9.8).
