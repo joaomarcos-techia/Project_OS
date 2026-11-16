@@ -646,9 +646,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/ai-handoff-reliability-db.ts:31`         | `<object>`                             | `process.env`                                                               |
 | `scripts/security/ai-handoff-reliability-db.ts:32`         | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/ai-handoff-reliability-db.ts:34`         | `<object>`                             | `process.env`                                                               |
-| `scripts/security/local-build.ts:98`                       | `<dynamic>`                            | `process.env[key]`                                                          |
-| `scripts/security/local-build.ts:98`                       | `<dynamic>`                            | `process.env[key]`                                                          |
-| `scripts/security/local-build.ts:128`                      | `CI`                                   | `process.env.CI`                                                            |
+| `scripts/security/local-build.ts:105`                      | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/security/local-build.ts:105`                      | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/security/local-build.ts:135`                      | `CI`                                   | `process.env.CI`                                                            |
 | `scripts/security/offer-restored-backup-db.ts:34`          | `<object>`                             | `process.env`                                                               |
 | `scripts/security/offer-restored-backup-db.ts:328`         | `BACKUP_PASSPHRASE`                    | `process.env.BACKUP_PASSPHRASE`                                             |
 | `scripts/security/onboarding-progress-db.ts:44`            | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |

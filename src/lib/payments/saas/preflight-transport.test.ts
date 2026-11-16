@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 const mocks = vi.hoisted(() => ({ spawnSync: vi.fn() }));
 vi.mock('node:child_process', () => ({ spawnSync: mocks.spawnSync }));
 import {
@@ -22,6 +24,39 @@ const parent: NodeJS.ProcessEnv = {
 afterEach(() => vi.clearAllMocks());
 
 describe('operator preflight verifies the server without the runtime pool', () => {
+  it('includes the operators and their transitive imports in the isolated build without copying env files', () => {
+    const build = readFileSync('scripts/security/local-build.ts', 'utf8');
+    const list = build.match(/const copied = \[([\s\S]*?)\];/u)?.[1];
+    expect(list).toBeDefined();
+    const copied = [...(list ?? '').matchAll(/^\s*'([^']+)',/gmu)].map((item) => item[1]!);
+    expect(copied).not.toContain('scripts');
+    expect(copied.some((item) => item.includes('.env'))).toBe(false);
+    const included = (file: string) =>
+      copied.some((item) => file === item || file.startsWith(item + '/'));
+    const pending = [
+      'scripts/abacatepay-preflight-transport.ts',
+      'scripts/abacatepay-release-validation.ts',
+      'scripts/abacatepay-release-apply.ts',
+    ];
+    const checked = new Set<string>();
+    for (const file of pending) {
+      if (checked.has(file)) continue;
+      checked.add(file);
+      expect(included(file), file).toBe(true);
+      const source = readFileSync(file, 'utf8');
+      for (const match of source.matchAll(/from\s+['"]([.][^'"]+)['"]/gu)) {
+        const relative = path.posix.normalize(path.posix.join(path.posix.dirname(file), match[1]!));
+        const resolved = [relative + '.ts', relative + '.tsx', relative + '/index.ts'].find(
+          existsSync,
+        );
+        expect(resolved, relative).toBeDefined();
+        if (!resolved) throw new Error('Unresolved isolated build input');
+        expect(included(resolved), resolved).toBe(true);
+        if (resolved.startsWith('scripts/')) pending.push(resolved);
+      }
+    }
+    expect(included('scripts/abacatepay-preflight-catalog.sql')).toBe(true);
+  });
   it.each(['require', 'verify-full'])(
     'forces verify-full for a source URL declaring %s, without inheriting secrets or TLS overrides',
     (mode) => {

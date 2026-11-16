@@ -18,6 +18,13 @@ await rm(path.join(target, '.next'), { recursive: true, force: true });
 const copied = [
   'src',
   'scripts/security',
+  // Dependencies of the operator regression tests copied with src/security.
+  // Explicit files only: never copy the whole scripts directory or .env files.
+  'scripts/abacatepay-preflight-transport.ts',
+  'scripts/abacatepay-preflight-catalog.sql',
+  'scripts/abacatepay-release-validation.ts',
+  'scripts/abacatepay-release-apply.ts',
+  'scripts/abacatepay-checkout-session.ts',
   'package.json',
   'tsconfig.json',
   'next.config.ts',
