@@ -10,6 +10,8 @@ const m = vi.hoisted(() => ({
   requireCachedAnyPermission: vi.fn(),
   requireFreshPermission: vi.fn(),
   requireClinicId: vi.fn(),
+  decidePayoutReviewTx: vi.fn(),
+  setPayoutReviewPolicyTx: vi.fn(),
   logAudit: vi.fn(),
   execute: vi.fn(),
   createBatchInTx: vi.fn(),
@@ -48,6 +50,15 @@ vi.mock('@/lib/audit/log', () => ({ logAudit: m.logAudit }));
 vi.mock('@/lib/audit/request-context-from-headers', () => ({ requestContext: async () => ({ ip: null, userAgent: null, requestId: 'r1' }) }));
 vi.mock('@/lib/db/tenant', () => ({ withTenant: async (_c: string, fn: (tx: unknown) => unknown) => fn({ execute: m.execute }) }));
 vi.mock('@/lib/storage/tiss-files', () => ({ supabaseTissObjectStore: () => ({}), TissStorageError: class extends Error {} }));
+vi.mock('./internal/payout-review-service', () => {
+  class PayoutReviewError extends Error {
+    constructor(message: string, readonly code: string) {
+      super(message);
+      this.name = 'PayoutReviewError';
+    }
+  }
+  return { PayoutReviewError, decidePayoutReviewTx: m.decidePayoutReviewTx, setPayoutReviewPolicyTx: m.setPayoutReviewPolicyTx };
+});
 vi.mock('./internal/batch-service', () => ({ createBatchInTx: m.createBatchInTx, BatchExportError: class extends Error {} }));
 vi.mock('./internal/guide-access', () => ({ readBatchGuidesAudited: vi.fn() }));
 vi.mock('./internal/guide-issuance', () => ({ approveConsultaGuide: m.approveConsultaGuide }));
@@ -90,16 +101,19 @@ import {
   approveGuideAction,
   createBatchAction,
   decideGlossAction,
+  decidePayoutReviewAction,
   recordConsultaAuthorizationResponseAction,
   recordPaymentAction,
   returnGuideAction,
   reviewGuideAction,
+  setPayoutReviewPolicyAction,
   setSadtClinicalIndicationAction,
   updateConsultaFieldsAction,
 } from './actions';
 import { AuthorizationError } from './internal/authorizations';
 import { ConsultaOverridesError } from './internal/consulta-overrides-service';
 import { ConveniosModuleDisabledError } from './internal/module-guard';
+import { PayoutReviewError } from './internal/payout-review-service';
 import { notReviewedError } from './internal/issuance-common';
 
 /** Erro com o mesmo nome do da emissão (a ação reconhece pelo nome, como o BatchRuleError). */
@@ -477,5 +491,58 @@ describe('resposta da operadora à autorização da Consulta (P6.3)', () => {
     expect(r.ok).toBe(false);
     expect(m.requireCachedPermission).not.toHaveBeenCalled();
     expect(m.recordManualAuthorizationResponseTx).not.toHaveBeenCalled();
+  });
+});
+
+describe('revisão humana do repasse (0163)', () => {
+  const REVIEW = '66666666-6666-4666-8666-666666666666';
+  beforeEach(() => {
+    vi.clearAllMocks();
+    m.requireUser.mockResolvedValue(SESSION);
+    m.requireCachedPermission.mockResolvedValue(undefined);
+    m.requireCachedAnyPermission.mockResolvedValue(undefined);
+    m.requireFreshPermission.mockResolvedValue(undefined);
+    m.requireClinicId.mockResolvedValue(CLINIC);
+    m.decidePayoutReviewTx.mockResolvedValue({ reviewId: REVIEW, payoutId: 'p1', decision: 'reduce', reduceCents: 1500, dueCents: 2500 });
+  });
+
+  it('decidir: faturamento com permissão FRESCA; clínica da sessão; auditoria só com decisão e valores', async () => {
+    const r = await decidePayoutReviewAction({ reviewId: REVIEW, decision: 'reduce', reason: 'Sessão parcialmente refeita', reduceCents: 1500 });
+    expect(r).toEqual({ ok: true, data: { dueCents: 2500 } });
+    expect(m.requireFreshPermission).toHaveBeenCalledWith('manage:faturamento_convenio');
+    expect(m.requireCachedAnyPermission).toHaveBeenCalledWith(['manage:faturamento_convenio']);
+    expect(m.decidePayoutReviewTx).toHaveBeenCalledWith(expect.anything(), {
+      clinicId: CLINIC, reviewId: REVIEW, decision: 'reduce', reason: 'Sessão parcialmente refeita', reduceCents: 1500,
+    });
+    const audit = m.logAudit.mock.calls[0]![1] as { action: string; resourceType: string; after: { result: string } };
+    expect([audit.action, audit.resourceType, audit.after.result]).toEqual(['health_insurance.payout.review_decided', 'hi_payout_review', 'reduce:1500;devido=2500']);
+  });
+
+  it('sem a permissão fresca, nada é decidido nem auditado', async () => {
+    m.requireFreshPermission.mockRejectedValueOnce(new (AuthError as unknown as new (msg: string, code: string) => Error)('negado', 'forbidden'));
+    const r = await decidePayoutReviewAction({ reviewId: REVIEW, decision: 'maintain', reason: 'Atendimento realizado' });
+    expect(r.ok).toBe(false);
+    expect(m.decidePayoutReviewTx).not.toHaveBeenCalled();
+    expect(m.logAudit).not.toHaveBeenCalled();
+  });
+
+  it('reduzir sem valor é recusado antes do banco; manter não leva valor ao serviço; erros do banco chegam com a mensagem do serviço', async () => {
+    expect((await decidePayoutReviewAction({ reviewId: REVIEW, decision: 'reduce', reason: 'Sessão parcialmente refeita' })).ok).toBe(false);
+    expect(m.decidePayoutReviewTx).not.toHaveBeenCalled();
+    m.decidePayoutReviewTx.mockResolvedValueOnce({ reviewId: REVIEW, payoutId: 'p1', decision: 'maintain', reduceCents: null, dueCents: 6000 });
+    await decidePayoutReviewAction({ reviewId: REVIEW, decision: 'maintain', reason: 'Atendimento realizado', reduceCents: 999 });
+    expect(m.decidePayoutReviewTx).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ decision: 'maintain', reduceCents: null }));
+    m.decidePayoutReviewTx.mockRejectedValueOnce(new PayoutReviewError('Esta revisão exige outra pessoa: quem tirou a guia do atendimento não decide (segregação da clínica ou valor em jogo).', 'segregation'));
+    const seg = await decidePayoutReviewAction({ reviewId: REVIEW, decision: 'maintain', reason: 'Atendimento realizado' });
+    expect(seg).toEqual({ ok: false, error: 'Esta revisão exige outra pessoa: quem tirou a guia do atendimento não decide (segregação da clínica ou valor em jogo).' });
+  });
+
+  it('política de segregação: administração (manage:convenios, D-2), auditada', async () => {
+    const r = await setPayoutReviewPolicyAction({ segregation: true, independentAboveCents: 50000 });
+    expect(r).toEqual({ ok: true, data: null });
+    expect(m.requireCachedAnyPermission).toHaveBeenCalledWith(['manage:convenios']);
+    expect(m.setPayoutReviewPolicyTx).toHaveBeenCalledWith(expect.anything(), { clinicId: CLINIC, segregation: true, independentAboveCents: 50000 });
+    const audit = m.logAudit.mock.calls[0]![1] as { action: string; after: { result: string } };
+    expect([audit.action, audit.after.result]).toEqual(['health_insurance.payout.segregation_policy_changed', 'segregacao=sim;limite=50000']);
   });
 });

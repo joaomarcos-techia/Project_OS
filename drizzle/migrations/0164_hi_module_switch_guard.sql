@@ -1,13 +1,13 @@
 -- =====================================================================
--- CANDIDATA SEM NÚMERO — Convênios: interruptor do módulo também no banco
+-- 0164 — Convênios: interruptor do módulo também no banco
 -- (defesa em profundidade da classe A; docs/convenios/modulo-desligado.md §7)
 --
--- SITUAÇÃO: proposta técnica preparada em 16/11/2026. NÃO está em drizzle/migrations nem
--- no journal. NÃO tem número reservado: o número é decidido só na autorização, depois da
--- 0162 e conforme a coordenação com o #53 (docs/convenios/coordenacao-migrations.md). NÃO
--- foi aplicada no DEV nem em produção. NÃO faz parte da 0162 nem do pacote SaaS do
--- AbacatePay (Gate B 0136–0159). Prova em Postgres descartável, com dados sintéticos:
--- scripts/security/health-insurance-module-switch-triggers-db.ts (job sintético do Actions).
+-- Autorizada para o DEV pelo fundador em 16/11/2026 ("AUTORIZO FINALIZAR E VALIDAR ESSA PROTEÇÃO
+-- NO DEV"), depois da 0162 e da 0163, com o número conferido no journal real (DEV em 0162; #53 sem
+-- migration nova). NÃO autorizada em produção. Fora do pacote SaaS do AbacatePay (Gate B 0136–0159).
+-- Prova em Postgres descartável, com dados sintéticos e o ARQUIVO FINAL:
+-- scripts/security/health-insurance-module-switch-triggers-db.ts (job convenios-synthetic-db.yml).
+-- Corpo da candidata provada 9/9 em 16/11, com o cabeçalho final e o registro em _schema_version.
 --
 -- POR QUE: o serviço já recusa a classe A com o módulo desligado (assertConveniosOperableTx,
 -- 15/11). O banco só conferia o D24 (assinatura), não o interruptor. Uma chamada que pule o
@@ -71,6 +71,7 @@
 --   DROP TRIGGER IF EXISTS hi_ab_module_coverages ON public.hi_appointment_coverages;
 --   DROP TRIGGER IF EXISTS hi_ab_module_copayments ON public.hi_copayments;
 --   DROP FUNCTION IF EXISTS public.hi_module_guard();
+--   DELETE FROM public._schema_version WHERE version = '0164-hi-module-switch-guard';
 -- =====================================================================
 
 CREATE OR REPLACE FUNCTION public.hi_module_guard() RETURNS trigger
@@ -149,3 +150,7 @@ DROP TRIGGER IF EXISTS hi_ab_module_copayments ON public.hi_copayments;
 --> statement-breakpoint
 CREATE TRIGGER hi_ab_module_copayments BEFORE UPDATE OF status ON public.hi_copayments
   FOR EACH ROW EXECUTE FUNCTION public.hi_module_guard();
+--> statement-breakpoint
+
+INSERT INTO public._schema_version (version) VALUES ('0164-hi-module-switch-guard')
+  ON CONFLICT DO NOTHING;

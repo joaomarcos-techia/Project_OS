@@ -230,6 +230,8 @@ export interface InsurancePayoutPosition {
   settledCents: number;
   dueCents: number;
   pendingAuthorizationCents: number;
+  /** Revisão humana aberta (0163): guia fora do atendimento; pagamento e autorização bloqueados. */
+  openReviewId: string | null;
 }
 
 const num = (v: unknown) => (v === null || v === undefined ? 0 : Number(v));
@@ -269,5 +271,6 @@ export async function listInsurancePayoutPositionsTx(
     settledCents: num(r.settled_cents),
     dueCents: num(r.due_cents),
     pendingAuthorizationCents: num(r.pending_authorization_cents),
+    openReviewId: r.open_review_id ? String(r.open_review_id) : null,
   }));
 }

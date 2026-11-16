@@ -1,7 +1,8 @@
 /**
- * Convênios: PROPOSTA de levar o interruptor do módulo também para os gatilhos do banco
- * (docs/convenios/migrations/hi_module_switch_guard.candidate.sql, SEM número e fora do
- * journal), em Postgres DESCARTÁVEL com dados sintéticos. Nunca no DEV compartilhado.
+ * Convênios: o interruptor do módulo também nos gatilhos do banco — migration 0164
+ * (drizzle/migrations/0164_hi_module_switch_guard.sql, autorizada para o DEV em 16/11; era a
+ * candidata sem número provada 9/9), em Postgres DESCARTÁVEL com dados sintéticos. A prova monta a
+ * cadeia do DEV SEM a 0164 e aplica o arquivo final por cima. Nunca no DEV compartilhado.
  *
  * O que precisa ficar provado antes de pedir a aplicação (modulo-desligado.md §7):
  *   1. a candidata aplica depois da cadeia do DEV e é reaplicável;
@@ -28,7 +29,8 @@ import { readFile } from 'node:fs/promises';
 import { readDevOrderChain } from './dev-order-chain';
 import { startScratchSchema } from './scratch-schema';
 
-const CANDIDATE = 'docs/convenios/migrations/hi_module_switch_guard.candidate.sql';
+const MIGRATION_FILE = '0164_hi_module_switch_guard.sql';
+const CANDIDATE = `drizzle/migrations/${MIGRATION_FILE}`;
 const PORT = Number(process.env.PORT ?? 55552);
 const body = await readFile(CANDIDATE, 'utf8');
 const rollback = body
@@ -37,7 +39,8 @@ const rollback = body
   .map((l) => l.replace(/^--\s+/u, ''));
 assert.equal(rollback.length, 9, 'a reversão do cabeçalho lista 8 gatilhos e a função');
 
-const chain = await readDevOrderChain();
+const chain = (await readDevOrderChain()).filter((m) => m.file < MIGRATION_FILE);
+assert.ok(!chain.some((m) => m.file.startsWith('0164_')), 'a 0164 entra por cima, não na cadeia');
 const cluster = await startScratchSchema({ port: PORT, maxConnections: 8, migrations: chain });
 const { sql } = cluster;
 if (!new RegExp(`@(?:127\\.0\\.0\\.1|localhost):${PORT}/`, 'u').test(cluster.url)) throw new Error('não é o cluster local');

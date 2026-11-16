@@ -72,6 +72,13 @@ jobs:
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55549 \
             pnpm exec tsx scripts/security/health-insurance-permission-matrix-db.ts
 
+      # P1.12-b (matriz I.2): escopo "só as próprias" e valores fora do servidor nas leituras da interface.
+      - name: Matriz I.2 — escopo das guias e valores nas leituras (D-1, D-3, D-4)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55553 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/health-insurance-guide-scope-db.ts
+
       # Cada prova roda mesmo se a anterior falhar (evidência independente); o job falha se qualquer uma falhar.
       - name: SP/SADT — solicitação, automação e indicação clínica × D24
         if: ${{ !cancelled() }}
@@ -82,7 +89,7 @@ jobs:
           NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs" \
             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-sadt-db.ts
 
-      - name: Repasse do convênio — inclui o cancelamento da guia com repasse
+      - name: Repasse do convênio — cancelamento com repasse e revisão humana (0163)
         if: ${{ !cancelled() }}
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" NODE_OPTIONS=--conditions=react-server \
@@ -94,8 +101,8 @@ jobs:
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55551 NODE_OPTIONS=--conditions=react-server \
             pnpm exec tsx scripts/security/health-insurance-module-switch-db.ts
 
-      # Proposta (candidata SEM número, fora do journal): o interruptor também nos gatilhos do banco.
-      - name: Gatilhos do módulo (candidata) — classe A barrada no banco, preservação e recuperação passam
+      # 0164 (arquivo final do journal, autorizada para o DEV em 16/11): o interruptor também nos gatilhos do banco.
+      - name: 0164 — gatilhos do módulo, classe A barrada no banco, preservação e recuperação passam
         if: ${{ !cancelled() }}
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55552 NODE_OPTIONS=--conditions=react-server \

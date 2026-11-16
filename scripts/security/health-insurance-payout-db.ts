@@ -8,6 +8,10 @@
  * posterior, estorno, ajuste, duplicidade, concorrência, regra fixa, políticas e
  * isolamento. O repasse particular (professional_payouts) não muda.
  *
+ * Seção 15 (0163, contrato aprovado em 16/11): revisão humana quando a guia sai do atendimento —
+ * bloqueio de pagamento e autorização, decisões manter/reduzir/ciência, segregação, concorrência,
+ * idempotência, classe C (módulo desligado) e isolamento.
+ *
  *   TISS_XMLLINT_WASM_DIR=… NODE_OPTIONS=--conditions=react-server npx tsx scripts/security/health-insurance-payout-db.ts
  */
 import assert from 'node:assert/strict';
@@ -31,13 +35,15 @@ process.env.CRYPTO_LOOKUP_SALT = Buffer.alloc(32, 9).toString('base64');
 
 const acct = await import('../../src/contexts/health-insurance/internal/insurance-account-service');
 const pay = await import('../../src/contexts/health-insurance/internal/insurance-payout-service');
+const review = await import('../../src/contexts/health-insurance/internal/payout-review-service');
+const { issueConsultaGuide } = await import('../../src/contexts/health-insurance/internal/guide-issuance');
 const { withTenant } = await import('../../src/lib/db/tenant');
 await import('../../src/app/api/cron/outbox/handlers');
 const { runOutboxOnce } = await import('../../src/lib/outbox/worker');
 const { applyTransition } = await import('../../src/contexts/scheduling/internal/appointment-core');
 const { recordAppointmentCoverage } = await import('../../src/contexts/health-insurance/internal/coverage-service');
 const { loadXmllintValidator } = await import('../../src/contexts/health-insurance/tiss/xml/xsd-validator');
-const { loadHiFixtures, GUIDE_VALUE_CENTS: VALUE, SYS_ACTOR } = await import('./hi-fixtures');
+const { loadHiFixtures, GUIDE_VALUE_CENTS: VALUE, SYS_ACTOR, SYNTHETIC_CARD } = await import('./hi-fixtures');
 
 const xsd = loadXmllintValidator();
 if (!xsd) throw new Error('validador XSD do app indisponível (TISS_XMLLINT_WASM_DIR fora do CI)');
@@ -331,7 +337,8 @@ try {
   // (pendente de autorização negativo) para a revisão humana (a). Nada é compensado sozinho.
   assert.deepEqual([sB.dueCents, sB.pendingAuthorizationCents], [6000, -6000]);
   assert.deepEqual(await movements(pB), ['authorization:6000']);
-  await rejects(() => authorize(C, pB, 1), /acima do elegível/u);
+  // 0163 (decisão de 16/11): com a revisão aberta, a recusa vem da revisão, antes do teto do elegível.
+  await rejects(() => authorize(C, pB, 1), /em revisão/u);
   // C — repasse AUTORIZADO e PAGO (R$ 60).
   const gCx = await C.approvedGuide();
   const pCx = await payoutFor(C, gCx);
@@ -372,14 +379,218 @@ try {
   // (iv) ajuste é humano, com motivo, e não deixa o autorizado negativo
   await rejects(() => adjust(C, pN, -6001, 'Revisão humana depois do cancelamento da guia'), /negativo/u);
   assert.deepEqual(await movements(pN), ['authorization:6000', 'settlement:2000'], 'as recusas não gravaram movimento');
-  // (v) LACUNA MEDIDA: com uma chave NOVA, o saldo autorizado de guia cancelada ainda pode ser pago.
+  // (v) A LACUNA medida em 16/11 (chave NOVA pagava o saldo de guia cancelada) está FECHADA pela 0163,
+  //     por decisão do fundador: com a revisão aberta, o pagamento é recusado e nada é gravado.
   const sBefore = await position(C, pN);
   assert.deepEqual([sBefore.decision, sBefore.authorizedCents, sBefore.settledCents, sBefore.dueCents], ['NO_LIVE_GUIDE', 6000, 2000, 4000]);
-  await settle(C, pN, 1000);
+  assert.ok(sBefore.openReviewId, 'revisão aberta');
+  await rejects(() => settle(C, pN, 1000), /em revisão/u);
   const sN = await position(C, pN);
-  assert.deepEqual([sN.decision, sN.authorizedCents, sN.settledCents, sN.dueCents], ['NO_LIVE_GUIDE', 6000, 3000, 3000]);
+  assert.deepEqual([sN.decision, sN.authorizedCents, sN.settledCents, sN.dueCents], ['NO_LIVE_GUIDE', 6000, 2000, 4000]);
   assert.deepEqual(await money(gN), [0, 0, 0]);
-  pass('14. não regressão do cancelamento (guia cancelada com repasse autorizado e pago em parte): a mesma chave não duplica o pagamento; pagamento acima do autorizado, cancelamento do repasse com pagamento e ajuste que deixaria o autorizado negativo continuam recusados, sem gravar movimento; LACUNA medida: com chave nova, mais R$ 10,00 do saldo autorizado foram pagos depois do cancelamento (devido R$ 40,00 → R$ 30,00); nenhum recebível, livro ou caixa tocado');
+  pass('14. não regressão do cancelamento (guia cancelada com repasse autorizado e pago em parte): a mesma chave não duplica o pagamento; pagamento acima do autorizado, cancelamento do repasse com pagamento e ajuste que deixaria o autorizado negativo continuam recusados, sem gravar movimento; a LACUNA de 16/11 está fechada pela 0163: com chave nova, o pagamento do saldo de R$ 40,00 é recusado (revisão aberta) e nada é gravado; nenhum recebível, livro ou caixa tocado');
+
+  // ── 15. Revisão humana do repasse (0163; contrato aprovado pelo fundador em 16/11) ─────────────
+  //   Abre no COMMIT da transação que tira a guia do atendimento; bloqueia pagamento e autorização;
+  //   manter/reduzir/ciência; segregação; concorrência; idempotência; classe C; isolamento.
+  const outra = randomUUID(); // outra pessoa da clínica (o banco só usa a pessoa da sessão)
+  type Decision = 'maintain' | 'reduce' | 'acknowledge';
+  const decideAs = (actor: string, reviewId: string, decision: Decision, reason: string, reduceCents: number | null = null, c: Clinic = C) =>
+    withTenant(c.clinicId, (tx) => review.decidePayoutReviewTx(tx, { clinicId: c.clinicId, reviewId, decision, reason, reduceCents }), actor);
+  const reviewsOf = async (payoutId: string) =>
+    (await sql`select id::text, kind, status, guide_status, opened_by::text, decided_by::text, decision,
+                      open_authorized_cents::int a, open_adjustments_cents::int j, open_settled_cents::int s, reduce_cents::int r
+                 from public.hi_payout_reviews where payout_id = ${payoutId}::uuid order by opened_at`) as unknown as Array<{
+      id: string; kind: string; status: string; guide_status: string; opened_by: string | null; decided_by: string | null;
+      decision: string | null; a: number; j: number; s: number; r: number | null;
+    }>;
+  const REASON = 'Atendimento realizado; obrigação conferida pela gestão';
+
+  // 15.1 Abertura: autorizado e não pago → bloqueante; pago → ciência; pago em parte → bloqueante; sem saldo → nada.
+  const [rB] = await reviewsOf(pB);
+  assert.deepEqual([rB!.kind, rB!.status, rB!.guide_status, rB!.opened_by, rB!.a, rB!.j, rB!.s], ['blocking', 'open', 'cancelled', C.doctorId, 6000, 0, 0]);
+  assert.equal((await position(C, pB)).openReviewId, rB!.id);
+  await rejects(() => settle(C, pB, 100), /em revisão/u); // chave NOVA
+  await rejects(() => authorize(C, pB, 1), /em revisão/u);
+  assert.deepEqual(await movements(pB), ['authorization:6000'], 'as recusas não gravaram movimento');
+  assert.deepEqual(await reviewsOf(pA), [], 'sem saldo autorizado nem pago: nada a revisar');
+  const [rCx] = await reviewsOf(pCx);
+  assert.deepEqual([rCx!.kind, rCx!.status, rCx!.a, rCx!.s], ['acknowledgement', 'open', 6000, 6000]);
+  const [rN] = await reviewsOf(pN);
+  assert.deepEqual([rN!.kind, rN!.a, rN!.s], ['blocking', 6000, 2000]);
+  pass('15.1 abertura no commit da transação da guia: autorizado e não pago → revisão bloqueante (pagamento com chave nova e autorização recusados, nada gravado); pago → revisão de ciência; pago em parte → bloqueante com o saldo de R$ 40,00; sem saldo → nenhuma revisão; quem abriu = a pessoa da sessão');
+
+  // 15.2 Idempotência: reabrir (backfill ou gatilho de novo) não duplica a revisão aberta.
+  const [{ n: again }] = (await sql`select public.hi_payout_reviews_open_for_guide(${C.clinicId}::uuid, ${gB}::uuid, 'cancelled', 'backfill') as n`) as unknown as [{ n: number }];
+  assert.equal(Number(again), 0);
+  assert.equal((await reviewsOf(pB)).length, 1);
+  pass('15.2 idempotência: a abertura de novo para a mesma guia (backfill ou gatilho repetido) não cria uma segunda revisão aberta');
+
+  // 15.3 Decisões.
+  await rejects(() => decideAs(outra, rB!.id, 'acknowledge', REASON), /manter ou reduzir/u);
+  await rejects(() => decideAs(outra, rB!.id, 'maintain', 'curto'), /motivo/u);
+  const kept = await decideAs(outra, rB!.id, 'maintain', REASON);
+  assert.deepEqual([kept.decision, kept.dueCents], ['maintain', 6000]);
+  assert.equal((await position(C, pB)).openReviewId, null);
+  await settle(C, pB, 6000);
+  await rejects(() => settle(C, pB, 1), /acima do autorizado/u);
+  const [rB2] = await reviewsOf(pB);
+  assert.deepEqual([rB2!.status, rB2!.decision, rB2!.decided_by], ['decided', 'maintain', outra]);
+  await rejects(() => decideAs(outra, rB!.id, 'reduce', REASON, 100), /já foi decidida/u);
+  await rejects(() => sql`update public.hi_payout_reviews set decision_reason = ${'Tentativa de reescrever a decisão'} where id = ${rB!.id}::uuid`, /já decidida/u);
+  // reduzir: grava o ajuste no mesmo ato e limita o pagamento ao novo autorizado
+  await rejects(() => decideAs(outra, rN!.id, 'reduce', REASON, 4001), /Redução/u);
+  const cut = await decideAs(outra, rN!.id, 'reduce', 'Sessão parcialmente refeita; reduzir R$ 15,00', 1500);
+  assert.deepEqual([cut.decision, cut.reduceCents, cut.dueCents], ['reduce', 1500, 2500]);
+  assert.deepEqual(await movements(pN), ['authorization:6000', 'settlement:2000', 'adjustment:-1500']);
+  const [{ k: cutKey }] = (await sql`select idempotency_key k from public.hi_payout_movements where payout_id = ${pN}::uuid and kind = 'adjustment'`) as unknown as [{ k: string }];
+  assert.equal(cutKey, `payout-review:${rN!.id}`);
+  await settle(C, pN, 2500);
+  await rejects(() => settle(C, pN, 1), /acima do autorizado/u);
+  // ciência: só sem saldo; nada é compensado nem estornado
+  await rejects(() => decideAs(outra, rCx!.id, 'maintain', REASON), /Não há saldo/u);
+  await decideAs(outra, rCx!.id, 'acknowledge', 'Repasse já pago antes do cancelamento; ciência');
+  assert.deepEqual(await movements(pCx), ['authorization:6000', 'settlement:6000'], 'ciência não compensa nem estorna');
+  pass('15.3 decisões: ciência recusada com saldo não pago e motivo curto recusado; manter libera o pagamento até o autorizado (R$ 60,00) e não além; reduzir (acima do saldo recusado) grava o ajuste de −R$ 15,00 no mesmo ato, com chave da revisão, e limita o pagamento a R$ 25,00; ciência do repasse pago não compensa nem estorna; revisão decidida é imutável (nova decisão e UPDATE direto recusados)');
+
+  // 15.4 Segregação: política da clínica e limite de risco.
+  const cancelledWithAuth = async (cents: number) => {
+    const g = await C.approvedGuide();
+    const p = await payoutFor(C, g);
+    await authorize(C, p, cents);
+    await cancelGuide(g);
+    const [r] = await reviewsOf(p);
+    return { g, p, r: r! };
+  };
+  await sql`update public.hi_clinic_settings set payout_review_segregation = true where clinic_id = ${C.clinicId}::uuid`;
+  const S1 = await cancelledWithAuth(6000);
+  await rejects(() => decideAs(C.doctorId, S1.r.id, 'maintain', REASON), /exige outra pessoa/u);
+  await decideAs(outra, S1.r.id, 'maintain', REASON);
+  await sql`update public.hi_clinic_settings set payout_review_segregation = false, payout_review_independent_above_cents = 5000 where clinic_id = ${C.clinicId}::uuid`;
+  const S2 = await cancelledWithAuth(6000);
+  await rejects(() => decideAs(C.doctorId, S2.r.id, 'maintain', REASON), /exige outra pessoa/u);
+  await rejects(() => decideAs(C.doctorId, S2.r.id, 'reduce', REASON, 1000), /exige outra pessoa/u);
+  await decideAs(outra, S2.r.id, 'reduce', REASON, 1000);
+  const S3 = await cancelledWithAuth(3000);
+  await decideAs(C.doctorId, S3.r.id, 'maintain', REASON); // abaixo do limite, sem segregação: a mesma pessoa decide
+  await sql`update public.hi_clinic_settings set payout_review_independent_above_cents = null where clinic_id = ${C.clinicId}::uuid`;
+  pass('15.4 segregação: com a política da clínica ligada, quem cancelou a guia não decide (outra pessoa sim); com o limite de R$ 50,00, saldo de R$ 60,00 exige outra pessoa para manter ou reduzir; abaixo do limite e sem a política, a mesma pessoa decide (quatro olhos não é padrão)');
+
+  // 15.5 Concorrência.
+  // (a) o pagamento confirma DURANTE a transação que cancela: a revisão nasce com ele nos valores.
+  const gR = await C.approvedGuide();
+  const pR = await payoutFor(C, gR);
+  await authorize(C, pR, 6000);
+  const [{ v: vR }] = (await sql`select version v from public.hi_guides where id = ${gR}::uuid`) as unknown as [{ v: number }];
+  let updated!: () => void;
+  let release!: () => void;
+  const updatedP = new Promise<void>((r) => (updated = r));
+  const gate = new Promise<void>((r) => (release = r));
+  const t1 = sql.begin(async (t) => {
+    await t`select set_config('app.current_clinic', ${C.clinicId}, true), set_config('app.current_user', ${C.doctorId}, true)`;
+    await t`update public.hi_guides set status = 'cancelled', cancel_reason = 'Guia emitida para o convênio errado',
+             cancelled_by = ${C.doctorId}::uuid where id = ${gR}::uuid and version = ${Number(vR)}`;
+    updated();
+    await gate;
+  });
+  await updatedP;
+  await settle(C, pR, 1000);
+  release();
+  await t1;
+  const [rR] = await reviewsOf(pR);
+  assert.deepEqual([rR!.kind, rR!.a, rR!.s], ['blocking', 6000, 1000]);
+  await rejects(() => settle(C, pR, 1000), /em revisão/u);
+  // (b) duas decisões ao mesmo tempo: a segunda espera a trava e lê "já decidida".
+  let decided1!: () => void;
+  let release2!: () => void;
+  const decided1P = new Promise<void>((r) => (decided1 = r));
+  const gate2 = new Promise<void>((r) => (release2 = r));
+  const d1 = sql.begin(async (t) => {
+    await t`select set_config('app.current_clinic', ${C.clinicId}, true), set_config('app.current_user', ${outra}, true)`;
+    await t`select * from public.hi_payout_review_decide(${C.clinicId}::uuid, ${rR!.id}::uuid, 'maintain', ${REASON}, null)`;
+    decided1();
+    await gate2;
+  });
+  await decided1P;
+  // O erro é capturado já (a segunda decisão só falha depois do commit da primeira).
+  const d2 = decideAs(C.doctorId, rR!.id, 'reduce', REASON, 100).then(() => null, (e: unknown) => e as { message?: string });
+  await new Promise((r) => setTimeout(r, 400));
+  release2();
+  await d1;
+  const e2 = await d2;
+  assert.ok(e2 && /já foi decidida/u.test(e2.message ?? ''), `segunda decisão: ${e2?.message}`);
+  assert.deepEqual(await movements(pR), ['authorization:6000', 'settlement:1000'], 'a decisão perdedora não gravou ajuste');
+  pass('15.5 concorrência: pagamento que confirma durante a transação do cancelamento entra nos valores da revisão (R$ 10,00 pago, R$ 50,00 bloqueado) e o seguinte é recusado; duas decisões ao mesmo tempo → uma vence, a outra lê "já decidida" sem gravar ajuste');
+
+  // 15.6 Substituição APROVADA (guia em análise na operadora): a substituta vira viva no mesmo ato em
+  //      que a original vira "substituída"; a checagem no commit vê o estado final e não abre revisão.
+  const LW = await fx.sentBatch(C, 1);
+  const gW = LW.guides[0]!;
+  const pW = await payoutFor(C, gW);
+  await authorize(C, pW, 6000);
+  const subId = await fx.asUser(C, async (tx) => {
+    const [n] = (await tx.execute(fx.sqlTag`select public.hi_next_counter(${C.clinicId}::uuid, 'guide', '') as v`)) as unknown as Array<{ v: string }>;
+    const [s] = (await tx.execute(fx.sqlTag`insert into public.hi_guides
+        (clinic_id, guide_type, number, insurer_id, plan_id, patient_id, membership_id, authorization_id,
+         executant_professional_id, replaces_guide_id, idempotency_key, created_via, created_by)
+      select clinic_id, guide_type, ${String(n!.v)}, insurer_id, plan_id, patient_id, membership_id, authorization_id,
+             executant_professional_id, id, ${`substituta:${gW}`}, 'user', ${C.doctorId}::uuid
+        from public.hi_guides where id = ${gW}::uuid
+      returning id`)) as unknown as Array<{ id: string }>;
+    await tx.execute(fx.sqlTag`insert into public.hi_guide_items
+        (clinic_id, guide_id, sequence, appointment_id, contract_line_id, authorization_item_id, executed_on,
+         table_code, procedure_code, description, quantity, factor_hundredths, unit_value_cents, total_value_cents)
+      select clinic_id, ${s!.id}::uuid, sequence, appointment_id, contract_line_id, authorization_item_id, executed_on,
+             table_code, procedure_code, description, quantity, factor_hundredths, unit_value_cents, total_value_cents
+        from public.hi_guide_items where guide_id = ${gW}::uuid`);
+    return String(s!.id);
+  });
+  assert.deepEqual(await reviewsOf(pW), [], 'substituta em rascunho: nada muda');
+  const [orig] = (await sql`select total_value_cents::int t, membership_id::text m from public.hi_guides where id = ${gW}::uuid`) as unknown as Array<{ t: number; m: string }>;
+  await fx.asUser(C, (tx) => tx.execute(fx.sqlTag`update public.hi_guides set status = 'ready_for_review', total_value_cents = ${orig!.t},
+      issues = '[]', terminology_version = '202609' where id = ${subId}::uuid`));
+  await fx.asUser(C, (tx) => tx.execute(fx.sqlTag`update public.hi_guides set status = 'reviewed', reviewed_by = ${C.doctorId}::uuid where id = ${subId}::uuid`));
+  await fx.asUser(C, (tx) =>
+    issueConsultaGuide(tx, {
+      clinicId: C.clinicId,
+      guideId: subId,
+      card: { membershipId: orig!.m, cardNumber: SYNTHETIC_CARD, auditEventId: 'leitura-auditada-simulada' },
+      newborn: false,
+      professionalName: 'Dra. Sintética',
+      actorUserId: C.doctorId,
+      today: '2026-12-31',
+    }),
+  );
+  const pair = (await sql`select id::text, status, live from public.hi_guides where id in (${gW}::uuid, ${subId}::uuid)`) as unknown as Array<{ id: string; status: string; live: boolean }>;
+  assert.deepEqual(pair.find((r) => r.id === gW), { id: gW, status: 'replaced', live: false });
+  assert.deepEqual(pair.find((r) => r.id === subId), { id: subId, status: 'approved', live: true });
+  assert.deepEqual(await reviewsOf(pW), [], 'substituta viva no mesmo atendimento: sem revisão');
+  assert.equal((await position(C, pW)).guideId, subId, 'o repasse passa a seguir a substituta');
+  pass('15.6 substituição aprovada de guia em análise: a original vira "substituída" e a substituta viva no mesmo ato; a checagem no commit vê o estado final, nenhuma revisão é aberta e o repasse passa a seguir a substituta');
+
+  // 15.7 Classe C: com o módulo desligado, a decisão continua (preservação de obrigação).
+  const X = await cancelledWithAuth(6000);
+  await sql`update public.hi_clinic_settings set enabled = false where clinic_id = ${C.clinicId}::uuid`;
+  await decideAs(outra, X.r.id, 'maintain', REASON);
+  await sql`update public.hi_clinic_settings set enabled = true where clinic_id = ${C.clinicId}::uuid`;
+  pass('15.7 classe C: com o módulo desligado na clínica, a decisão da revisão continua permitida (preservação da obrigação com o profissional)');
+
+  // 15.8 Isolamento: outra clínica não decide (nem com o id certo); a clínica do chamador não vale.
+  const Y = await cancelledWithAuth(6000);
+  await assert.rejects(() => decideAs(D.doctorId, Y.r.id, 'maintain', REASON, null, D), (e: { code?: string }) => e.code === 'not_found');
+  await rejects(
+    () => withTenant(D.clinicId, (tx) => review.decidePayoutReviewTx(tx, { clinicId: C.clinicId, reviewId: Y.r.id, decision: 'maintain', reason: REASON }), D.doctorId),
+    /fora da clínica da sessão/u,
+  );
+  assert.equal((await reviewsOf(Y.p))[0]!.status, 'open');
+  pass('15.8 isolamento: a sessão de outra clínica não encontra a revisão (mesmo com o id certo) e não pode agir em nome da clínica dona; a revisão continua aberta');
+
+  // 15.9 Nada fora do TISS foi tocado.
+  // (a guia enviada da 15.6 tem recebível desde o envio, pela ponte da 0153: fora desta conta)
+  for (const g of [gB, gN, gCx, S1.g, S2.g, S3.g, gR, X.g, Y.g]) assert.deepEqual(await money(g), [0, 0, 0]);
+  const [{ n: particularEnd }] = (await sql`select count(*)::int as n from public.professional_payouts`) as unknown as [{ n: number }];
+  assert.equal(particularEnd, particularBefore);
+  pass('15.9 nenhuma revisão nem decisão toca recebível, livro, lancamentos, Caixa ou o repasse particular');
 
   console.log(`\nOK — ${passed} provas do repasse profissional de convênio (P10.4).`);
 } finally {

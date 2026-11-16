@@ -19,7 +19,7 @@ const [row] = (await dbAdmin.execute(sql`
 if (!row) throw new Error('não é solicitação sintética e2e-hi');
 const q = await import('../../src/contexts/health-insurance/queries');
 for (const [name, fn] of [
-  ['getSadtRequestDetail', () => q.getSadtRequestDetail(row.clinic_id, requestId)],
+  ['getSadtRequestDetail', () => q.getSadtRequestDetail(row.clinic_id, requestId, { kind: 'clinic' })],
   ['getConveniosCommercialDenial', () => q.getConveniosCommercialDenial(row.clinic_id)],
 ] as const) {
   try {

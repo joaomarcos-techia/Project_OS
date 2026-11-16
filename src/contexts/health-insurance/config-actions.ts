@@ -81,6 +81,10 @@ function messageOf(error: unknown): string {
   if (error instanceof Error && error.name === 'BillingModeChangeError') return error.message;
   if (error instanceof CoverageInputError)
     return error.message.charAt(0).toUpperCase() + error.message.slice(1);
+  // 0164: o interruptor do módulo também no banco (caminho que pulou o serviço): a mesma mensagem do serviço.
+  const constraint = (error as { constraint_name?: string; cause?: { constraint_name?: string } }).constraint_name ??
+    (error as { cause?: { constraint_name?: string } }).cause?.constraint_name;
+  if (constraint === 'hi_module_enabled') return new ConveniosModuleDisabledError().message;
   const e = error as { code?: string; cause?: { code?: string; message?: string } };
   const code = e.code ?? e.cause?.code;
   if (code && ['55000', '23514', '22023'].includes(code) && e.cause?.message)

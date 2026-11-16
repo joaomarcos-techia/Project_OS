@@ -78,7 +78,7 @@ async function signInContext(
 test.describe('produção: lifecycle de todos os overrides', () => {
   test.describe.configure({ retries: 0 });
 
-  test('nega, concede e restaura as 28 permissões canônicas', async ({ browser }) => {
+  test('nega, concede e restaura todas as permissões canônicas do catálogo', async ({ browser }) => {
     test.setTimeout(720_000);
     test.skip(
       !authorized,

@@ -109,6 +109,7 @@ const WRITE_RULE_BY_PREFIX: ReadonlyArray<readonly [string, ConveniosRule]> = [
   ['health_insurance.payment.', 'bill'],
   ['health_insurance.payout.review_', 'bill'],
   ['health_insurance.payout.policy_changed', 'configure'],
+  ['health_insurance.payout.segregation_policy_changed', 'configure'],
   ['health_insurance.payout.', 'bill'],
   // Recepção.
   ['health_insurance.sadt_request.', 'operate'],

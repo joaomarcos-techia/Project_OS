@@ -747,7 +747,7 @@ try {
         values (${A.clinicId}::uuid, 'receber', 'Consulta cheia', 150, 'pendente', current_date, ${A.patientId}::uuid, ${conv.id}::uuid, 'manual')`,
     (e: unknown) => (e as { code?: string }).code === '23514',
   );
-  const upcoming = await listUpcomingInsuranceAppointments(A.clinicId);
+  const upcoming = await listUpcomingInsuranceAppointments(A.clinicId, { kind: 'clinic' });
   assert.equal(upcoming.find((u) => u.appointmentId === conv.id)?.coverage?.status, cov!.status);
   pass(
     `agenda: escolha conferida antes (módulo, operadora ativa, carteirinha do paciente); atendimento nasce "convenio" pelo core real; cobertura ${String(cov!.status)} com coparticipação ESTIMADA (R$ ${(Number(copay!.expected_cents) / 100).toFixed(2)}); recebível do valor cheio recusado pelo banco; particular continua particular`,
@@ -764,7 +764,7 @@ try {
   const [movedRow] =
     await sql`select billing_mode from public.appointments where id = ${moved.id}::uuid`;
   assert.equal(movedRow!.billing_mode, 'convenio');
-  const pending = (await listUpcomingInsuranceAppointments(A.clinicId)).find(
+  const pending = (await listUpcomingInsuranceAppointments(A.clinicId, { kind: 'clinic' })).find(
     (u) => u.appointmentId === moved.id,
   );
   assert.equal(
@@ -797,9 +797,9 @@ try {
   assert.equal(setup.readiness.find((r) => r.key === 'identity')?.ok, true);
   assert.equal(setup.readiness.find((r) => r.key === 'enabled')?.ok, true);
   assert.ok(setup.councils.some((c) => c.code === '06'));
-  const detail = await getInsurerDetail(A.clinicId, insurerId);
+  const detail = await getInsurerDetail(A.clinicId, insurerId, { prices: true });
   assert.ok(detail && detail.lines.some((l) => !l.live) && detail.lines.some((l) => l.live));
-  assert.equal(await getInsurerDetail(B.clinicId, insurerId), null);
+  assert.equal(await getInsurerDetail(B.clinicId, insurerId, { prices: true }), null);
   const cards = await getPatientMemberships(A.clinicId, A.patientId);
   assert.ok(
     cards &&

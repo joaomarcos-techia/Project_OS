@@ -56,6 +56,7 @@ import { CoverageInputError, recordAppointmentCoverage } from './internal/covera
 import { approveConsultaGuide } from './internal/guide-issuance';
 import * as acct from './internal/insurance-account-service';
 import * as payouts from './internal/insurance-payout-service';
+import * as review from './internal/payout-review-service';
 import * as sadt from './internal/sadt-request-service';
 import {
   importOperatorStatement,
@@ -137,6 +138,7 @@ function messageOf(error: unknown): string {
     error instanceof sadt.SadtRequestError ||
     error instanceof CoverageInputError ||
     error instanceof payouts.InsurancePayoutError ||
+    error instanceof review.PayoutReviewError ||
     error instanceof CopayChargeError
   ) {
     return error.message.charAt(0).toUpperCase() + error.message.slice(1);
@@ -151,6 +153,10 @@ function messageOf(error: unknown): string {
     return issues[0] ? `${msg}: ${issues[0].message}` : msg;
   }
   if (error instanceof ConsultaOverridesError) return error.message;
+  // 0164: o interruptor do módulo também no banco (caminho que pulou o serviço): a mesma mensagem do serviço.
+  const constraint = (error as { constraint_name?: string; cause?: { constraint_name?: string } }).constraint_name ??
+    (error as { cause?: { constraint_name?: string } }).cause?.constraint_name;
+  if (constraint === 'hi_module_enabled') return new ConveniosModuleDisabledError().message;
   const e = error as { code?: string; cause?: { code?: string; message?: string } };
   const code = e.code ?? e.cause?.code;
   // Regras do banco (estado, versão, CHECK): a mensagem já é para o usuário e não leva dado pessoal.
@@ -1416,6 +1422,62 @@ export async function adjustInsurancePayoutAction(input: {
           actorUserId: ctx.userId,
         }),
     );
+    return null;
+  });
+}
+
+// ── Revisão humana do repasse (0163; contrato aprovado em 16/11) ──────────────
+
+const ReviewDecision = z.object({
+  reviewId: uuid,
+  decision: z.enum(['maintain', 'reduce', 'acknowledge']),
+  reason,
+  reduceCents: cents.nullable().optional(),
+});
+
+/**
+ * Decide a revisão aberta quando a guia saiu do atendimento: manter, reduzir (o ajuste vai no mesmo
+ * ato) ou ciência do repasse já pago. Faturamento com permissão FRESCA; segregação, tetos e
+ * imutabilidade são do banco. Classe C (D-6): sem portão comercial, vale com o módulo desligado.
+ * A auditoria leva só a decisão e os valores, nunca paciente ou guia.
+ */
+export async function decidePayoutReviewAction(
+  input: z.input<typeof ReviewDecision>,
+): Promise<ActionResult<{ dueCents: number }>> {
+  return run(async () => {
+    const d = ReviewDecision.parse(input);
+    if (d.decision === 'reduce' && !d.reduceCents)
+      throw new review.PayoutReviewError('Informe o valor da redução.', 'invalid');
+    await requireFreshPermission(PERMISSIONS.MANAGE_FATURAMENTO_CONVENIO);
+    let due = 0;
+    await write('health_insurance.payout.review_decided', { type: 'hi_payout_review', id: d.reviewId }, async (tx, ctx) => {
+      const out = await review.decidePayoutReviewTx(tx, {
+        clinicId: ctx.clinicId,
+        reviewId: d.reviewId,
+        decision: d.decision,
+        reason: d.reason,
+        reduceCents: d.decision === 'reduce' ? (d.reduceCents ?? null) : null,
+      });
+      due = out.dueCents;
+      return out.reduceCents === null ? `${out.decision};devido=${out.dueCents}` : `${out.decision}:${out.reduceCents};devido=${out.dueCents}`;
+    });
+    return { dueCents: due };
+  });
+}
+
+/** Segregação da revisão (D-2: administração da clínica). Vale para as decisões daqui em diante. */
+export async function setPayoutReviewPolicyAction(input: {
+  segregation: boolean;
+  independentAboveCents: number | null;
+}): Promise<ActionResult<null>> {
+  return run(async () => {
+    const d = z
+      .object({ segregation: z.boolean(), independentAboveCents: z.number().int().min(0).max(9_999_999_999).nullable() })
+      .parse(input);
+    await write('health_insurance.payout.segregation_policy_changed', { type: 'hi_clinic_settings', id: null }, async (tx, ctx) => {
+      await review.setPayoutReviewPolicyTx(tx, { clinicId: ctx.clinicId, ...d });
+      return `segregacao=${d.segregation ? 'sim' : 'nao'};limite=${d.independentAboveCents ?? 'nenhum'}`;
+    });
     return null;
   });
 }

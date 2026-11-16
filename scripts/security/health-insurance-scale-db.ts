@@ -216,8 +216,8 @@ try {
 
   // 6) Leituras da interface.
   await pool(clinics, CONCURRENCY, async (c) => {
-    await timed('painel', () => q.getInsuranceOverview(c.clinicId));
-    await timed('lista_guias', () => q.listGuides(c.clinicId, { status: 'desfecho' }));
+    await timed('painel', () => q.getInsuranceOverview(c.clinicId, { scope: { kind: 'clinic' }, values: true }));
+    await timed('lista_guias', () => q.listGuides(c.clinicId, { status: 'desfecho' }, { scope: { kind: 'clinic' }, values: true }));
     await timed('detalhe_lote', () => q.getBatchDetail(c.clinicId, batchOf.get(c.clinicId)!));
   });
 

@@ -25,6 +25,9 @@ process.env.CRYPTO_MASTER_KEY_V1 = Buffer.alloc(32, 7).toString('base64');
 process.env.CRYPTO_LOOKUP_SALT = Buffer.alloc(32, 9).toString('base64');
 
 const q = await import('../../src/contexts/health-insurance/queries');
+
+/** Visão completa (gestão: clínica inteira, com valores) — a matriz I.2 exige a visão explícita. */
+const FULL = { scope: { kind: 'clinic' as const }, values: true };
 const acct = await import('../../src/contexts/health-insurance/internal/insurance-account-service');
 const { loadXmllintValidator } = await import('../../src/contexts/health-insurance/tiss/xml/xsd-validator');
 const { loadHiFixtures, GUIDE_VALUE_CENTS: VALUE } = await import('./hi-fixtures');
@@ -75,10 +78,10 @@ try {
   await B.approvedGuide();
 
   // ── Painel ───────────────────────────────────────────────────────────
-  const o = await timed('overview', () => q.getInsuranceOverview(A.clinicId));
+  const o = await timed('overview', () => q.getInsuranceOverview(A.clinicId, FULL));
   assert.equal(o.enabled, true);
   assert.deepEqual(
-    [o.totals.guides, o.totals.billedCents, o.totals.paidCents, o.totals.glossDefinitiveCents, o.totals.glossOpenCents, o.totals.pendingCents, o.totals.unreconciledCents],
+    [o.totals!.guides, o.totals!.billedCents, o.totals!.paidCents, o.totals!.glossDefinitiveCents, o.totals!.glossOpenCents, o.totals!.pendingCents, o.totals!.unreconciledCents],
     [3, 3 * VALUE, VALUE, 5000, VALUE, 3 * VALUE - VALUE - 5000, 7000],
   );
   assert.equal(o.insurers[0]!.name, 'Operadora Um');
@@ -87,27 +90,27 @@ try {
   pass('painel: faturado, recebido, glosa definitiva e em aberto, a receber e não conciliado batem com a conta das guias; guias por etapa; conferência com o livro vazia');
 
   // ── Guias: lista e filtros ───────────────────────────────────────────
-  const all = await timed('listGuides', () => q.listGuides(A.clinicId));
+  const all = await timed('listGuides', () => q.listGuides(A.clinicId, {}, FULL));
   assert.equal(all.total, 4);
   assert.ok(all.rows.every((r) => r.patientName?.startsWith('Paciente Sintético')));
-  assert.equal((await q.listGuides(A.clinicId, { status: 'prontas' })).rows.map((r) => r.id).join(), approved);
-  assert.equal((await q.listGuides(A.clinicId, { status: 'desfecho' })).total, 3);
+  assert.equal((await q.listGuides(A.clinicId, { status: 'prontas' }, FULL)).rows.map((r) => r.id).join(), approved);
+  assert.equal((await q.listGuides(A.clinicId, { status: 'desfecho' }, FULL)).total, 3);
   const n1 = all.rows.find((r) => r.id === g1)!.number;
-  assert.deepEqual((await q.listGuides(A.clinicId, { q: n1 })).rows.map((r) => r.id), [g1]);
-  assert.equal((await q.listGuides(A.clinicId, { q: 'Paciente Sint' })).total, 4);
-  assert.equal((await q.listGuides(A.clinicId, { insurerId: A.insurerId })).total, 4);
-  assert.equal((await q.listGuides(A.clinicId, { owner: 'medico' })).total, 0);
-  assert.equal((await q.listGuides(A.clinicId, { q: "'; drop table x; --" })).total, 0);
+  assert.deepEqual((await q.listGuides(A.clinicId, { q: n1 }, FULL)).rows.map((r) => r.id), [g1]);
+  assert.equal((await q.listGuides(A.clinicId, { q: 'Paciente Sint' }, FULL)).total, 4);
+  assert.equal((await q.listGuides(A.clinicId, { insurerId: A.insurerId }, FULL)).total, 4);
+  assert.equal((await q.listGuides(A.clinicId, { owner: 'medico' }, FULL)).total, 0);
+  assert.equal((await q.listGuides(A.clinicId, { q: "'; drop table x; --" }, FULL)).total, 0);
   pass('lista de guias: total, paciente, lote e filtros por etapa, operadora, responsável e busca (número e nome; texto hostil vira busca vazia, nunca SQL)');
 
   // ── Detalhe da guia ──────────────────────────────────────────────────
-  const d2 = await timed('getGuideDetail', () => q.getGuideDetail(A.clinicId, g2));
+  const d2 = await timed('getGuideDetail', () => q.getGuideDetail(A.clinicId, g2, FULL));
   assert.ok(d2);
   assert.deepEqual([d2.items.length, d2.account?.glossDefinitiveCents, d2.glosses[0]?.status, d2.glosses[0]?.code, d2.batchId, d2.receivable?.valorGlosadoCents], [1, 5000, 'definitive', '1705', L.batchId, 5000]);
   assert.ok(d2.events.length > 0);
-  const d3 = (await q.getGuideDetail(A.clinicId, g3))!;
+  const d3 = (await q.getGuideDetail(A.clinicId, g3, FULL))!;
   assert.deepEqual([d3.appeals.length, d3.appeals[0]!.status, d3.appeals[0]!.glossIds], [1, 'draft', [gl3]]);
-  const d1 = (await q.getGuideDetail(A.clinicId, g1))!;
+  const d1 = (await q.getGuideDetail(A.clinicId, g1, FULL))!;
   assert.deepEqual([d1.allocations.length, d1.allocations[0]!.kind, d1.receivable?.status], [1, 'allocation', 'pago']);
   pass('detalhe da guia: itens, histórico, conta, glosas (definitiva baixando o recebível do livro), recursos com as glosas vinculadas e pagamentos alocados');
 
@@ -130,10 +133,10 @@ try {
   pass('conciliação: pagamentos com o valor sem guia e as guias com saldo (com o lote de cada uma) para alocar, todos da mesma operadora');
 
   // ── Isolamento ───────────────────────────────────────────────────────
-  assert.equal(await q.getGuideDetail(B.clinicId, g1), null);
+  assert.equal(await q.getGuideDetail(B.clinicId, g1, FULL), null);
   assert.equal(await q.getBatchDetail(B.clinicId, L.batchId), null);
-  const oB = await q.getInsuranceOverview(B.clinicId);
-  assert.deepEqual([oB.totals.guides, (await q.listGuides(B.clinicId)).total, (await q.listBatches(B.clinicId)).length, (await q.listInsurerPayments(B.clinicId)).length], [0, 1, 0, 0]);
+  const oB = await q.getInsuranceOverview(B.clinicId, FULL);
+  assert.deepEqual([oB.totals!.guides, (await q.listGuides(B.clinicId, {}, FULL)).total, (await q.listBatches(B.clinicId)).length, (await q.listInsurerPayments(B.clinicId)).length], [0, 1, 0, 0]);
   pass('isolamento: a clínica B não vê guia, lote, pagamento nem valores da A (só a própria guia aprovada)');
 
   console.log(JSON.stringify({ timingsMs: timings }));

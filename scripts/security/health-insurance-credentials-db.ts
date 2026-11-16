@@ -420,7 +420,7 @@ try {
     ],
   );
   assert.ok(np.newCredentialId);
-  const detail = await getInsurerDetail(A.clinicId, insurerId);
+  const detail = await getInsurerDetail(A.clinicId, insurerId, { prices: true });
   assert.equal(
     detail!.credentials.filter((c) => c.planId === planB && !c.professionalId).length,
     2,
@@ -570,7 +570,7 @@ try {
     B.owner,
   )) as unknown as [{ n: number }];
   assert.equal(seen, 0);
-  assert.equal(await getInsurerDetail(B.clinicId, insurerId), null);
+  assert.equal(await getInsurerDetail(B.clinicId, insurerId, { prices: true }), null);
   const { insurerId: insT } = await as(T, (tx) =>
     cfg.createInsurerTx(tx, T.clinicId, T.owner, {
       name: 'Operadora do Trial',
