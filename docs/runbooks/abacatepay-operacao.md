@@ -1,5 +1,13 @@
 # Operação e recuperação AbacatePay
 
+## Diagnóstico de `unavailable` após C2 — candidato local de 16/11/2026
+
+**Não abrir C3 nem promover este código sem GO corretivo específico.** O deployment C2 registrou nove `/api/cron/outbox` HTTP 500 de 18:40 a 23:36 UTC, cada um com `worker.error: GatewayReadError unavailable`. A instrumentação candidata ainda não estava publicada nesses eventos; não inferir que os nove falharam no mesmo GET. Sentry autenticado e fila atual não foram verificados nesta rodada.
+
+No próximo deployment autorizado, correlacionar pelo `request_id` do cron: `worker.job_failed.job` identifica `outbox`, `abacatepay_recovery`, `abacatepay_inbox`, `abacatepay_closures` ou `abacatepay_renewal_watch`; `billing.abacatepay.read_attempt_failed.operation` identifica o caminho GET fixo sem query; `billing.abacatepay.read_transport_failed` classifica fetch/stream sem causa bruta; `billing.abacatepay.request_control.outcome=coordination_unavailable` aponta para Redis. Conferir código/status, tentativa, duração e `willRetry`. HTTP 401/403/429 e falha de coordenação não recebem retry automático; somente GET transitório pode fazer uma segunda tentativa dentro do deadline. O HTTP 500 e o heartbeat de erro permanecem se algum job falhar. Uma resposta 200 não comprova que a fila está vazia.
+
+Antes de pedir C3, ler inbox/outbox/leases/heartbeat por canal administrativo autorizado, observar as execuções naturais após o corretivo por janela proporcional às recorrências, confirmar ausência de duplicidade e preservar Asaas/pagamentos de pacientes. Sem leitura autorizada de filas, classificar **ESTADO DA FILA NÃO VERIFICADO**. Não executar cron manual, replay, limpeza de leases ou cobrança para gerar evidência.
+
 ## Alerta posterior à janela — 16/11/2026, 22:25 UTC
 
 O deployment C2 `dpl_Dar6PpR89Lc3Zy8Ufdn2LW3i3GQF` atendeu o cron compartilhado após a janela e teve **cinco HTTP 500 em 224 execuções** desde 18:40:13 UTC; as outras 219 retornaram 200. A consulta foi somente leitura, filtrada por esse deployment e por `/api/cron/outbox`, limite 1.000 sem truncamento. Horários dos 500: 19:01:27, 19:58:27, 20:38:27, 22:00:27 e 22:18:27 UTC. Em cada um, a métrica de runtime `worker.error` classificou a falha como `GatewayReadError: unavailable`. As execuções mais recentes até 22:24:27 UTC voltaram a 200. **Não declarar o incidente de transporte resolvido nem iniciar C3 enquanto esta recorrência não for tratada ou decidida expressamente.** A antiga falha `binding_mismatch` não reapareceu nos cinco erros observados.

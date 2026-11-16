@@ -82,6 +82,9 @@ describe('bounded shared recovery batch', () => {
       mocks.renewal.mock.invocationCallOrder[0] ?? 0,
     );
     expect(mocks.renewal).toHaveBeenCalledTimes(2);
+    expect(mocks.transport).toHaveBeenCalledWith(
+      expect.objectContaining({ timeoutMs: 2000, readAttempts: 2 }),
+    );
   });
   it('caps work per execution without limiting progress in later executions', async () => {
     mocks.renewal.mockResolvedValue({ ...empty, scanned: 1 });

@@ -46,6 +46,12 @@ export interface AbacatePayRequestControl {
   observe(status: number | null): Promise<void>;
   throttle(headers: Headers): Promise<void>;
 }
+/** A failed admission/observation is not a provider transport failure. */
+export class AbacatePayCoordinationError extends GatewayReadError {
+  constructor() {
+    super('unavailable');
+  }
+}
 type Eval = (script: string, keys: string[], args: (string | number)[]) => Promise<unknown>;
 const resultSchema = z.tuple([z.union([z.literal(0), z.literal(1)]), z.number().nonnegative()]);
 
@@ -86,8 +92,11 @@ export function createRedisAbacatePayRequestControl(
         ),
       );
     } catch {
-      metrics.emit('billing.abacatepay.request_control', { outcome: 'coordination_unavailable' });
-      throw new GatewayReadError('unavailable');
+      metrics.emit('billing.abacatepay.request_control', {
+        outcome: 'coordination_unavailable',
+        action,
+      });
+      throw new AbacatePayCoordinationError();
     }
   }
   return {
@@ -123,8 +132,10 @@ export function defaultAbacatePayRequestControl(
   // The deterministic local suites forbid external IO and inject the control in
   // its own tests. No production/Preview bypass exists when Redis is unavailable.
   if (env.NODE_ENV === 'test' && !env.VERCEL_ENV) return undefined;
-  if (!storeId || !env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN)
-    throw new GatewayReadError('unavailable');
+  if (!storeId || !env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) {
+    metrics.emit('billing.abacatepay.request_control', { outcome: 'configuration_unavailable' });
+    throw new AbacatePayCoordinationError();
+  }
   redis ??= new Redis({
     url: env.UPSTASH_REDIS_REST_URL,
     token: env.UPSTASH_REDIS_REST_TOKEN,

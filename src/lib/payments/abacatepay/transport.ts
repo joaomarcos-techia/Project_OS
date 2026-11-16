@@ -4,8 +4,13 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { z } from 'zod';
 
 import { GatewayReadError, gatewayHttpReadError, parseBillingValue } from '../saas/contracts';
-import { defaultAbacatePayRequestControl, type AbacatePayRequestControl } from './request-control';
+import {
+  AbacatePayCoordinationError,
+  defaultAbacatePayRequestControl,
+  type AbacatePayRequestControl,
+} from './request-control';
 import { env } from '@/lib/env';
+import { metrics } from '@/lib/observability/metrics';
 
 const API_V2 = 'https://api.abacatepay.com/v2';
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -13,6 +18,16 @@ const MAX_RESPONSE_BYTES = 1_048_576;
 const READ_RETRY_DELAY_MS = 100;
 const MAX_ADMISSION_ATTEMPTS = 3;
 const RETRYABLE_HTTP = new Set([502, 503, 504]);
+function fetchFailureKind(error: unknown, timedOut: boolean) {
+  if (timedOut) return 'timeout';
+  const cause = error instanceof Error ? error.cause : null;
+  const code = cause && typeof cause === 'object' && 'code' in cause ? cause.code : null;
+  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') return 'dns';
+  if (code === 'UND_ERR_CONNECT_TIMEOUT') return 'connect_timeout';
+  if (code === 'ECONNRESET' || code === 'UND_ERR_SOCKET') return 'connection_closed';
+  if (typeof code === 'string' && code.startsWith('ERR_TLS_')) return 'tls';
+  return 'network_unknown';
+}
 export interface AbacatePayTransportConfig {
   apiKey: string;
   timeoutMs?: number;
@@ -123,6 +138,7 @@ export function createAbacatePayTransport(
     }
     const remaining = Math.min(timeoutMs, admissionDeadline - Date.now());
     if (remaining <= 0) throw failure();
+    const signal = AbortSignal.timeout(remaining);
     try {
       response = await fetcher(url, {
         method: input.method,
@@ -134,12 +150,20 @@ export function createAbacatePayTransport(
           ...(input.method === 'POST' ? { 'Content-Type': 'application/json' } : {}),
         },
         ...(body === undefined ? {} : { body }),
-        signal: AbortSignal.timeout(remaining),
+        signal,
       });
-    } catch {
+    } catch (error) {
+      if (input.method === 'GET')
+        metrics.emit('billing.abacatepay.read_transport_failed', {
+          operation: input.path,
+          phase: 'fetch',
+          failureKind: fetchFailureKind(error, signal.aborted),
+        });
       try {
         await control?.observe(null);
-      } catch {
+      } catch (coordinationError) {
+        if (input.method === 'GET' && coordinationError instanceof AbacatePayCoordinationError)
+          throw coordinationError;
         throw failure();
       }
       throw failure();
@@ -148,12 +172,14 @@ export function createAbacatePayTransport(
       try {
         if (response.status === 429) await control?.throttle(response.headers);
         else await control?.observe(response.status);
-      } catch {
+      } catch (coordinationError) {
         try {
           await response.body?.cancel();
         } catch {
           throw failure(response.status);
         }
+        if (input.method === 'GET' && coordinationError instanceof AbacatePayCoordinationError)
+          throw coordinationError;
         throw failure(response.status);
       }
       try {
@@ -165,12 +191,14 @@ export function createAbacatePayTransport(
     }
     try {
       await control?.observe(response.status);
-    } catch {
+    } catch (coordinationError) {
       try {
         await response.body?.cancel();
       } catch {
         throw failure(response.status);
       }
+      if (input.method === 'GET' && coordinationError instanceof AbacatePayCoordinationError)
+        throw coordinationError;
       throw failure(response.status);
     }
     const invalid = (): Error =>
@@ -194,6 +222,12 @@ export function createAbacatePayTransport(
       }
     } catch (error) {
       if (error instanceof GatewayReadError || error instanceof AbacatePayCommandError) throw error;
+      if (input.method === 'GET')
+        metrics.emit('billing.abacatepay.read_transport_failed', {
+          operation: input.path,
+          phase: 'response_stream',
+          failureKind: 'stream_interrupted',
+        });
       throw failure();
     } finally {
       reader.releaseLock();
@@ -214,19 +248,29 @@ export function createAbacatePayTransport(
   return async function request(input: Parameters<typeof requestOnce>[0]): Promise<unknown> {
     const attempts = input.method === 'GET' ? readAttempts : 1;
     for (let attempt = 1; ; attempt++) {
+      const startedAt = Date.now();
       try {
         return await requestOnce(input);
       } catch (error) {
         const transient =
           error instanceof GatewayReadError &&
+          !(error instanceof AbacatePayCoordinationError) &&
           error.code === 'unavailable' &&
           (error.httpStatus === null || RETRYABLE_HTTP.has(error.httpStatus));
-        if (
-          !transient ||
-          attempt >= attempts ||
-          (deadline !== undefined && Date.now() + READ_RETRY_DELAY_MS >= deadline)
-        )
-          throw error;
+        const willRetry =
+          transient &&
+          attempt < attempts &&
+          (deadline === undefined || Date.now() + READ_RETRY_DELAY_MS < deadline);
+        if (input.method === 'GET')
+          metrics.emit('billing.abacatepay.read_attempt_failed', {
+            operation: input.path,
+            attempt,
+            durationMs: Date.now() - startedAt,
+            code: error instanceof GatewayReadError ? error.code : 'unexpected',
+            httpStatus: error instanceof GatewayReadError ? error.httpStatus : null,
+            willRetry,
+          });
+        if (!willRetry) throw error;
         await delay(READ_RETRY_DELAY_MS);
       }
     }

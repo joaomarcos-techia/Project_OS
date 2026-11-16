@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
+const mocks = vi.hoisted(() => ({ emit: vi.fn() }));
+vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: mocks.emit } }));
 import { createAbacatePayTransport } from './transport';
+import { AbacatePayCoordinationError } from './request-control';
 
 describe('AbacatePay command transport', () => {
   it.each([502, 503, 504, null])(
@@ -22,6 +25,10 @@ describe('AbacatePay command transport', () => {
         data: { id: 'store_fixture' },
       });
       expect(fetcher).toHaveBeenCalledTimes(2);
+      expect(mocks.emit).toHaveBeenCalledWith(
+        'billing.abacatepay.read_attempt_failed',
+        expect.objectContaining({ operation: '/stores/get', attempt: 1, willRetry: true }),
+      );
     },
   );
   it.each([400, 401, 403, 404, 422, 429, 500])(
@@ -55,6 +62,60 @@ describe('AbacatePay command transport', () => {
       )({ method: 'GET', path: '/stores/get' }),
     ).rejects.toMatchObject({ code: 'unavailable' });
     expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+  it('does not retry a GET when distributed coordination is unavailable', async () => {
+    const control = {
+      admit: vi.fn().mockRejectedValue(new AbacatePayCoordinationError()),
+      observe: vi.fn(),
+      throttle: vi.fn(),
+    };
+    const fetcher = vi.fn<typeof fetch>();
+    const request = createAbacatePayTransport(
+      { apiKey: 'synthetic', requestControl: control, readAttempts: 2 },
+      fetcher,
+    );
+    await expect(request({ method: 'GET', path: '/products/get' })).rejects.toBeInstanceOf(
+      AbacatePayCoordinationError,
+    );
+    expect(control.admit).toHaveBeenCalledOnce();
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it('does not retry a GET after the provider failed when Redis cannot record the failure', async () => {
+    const control = {
+      admit: vi.fn().mockResolvedValue({ allowed: true, retryAfterMs: 0 }),
+      observe: vi.fn().mockRejectedValue(new AbacatePayCoordinationError()),
+      throttle: vi.fn(),
+    };
+    const fetcher = vi.fn<typeof fetch>().mockRejectedValue(new TypeError('synthetic network'));
+    const request = createAbacatePayTransport(
+      { apiKey: 'synthetic', requestControl: control, readAttempts: 2 },
+      fetcher,
+    );
+    await expect(request({ method: 'GET', path: '/products/get' })).rejects.toBeInstanceOf(
+      AbacatePayCoordinationError,
+    );
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+  it.each([
+    ['ENOTFOUND', 'dns'],
+    ['UND_ERR_CONNECT_TIMEOUT', 'connect_timeout'],
+    ['ECONNRESET', 'connection_closed'],
+    ['ERR_TLS_CERT_ALTNAME_INVALID', 'tls'],
+  ])('classifies a GET %s without logging the raw cause', async (code, failureKind) => {
+    mocks.emit.mockClear();
+    const secret = 'private-fixture-token';
+    const error = new TypeError(secret, { cause: Object.assign(new Error(secret), { code }) });
+    const fetcher = vi.fn<typeof fetch>().mockRejectedValue(error);
+    const request = createAbacatePayTransport({ apiKey: secret }, fetcher);
+    await expect(request({ method: 'GET', path: '/stores/get' })).rejects.toMatchObject({
+      code: 'unavailable',
+    });
+    expect(mocks.emit).toHaveBeenCalledWith('billing.abacatepay.read_transport_failed', {
+      operation: '/stores/get',
+      phase: 'fetch',
+      failureKind,
+    });
+    expect(JSON.stringify(mocks.emit.mock.calls)).not.toContain(secret);
   });
   it('does not start another attempt beyond the shared deadline', async () => {
     const fetcher = vi.fn<typeof fetch>().mockRejectedValue(new Error('private'));

@@ -13,6 +13,8 @@
  * Response shape mirrors `runOutboxOnce` summary; consumed by smoke-c4.
  */
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
+import { metrics } from '@/lib/observability/metrics';
+import { GatewayReadError } from '@/lib/payments/saas/contracts';
 import { withCron } from '@/lib/http/cron';
 import { runOutboxOnce } from '@/lib/outbox/worker';
 import {
@@ -53,6 +55,21 @@ export const GET = withCron(
       reconcileAbacatePayCheckoutClosuresTick(Date.now() + 20_000),
       reconcileAbacatePayRenewalWatchTick(),
     ]);
+    for (const [job, result] of [
+      ['outbox', outbox],
+      ['abacatepay_recovery', recovery],
+      ['abacatepay_inbox', inbox],
+      ['abacatepay_closures', closures],
+      ['abacatepay_renewal_watch', watch],
+    ] as const) {
+      if (result.status === 'rejected') {
+        metrics.emit('worker.job_failed', {
+          job,
+          code: result.reason instanceof GatewayReadError ? result.reason.code : 'unexpected',
+          httpStatus: result.reason instanceof GatewayReadError ? result.reason.httpStatus : null,
+        });
+      }
+    }
     // Await all independent jobs before reporting failure. An early financial
     // rejection must not abandon an independent outbox write at HTTP teardown.
     if (outbox.status === 'rejected') throw outbox.reason;

@@ -8,7 +8,9 @@ const mocks = vi.hoisted(() => ({
   heartbeat: vi.fn(),
   bootHandlers: vi.fn(),
   bootCatalog: vi.fn(),
+  emit: vi.fn(),
 }));
+vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: mocks.emit } }));
 vi.mock('@/lib/cron-heartbeat', () => ({ recordHeartbeat: mocks.heartbeat }));
 vi.mock('@/lib/http/cron', () => ({
   withCron: (_options: unknown, handler: () => Promise<Response>) => handler,
@@ -72,6 +74,11 @@ describe('existing outbox minute tick', () => {
     mocks.recovery.mockRejectedValueOnce(new Error('Synthetic failed checkpoint'));
     await expect(GET(request())).rejects.toThrow('Synthetic failed checkpoint');
     expect(mocks.heartbeat).not.toHaveBeenCalledWith('outbox', 'success', expect.anything());
+    expect(mocks.emit).toHaveBeenCalledWith('worker.job_failed', {
+      job: 'abacatepay_recovery',
+      code: 'unexpected',
+      httpStatus: null,
+    });
   });
   it('finishes independent outbox work before reporting a financial failure', async () => {
     let release: (() => void) | undefined;

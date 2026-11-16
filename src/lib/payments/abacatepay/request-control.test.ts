@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createRedisAbacatePayRequestControl, providerCooldownMs } from './request-control';
+import {
+  AbacatePayCoordinationError,
+  createRedisAbacatePayRequestControl,
+  providerCooldownMs,
+} from './request-control';
 import { createAbacatePayTransport } from './transport';
 
 describe('AbacatePay distributed admission boundary', () => {
@@ -30,6 +34,7 @@ describe('AbacatePay distributed admission boundary', () => {
     );
     const error: unknown = await control.admit().catch((e: unknown) => e);
     expect(error).toMatchObject({ code: 'unavailable' });
+    expect(error).toBeInstanceOf(AbacatePayCoordinationError);
     expect(error).not.toHaveProperty('cause');
     expect(String(error)).not.toContain('private-token');
   });

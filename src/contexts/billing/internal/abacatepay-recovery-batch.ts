@@ -19,7 +19,7 @@ const MAX_RENEWALS = 10;
 const MAX_INITIALS = 10;
 const PAGE_BUDGET_MS = 6000;
 const MIN_READ_BUDGET_MS = 12_000;
-const PROBE_BUDGET_MS = 2000;
+const PROBE_BUDGET_MS = 4500;
 
 /** Existing cron can resume a shared cursor before selecting independent contracts.
  * No new scheduler, external POST or Production composition is introduced here.
@@ -44,7 +44,8 @@ export async function reconcileAbacatePayRecoveryBatch(
   const probeRequest = createAbacatePayTransport({
     apiKey: env.ABACATEPAY_API_KEY,
     storeId: env.ABACATEPAY_STORE_ID,
-    timeoutMs: 1500,
+    timeoutMs: 2000,
+    readAttempts: 2,
     deadlineMs: Math.min(deadlineMs, Date.now() + PROBE_BUDGET_MS),
   });
   const probe = parseBillingValue(
