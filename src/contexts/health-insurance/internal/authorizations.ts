@@ -155,7 +155,8 @@ const ManualResponseInput = z.discriminatedUnion('decision', [
 ]);
 
 /**
- * Resposta da operadora a um pedido manual de Consulta. "Autorizada" só com evidência (número da
+ * Resposta da operadora a um pedido manual de Consulta (classe C: preservação, como a SP/SADT).
+ * "Autorizada" só com evidência (número da
  * guia na operadora, senha ou protocolo) e autor; data da resposta nem no futuro (data da clínica)
  * nem antes do pedido; número da operadora sem repetição; o que não foi concedido fica 0. A SP/SADT
  * responde pela solicitação (P6.2), para a solicitação e a autorização não divergirem.
@@ -166,7 +167,11 @@ export async function recordManualAuthorizationResponseTx(
 ): Promise<{ status: 'authorized' | 'partially_authorized' | 'denied' }> {
   const input = ManualResponseInput.parse(raw);
   const { clinicId } = input;
-  await assertConveniosOperableTx(tx, clinicId);
+  // Classe C (decisão do fundador de 16/11, modulo-desligado.md §6): a resposta da operadora a um
+  // pedido JÁ feito é preservação, como na SP/SADT — vale com o módulo desligado e com a assinatura
+  // parada. As travas abaixo impedem que vire criação: só pedido existente da clínica aguardando
+  // resposta, versão conferida, "autorizada" com evidência, datas e quantidades limitadas; nada de
+  // guia, lote ou cobrança. O PEDIDO continua classe A (requestManualAuthorizationTx).
   const [auth] = await tx
     .select({
       id: hiAuthorizations.id,

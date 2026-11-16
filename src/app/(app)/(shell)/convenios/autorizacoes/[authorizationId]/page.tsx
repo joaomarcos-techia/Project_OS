@@ -31,7 +31,9 @@ export default async function AutorizacaoPage({ params }: { params: Promise<{ au
   if (!detail) notFound();
   const { row: r, events, receipts } = detail;
   const waiting = WAITING.includes(r.status);
-  const canRespond = waiting && r.guideType === 'consulta' && access.rights.operate && !access.commercial;
+  // Classe C (16/11): a resposta da operadora a um pedido já feito vale com a assinatura parada ou o
+  // módulo desligado; o servidor confere as travas (pedido existente aguardando, evidência, datas).
+  const canRespond = waiting && r.guideType === 'consulta' && access.rights.operate;
   const title = `Autorização · ${r.guideType === 'sp_sadt' ? 'SP/SADT' : 'Consulta'}`;
 
   return (

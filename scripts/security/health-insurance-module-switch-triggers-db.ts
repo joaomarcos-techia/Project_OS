@@ -244,9 +244,13 @@ try {
     clinicId: C, insurerId: A.insurerId, paidOn: '2026-11-11', amountCents: 5000, source: 'manual',
     idempotencyKey: `pg-${randomUUID()}`, allocations: [{ guideId: g1, batchId: L.batchId, amountCents: 5000 }],
   } as Parameters<typeof acct.recordPaymentInTx>[1]))), 'aceitou');
-  assert.equal(await outcome(userUpdate(A, fx.sqlTag`update public.hi_authorizations set status = 'denied', denial_reason = 'Negada pela operadora (sintético)', recorded_by = ${A.doctorId}::uuid where id = ${authorizationId}::uuid`)), 'aceitou');
+  // Classe C pelo SERVIÇO (decisão de 16/11): a resposta da operadora à Consulta já pedida passa com o módulo desligado.
+  const [{ version: authVersion }] = (await sql`select version from public.hi_authorizations where id = ${authorizationId}::uuid`) as unknown as [{ version: number }];
+  assert.equal(await outcome(() => fx.asUser(A, (tx) => auths.recordManualAuthorizationResponseTx(tx, {
+    decision: 'denied', clinicId: C, authorizationId, version: Number(authVersion), denialReason: 'Negada pela operadora (sintético)', actorUserId: A.doctorId,
+  }))), 'aceitou');
   assert.equal(await outcome(() => setModule(A, false)), 'aceitou');
-  pass('4. com o módulo desligado continuam no banco: cancelar guia, devolver para correção, reabrir guia aprovada, cancelar lote exportado (a guia volta a "aprovada"), retorno da operadora (registro e arquivo batch_return), glosa, pagamento com alocação e resposta de autorização');
+  pass('4. com o módulo desligado continuam no banco: cancelar guia, devolver para correção, reabrir guia aprovada, cancelar lote exportado (a guia volta a "aprovada"), retorno da operadora (registro e arquivo batch_return), glosa, pagamento com alocação e a resposta da operadora à autorização de Consulta pelo SERVIÇO (classe C, decisão de 16/11)');
 
   // ── 5. A decisão comercial vem primeiro ─────────────────────────────────────────────────
   await sql`update public.subscriptions set billing_status = 'trial', trial_ends_at = now() + interval '10 days',
@@ -259,7 +263,12 @@ try {
 
   // ── 6. O serviço continua respondendo primeiro (a mensagem da tela não muda) ─────────────
   assert.equal(await outcome(() => fx.createBatch(A, [gLoose])), 'module_disabled');
-  pass('6. pelo serviço, a recusa continua sendo ConveniosModuleDisabledError (mensagem do módulo), antes de chegar ao gatilho');
+  // O PEDIDO novo de autorização continua classe A (a resposta é que é preservação).
+  assert.equal(await outcome(() => fx.asUser(A, (tx) => auths.requestManualAuthorizationTx(tx, {
+    clinicId: C, insurerId: A.insurerId, membershipId: card, requestedOn: '2026-11-10',
+    items: [{ tableCode: '22', procedureCode: '10101012', quantityRequested: 1 }], actorUserId: A.doctorId,
+  }))), 'module_disabled');
+  pass('6. pelo serviço, a recusa continua sendo ConveniosModuleDisabledError (mensagem do módulo), antes de chegar ao gatilho: montar lote e PEDIR autorização (a resposta da operadora é classe C e passou na prova 4)');
 
   // ── 7. Restauração e backfill: caminhos documentados passam ─────────────────────────────
   const restored = await outcome(() =>

@@ -129,7 +129,7 @@ describe('detalhe da autorização', () => {
     expect(screen.queryByRole('button', { name: 'Registrar resposta da operadora' })).toBeNull();
   });
 
-  it('Consulta aguardando: quem gerencia registra a resposta; sem permissão ou com restrição comercial, não', async () => {
+  it('Consulta aguardando: a recepção registra a resposta (classe C: também com a assinatura parada); quem não opera, não', async () => {
     m.getAuthorization.mockResolvedValue({ today: '2026-11-16', row: rows[1], events: [], receipts: [] });
     render(await AutorizacaoPage(params(A2)));
     expect(screen.getByRole('button', { name: 'Registrar resposta da operadora' })).toBeTruthy();
@@ -138,9 +138,10 @@ describe('detalhe da autorização', () => {
     render(await AutorizacaoPage(params(A2)));
     expect(screen.queryByRole('button', { name: 'Registrar resposta da operadora' })).toBeNull();
     cleanup();
-    m.conveniosAccess.mockResolvedValueOnce(accessFor(PROFILES.gestor, { commercial: 'trial' }));
+    // Classe C (16/11): a resposta a um pedido já feito continua com a assinatura parada.
+    m.conveniosAccess.mockResolvedValueOnce(accessFor(PROFILES.recepcao, { commercial: 'clinic_suspended' }));
     render(await AutorizacaoPage(params(A2)));
-    expect(screen.queryByRole('button', { name: 'Registrar resposta da operadora' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Registrar resposta da operadora' })).toBeTruthy();
   });
 
   it('SP/SADT aguardando: aponta para a solicitação, sem formulário próprio', async () => {
