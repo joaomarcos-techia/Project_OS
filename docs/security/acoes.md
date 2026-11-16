@@ -415,7 +415,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/abacatepay-observe-renewal.ts:72`                 | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/abacatepay-observe-renewal.ts:73`                 | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/abacatepay-readonly-check.ts:17`                  | `ABACATEPAY_API_KEY`                   | `process.env.ABACATEPAY_API_KEY`                                            |
-| `scripts/abacatepay-release-apply.ts:242`                  | `<object>`                             | `process.env`                                                               |
+| `scripts/abacatepay-release-apply.ts:443`                  | `<object>`                             | `process.env`                                                               |
 | `scripts/abacatepay-release-preflight.ts:27`               | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
 | `scripts/abacatepay-release-preflight.ts:28`               | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/abacatepay-release-preflight.ts:30`               | `<object>`                             | `process.env`                                                               |
@@ -653,9 +653,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/ai-handoff-reliability-db.ts:34`         | `<object>`                             | `process.env`                                                               |
 | `scripts/security/legacy-cancellation-db.ts:21`            | `<object>`                             | `process.env`                                                               |
 | `scripts/security/legacy-cancellation-db.ts:37`            | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
-| `scripts/security/local-build.ts:119`                      | `<dynamic>`                            | `process.env[key]`                                                          |
-| `scripts/security/local-build.ts:119`                      | `<dynamic>`                            | `process.env[key]`                                                          |
-| `scripts/security/local-build.ts:149`                      | `CI`                                   | `process.env.CI`                                                            |
+| `scripts/security/local-build.ts:120`                      | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/security/local-build.ts:120`                      | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/security/local-build.ts:150`                      | `CI`                                   | `process.env.CI`                                                            |
 | `scripts/security/offer-restored-backup-db.ts:34`          | `<object>`                             | `process.env`                                                               |
 | `scripts/security/offer-restored-backup-db.ts:328`         | `BACKUP_PASSPHRASE`                    | `process.env.BACKUP_PASSPHRASE`                                             |
 | `scripts/security/onboarding-progress-db.ts:44`            | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |

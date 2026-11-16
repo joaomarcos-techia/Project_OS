@@ -27950,6 +27950,14 @@
       "privateCipherSnapshotPreserved": true,
       "emptyFailedSnapshotDirectory": "preserved after automatic policy rejection; no data or credentials",
       "unknownProcessesKilled": false
+    },
+    "intermediateCI": {
+      "run": 43829441969,
+      "head": "2fc3489a5b88f71c6c3f838b42855481f6b3bcef",
+      "status": "FAIL",
+      "stage": "Security inventory",
+      "cause": "Source line references changed in release operator and build harness; counts/guards unchanged",
+      "correction": "Refresh documented source locations; do not disable or bypass inventory gate"
     }
   }
 }
