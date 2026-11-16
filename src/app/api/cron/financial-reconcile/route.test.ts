@@ -13,7 +13,9 @@ const {
   reconcileInsuranceBilling,
   listCopaySyncCandidates,
   reconcileCopayCharges,
+  runInsuranceMaintenance,
 } = vi.hoisted(() => ({
+  runInsuranceMaintenance: vi.fn(),
   listBillingGapCandidates: vi.fn(),
   reconcileInsuranceBilling: vi.fn(),
   listCopaySyncCandidates: vi.fn(),
@@ -38,6 +40,7 @@ vi.mock('@/contexts/health-insurance', () => ({
   reconcileInsuranceBilling,
   listCopaySyncCandidates,
   reconcileCopayCharges,
+  runInsuranceMaintenance,
 }));
 vi.mock('@/contexts/financial', () => ({
   FINANCIAL_EVENTS: { FATURAMENTO_PENDENTE: 'financial.faturamento.pendente' },
@@ -53,6 +56,7 @@ beforeEach(() => {
   execute.mockResolvedValue([]);
   listBillingGapCandidates.mockResolvedValue([]);
   listCopaySyncCandidates.mockResolvedValue([]);
+  runInsuranceMaintenance.mockResolvedValue({ clinics: 0, processed: 0, expired: 0, failed: 0, deferred: 0, daily: null });
   reconcileCopayCharges.mockResolvedValue({
     candidates: 0,
     changed: 0,
@@ -142,6 +146,9 @@ describe('financial reconcile', () => {
       copaySyncCandidates: 0,
       copaySyncChanged: 0,
       copaySyncFailed: false,
+      insuranceMaintenanceExpired: 0,
+      insuranceMaintenanceDeferred: 0,
+      insuranceMaintenanceFailed: false,
     });
   });
 
@@ -206,6 +213,9 @@ describe('financial reconcile', () => {
       copaySyncCandidates: 0,
       copaySyncChanged: 0,
       copaySyncFailed: false,
+      insuranceMaintenanceExpired: 0,
+      insuranceMaintenanceDeferred: 0,
+      insuranceMaintenanceFailed: false,
     });
     expect(withTenant).not.toHaveBeenCalled();
     expect(publishEvent).not.toHaveBeenCalled();
@@ -333,6 +343,32 @@ describe('financial reconcile', () => {
       'financial-reconcile',
       'success',
       expect.objectContaining({ copaySyncFailed: true, copaySyncCandidates: 0 }),
+    );
+  });
+
+  it('P6.6/P12.6: a manutenção de Convênios roda por último; se falhar, o cron responde 200 e as obrigações financeiras já foram cumpridas', async () => {
+    runInsuranceMaintenance.mockRejectedValueOnce(Object.assign(new Error('banco indisponível'), { name: 'DrizzleQueryError' }));
+    const response = await GET(new Request('https://app.qoro.dev/api/cron/financial-reconcile'));
+    expect(response.status).toBe(200);
+    // Depois da coparticipação (a última obrigação de antes).
+    expect(runInsuranceMaintenance.mock.invocationCallOrder[0]).toBeGreaterThan(reconcileCopayCharges.mock.invocationCallOrder[0]!);
+    expect(runInsuranceMaintenance).toHaveBeenCalledWith({ deadlineAt: expect.any(Number) });
+    // Só o tipo do erro, sem mensagem do banco nem clínica.
+    expect(emit).toHaveBeenCalledWith('insurance.maintenance.error', { error: 'DrizzleQueryError' });
+    expect(recordHeartbeat).toHaveBeenCalledWith(
+      'financial-reconcile',
+      'success',
+      expect.objectContaining({ insuranceMaintenanceFailed: true, opened: 0 }),
+    );
+  });
+
+  it('P6.6/P12.6: o resultado da manutenção entra no registro da execução (vencidas, adiadas, falhas por clínica)', async () => {
+    runInsuranceMaintenance.mockResolvedValueOnce({ clinics: 3, processed: 2, expired: 4, failed: 1, deferred: 0, daily: null });
+    await GET(new Request('https://app.qoro.dev/api/cron/financial-reconcile'));
+    expect(recordHeartbeat).toHaveBeenCalledWith(
+      'financial-reconcile',
+      'success',
+      expect.objectContaining({ insuranceMaintenanceExpired: 4, insuranceMaintenanceDeferred: 0, insuranceMaintenanceFailed: true }),
     );
   });
 });

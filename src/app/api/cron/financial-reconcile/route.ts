@@ -24,7 +24,9 @@ import {
   listCopaySyncCandidates,
   reconcileCopayCharges,
   reconcileInsuranceBilling,
+  runInsuranceMaintenance,
   type CopaySyncSummary,
+  type InsuranceMaintenanceSummary,
   type InsuranceReconcileSummary,
 } from '@/contexts/health-insurance';
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
@@ -70,6 +72,10 @@ const INSURANCE_LIMIT = 25;
 const COPAY_SYNC_LIMIT = 50;
 const INSURANCE_START_DEADLINE_MS = 45_000;
 const INSURANCE_END_DEADLINE_MS = 52_000;
+// P6.6/P12.6: manutenção de Convênios por ÚLTIMO, com o resto do orçamento (nunca antes das
+// obrigações acima; falha ou falta de tempo só adiam para a próxima execução de 15 min).
+const INSURANCE_MAINTENANCE_START_DEADLINE_MS = 53_000;
+const INSURANCE_MAINTENANCE_END_DEADLINE_MS = 56_000;
 const GRACE = "interval '15 minutes'";
 const MOTIVO = 'Atendimento concluído sem lançamento — verificar faturamento.';
 const TERMINAL_APPOINTMENT_STATUSES = new Set(['atendido', 'cancelado', 'faltou']);
@@ -293,6 +299,22 @@ export const GET = withCron(
         });
       }
     }
+    let insuranceMaintenance: InsuranceMaintenanceSummary | null = null;
+    let insuranceMaintenanceFailed = false;
+    if (Date.now() - startedAt < INSURANCE_MAINTENANCE_START_DEADLINE_MS) {
+      try {
+        insuranceMaintenance = await runInsuranceMaintenance({
+          deadlineAt: startedAt + INSURANCE_MAINTENANCE_END_DEADLINE_MS,
+        });
+      } catch (error) {
+        insuranceMaintenanceFailed = true;
+        metrics.emit('insurance.maintenance.error', {
+          error: error instanceof Error ? error.name : 'unknown',
+        });
+      }
+    } else {
+      metrics.emit('insurance.maintenance.skipped_budget', {});
+    }
     const runFields = {
       opened,
       insuranceCandidates: insurance?.candidates ?? 0,
@@ -302,6 +324,9 @@ export const GET = withCron(
       copaySyncCandidates: copaySync?.candidates ?? 0,
       copaySyncChanged: copaySync?.changed ?? 0,
       copaySyncFailed: copaySyncFailed || (copaySync?.failed ?? 0) > 0,
+      insuranceMaintenanceExpired: insuranceMaintenance?.expired ?? 0,
+      insuranceMaintenanceDeferred: insuranceMaintenance?.deferred ?? 0,
+      insuranceMaintenanceFailed: insuranceMaintenanceFailed || (insuranceMaintenance?.failed ?? 0) > 0,
       clinics: byClinic.size,
       orphanCredits,
       orphanClinics: orphanClinicIds.size,

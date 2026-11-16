@@ -134,3 +134,21 @@ export async function listCopaySyncCandidates(limit = 50): Promise<CopaySyncCand
   });
   return rows.map((r) => ({ clinicId: r.clinic_id, copaymentId: r.copayment_id }));
 }
+
+/** P6.6/P12.6: até quantas clínicas a manutenção de Convênios percorre por execução. */
+export const INSURANCE_MAINTENANCE_LIMIT = 200;
+
+/**
+ * Clínicas com Convênios instalado (linha em hi_clinic_settings), para a manutenção do fim do
+ * financial-reconcile. Mesma forma das leituras acima: cross-tenant, só identificadores, LIMIT; o
+ * trabalho de cada clínica volta para withTenant (maintenance.ts).
+ */
+export async function listInsuranceMaintenanceClinics(limit = INSURANCE_MAINTENANCE_LIMIT): Promise<string[]> {
+  const rows = await dbAdmin.transaction(async (tx) => {
+    await tx.execute(sql`RESET ROLE`);
+    return tx.execute<{ clinic_id: string }>(
+      sql`SELECT clinic_id::text AS clinic_id FROM hi_clinic_settings ORDER BY clinic_id LIMIT ${limit}`,
+    );
+  });
+  return (rows as unknown as Array<{ clinic_id: string }>).map((r) => r.clinic_id);
+}

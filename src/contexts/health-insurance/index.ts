@@ -14,6 +14,9 @@ export {
   type TissTermRow,
   type TissTerminologyVersionRow,
 } from './schema';
+// P6.6/P12.6 — manutenção de Convênios no fim do cron financial-reconcile (vencimento das
+// autorizações a cada execução; resumo diário de alertas só com contagens).
+export { runInsuranceMaintenance, type InsuranceMaintenanceSummary } from './maintenance';
 // P7.4 — reconcile "convênio sem guia" (chamado pelo cron financial-reconcile; C.7).
 export {
   listBillingGapCandidates,
