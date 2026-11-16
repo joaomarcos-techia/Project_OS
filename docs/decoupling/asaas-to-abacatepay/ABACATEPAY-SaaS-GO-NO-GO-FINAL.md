@@ -1,5 +1,19 @@
 # AbacatePay SaaS — decisão final de release e piloto
 
+## Checkpoint prevalente — C1/C2 executados, 16/11/2026
+
+**C1 PASS; C2 PASS no escopo não monetário. Contratações continuam bloqueadas. C3/C4 NÃO AUTORIZADOS.** Janela 2026-11-16T17:53:36.070Z–2026-11-16T18:40:12.813Z, 46.6min; disponibilidade do fundador e alerta Production5c780b15 confirmados nesta sessão. [Execução e incidente detalhados](GATE-B-DEPLOY-CONTROLADO.md#checkpoint-prevalente--c1c2-executados-16112026).
+
+Webhook único webh_prod_CzMcusdfp5CzFNKWegnjxcaP, loja live correta, devMode=false/v2 e oito eventos efetivamente aceitos/relidos. Chave mestra **ABACATEPAY_API_KEY** da Vercel Production comprovada dentro do build por GET da loja/cinco produtos/webhook; secret distinto, seguro e correspondente. Nenhuma chave fornecida por clínica ou substituição local no runtime.
+
+Deployment **dpl_Dar6PpR89Lc3Zy8Ufdn2LW3i3GQF**, app.qoro.dev conferido. Aplicação44323990/TAR-base6038df0d… mais overlay declarado de buildCommand para atestação somente leitura, hash ba0355e663c2090eaf3d7c78d2206160496f9914f7a29f07483fcf1b8a39a432. Financeiro/SQL/dependências congelados; original exportado e configuração global preservados. Executor a640e685/CI43903684798 GREEN; novo HEAD somente documental requer CI própria no PR.
+
+**Falha inicial preservada:** três erros de transporte no probe e três binding_mismatch pela falta da identidade técnica da loja no banco. Contenção por retorno temporário ao Gate B; bootstrap de uma linha central em billing_gateway.accounts, sem credenciais/cliente/assinatura/binding/invoice/direito. Mesma versão reativada. 4 crons naturais200/zero5xx e zero worker.error no recorte est?vel desde18:36UTC; consumers observados ociosos. Não fechar a issue histórica por suposição nem declarar causa de rede não capturada.
+
+Health profundo/Redis/Asaas PASS;160 migrations e hashes conferidos sem nova DDL. Cinco contratos Asaas e seus hashes financeiros iguais; contas técnicas1, bindings/inbox/operações/novas invoices/direitos0. Dashboard e Assinatura confirmados pelo fundador após promoção, sem ação financeira. Secret/HMAC/payload/mode inválidos recusados. **Entrega financeira real e fechamento de checkout live NÃO OBSERVADOS**; não foram simulados como reais.
+
+**Próximo passo: solicitar GO C3 específico**, com clínica provisionada/consentida, UUID, plano, médicos, valor, responsáveis e janela. Não executar antes da decisão. R1–R4 PARTIAL, B1-B adiado/risco aceito/não verificado; sem novo aceite residual. PR53 permanece OPEN/DRAFT, sem merge. Evidência no bloco gateCProductionWindow20261116 do registro financeiro existente. Checkpoints divergentes abaixo permanecem históricos.
+
 ## Checkpoint prevalente — C0 técnico concluído, Actions recuperado
 
 **CI oficial GREEN no SHA 4f683402d62489f1b9ed385da904b27792c6e849:** [run43898026077/tentativa 2](https://github.com/joaomarcos-techia/Project_OS/actions/runs/43898026077), 16/11/2026,15:44:28–15:59:34UTC. Logs conferidos: **7.329 testes em 647 arquivos e 27 E2E, zero SKIP**; TypeScript,lint,build,segurança e isolamento PostgreSQL PASS. ADR 43898026138 SUCCESS. Upload de relatório de falha não executado por sucesso não é teste ignorado. O fundador corrigiu Actions, sem alteração do orçamento pelo agente ou comprovação do saldo via API.

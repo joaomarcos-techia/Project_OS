@@ -28994,5 +28994,659 @@
     "merges": 0,
     "deployedApplication": "44323990b3f1fb9282418fec44a3182b02148c66",
     "deployedTarSha256": "6038df0da3a6afaee68528c2f38c08743356ef6bdf6ece7ca808fd41672d0e64"
+  },
+  "gateCProductionWindow20261116": {
+    "authorization": {
+      "window": "59b0180e-ce97-4ed8-bc36-d0530428c870",
+      "centralKeyRule": "071cad05-da8b-499d-8759-f1194ecbc3a4",
+      "freshFounderAvailabilityConfirmed": true,
+      "technicalExecutor": "This Codex session",
+      "operationalAndIncidentOwner": "Founder",
+      "scope": "C1 registration + C2 configuration/deployment/receiver/four consumers; acquisition closed",
+      "C3": "NOT_AUTHORIZED",
+      "C4": "NOT_AUTHORIZED"
+    },
+    "window": {
+      "startedAt": "2026-11-16T17:53:36.070Z",
+      "deadlineAt": "2026-11-16T18:53:36.070Z",
+      "closedAt": "2026-11-16T18:40:12.813Z",
+      "durationSeconds": 2797
+    },
+    "baseline": {
+      "operationalHead": "a640e68593f0de933140c8989c0d8844c2313046",
+      "officialCiRun": "43903684798",
+      "status": "SUCCESS",
+      "tests": 7329,
+      "testFiles": 647,
+      "e2e": 27,
+      "skipped": 0,
+      "financialSourceChanged": false,
+      "sqlSchemaChanged": false,
+      "dependenciesChanged": false,
+      "subsequentDocumentationHeadRequiresOwnChecks": true
+    },
+    "artifact": {
+      "applicationRevision": "44323990b3f1fb9282418fec44a3182b02148c66",
+      "approvedBaseTarSha256": "6038df0da3a6afaee68528c2f38c08743356ef6bdf6ece7ca808fd41672d0e64",
+      "files": 2787,
+      "sqlFiles": 160,
+      "baseFilesComparedByteForByte": true,
+      "configurationOverlayOnly": "Exported vercel.json buildCommand adds readonly credential attestation before pnpm build; no application/SQL changes",
+      "effectiveConfigOverlaySha256": "ba0355e663c2090eaf3d7c78d2206160496f9914f7a29f07483fcf1b8a39a432",
+      "exportedOriginalRestored": true,
+      "globalProjectBuildCommandUnchanged": true,
+      "deployedIdentity": "Approved base TAR plus disclosed configuration overlay, not an unmodified TAR deployment"
+    },
+    "centralCredential": {
+      "variable": "ABACATEPAY_API_KEY",
+      "scope": "Vercel Production sensitive server-side",
+      "masterKeyChanged": false,
+      "writeOnlyValuesNotBypassed": true,
+      "inPlatformBuildAttestation": {
+        "marker": "QORO_C2_CENTRAL_ATTESTATION_20261116",
+        "status": "PASS",
+        "centralKeyVariable": "ABACATEPAY_API_KEY",
+        "centralStoreAuthenticated": true,
+        "liveProductsVerified": 5,
+        "webhookStoreVerified": true,
+        "webhookSecretMatchesRegistered": true,
+        "acquisition": "CLOSED",
+        "financialMutations": 0
+      },
+      "syntheticVerifierCases": 18,
+      "syntheticShellCases": 2,
+      "localAdministrativeCredential": "Explicit ABACATEPAY_API_KEY_PROD only for authorized provider administration; never substituted into runtime",
+      "perClinicApiKeyRequired": false,
+      "technicalAccountRow": "Only central merchant identity in billing_gateway.accounts; not a clinic customer or financial obligation"
+    },
+    "C1": {
+      "at": "2026-11-16T17:56:47.360Z",
+      "status": "PASS",
+      "webhookId": "webh_prod_CzMcusdfp5CzFNKWegnjxcaP",
+      "endpoint": "https://app.qoro.dev/api/webhooks/abacatepay",
+      "events": [
+        "subscription.completed",
+        "subscription.renewed",
+        "subscription.payment_failed",
+        "subscription.cancelled",
+        "checkout.completed",
+        "checkout.refunded",
+        "checkout.disputed",
+        "checkout.lost"
+      ],
+      "devMode": false,
+      "v2": true,
+      "readback": "GET_MATCH",
+      "webhookCount": 1,
+      "secret": "Production-exclusive random64hex; DPAPI private local custody; not exposed",
+      "providerCreateAttempts": 1,
+      "productionVercelWrites": 0,
+      "C2": "AUTHORIZED_PENDING_PREFLIGHT"
+    },
+    "C2": {
+      "configuration": "PASS",
+      "deployment": "PASS",
+      "currentDeploymentId": "dpl_Dar6PpR89Lc3Zy8Ufdn2LW3i3GQF",
+      "receiver": "ACTIVE; invalid secret/HMAC/payload/mode rejected",
+      "consumers": "ACTIVE; natural idle cycles observed; no real financial event processed",
+      "inbox": "EMPTY",
+      "outbox": {
+        "failed": 0,
+        "pending": 0,
+        "processing": 0,
+        "oldestPendingSeconds": null
+      },
+      "liveFinancialProviderDelivery": "NOT_OBSERVED_PENDING_C3",
+      "flags": {
+        "SIGNUP_ENABLED": "false",
+        "SAAS_SIGNUP_PROVIDER": "asaas",
+        "ABACATEPAY_NEW_CHECKOUTS_ENABLED": "false",
+        "ABACATEPAY_CHECKOUT_CLINIC_IDS": "",
+        "ABACATEPAY_ENVIRONMENT": "production"
+      },
+      "firewallVersion": 5,
+      "cronDefinitions": 21,
+      "metrics": [
+        {
+          "at": "2026-11-16T18:38:28.734Z",
+          "event": "billing.abacatepay.recovery_batch",
+          "scanned": 0,
+          "applied": 0,
+          "failed": 0,
+          "review": 0,
+          "deferred": false,
+          "pages": 0
+        },
+        {
+          "at": "2026-11-16T18:38:28.689Z",
+          "event": "billing.abacatepay.statement_scan",
+          "failed": 0,
+          "deferred": false,
+          "pages": 0
+        },
+        {
+          "at": "2026-11-16T18:38:28.193Z",
+          "event": "worker.tick",
+          "failed": 0,
+          "processed": 0,
+          "empty": 50,
+          "duration_ms": 668
+        },
+        {
+          "at": "2026-11-16T18:38:27.620Z",
+          "event": "billing.abacatepay.renewal_watch",
+          "scanned": 0,
+          "deferred": false,
+          "due": 0,
+          "opened": 0,
+          "resolved": 0
+        },
+        {
+          "at": "2026-11-16T18:38:27.605Z",
+          "event": "billing.abacatepay.inbox_tick",
+          "scanned": 0,
+          "applied": 0,
+          "review": 0,
+          "deferred": false
+        },
+        {
+          "at": "2026-11-16T18:37:28.575Z",
+          "event": "billing.abacatepay.recovery_batch",
+          "scanned": 0,
+          "applied": 0,
+          "failed": 0,
+          "review": 0,
+          "deferred": false,
+          "pages": 0
+        },
+        {
+          "at": "2026-11-16T18:37:28.529Z",
+          "event": "billing.abacatepay.statement_scan",
+          "failed": 0,
+          "deferred": false,
+          "pages": 0
+        },
+        {
+          "at": "2026-11-16T18:37:28.077Z",
+          "event": "worker.tick",
+          "failed": 0,
+          "processed": 0,
+          "empty": 50,
+          "duration_ms": 695
+        },
+        {
+          "at": "2026-11-16T18:37:27.507Z",
+          "event": "billing.abacatepay.renewal_watch",
+          "scanned": 0,
+          "deferred": false,
+          "due": 0,
+          "opened": 0,
+          "resolved": 0
+        },
+        {
+          "at": "2026-11-16T18:37:27.493Z",
+          "event": "billing.abacatepay.inbox_tick",
+          "scanned": 0,
+          "applied": 0,
+          "review": 0,
+          "deferred": false
+        },
+        {
+          "at": "2026-11-16T18:36:28.497Z",
+          "event": "worker.tick",
+          "failed": 0,
+          "processed": 0,
+          "empty": 50,
+          "duration_ms": 871
+        },
+        {
+          "at": "2026-11-16T18:36:28.230Z",
+          "event": "billing.abacatepay.recovery_batch",
+          "scanned": 0,
+          "applied": 0,
+          "failed": 0,
+          "review": 0,
+          "deferred": false,
+          "pages": 0
+        },
+        {
+          "at": "2026-11-16T18:36:28.184Z",
+          "event": "billing.abacatepay.statement_scan",
+          "failed": 0,
+          "deferred": false,
+          "pages": 0
+        },
+        {
+          "at": "2026-11-16T18:36:27.740Z",
+          "event": "billing.abacatepay.renewal_watch",
+          "scanned": 0,
+          "deferred": false,
+          "due": 0,
+          "opened": 0,
+          "resolved": 0
+        },
+        {
+          "at": "2026-11-16T18:36:27.727Z",
+          "event": "billing.abacatepay.inbox_tick",
+          "scanned": 0,
+          "applied": 0,
+          "review": 0,
+          "deferred": false
+        }
+      ],
+      "naturalCron": {
+        "status": "READ_ONLY_BOUNDED_SAMPLE",
+        "since": "2026-11-16T18:36:00Z",
+        "limit": 100,
+        "records": 4,
+        "potentiallyTruncated": false,
+        "outboxSuccesses": 4,
+        "http5xx": 0,
+        "statuses": { "200": 4 },
+        "rawRequestsPersisted": false,
+        "clientIdentifiersPersisted": false
+      },
+      "closureProof": "No dedicated idle closure metric; shared handler awaits every job and rejects on any rejection. Natural 200 confirms idle invocation/completion, not external checkout closure",
+      "smoke": [
+        { "path": "/login", "status": 200, "expected": 200 },
+        { "path": "/cadastro", "status": 200, "expected": 200, "closed": true },
+        { "path": "/dashboard", "status": 307, "expected": 307 },
+        { "path": "/configuracoes/assinatura", "status": 307, "expected": 307 },
+        {
+          "case": "missing_authentication",
+          "path": "/api/webhooks/abacatepay",
+          "status": 401,
+          "expected": 401,
+          "error": "unauthorized",
+          "noFinancialEventSent": true
+        },
+        {
+          "case": "wrong_secret",
+          "path": "/api/webhooks/abacatepay",
+          "status": 401,
+          "expected": 401,
+          "error": "unauthorized",
+          "noFinancialEventSent": true
+        },
+        {
+          "case": "wrong_hmac",
+          "path": "/api/webhooks/abacatepay",
+          "status": 401,
+          "expected": 401,
+          "error": "unauthorized",
+          "noFinancialEventSent": true
+        },
+        {
+          "case": "malformed_json_with_valid_auth",
+          "path": "/api/webhooks/abacatepay",
+          "status": 400,
+          "expected": 400,
+          "error": "invalid_notification",
+          "noFinancialEventSent": true
+        },
+        {
+          "case": "invalid_technical_event_identifier",
+          "path": "/api/webhooks/abacatepay",
+          "status": 400,
+          "expected": 400,
+          "error": "invalid_notification",
+          "noFinancialEventSent": true
+        },
+        {
+          "case": "sandbox_mode_technical_probe_rejected",
+          "path": "/api/webhooks/abacatepay",
+          "status": 400,
+          "expected": 400,
+          "error": "invalid_notification",
+          "noFinancialEventSent": true
+        },
+        {
+          "path": "/api/health/auth-hook",
+          "status": 200,
+          "selfTestOk": true,
+          "configurationChecks": null,
+          "reasons": null,
+          "scope": "selftest/configuration, not financial provider homologation"
+        },
+        {
+          "path": "/api/health",
+          "status": 200,
+          "selfTestOk": null,
+          "configurationChecks": {
+            "db": "ok",
+            "gemini": "ok",
+            "meta": "ok",
+            "asaas": "ok",
+            "redis": "ok",
+            "outbox": "ok",
+            "signup": "ok"
+          },
+          "reasons": null,
+          "scope": "selftest/configuration, not financial provider homologation"
+        },
+        {
+          "path": "/api/health?deep=1",
+          "status": 200,
+          "selfTestOk": null,
+          "configurationChecks": {
+            "db": "ok",
+            "gemini": "ok",
+            "meta": "ok",
+            "asaas": "ok",
+            "redis": "ok",
+            "outbox": "ok",
+            "signup": "ok"
+          },
+          "reasons": null,
+          "scope": "Actual readonly reachability using deployed Redis/Asaas credentials and provider GETs; no charges/clinical inference"
+        }
+      ],
+      "authenticatedUi": {
+        "status": "FOUNDER_CONFIRMED_DASHBOARD_AND_SUBSCRIPTION_OPEN",
+        "observedAfterFirstPromotion": true,
+        "notReinterpretedAsCancellationOrPurchaseProof": true
+      }
+    },
+    "incident": {
+      "issues": [
+        {
+          "id": "7851117028",
+          "at": "2026-11-16T18:23:30Z",
+          "error": "unavailable",
+          "confirmed": "Product probe fetch did not return HTTP response; provider_failure httpStatus null. Transport failure confirmed; DNS/TLS/reset/timeout root cause not retained, not proven"
+        },
+        {
+          "id": "7851119668",
+          "at": "2026-11-16T18:27:28Z",
+          "error": "binding_mismatch",
+          "confirmed": "Scanner account lookup returned no central merchant identity; accounts=0. Same lookup throws at abacatepay-statement-scan.ts:100"
+        }
+      ],
+      "initialNaturalTicks": {
+        "networkFailures": 3,
+        "missingTechnicalAccountFailures": 3,
+        "period": "18:23-18:27 UTC; additional transport recurrence after reactivation at 18:35 UTC"
+      },
+      "containment": {
+        "at": "2026-11-16T18:27:20.716Z",
+        "reason": "Persistent C2 recovery tick failure: no billing_gateway.accounts row for central store; cannot invent financial binding or bypass frozen artifact",
+        "authorization": "59b0180e-ce97-4ed8-bc36-d0530428c870 section 17",
+        "from": "dpl_Dar6PpR89Lc3Zy8Ufdn2LW3i3GQF",
+        "to": "dpl_8uzoX6ngA66EgYcmMwcJn831UiBp",
+        "noAbacatePayObligations": true,
+        "acquisition": "CLOSED",
+        "C1": "PRESERVED",
+        "actions": [
+          {
+            "action": "remove_new_runtime_environment_variable",
+            "acknowledged": true
+          },
+          { "action": "request_prior_deployment_promotion", "acknowledged": true }
+        ],
+        "finishedAt": "2026-11-16T18:27:24.733Z",
+        "status": "PASS_C2_ROLLBACK_ACQUISITION_CLOSED",
+        "currentDeploymentId": "dpl_8uzoX6ngA66EgYcmMwcJn831UiBp"
+      },
+      "remediation": {
+        "at": "2026-11-16T18:33:48.338Z",
+        "authorization": "GO C2 necessary Production configuration and operational recovery, no schema change",
+        "classification": "One central merchant identity, not a clinic account, customer, contract, invoice, credential or entitlement",
+        "table": "billing_gateway.accounts",
+        "provider": "abacatepay",
+        "environment": "production",
+        "storeAuthenticated": true,
+        "triggerPreflight": "No INSERT business triggers",
+        "originalPattern": "signup-free-trial.ts inserts same provider/environment/store identity ON CONFLICT DO NOTHING",
+        "writeScope": "INSERT one technical row only",
+        "readbackPending": false,
+        "finishedAt": "2026-11-16T18:33:50.250Z",
+        "status": "PASS_CENTRAL_STORE_CONFIGURATION",
+        "result": {
+          "accounts": 1,
+          "bindings": 0,
+          "eventInbox": 0,
+          "operations": 0,
+          "abacatepaySubscriptions": 0
+        },
+        "schemaChanges": 0,
+        "financialEffects": 0,
+        "credentialValuesStored": 0
+      },
+      "rearmed": {
+        "at": "2026-11-16T18:34:17.784Z",
+        "status": "PASS_C2_REACTIVATED_REQUIRES_NATURAL_TICK_VALIDATION",
+        "sameApprovedC2Deployment": true,
+        "technicalStoreBootstrap": "PASS",
+        "acquisition": "CLOSED",
+        "actions": [
+          {
+            "action": "restore_authorized_C2_runtime_configuration",
+            "acknowledged": true
+          },
+          {
+            "action": "promote_same_attested_C2_deployment",
+            "acknowledged": true
+          }
+        ],
+        "finishedAt": "2026-11-16T18:34:22.050Z",
+        "deploymentId": "dpl_Dar6PpR89Lc3Zy8Ufdn2LW3i3GQF"
+      },
+      "sourceCause": "signup-free-trial.ts normally inserts the technical central identity only during first AbacatePay clinic provision. Gate C2 acquisition is closed, so this row did not yet exist",
+      "effect": "Recovery job and aggregate cron failed, while independent outbox/inbox/watch were awaited; no customer payment or access changes",
+      "noCodeOrSchemaChange": true,
+      "resolution": "Missing central store identity corrected. Transport failures recovered in subsequent bounded natural ticks, underlying transport cause NOT PROVEN; not suppressed or declared permanently fixed",
+      "sentryIssueStatusChangedByAgent": false,
+      "lateHistoricalNotificationsPossible": true
+    },
+    "observability": {
+      "probeCode": "5c780b15",
+      "ingestion": "ACCEPTED",
+      "externalNotification": "FOUNDER_CONFIRMED_RECEIVED_CURRENT_WINDOW",
+      "adminApi": "401; no false claim of admin rule inspection",
+      "runtimeLogs": "Bounded sanitized metrics only; no raw customer events saved",
+      "deepHealth": "PASS db/gemini/meta/asaas/redis/outbox/signup; readonly calls, no charges or clinical inference",
+      "scope": "Bounded observations, not SLA or live financial homologation"
+    },
+    "schema": {
+      "history": {
+        "applied": 160,
+        "pending": [],
+        "fingerprint": "ed71cb844bc67939f7f667d311e42e8b67f2d54beb77b1f531d4074b0b3d9ddf"
+      },
+      "securedRelations": 22,
+      "readOnlyPreflight": true,
+      "tls": "verify-full",
+      "migrationsAppliedThisWindow": 0,
+      "technicalDataConfigurationRowsInserted": 1,
+      "record": "billing_gateway.accounts central store identity only",
+      "noClinicalOrFinancialRowsExported": true
+    },
+    "legacy": {
+      "at": "2026-11-16T18:39:09.161Z",
+      "status": "PASS_LEGACY_CONTRACT_AND_INVOICE_HASHES",
+      "normalization": "Exclude only the additive subscriptions.billing_provider column; original financial fields unchanged",
+      "financialFingerprints": {
+        "plans": "480cb03f2eb064e37ee5e75da5fb052c",
+        "prices": "a370d49a7ce7bde05e7083b9c745befb",
+        "invoices": "8f1d213258f3d1afd1fb0dc6d29b37ca",
+        "subscriptions": "00e9df32cfa379360d4a8a185d733b7d"
+      },
+      "invalidIndexes": 0,
+      "unvalidatedFKs": 0,
+      "hostedCheckoutInventory": {
+        "unknownCreations": 0,
+        "storedCheckoutIds": 0,
+        "withoutSubscription": 0
+      },
+      "gateway": {
+        "accounts": 1,
+        "bindings": 0,
+        "eventInbox": 0,
+        "operations": 0,
+        "providerCounts": { "asaas": 5 },
+        "recurringObservations": 0
+      },
+      "readOnly": true,
+      "tls": "verify-full",
+      "productionWrites": 0,
+      "clinicalRowsExported": 0
+    },
+    "providerPostflight": {
+      "at": "2026-11-16T18:39:23.983Z",
+      "status": "PASS_PROVIDER_POSTFLIGHT",
+      "storeAuthenticated": true,
+      "products": [
+        {
+          "plan": "consultorio_2026",
+          "id": "prod_SsBGWnFA5Qk1dED3DLRkzSDT",
+          "amountMinor": 19700,
+          "devMode": false,
+          "cycle": "MONTHLY"
+        },
+        {
+          "plan": "clinica_2026_2",
+          "id": "prod_4sn4YU2Q3P3jbXs3a6UXMgzd",
+          "amountMinor": 39700,
+          "devMode": false,
+          "cycle": "MONTHLY"
+        },
+        {
+          "plan": "clinica_2026_3",
+          "id": "prod_CXMmb0y0FJHRDFDsy0Lj4MAW",
+          "amountMinor": 54400,
+          "devMode": false,
+          "cycle": "MONTHLY"
+        },
+        {
+          "plan": "clinica_2026_4",
+          "id": "prod_pNectEHBe356SAystDzmMJbD",
+          "amountMinor": 69100,
+          "devMode": false,
+          "cycle": "MONTHLY"
+        },
+        {
+          "plan": "clinica_2026_5",
+          "id": "prod_YtHhRgEbMxLZasE5KsqS4s3c",
+          "amountMinor": 83800,
+          "devMode": false,
+          "cycle": "MONTHLY"
+        }
+      ],
+      "webhookCount": 1,
+      "webhooks": [
+        {
+          "id": "webh_prod_CzMcusdfp5CzFNKWegnjxcaP",
+          "devMode": false,
+          "endpoint": {
+            "origin": "https://app.qoro.dev",
+            "path": "/api/webhooks/abacatepay"
+          },
+          "events": [
+            "subscription.completed",
+            "subscription.renewed",
+            "subscription.payment_failed",
+            "subscription.cancelled",
+            "checkout.completed",
+            "checkout.refunded",
+            "checkout.disputed",
+            "checkout.lost"
+          ]
+        }
+      ],
+      "subscriptions": 0,
+      "checkouts": 0,
+      "providerMutations": 0
+    },
+    "financialEffects": {
+      "realCheckoutsCreated": 0,
+      "realSubscriptionsCreated": 0,
+      "payments": 0,
+      "cancellations": 0,
+      "refunds": 0,
+      "newInvoices": 0,
+      "newEntitlements": 0,
+      "tenantBindings": 0,
+      "legacyContractChanges": 0
+    },
+    "risks": {
+      "B1B": "DEFERRED / RISK ACCEPTED / NOT VERIFIED",
+      "R1": "PARTIAL: external automatic checkout closure not observed",
+      "R2": "PARTIAL: natural Sandbox renewal planned 2026-12-13, not forced or fabricated",
+      "R3": "PARTIAL: negative events/plan changes local evidence preserved, no new live financial proof",
+      "R4": "PARTIAL: idle cron observations are not Production capacity or SLA",
+      "newRiskAcceptanceByAgent": false
+    },
+    "nextAction": "C3 remains blocked pending explicit independent authorization with consented provisioned clinic UUID, plan/doctors/price, monitored window and residual risk decision. Do not create checkout, open signup/cohort or expand automatically",
+    "pr": { "number": 53, "state": "OPEN", "isDraft": true, "merged": false },
+    "readbackFiles": [
+      {
+        "name": "c1-result.json",
+        "sha256": "c8c7cba2458d51650f5635db8e0fb95853a03c7ae413b73b35ebfca0670d5dac"
+      },
+      {
+        "name": "deployment3-observed.json",
+        "sha256": "14f286c6b9a931ed95496e094277a1d29e43e2eeb99ee723fcf9ebb6252a4085"
+      },
+      {
+        "name": "config-overlay.json",
+        "sha256": "dfbb3e2fac72ad8e2cf8293d25cbdb7f934747c78e24494b9df1955c51e23725"
+      },
+      {
+        "name": "runtime-probes-alias.json",
+        "sha256": "8b644f3c8e88a7729b63d31a91d203c8f8ca26424c2aa9917c38552b3d4890bf"
+      },
+      {
+        "name": "runtime-worker-metrics.json",
+        "sha256": "fb5db6cc9ef5e9a2350e42abb22da95108062a130e2c728d65a0e8b1cb471a1e"
+      },
+      {
+        "name": "runtime-worker-post-bootstrap.json",
+        "sha256": "c26c6b0771f133c661ec7709ea5a205864ac0d8aed5a26fdc1c0d2bda5d1b166"
+      },
+      {
+        "name": "operations-post-bootstrap.json",
+        "sha256": "e1fc8fc3dc4e6c63a3f6f6aedd2ce65e4643b2b0cd894a9f286464401fb0fcdb"
+      },
+      {
+        "name": "runtime-worker-stable.json",
+        "sha256": "2625dc8df9f228d4a68ef501e153e18ee055b94c60f6341226bed58ccd11e6b4"
+      },
+      {
+        "name": "operations-stable.json",
+        "sha256": "a558e4b6fc1f262a995cfbb617ad2adfd6f8f041036f1bbc6612ae94d79a0980"
+      },
+      {
+        "name": "legacy-final-central-store.json",
+        "sha256": "1456dd91b1606bd2e6699cd13870a377d8a52a1608ce7402044c8f4add0abd4f"
+      },
+      {
+        "name": "provider-postflight-final.json",
+        "sha256": "534684f30f8e17324d919deb3a1f4862b369465fa7226b56092de2084e1dccad"
+      },
+      {
+        "name": "store-bootstrap-preflight.json",
+        "sha256": "dc9a40b5199e8cfe14356ca6d8faa4235d84b500ac013708ed7e44b2874c40b1"
+      },
+      {
+        "name": "store-bootstrap-result.json",
+        "sha256": "a4befd839033d550d249358d5812b048d99051a1c362c241488c235528ef04fd"
+      },
+      {
+        "name": "rollback-result.json",
+        "sha256": "889f722e43e914ade4c5e49a2209c91407c4ea122aae03ef329c961f0bd0c288"
+      },
+      {
+        "name": "reactivation-result.json",
+        "sha256": "aa74e8b67b9d87631a90fbca3915bb71257fda0a0d6e21f99d760a1febb75f5f"
+      },
+      {
+        "name": "final-active-configuration.json",
+        "sha256": "062f7338af36356035b884cdcabd64fd8f84481c11022f68e85faeaf4f202106"
+      },
+      {
+        "name": "window-closed.json",
+        "sha256": "23f8947406d70760be1886d74843541fa1fb7f36ad6d85d144470a4790401089"
+      }
+    ]
   }
 }

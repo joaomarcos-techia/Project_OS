@@ -1,5 +1,46 @@
 # Operação e recuperação AbacatePay
 
+## Checkpoint prevalente — C1/C2 executados, 16/11/2026
+
+**C1 PASS / C2 PASS técnico não monetário; aquisição FECHADA; C3/C4 sem autorização.** Janela encerrada 2026-11-16T18:40:12.813Z, após 46.6min. Atual: dpl_Dar6PpR89Lc3Zy8Ufdn2LW3i3GQF em app.qoro.dev; ABACATEPAY_ENVIRONMENT=production, receiver e quatro jobs ativos. SIGNUP_ENABLED=false, SAAS_SIGNUP_PROVIDER=asaas, ABACATEPAY_NEW_CHECKOUTS_ENABLED=false, coorte vazia e WAF5 preservados. PR53 draft/sem merge. [Dossiê da execução](../decoupling/asaas-to-abacatepay/GATE-B-DEPLOY-CONTROLADO.md#checkpoint-prevalente--c1c2-executados-16112026).
+
+### Pré-requisito central descoberto e conferido
+
+O scanner exige a identidade da loja em billing_gateway.accounts antes de aceitar trabalho; a ativação anterior ao primeiro onboarding encontrou tabela vazia. O onboarding normalmente cria essa identidade apenas ao provisionar a primeira clínica AbacatePay. **Não abrir aquisição para resolver isso, não criar clínica fictícia em Production e não ignorar binding_mismatch.**
+
+Nesta janela, após conter C2 no deployment anterior e conferir loja/ambiente/catalogo/constraints/triggers, foi inserida somente a identidade técnica provider=abacatepay/environment=production da loja central autenticada. INSERT idempotente equivalente ao existente em signup-free-trial.ts, numa transação com lock/statement timeout. Não armazena API key nem cria cliente, clínica, assinatura, binding, pagamento, invoice ou entitlement. Não houve migration nem backfill de contratos. Futuro preflight deve conferir **exatamente a identidade esperada**, sem presumir que accounts=0 seja requisito ou que qualquer conta sirva; identidade divergente exige parada, não sobrescrita. Não apagar essa linha para ocultar o incidente.
+
+### Incidentes desta janela
+
+- **7851117028 / unavailable,18:23,18:24 e18:35UTC:** GET do probe sem resposta HTTP. Rejeição de transporte comprovada, causa DNS/TLS/reset/timeout não identificada pelo erro sanitizado; não alterar timeout/TLS nem ocultar alerta sem diagnóstico.
+- **7851119668 / binding_mismatch,18:25–18:27UTC:** SELECT da identidade central não encontrou linha. Retorno temporário ao Gate B18:27:24UTC, bootstrap técnico conferido18:33:50UTC e reativação da mesma versão18:34:22UTC. 4 execuções naturais200/zero5xx e zero worker.error no recorte estável desde18:36UTC. Métricas recovery/inbox/watch ociosas; handler aguarda closure e demais jobs antes de200. Isso não prova operações financeiras externas.
+- CLI60.1.3 de promote falhou por dependência luxon ausente antes de alterar o alias; leitura confirmou domínio anterior. Promoção executada pelo mesmo endpoint oficial usado pela CLI e confirmada assincronamente por GET. Sem reinstalar/alterar cache compartilhado. Primeiro deploy não criado por limite do buildCommand; candidato intermediário READY sem atestação não foi promovido. O candidato aceito possui o marcador de atestação real e overlay declarado; preservar esse histórico.
+
+### Chave mestra — conferência exigida
+
+| Item | Estado e alcance |
+| --- | --- |
+| Chave Production correta | PASS: Sensitive na Vercel e autenticação da loja dentro do build real; valor não exportado |
+| Nome da variável | PASS: ABACATEPAY_API_KEY, somente servidor |
+| Checkout SaaS usa a central | PASS de código/testes preservados; nova chamada monetária live NÃO EXECUTADA |
+| Cinco produtos da loja | PASS: MONTHLY/BRL/devMode=false, R$197/397/544/691/838, sem trial nativo |
+| Webhook da mesma loja | PASS: único webh_prod_CzMcusdfp5CzFNKWegnjxcaP, oito eventos aceitos e secret distinto correspondente |
+| Consumidores/ambiente/conta | PASS técnico ocioso: runtime Production + identidade central correta + crons naturais; sem evento financeiro real |
+| Vínculo individual clínica/assinatura | PASS de schema/código/testes anteriores; zero binding AbacatePay live, não alegar contratação real |
+| Chave AbacatePay por clínica | PASS da revisão: não utilizada; pagamentos de pacientes/Asaas são separados |
+| Exposição da chave | PASS no escopo revisado/build/bundle/relatório, sem valores públicos; não é garantia absoluta contra toda vulnerabilidade |
+| Pronto para primeira cobrança | PARTIAL: C1/C2 técnicos concluídos; C3 exige autorização/coorte consentida/valor e prova externa, R1–R4 não encerrados |
+
+### Recuperação e próxima execução
+
+O secret de C1 foi mantido protegido na Vercel; não rotacionar a chave mestra para resolver falha de rede ou dado técnico ausente. Backup de configuração local DPAPI/ACL depende do perfil Windows e não é cofre independente. Fonte/TAR aprovados permanecem congelados; overlay de buildCommand está identificado separadamente e original exportado foi restituído. Não copiar segredos de um worktree ou substituir Sensitive por credencial local.
+
+Antes de outra janela, confirmar alias, flags/WAF, identidade central, fila/leases, contratos, CI do SHA executor, catálogo e canal de incidente. Com zero obrigações AbacatePay é possível conter C2 usando o deployment anterior dpl_8uzoX6ngA66EgYcmMwcJn831UiBp e remover a variável de runtime; foi ensaiado nesta janela. **Se surgir obrigação real, não desligar receiver/cron/cancelamento/reconciliação necessários:** fechar aquisição/coorte, preservar obrigações e usar versão compatível. Sem DOWN ou exclusão de inbox/ledger.
+
+Próximo GO é **C3 independente**, ainda não autorizado: informar clínica já provisionada/consentida, UUID, plano/médicos/valor, pagador, responsáveis, janela e decisão dos riscos residuais. Preparar uma única contratação e acompanhar provider/readback/inbox/invoice/binding/período/cota/closure; qualquer duplicate/unknown/tenant/valor divergente interrompe. Não fabricar webhook financeiro, marcar pagamento ou abrir cadastro público para comprovar conectividade. Renovação natural13/12 e eventos negativos não observados continuam pendentes.
+
+Evidência: bloco gateCProductionWindow20261116 em recuperacao-financeira-20261111.json. Sentry5c780b15 com recebimento externo confirmado; issues históricas não foram alteradas no painel. B1-B permanece DEFERRED/RISK ACCEPTED/NOT VERIFIED. Checkpoints abaixo são históricos quando divergirem deste.
+
 ## Checkpoint prevalente — C0 PASS e pedido de C1/C2
 
 [CI 43898026077/tentativa 2](https://github.com/joaomarcos-techia/Project_OS/actions/runs/43898026077) **SUCCESS** no SHA 4f683402d62489f1b9ed385da904b27792c6e849, 16/11,15:44:28–15:59:34UTC: **7.329 testes/647 arquivos, 27 E2E, zero SKIP**, TypeScript/lint/build/segurança/isolamento PASS; ADR 43898026138 SUCCESS. Actions voltou a executar após correção do orçamento pelo fundador. Saldo/custo mensal não acessível à API; nenhum orçamento ou configuração foi alterado pelo agente. Estados BLOCKED dos checkpoints anteriores são históricos.
