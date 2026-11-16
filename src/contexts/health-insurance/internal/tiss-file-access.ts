@@ -28,7 +28,9 @@ import { withTenant } from '@/lib/db/tenant';
 import { metrics } from '@/lib/observability/metrics';
 import { TissStorageError, type TissObjectStore, type TissStoredObject } from '@/lib/storage/tiss-files';
 
-import { hiBatches, hiFiles, hiSadtRequests } from '../schema-clinic';
+import { hiAuthorizationAttachments, hiBatches, hiFiles, hiSadtRequests } from '../schema-clinic';
+
+import { RECEIPT_UPLOAD_PREFIX } from './receipt-upload';
 
 const sha256 = (b: Uint8Array | string) => createHash('sha256').update(b).digest('hex');
 
@@ -245,12 +247,20 @@ export function planTissStorageReconcile(
   return { missing: referenced.filter((r) => !present.has(r.ref)), orphans, recentOrphans };
 }
 
+/**
+ * Tudo o que o bucket guarda COM registro: arquivos emitidos (hi_files) e comprovantes de autorização
+ * (hi_authorization_attachments, P6.1/P6.3). Sem os comprovantes aqui, a conferência os via como
+ * "órfãos" e o descarte os apagaria (achado de 16/11, corrigido junto do envio em partes).
+ */
 const referencedRefs = (clinicId: string) =>
-  withTenant(clinicId, async (tx) =>
-    (await tx.select({ fileId: hiFiles.id, ref: hiFiles.storageRef }).from(hiFiles).where(eq(hiFiles.clinicId, clinicId))).map(
-      (r) => ({ fileId: r.fileId, ref: r.ref }),
-    ),
-  );
+  withTenant(clinicId, async (tx) => {
+    const files = await tx.select({ fileId: hiFiles.id, ref: hiFiles.storageRef }).from(hiFiles).where(eq(hiFiles.clinicId, clinicId));
+    const receipts = await tx
+      .select({ fileId: hiAuthorizationAttachments.id, ref: hiAuthorizationAttachments.storageRef })
+      .from(hiAuthorizationAttachments)
+      .where(eq(hiAuthorizationAttachments.clinicId, clinicId));
+    return [...files, ...receipts].map((r) => ({ fileId: r.fileId, ref: r.ref }));
+  });
 
 /**
  * Confere uma clínica: arquivos registrados sem objeto (métrica crítica) e objetos sem
@@ -263,7 +273,10 @@ export async function reconcileTissStorage(
 ): Promise<TissStoragePlan & { discarded: number }> {
   if (!store.list) throw new TissStorageError('list', 'armazenamento sem listagem');
   const referenced = await referencedRefs(args.clinicId);
-  const objects = (await store.list(args.clinicId)).filter((o) => o.ref.startsWith(`${args.clinicId}/`));
+  // Partes de envio em andamento (P6.3) têm limpeza própria (receipt-upload.ts): fora desta conferência.
+  const objects = (await store.list(args.clinicId)).filter(
+    (o) => o.ref.startsWith(`${args.clinicId}/`) && !o.ref.startsWith(`${args.clinicId}/${RECEIPT_UPLOAD_PREFIX}`),
+  );
   const plan = planTissStorageReconcile(referenced, objects, args.now ?? new Date(), args.graceHours);
   if (plan.missing.length > 0) metrics.emit('insurance.file.missing', { kind: 'reconcile', count: plan.missing.length });
   let discarded = 0;

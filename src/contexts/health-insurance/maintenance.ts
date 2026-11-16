@@ -10,7 +10,8 @@
  *      exatamente uma execução nela): o RESUMO de alertas, só contagens agregadas, sem paciente,
  *      clínica, guia ou carteirinha: senhas vencendo (P6.6), sessões acabando (P6.6), pedidos
  *      aguardando a operadora há mais de 3 dias, revisões de repasse abertas (0163) e cancelamentos
- *      aguardando o recibo da operadora (0165). A entrega é pela observabilidade que já existe
+ *      aguardando o recibo da operadora (0165); e a limpeza das partes de envio de comprovante
+ *      abandonadas há mais de 2 horas (P6.3). A entrega é pela observabilidade que já existe
  *      (métricas → buscas salvas do runbook de logs); nenhum destinatário externo recebe nada.
  *
  * Cada clínica roda isolada (`withTenant`): a falha de uma não para as outras nem o cron. Sem
@@ -20,11 +21,13 @@ import { sql } from 'drizzle-orm';
 
 import { withTenant } from '@/lib/db/tenant';
 import { metrics } from '@/lib/observability/metrics';
+import { supabaseTissObjectStore, type TissObjectStore } from '@/lib/storage/tiss-files';
 
 import { listInsuranceMaintenanceClinics } from './billing-gap-candidates';
 import { authorizationAlerts, type AuthorizationAlertInput } from './internal/authorization-alerts';
 import type { AuthorizationStatus } from './internal/authorization-rules';
 import { expireAuthorizationsTx } from './internal/authorizations';
+import { sweepStaleReceiptUploads } from './internal/receipt-upload';
 
 /** Pedido de autorização aguardando a operadora há mais que isto vira alerta no resumo. */
 export const AWAITING_OPERATOR_ALERT_DAYS = 3;
@@ -44,6 +47,8 @@ export interface InsuranceMaintenanceSummary {
   expired: number;
   failed: number;
   deferred: number;
+  /** Partes de envio de comprovante abandonadas (P6.3) removidas no resumo diário. */
+  uploadsSwept: number;
   daily: InsuranceDailySummary | null;
 }
 
@@ -98,11 +103,13 @@ export async function runInsuranceMaintenance(opts: {
   clinics?: readonly string[];
   /** Força o resumo fora da janela (teste e reexecução manual pelo suporte). */
   forceDaily?: boolean;
+  /** Armazenamento privado (padrão: bucket tiss-files); os testes passam um em memória. */
+  store?: TissObjectStore;
 }): Promise<InsuranceMaintenanceSummary> {
   const now = opts.now ?? new Date();
   const daily = opts.forceDaily === true || isDailySummaryWindow(now);
   const clinics = opts.clinics ?? (await listInsuranceMaintenanceClinics());
-  const summary: InsuranceMaintenanceSummary = { clinics: clinics.length, processed: 0, expired: 0, failed: 0, deferred: 0, daily: null };
+  const summary: InsuranceMaintenanceSummary = { clinics: clinics.length, processed: 0, expired: 0, failed: 0, deferred: 0, uploadsSwept: 0, daily: null };
   const totals: InsuranceDailySummary = {
     passwordExpiring: 0,
     sessionsEnding: 0,
@@ -124,6 +131,8 @@ export async function runInsuranceMaintenance(opts: {
       });
       summary.processed += 1;
       summary.expired += result.expired;
+      // Fora da transação da clínica: o armazenamento não é transacional. Só no resumo diário.
+      if (daily) summary.uploadsSwept += await sweepStaleReceiptUploads(opts.store ?? supabaseTissObjectStore(), clinicId);
       if (result.counts) {
         const c = result.counts;
         totals.passwordExpiring += c.passwordExpiring;
@@ -149,6 +158,7 @@ export async function runInsuranceMaintenance(opts: {
     expired: summary.expired,
     failed: summary.failed,
     deferred: summary.deferred,
+    uploadsSwept: summary.uploadsSwept,
     daily,
   });
   return summary;

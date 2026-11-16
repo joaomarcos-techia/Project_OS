@@ -11,6 +11,12 @@ const m = vi.hoisted(() => ({
   requireFreshPermission: vi.fn(),
   requireClinicId: vi.fn(),
   decidePayoutReviewTx: vi.fn(),
+  attachAuthorizationReceipt: vi.fn(),
+  beginReceiptUpload: vi.fn(),
+  openReceiptUpload: vi.fn(),
+  putReceiptChunk: vi.fn(),
+  assembleReceiptUpload: vi.fn(),
+  discardReceiptUpload: vi.fn(),
   setPayoutReviewPolicyTx: vi.fn(),
   logAudit: vi.fn(),
   execute: vi.fn(),
@@ -86,7 +92,23 @@ vi.mock('./internal/authorizations', () => {
       this.name = 'AuthorizationError';
     }
   }
-  return { AuthorizationError, recordManualAuthorizationResponseTx: m.recordManualAuthorizationResponseTx };
+  return { AuthorizationError, recordManualAuthorizationResponseTx: m.recordManualAuthorizationResponseTx, attachAuthorizationReceipt: m.attachAuthorizationReceipt };
+});
+vi.mock('./internal/receipt-upload', () => {
+  class ReceiptUploadError extends Error {
+    constructor(message: string, readonly code: string) {
+      super(message);
+      this.name = 'ReceiptUploadError';
+    }
+  }
+  return {
+    ReceiptUploadError,
+    beginReceiptUpload: m.beginReceiptUpload,
+    openReceiptUpload: m.openReceiptUpload,
+    putReceiptChunk: m.putReceiptChunk,
+    assembleReceiptUpload: m.assembleReceiptUpload,
+    discardReceiptUpload: m.discardReceiptUpload,
+  };
 });
 vi.mock('./tiss/xml/xsd-validator', () => ({ loadXmllintValidator: () => null }));
 vi.mock('./internal/sadt-request-service', async (importOriginal) => ({
@@ -100,7 +122,10 @@ import { PremiumAccessError } from '@/lib/premium-access';
 import {
   approveGuideAction,
   createBatchAction,
+  beginAuthorizationReceiptUploadAction,
   decideGlossAction,
+  finishAuthorizationReceiptUploadAction,
+  uploadAuthorizationReceiptChunkAction,
   decidePayoutReviewAction,
   recordConsultaAuthorizationResponseAction,
   recordPaymentAction,
@@ -544,5 +569,58 @@ describe('revisão humana do repasse (0163)', () => {
     expect(m.setPayoutReviewPolicyTx).toHaveBeenCalledWith(expect.anything(), { clinicId: CLINIC, segregation: true, independentAboveCents: 50000 });
     const audit = m.logAudit.mock.calls[0]![1] as { action: string; after: { result: string } };
     expect([audit.action, audit.after.result]).toEqual(['health_insurance.payout.segregation_policy_changed', 'segregacao=sim;limite=50000']);
+  });
+});
+
+describe('comprovante da autorização em partes (P6.3)', () => {
+  const AUTHZ = '77777777-7777-4777-8777-777777777777';
+  const CLAIMS = { v: 1, id: 'up-1', clinicId: CLINIC, userId: 'u1', authorizationId: AUTHZ, size: 10, sha256: 'a'.repeat(64), type: 'application/pdf', chunks: 1, exp: 9e15 };
+  beforeEach(() => {
+    vi.clearAllMocks();
+    m.requireUser.mockResolvedValue(SESSION);
+    m.requireCachedAnyPermission.mockResolvedValue(undefined);
+    m.requireClinicId.mockResolvedValue(CLINIC);
+    m.openReceiptUpload.mockResolvedValue(CLAIMS);
+    m.beginReceiptUpload.mockResolvedValue({ uploadId: 'up-1', token: 't'.repeat(40), chunkBytes: 3, chunks: 1 });
+  });
+
+  it('início: só quem opera Convênios (recepção); autorização de outra clínica (ou inexistente) é recusada antes de qualquer token', async () => {
+    m.execute.mockResolvedValueOnce([]);
+    const no = await beginAuthorizationReceiptUploadAction({ authorizationId: AUTHZ, size: 10, sha256: 'a'.repeat(64), declaredType: 'application/pdf' });
+    expect(no).toEqual({ ok: false, error: 'Autorização inexistente nesta clínica.' });
+    expect(m.requireCachedAnyPermission).toHaveBeenCalledWith(['operate:convenios']);
+    expect(m.beginReceiptUpload).not.toHaveBeenCalled();
+    m.execute.mockResolvedValueOnce([{ '?column?': 1 }]);
+    const ok = await beginAuthorizationReceiptUploadAction({ authorizationId: AUTHZ, size: 10, sha256: 'a'.repeat(64), declaredType: 'application/pdf' });
+    expect(ok).toEqual({ ok: true, data: { token: 't'.repeat(40), chunkBytes: 3, chunks: 1 } });
+    // Clínica e pessoa da SESSÃO, nunca do chamador.
+    expect(m.beginReceiptUpload).toHaveBeenCalledWith(expect.objectContaining({ clinicId: CLINIC, userId: 'u1', authorizationId: AUTHZ }));
+  });
+
+  it('parte: o token é aberto contra a sessão; sem conteúdo, recusa', async () => {
+    const form = new FormData();
+    form.set('token', 't'.repeat(40));
+    form.set('index', '0');
+    expect((await uploadAuthorizationReceiptChunkAction(form)).ok).toBe(false);
+    form.set('chunk', new Blob([new Uint8Array([1, 2, 3])]));
+    expect(await uploadAuthorizationReceiptChunkAction(form)).toEqual({ ok: true, data: null });
+    expect(m.openReceiptUpload).toHaveBeenCalledWith('t'.repeat(40), { clinicId: CLINIC, userId: 'u1' });
+    expect(m.putReceiptChunk).toHaveBeenCalledWith(expect.anything(), CLAIMS, 0, expect.any(Uint8Array));
+  });
+
+  it('fim: o mesmo arquivo já anexado devolve o anexo (idempotente); senão monta, anexa com auditoria e descarta as partes', async () => {
+    m.execute.mockResolvedValueOnce([{ id: 'att-existente' }]);
+    expect(await finishAuthorizationReceiptUploadAction({ token: 't'.repeat(40) })).toEqual({ ok: true, data: 'att-existente' });
+    expect(m.assembleReceiptUpload).not.toHaveBeenCalled();
+    expect(m.discardReceiptUpload).toHaveBeenCalledTimes(1);
+    m.execute.mockResolvedValueOnce([]);
+    m.assembleReceiptUpload.mockResolvedValueOnce(new Uint8Array([0x25, 0x50]));
+    m.attachAuthorizationReceipt.mockImplementationOnce(async (_store: unknown, run: (fn: (tx: unknown) => Promise<unknown>) => Promise<unknown>) =>
+      run(async () => ({ attachmentId: 'att-novo', contentSha256: 'a'.repeat(64) })),
+    );
+    expect(await finishAuthorizationReceiptUploadAction({ token: 't'.repeat(40) })).toEqual({ ok: true, data: 'att-novo' });
+    const audit = m.logAudit.mock.calls.at(-1)![1] as { action: string; resourceId: string };
+    expect([audit.action, audit.resourceId]).toEqual(['health_insurance.authorization.receipt_attached', AUTHZ]);
+    expect(m.discardReceiptUpload).toHaveBeenCalledTimes(2);
   });
 });

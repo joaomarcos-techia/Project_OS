@@ -93,6 +93,13 @@ jobs:
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55555 NODE_OPTIONS=--conditions=react-server \
             pnpm exec tsx scripts/security/health-insurance-maintenance-db.ts
 
+      # P6.3: comprovante da autorização em partes (até 10 MB), cifra real, leitura auditada e conferência de órfãos.
+      - name: Comprovante da autorização em partes (P6.3)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55556 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/health-insurance-receipt-upload-db.ts
+
       # Cada prova roda mesmo se a anterior falhar (evidência independente); o job falha se qualquer uma falhar.
       - name: SP/SADT — solicitação, automação e indicação clínica × D24
         if: ${{ !cancelled() }}

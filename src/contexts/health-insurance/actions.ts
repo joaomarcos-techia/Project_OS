@@ -32,7 +32,12 @@ import {
 import { withTenant } from '@/lib/db/tenant';
 import { premiumAccessErrorFrom, premiumDenialMessage } from '@/lib/premium-access';
 import { ConveniosModuleDisabledError, assertConveniosOperableTx } from './internal/module-guard';
-import { AuthorizationError, recordManualAuthorizationResponseTx } from './internal/authorizations';
+import {
+  AuthorizationError,
+  attachAuthorizationReceipt,
+  recordManualAuthorizationResponseTx,
+} from './internal/authorizations';
+import * as receiptUpload from './internal/receipt-upload';
 // eslint-disable-next-line boundaries/element-types -- paymentsApiV1 é a API pública do Pagamentos (M14): o único caminho Asaas do convênio é o da coparticipação.
 import { paymentsApiV1 } from '@/contexts/payments/api';
 import { supabaseTissObjectStore, TissStorageError } from '@/lib/storage/tiss-files';
@@ -140,6 +145,7 @@ function messageOf(error: unknown): string {
     error instanceof CoverageInputError ||
     error instanceof payouts.InsurancePayoutError ||
     error instanceof review.PayoutReviewError ||
+    error instanceof receiptUpload.ReceiptUploadError ||
     error instanceof cancellation.GuideCancellationError ||
     error instanceof CopayChargeError
   ) {
@@ -1048,6 +1054,95 @@ const ConsultaAuthorizationResponse = z.discriminatedUnion('decision', [
     items: z.array(z.object({ itemId: uuid, quantityAuthorized: z.number().int().min(0).max(999) })).min(1),
   }),
 ]);
+
+// ── Comprovante da autorização em partes (P6.3; até 10 MB sem mexer no limite global) ──
+
+const ReceiptUploadStart = z.object({
+  authorizationId: uuid,
+  size: z.number().int().min(1).max(10 * 1024 * 1024),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/u),
+  declaredType: z.string().min(3).max(100),
+});
+
+/** Início: valida e devolve o token selado do envio (nada é gravado ainda). Recepção (matriz 4.2). */
+export async function beginAuthorizationReceiptUploadAction(
+  input: z.input<typeof ReceiptUploadStart>,
+): Promise<ActionResult<{ token: string; chunkBytes: number; chunks: number }>> {
+  return run(async () => {
+    const d = ReceiptUploadStart.parse(input);
+    const ctx = await gate('operate');
+    // A autorização precisa existir NESTA clínica (RLS + clínica da sessão) antes de aceitar partes.
+    const found = await withTenant(
+      ctx.clinicId,
+      async (tx) =>
+        ((await tx.execute(sql`SELECT 1 FROM public.hi_authorizations
+            WHERE clinic_id = ${ctx.clinicId}::uuid AND id = ${d.authorizationId}::uuid`)) as unknown as unknown[]).length > 0,
+      ctx.userId,
+    );
+    if (!found) throw new AuthorizationError('Autorização inexistente nesta clínica.', 'not_found');
+    const out = await receiptUpload.beginReceiptUpload({ clinicId: ctx.clinicId, userId: ctx.userId, ...d });
+    return { token: out.token, chunkBytes: out.chunkBytes, chunks: out.chunks };
+  });
+}
+
+/** Uma parte (FormData: token, index, chunk). Gravada cifrada no armazenamento privado. */
+export async function uploadAuthorizationReceiptChunkAction(form: FormData): Promise<ActionResult<null>> {
+  return run(async () => {
+    const ctx = await gate('operate');
+    const token = z.string().min(20).max(4000).parse(form.get('token'));
+    const index = z.coerce.number().int().min(0).max(10).parse(form.get('index'));
+    const chunk = form.get('chunk');
+    if (!(chunk instanceof Blob)) throw new receiptUpload.ReceiptUploadError('Parte sem conteúdo.', 'invalid');
+    const claims = await receiptUpload.openReceiptUpload(token, ctx);
+    await receiptUpload.putReceiptChunk(supabaseTissObjectStore(), claims, index, new Uint8Array(await chunk.arrayBuffer()));
+    return null;
+  });
+}
+
+/**
+ * Fim: junta, confere tamanho e SHA-256 e entrega ao domínio (tipo pelo conteúdo, cifra, registro),
+ * com auditoria na mesma transação. Idempotente: o mesmo arquivo já anexado devolve o anexo.
+ */
+export async function finishAuthorizationReceiptUploadAction(input: { token: string }): Promise<ActionResult<string>> {
+  return run(async () => {
+    const { token } = z.object({ token: z.string().min(20).max(4000) }).parse(input);
+    const session = await gate('operate');
+    const claims = await receiptUpload.openReceiptUpload(token, session);
+    const store = supabaseTissObjectStore();
+    const existing = await withTenant(
+      session.clinicId,
+      async (tx) =>
+        (await tx.execute(sql`SELECT id::text AS id FROM public.hi_authorization_attachments
+            WHERE clinic_id = ${session.clinicId}::uuid AND authorization_id = ${claims.authorizationId}::uuid
+              AND content_sha256 = ${claims.sha256} LIMIT 1`)) as unknown as Array<{ id: string }>,
+      session.userId,
+    );
+    if (existing[0]) {
+      await receiptUpload.discardReceiptUpload(store, claims);
+      return existing[0].id;
+    }
+    const bytes = await receiptUpload.assembleReceiptUpload(store, claims);
+    const out = await attachAuthorizationReceipt(
+      store,
+      (fn) =>
+        write('health_insurance.authorization.receipt_attached', { type: 'hi_authorization', id: claims.authorizationId }, (tx) => fn(tx)),
+      { clinicId: session.clinicId, authorizationId: claims.authorizationId, bytes, declaredType: claims.type, actorUserId: session.userId },
+    );
+    await receiptUpload.discardReceiptUpload(store, claims);
+    return out.attachmentId;
+  });
+}
+
+/** Desistência: descarta as partes já enviadas (a manutenção diária limpa o que sobrar). */
+export async function abortAuthorizationReceiptUploadAction(input: { token: string }): Promise<ActionResult<null>> {
+  return run(async () => {
+    const { token } = z.object({ token: z.string().min(20).max(4000) }).parse(input);
+    const ctx = await gate('operate');
+    const claims = await receiptUpload.openReceiptUpload(token, { ...ctx, now: 0 });
+    await receiptUpload.discardReceiptUpload(supabaseTissObjectStore(), claims);
+    return null;
+  });
+}
 
 /**
  * P6.3: resposta da operadora a um pedido de autorização da Guia de Consulta (serviço da P6.1). A

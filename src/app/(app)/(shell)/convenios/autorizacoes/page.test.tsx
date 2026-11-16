@@ -24,7 +24,13 @@ vi.mock('next/navigation', () => ({
     throw new Error('404');
   },
 }));
-vi.mock('@/contexts/health-insurance/actions', () => ({ recordConsultaAuthorizationResponseAction: vi.fn() }));
+vi.mock('@/contexts/health-insurance/actions', () => ({
+  recordConsultaAuthorizationResponseAction: vi.fn(),
+  beginAuthorizationReceiptUploadAction: vi.fn(),
+  uploadAuthorizationReceiptChunkAction: vi.fn(),
+  finishAuthorizationReceiptUploadAction: vi.fn(),
+  abortAuthorizationReceiptUploadAction: vi.fn(),
+}));
 vi.mock('../_lib/access', async (orig) => {
   const real = await orig<typeof AccessModule>();
   return { ...real, conveniosAccess: m.conveniosAccess };
@@ -173,5 +179,20 @@ describe('detalhe da autorização', () => {
     expect(history).toContain('Pedida · Recepção Sintética');
     expect(history).toContain('Autorizada → Vencida · rotina do sistema');
     expect(screen.getByRole('region', { name: 'Comprovantes da autorização' }).textContent).toContain('PDF · 2 KB');
+  });
+
+  it('P6.3: comprovantes — a recepção anexa (até 10 MB, em partes) e baixa pela leitura registrada; o financeiro só baixa', async () => {
+    const receipt = { id: '99999999-9999-4999-8999-999999999999', mediaType: 'application/pdf', sizeBytes: 7 * 1024 * 1024, uploadedByName: 'Recepção', createdAt: '2026-11-16T10:00:00Z' };
+    m.getAuthorization.mockResolvedValue({ today: '2026-11-16', row: rows[1], events: [], receipts: [receipt] });
+    m.conveniosAccess.mockResolvedValueOnce(accessFor(PROFILES.recepcao));
+    render(await AutorizacaoPage(params(A2)));
+    const link = screen.getByRole('link', { name: 'Baixar (leitura registrada)' });
+    expect(link.getAttribute('href')).toBe(`/financeiro/convenios/comprovantes/${receipt.id}`);
+    expect(screen.getByRole('form', { name: 'Anexar comprovante da operadora' })).toBeTruthy();
+    cleanup();
+    m.conveniosAccess.mockResolvedValueOnce(accessFor(PROFILES.financeiro));
+    render(await AutorizacaoPage(params(A2)));
+    expect(screen.getByRole('link', { name: 'Baixar (leitura registrada)' })).toBeTruthy();
+    expect(screen.queryByRole('form', { name: 'Anexar comprovante da operadora' })).toBeNull();
   });
 });

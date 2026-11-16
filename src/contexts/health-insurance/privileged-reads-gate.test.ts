@@ -23,8 +23,9 @@ const SCOPES = ['src/contexts/health-insurance', 'src/app/api/cron/financial-rec
 const AUDITED: Record<string, number> = {
   // §1 leitura delegada da exportação assíncrona (permissão de quem pediu).
   'src/contexts/health-insurance/internal/delegation-permission.ts': 1,
-  // §2 varreduras do financial-reconcile: convênio sem guia e coparticipação.
-  'src/contexts/health-insurance/billing-gap-candidates.ts': 2,
+  // §2 varreduras do financial-reconcile (convênio sem guia, coparticipação) e §4 lista de clínicas
+  // da manutenção de Convênios (16/11, prova: health-insurance-maintenance-db.ts 6).
+  'src/contexts/health-insurance/billing-gap-candidates.ts': 3,
   // §2 e §3: a 3ª transação é a varredura do estorno externo (R54), que roda dentro dela.
   'src/app/api/cron/financial-reconcile/route.ts': 3,
 };

@@ -11,15 +11,31 @@ vi.mock('@/lib/db', () => ({ dbAdmin: { transaction: vi.fn() } }));
 vi.mock('@/lib/db/tenant', () => ({ withTenant: m.withTenant }));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: m.emit } }));
 vi.mock('./internal/authorizations', () => ({ expireAuthorizationsTx: m.expire }));
+vi.mock('@/lib/storage/tiss-files', () => ({ supabaseTissObjectStore: () => { throw new Error('sem armazenamento real no teste'); } }));
 
 import { isDailySummaryWindow, runInsuranceMaintenance } from './maintenance';
 
 const tx = { execute: m.execute };
+/** Armazenamento em memória: uma parte abandonada há 3 h e outra recente, da clínica c1. */
+const removed: string[] = [];
+const store = {
+  put: vi.fn(), get: vi.fn(),
+  remove: async (ref: string) => { removed.push(ref); },
+  list: async (clinicId: string) =>
+    clinicId === 'c1'
+      ? [
+          { ref: 'c1/upload-velho-000', createdAt: new Date(Date.now() - 3 * 3_600_000) },
+          { ref: 'c1/upload-novo-000', createdAt: new Date() },
+          { ref: 'c1/arquivo-registrado', createdAt: new Date(Date.now() - 9 * 3_600_000) },
+        ]
+      : [],
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
   m.withTenant.mockImplementation(async (_clinic: string, fn: (t: typeof tx) => unknown) => fn(tx));
   m.expire.mockResolvedValue([]);
+  removed.length = 0;
 });
 
 /** Respostas do resumo diário de uma clínica: data, autorizações concedidas, contagens. */
@@ -41,10 +57,10 @@ describe('manutenção de Convênios (P6.6/P12.6)', () => {
   it('fora da janela: só vence autorizações (sem resumo), clínica por clínica', async () => {
     m.expire.mockResolvedValueOnce([{ id: 'a1' }]).mockResolvedValueOnce([]);
     const r = await runInsuranceMaintenance({ deadlineAt: Date.now() + 10_000, now: new Date('2026-11-16T15:00:00Z'), clinics: ['c1', 'c2'] });
-    expect(r).toEqual({ clinics: 2, processed: 2, expired: 1, failed: 0, deferred: 0, daily: null });
+    expect(r).toEqual({ clinics: 2, processed: 2, expired: 1, failed: 0, deferred: 0, uploadsSwept: 0, daily: null });
     expect(m.withTenant.mock.calls.map((c) => c[0])).toEqual(['c1', 'c2']);
     expect(m.execute).not.toHaveBeenCalled();
-    expect(m.emit).toHaveBeenCalledWith('insurance.maintenance.run', { clinics: 2, processed: 2, expired: 1, failed: 0, deferred: 0, daily: false });
+    expect(m.emit).toHaveBeenCalledWith('insurance.maintenance.run', { clinics: 2, processed: 2, expired: 1, failed: 0, deferred: 0, uploadsSwept: 0, daily: false });
     expect(m.emit).not.toHaveBeenCalledWith('insurance.maintenance.daily_summary', expect.anything());
   });
 
@@ -59,7 +75,9 @@ describe('manutenção de Convênios (P6.6/P12.6)', () => {
       cancellations: 1,
     });
     dailyRows();
-    const r = await runInsuranceMaintenance({ deadlineAt: Date.now() + 10_000, now: new Date('2026-11-16T09:05:00Z'), clinics: ['c1', 'c2'] });
+    const r = await runInsuranceMaintenance({ deadlineAt: Date.now() + 10_000, now: new Date('2026-11-16T09:05:00Z'), clinics: ['c1', 'c2'], store });
+    // P6.3: só a parte de envio abandonada (> 2 h) sai; a recente e o arquivo registrado ficam.
+    expect([r.uploadsSwept, removed]).toEqual([1, ['c1/upload-velho-000']]);
     expect(r.daily).toEqual({ passwordExpiring: 1, sessionsEnding: 1, awaitingOperatorOverdue: 2, openPayoutReviews: 1, awaitingCancellationReceipts: 1, clinicsWithAlerts: 1 });
     const summary = m.emit.mock.calls.find((c) => c[0] === 'insurance.maintenance.daily_summary')!;
     expect(summary[1]).toEqual({ passwordExpiring: 1, sessionsEnding: 1, awaitingOperatorOverdue: 2, openPayoutReviews: 1, awaitingCancellationReceipts: 1, clinicsWithAlerts: 1, clinics: 2 });

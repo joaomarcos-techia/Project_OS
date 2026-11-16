@@ -1,13 +1,14 @@
 # Auditoria das leituras privilegiadas do convênio e dos pagamentos (P6, 14/11/2026)
 
 Escopo: todo uso de conexão administrativa (`dbAdmin`, que ignora RLS) introduzido pelo módulo de
-convênios e pelo R54. São três caminhos:
+convênios e pelo R54. São quatro caminhos:
 
 | # | Caminho | Arquivo | Desde |
 | --- | --- | --- | --- |
 | 1 | Exportação do lote em segundo plano: a permissão de quem pediu, conferida na execução | `src/contexts/health-insurance/internal/delegation-permission.ts` | R45 (12/11) |
 | 2 | Varreduras do cron `financial-reconcile`: "convênio sem guia" e coparticipação atrás do dinheiro | `src/contexts/health-insurance/billing-gap-candidates.ts` | P7.4 / P10.5 |
 | 3 | Varredura do estorno feito direto no Asaas (webhook perdido) | `src/app/api/cron/financial-reconcile/route.ts` + `external-refund-sweep.ts` | R54 (14/11) |
+| 4 | Lista de clínicas da manutenção de Convênios (fim do `financial-reconcile`) | `src/contexts/health-insurance/billing-gap-candidates.ts` (`listInsuranceMaintenanceClinics`) | P6.6/P12.6 (16/11) |
 
 O lint e o `arch:db-check` só permitem `dbAdmin` em arquivos listados com justificativa. Isso
 **não** é a prova de segurança: as provas são os testes adversariais da última seção.
@@ -72,6 +73,26 @@ O lint e o `arch:db-check` só permitem `dbAdmin` em arquivos listados com justi
 | Auditoria | Sim (acima). |
 | Limites | 10 cobranças por execução, prazo de tempo próprio (começar antes de 38 s, terminar até 44 s) e janela de 180 dias. O cursor `refund_checked_at` avança mesmo em falha, então uma conta quebrada não prende a fila. |
 
+## 4. Lista de clínicas da manutenção de Convênios (P6.6/P12.6, 16/11)
+
+| Pergunta | Resposta |
+| --- | --- |
+| Identidade | O mesmo cron `financial-reconcile` (`CRON_SECRET`), na última etapa, depois de todas as obrigações financeiras. |
+| Por que admin | Saber quais clínicas têm Convênios instalado é leitura entre clínicas (mesmo motivo do caminho 2). |
+| Escopo | Só leitura, transação curta com `RESET ROLE`, uma consulta. |
+| Clínica | A da própria linha. O trabalho de cada clínica (vencer autorizações, contagens do resumo, limpeza de envios abandonados) roda em `withTenant(clinicId)`, sob RLS. |
+| Registro | Métricas só com contagens (`insurance.maintenance.run`, `.daily_summary`, `.clinic_failed` com o tipo do erro); o vencimento grava o histórico da autorização com ator de sistema. |
+| Conferência | Não há pessoa. O vencimento reaplica a regra no banco (data da clínica). |
+| Tabelas | Só `hi_clinic_settings`. |
+| Colunas | Só `clinic_id` (provado no harness: nem `enabled`, nem dados da clínica). |
+| Menos privilégio | Igual ao caminho 2: não há alternativa sem leitura entre clínicas. |
+| Risco entre clínicas | A lista não sai do processo do cron. Cada clínica é tratada só na própria sessão; a falha de uma não para as outras e a métrica não leva o id. |
+| Usuário excluído | Não se aplica (sem pessoa). |
+| Assinatura / módulo desligado | A clínica entra com o módulo ligado ou desligado, e com assinatura suspensa: vencer senha é manutenção de estado, não operação nova (a 0164 preserva o UPDATE de `hi_authorizations`). Provado no harness (6): rodada sem falha com o módulo desligado. |
+| Job cancelado | Não se aplica (varredura periódica, idempotente: a segunda execução não vence nada de novo). |
+| Identificador manipulado | Os ids vêm do próprio banco, não de entrada externa. |
+| Limites | `LIMIT 200` clínicas por execução, prazos próprios (parar de começar clínica aos 53 s, encerrar até 56 s) e só depois das etapas financeiras: falha ou estouro aqui não interrompe obrigação financeira legada (teste da rota). |
+
 ## Provas adversariais
 
 | Caso | Onde |
@@ -86,7 +107,9 @@ O lint e o `arch:db-check` só permitem `dbAdmin` em arquivos listados com justi
 | Concorrência | export (dois workers, um arquivo); R54 (11): quatro instâncias, um reconhecimento |
 | Reprocessamento | export (replay = `already_exported`); R54 (2): evento do livro reprocessado à força |
 | Identificador manipulado | export (1); R54 (8): pagamento da clínica A pela conta da clínica B |
-| Varredura devolve só identificadores | `financial-reconcile/route.test.ts` (colunas da consulta do R54); R54 (5) |
+| Varredura devolve só identificadores | `financial-reconcile/route.test.ts` (colunas da consulta do R54); R54 (5); manutenção: `health-insurance-maintenance-db.ts` (6) |
+| Clínica sem o módulo / módulo desligado na manutenção | `health-insurance-maintenance-db.ts` (6): sem Convênios não entra; desligado entra e não falha |
+| Isolamento por clínica na manutenção | `health-insurance-maintenance-db.ts` (4) e `maintenance.test.ts` (falha de uma clínica não para as outras) |
 
 ## Riscos que sobram
 
@@ -101,8 +124,9 @@ O lint e o `arch:db-check` só permitem `dbAdmin` em arquivos listados com justi
 reprova:
 
 - arquivo novo com `dbAdmin.` em `src/contexts/health-insurance/**` ou `src/app/api/cron/financial-reconcile/**`;
-- uso a mais num arquivo já auditado. Hoje: `delegation-permission.ts` 1, `billing-gap-candidates.ts` 2,
-  `financial-reconcile/route.ts` 3; a 3ª é a transação em que roda `external-refund-sweep.ts`;
+- uso a mais num arquivo já auditado. Hoje: `delegation-permission.ts` 1, `billing-gap-candidates.ts` 3 (as duas
+  varreduras do caminho 2 e a lista do caminho 4, desde 16/11), `financial-reconcile/route.ts` 3; a 3ª é a
+  transação em que roda `external-refund-sweep.ts`;
 - arquivo auditado que este documento deixe de citar.
 
 Para passar com um caminho novo: responder as 15 perguntas aqui, acrescentar a prova adversarial e só então

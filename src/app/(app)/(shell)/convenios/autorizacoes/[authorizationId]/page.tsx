@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableWra
 import { getAuthorization } from '@/contexts/health-insurance/queries';
 
 import { ConveniosHeader, conveniosAccess, shortDate } from '../../_lib/access';
-import { ConsultaAuthorizationResponseForm } from '../../_lib/authorization-ui';
+import { AuthorizationReceiptUploadForm, ConsultaAuthorizationResponseForm } from '../../_lib/authorization-ui';
 import { AUTHORIZATION_STATUS, AuthorizationStatusBadge } from '../../_lib/status';
 
 export const metadata: Metadata = { title: 'Autorização da operadora' };
@@ -34,6 +34,9 @@ export default async function AutorizacaoPage({ params }: { params: Promise<{ au
   // Classe C (16/11): a resposta da operadora a um pedido já feito vale com a assinatura parada ou o
   // módulo desligado; o servidor confere as travas (pedido existente aguardando, evidência, datas).
   const canRespond = waiting && r.guideType === 'consulta' && access.rights.operate;
+  // P6.3: anexar é da recepção (matriz 4.2); ler é da recepção ou do faturamento. O domínio só aceita
+  // comprovante em autorização pedida, aguardando, concedida, negada ou vencida (não em rascunho/cancelada).
+  const canAttach = access.rights.operate && ['requested', 'pending_operator', 'authorized', 'partially_authorized', 'denied', 'expired'].includes(r.status);
   const title = `Autorização · ${r.guideType === 'sp_sadt' ? 'SP/SADT' : 'Consulta'}`;
 
   return (
@@ -141,12 +144,21 @@ export default async function AutorizacaoPage({ params }: { params: Promise<{ au
           <ul className="flex flex-col gap-(--sp-1) text-(length:--fs-sm)">
             {receipts.map((x) => (
               <li key={x.id}>
-                {x.mediaType === 'application/pdf' ? 'PDF' : 'Imagem'} · {size(x.sizeBytes)} · enviado em {dateTime(x.createdAt)}
+                {x.mediaType === 'application/pdf' ? 'PDF' : x.mediaType.includes('xml') ? 'XML' : 'Imagem'} · {size(x.sizeBytes)} · enviado em {dateTime(x.createdAt)}
                 {x.uploadedByName ? ` por ${x.uploadedByName}` : ''}
+                {access.rights.readReceipt ? (
+                  <>
+                    {' · '}
+                    <a href={`/financeiro/convenios/comprovantes/${x.id}`} className="underline">
+                      Baixar (leitura registrada)
+                    </a>
+                  </>
+                ) : null}
               </li>
             ))}
           </ul>
         )}
+        {canAttach ? <AuthorizationReceiptUploadForm authorizationId={r.id} /> : null}
       </PanelCard>
 
       <PanelCard title="Histórico" regionLabel="Histórico da autorização">

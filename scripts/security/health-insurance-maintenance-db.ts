@@ -8,7 +8,10 @@
  *   3. resumo diário só com contagens (senha vencendo, pedido parado há mais de 3 dias, revisões,
  *      cancelamentos), por clínica certa; métricas sem nenhum identificador;
  *   4. isolamento: a clínica B não é tocada pela A (a falha isolada por clínica está nos unitários);
- *   5. sem tempo: as clínicas ficam adiadas, sem efeito parcial.
+ *   5. sem tempo: as clínicas ficam adiadas, sem efeito parcial;
+ *   6. a leitura privilegiada (auditoria §4): a varredura entre clínicas devolve só `clinic_id` das
+ *      clínicas com Convênios instalado (ligado ou desligado), respeita o LIMIT, e a rodada sem lista
+ *      explícita processa cada uma sob RLS sem falhar com o módulo desligado.
  *
  *   SECURITY_PG_BIN=... PORT=55555 NODE_OPTIONS=--conditions=react-server \
  *     npx tsx scripts/security/health-insurance-maintenance-db.ts
@@ -35,6 +38,7 @@ process.env.CRYPTO_LOOKUP_SALT = Buffer.alloc(32, 9).toString('base64');
 const { metrics } = await import('../../src/lib/observability/metrics');
 const auths = await import('../../src/contexts/health-insurance/internal/authorizations');
 const maint = await import('../../src/contexts/health-insurance/maintenance');
+const { listInsuranceMaintenanceClinics } = await import('../../src/contexts/health-insurance/billing-gap-candidates');
 const { loadXmllintValidator } = await import('../../src/contexts/health-insurance/tiss/xml/xsd-validator');
 const { loadHiFixtures } = await import('./hi-fixtures');
 
@@ -105,7 +109,7 @@ try {
 
   // 1. Vencimento + resumo, só na clínica A.
   captured.length = 0;
-  const r1 = await maint.runInsuranceMaintenance({ deadlineAt: Date.now() + 60_000, clinics: [A.clinicId], forceDaily: true });
+  const r1 = await maint.runInsuranceMaintenance({ deadlineAt: Date.now() + 60_000, clinics: [A.clinicId], forceDaily: true, store });
   assert.deepEqual([r1.processed, r1.expired, r1.failed, r1.deferred], [1, 1, 0, 0]);
   assert.deepEqual([await statusOf(expiredA), await statusOf(expiringA)], ['expired', 'authorized']);
   const ev = await sql`select to_status, actor_id, note from public.hi_authorization_events where authorization_id = ${expiredA}::uuid and to_status = 'expired'`;
@@ -140,8 +144,24 @@ try {
   assert.deepEqual([rLate.processed, rLate.deferred], [0, 2]);
   pass('sem orçamento de tempo: as clínicas ficam para a próxima execução de 15 minutos, sem efeito parcial');
 
-  console.log(`\n${passed}/5 provas da manutenção de Convênios (P6.6/P12.6).`);
-  assert.equal(passed, 5);
+  // 6. A varredura privilegiada (auditoria §4): só ids, só clínica com o módulo instalado, LIMIT.
+  const bare = randomUUID();
+  await sql`insert into public.clinics (id, slug, nome, status)
+    values (${bare}::uuid, ${`fx-${bare.slice(0, 12)}`}, 'Clínica sem Convênios', 'active')`;
+  await sql`update public.hi_clinic_settings set enabled = false where clinic_id = ${B.clinicId}::uuid`;
+  const listed = await listInsuranceMaintenanceClinics();
+  assert.ok(listed.every((id) => /^[0-9a-f-]{36}$/u.test(id)), 'só identificadores');
+  assert.ok(listed.includes(A.clinicId) && listed.includes(B.clinicId), 'instaladas (ligada e desligada) entram');
+  assert.ok(!listed.includes(bare), 'clínica sem Convênios não entra');
+  assert.equal((await listInsuranceMaintenanceClinics(1)).length, 1, 'LIMIT respeitado');
+  const installed = Number((await sql`select count(*)::int n from public.hi_clinic_settings`)[0]!.n);
+  assert.equal(listed.length, installed);
+  const rScan = await maint.runInsuranceMaintenance({ deadlineAt: Date.now() + 60_000 });
+  assert.deepEqual([rScan.clinics, rScan.processed, rScan.failed], [installed, installed, 0], 'módulo desligado não quebra o vencimento');
+  pass('leitura privilegiada §4: a varredura devolve só clinic_id das clínicas com Convênios instalado (ligado ou desligado), respeita o LIMIT, e a rodada sem lista processa todas sob RLS sem falhar com o módulo desligado');
+
+  console.log(`\n${passed}/6 provas da manutenção de Convênios (P6.6/P12.6).`);
+  assert.equal(passed, 6);
 } finally {
   await cluster.stop();
 }
