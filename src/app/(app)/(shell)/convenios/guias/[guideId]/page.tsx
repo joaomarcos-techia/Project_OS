@@ -121,7 +121,7 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
                   <TextAction label="Devolver para correção" success="Guia devolvida para correção" action={returnGuideAction} base={ref} field="note" fieldLabel="O que precisa ser corrigido" />
                 ) : null}
                 {bill && ['pending_data', 'ready_for_review', 'reviewed', 'approved'].includes(g.status) ? (
-                  <TextAction label="Cancelar guia" success="Guia cancelada" variant="danger" action={cancelGuideAction} base={ref} field="note" fieldLabel="Motivo do cancelamento" hint="O cancelamento é final; o atendimento fica livre para uma guia nova." />
+                  <TextAction label="Cancelar guia" success="Guia cancelada" variant="danger" action={cancelGuideAction} base={ref} field="note" fieldLabel="Motivo do cancelamento" hint="O cancelamento é final; o atendimento fica livre para uma guia nova. Se houver repasse autorizado ou pago, ele fica em revisão humana (pagamento bloqueado até a decisão); nada é estornado." />
                 ) : null}
                 {bill && g.account && g.account.pendingCents === 0 && g.status !== 'closed' && openGlosses.length === 0 ? (
                   <ActionButton label="Conciliar e encerrar" success="Guia conciliada" variant="primary" action={reconcileGuideAction.bind(null, ref)} />

@@ -18,6 +18,7 @@ import { authorizationDisplayState, remainingQuantity, type AuthorizationDisplay
 import { listCopayChargesTx } from './internal/copay-charge-service';
 import { insurerRules } from './internal/insurer-rules';
 import { listInsurancePayoutPositionsTx, type InsurancePayoutPosition } from './internal/insurance-payout-service';
+import { listPayoutReviewsTx, type PayoutReviewRow } from './internal/payout-review-service';
 import { GUIDE_STATUS_LABELS } from './guide-status-labels';
 import {
   CONSULTA_CODE_FIELD_KEYS,
@@ -1137,9 +1138,19 @@ export interface InsurancePayoutRow extends InsurancePayoutPosition {
   guideNumber: string | null;
   guideType: string | null;
   executedOn: string | null;
+  /** Revisão humana aberta (0163): pagamento e autorização bloqueados até a decisão. */
+  review: PayoutReviewRow | null;
 }
 
-export async function listInsurancePayouts(clinicId: string): Promise<{ rows: InsurancePayoutRow[]; eligibility: string }> {
+/** Política de segregação da revisão do repasse (0163; D-2: administração). */
+export interface PayoutReviewPolicy {
+  segregation: boolean;
+  independentAboveCents: number | null;
+}
+
+export async function listInsurancePayouts(
+  clinicId: string,
+): Promise<{ rows: InsurancePayoutRow[]; eligibility: string; reviewPolicy: PayoutReviewPolicy }> {
   return withTenant(clinicId, async (tx) => {
     const positions = await listInsurancePayoutPositionsTx(tx, clinicId);
     const meta = positions.length
@@ -1154,13 +1165,25 @@ export async function listInsurancePayouts(clinicId: string): Promise<{ rows: In
            WHERE p.clinic_id = ${clinicId}::uuid`)) as unknown as Row[])
       : [];
     const byId = new Map(meta.map((m) => [String(m.payout_id), m]));
-    const [settings] = (await tx.execute(sql`SELECT payout_eligibility FROM public.hi_clinic_settings WHERE clinic_id = ${clinicId}::uuid`)) as unknown as Row[];
+    const [settings] = (await tx.execute(sql`SELECT payout_eligibility, payout_review_segregation, payout_review_independent_above_cents
+      FROM public.hi_clinic_settings WHERE clinic_id = ${clinicId}::uuid`)) as unknown as Row[];
+    // Revisões abertas (0163): o motivo de o pagamento estar bloqueado.
+    const open = await listPayoutReviewsTx(tx, clinicId, { status: 'open' });
+    const reviewByPayout = new Map(open.map((r) => [r.payoutId, r]));
     return {
       eligibility: String(settings?.payout_eligibility ?? 'on_receipt'),
+      reviewPolicy: {
+        segregation: settings?.payout_review_segregation === true,
+        independentAboveCents:
+          settings?.payout_review_independent_above_cents === null || settings?.payout_review_independent_above_cents === undefined
+            ? null
+            : Number(settings.payout_review_independent_above_cents),
+      },
       rows: positions.map((p) => {
         const m = byId.get(p.payoutId);
         return {
           ...p,
+          review: reviewByPayout.get(p.payoutId) ?? null,
           professionalName: String(m?.professional_name ?? ''),
           patientName: String(m?.patient_name ?? ''),
           guideNumber: s(m?.guide_number),

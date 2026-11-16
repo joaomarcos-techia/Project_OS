@@ -13,6 +13,8 @@ import { todayYmdIn } from '@/lib/format';
 import {
   adjustInsurancePayoutAction,
   authorizeInsurancePayoutAction,
+  decidePayoutReviewAction,
+  setPayoutReviewPolicyAction,
   setPayoutEligibilityAction,
   settleInsurancePayoutAction,
   syncInsurancePayoutsAction,
@@ -46,7 +48,7 @@ function useSubmit() {
   };
 }
 
-export function PayoutPolicyForm({ eligibility }: { eligibility: string }) {
+export function PayoutPolicyForm({ eligibility, canSync = true }: { eligibility: string; canSync?: boolean }) {
   const id = useId();
   const { pending, submit } = useSubmit();
   const [value, setValue] = useState(eligibility);
@@ -82,16 +84,24 @@ export function PayoutPolicyForm({ eligibility }: { eligibility: string }) {
       >
         {pending ? 'Aguarde…' : 'Salvar política'}
       </Button>
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        disabled={pending}
-        onClick={() => submit(() => syncInsurancePayoutsAction(), 'Repasses atualizados')}
-      >
-        Criar repasses que faltam
-      </Button>
+      {canSync ? <PayoutSyncButton /> : null}
     </form>
+  );
+}
+
+/** Criar os repasses que faltam (faturamento). */
+export function PayoutSyncButton() {
+  const { pending, submit } = useSubmit();
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="ghost"
+      disabled={pending}
+      onClick={() => submit(() => syncInsurancePayoutsAction(), 'Repasses atualizados')}
+    >
+      Criar repasses que faltam
+    </Button>
   );
 }
 
@@ -273,6 +283,112 @@ export function PayoutActions({
           Voltar
         </Button>
       </div>
+    </form>
+  );
+}
+
+/**
+ * Segregação da revisão do repasse (0163; D-2: administração da clínica). Desligada por padrão:
+ * clínicas de uma ou duas pessoas não travam. Ligada, ou com o valor em jogo no limite ou acima,
+ * quem tirou a guia do atendimento não decide a revisão (o banco confere).
+ */
+export function PayoutReviewPolicyForm({
+  segregation,
+  independentAboveCents,
+}: {
+  segregation: boolean;
+  independentAboveCents: number | null;
+}) {
+  const id = useId();
+  const { pending, submit } = useSubmit();
+  const [seg, setSeg] = useState(segregation);
+  const [limit, setLimit] = useState(independentAboveCents === null ? '' : (independentAboveCents / 100).toFixed(2).replace('.', ','));
+  const limitCents = limit.trim() === '' ? null : toCents(limit);
+  const invalid = limitCents !== null && (!Number.isFinite(limitCents) || limitCents < 0);
+  return (
+    <form
+      className="flex flex-wrap items-end gap-(--sp-2)"
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit(() => setPayoutReviewPolicyAction({ segregation: seg, independentAboveCents: limitCents }), 'Regra da revisão atualizada');
+      }}
+    >
+      <label className="flex items-center gap-(--sp-2) text-(length:--fs-sm)" htmlFor={`${id}-seg`}>
+        <input id={`${id}-seg`} type="checkbox" checked={seg} onChange={(e) => setSeg(e.target.checked)} />
+        Quem cancelou a guia não decide a revisão do repasse
+      </label>
+      <Field
+        label="Exigir outra pessoa a partir de (R$, opcional)"
+        htmlFor={`${id}-lim`}
+        hint="Vale para manter ou reduzir o saldo; vazio = sem limite."
+        {...(invalid ? { error: 'Informe um valor em reais, ou deixe vazio.' } : {})}
+      >
+        <Input id={`${id}-lim`} inputMode="decimal" value={limit} onChange={(e) => setLimit(e.target.value)} />
+      </Field>
+      <Button type="submit" size="sm" variant="secondary" disabled={pending || invalid}>
+        {pending ? 'Aguarde…' : 'Salvar regra da revisão'}
+      </Button>
+    </form>
+  );
+}
+
+type ReviewChoice = 'maintain' | 'reduce' | 'acknowledge';
+
+/**
+ * Decisão da revisão aberta (a guia saiu do atendimento). Com saldo autorizado não pago: manter
+ * (libera o pagamento até o autorizado) ou reduzir (o ajuste vai no mesmo ato). Sem saldo: ciência
+ * do repasse já pago — nada é compensado nem estornado pelo sistema.
+ */
+export function PayoutReviewForm({ reviewId, dueCents }: { reviewId: string; dueCents: number }) {
+  const id = useId();
+  const { pending, submit } = useSubmit();
+  const choices: Array<[ReviewChoice, string]> =
+    dueCents > 0
+      ? [['maintain', `Manter a obrigação (libera o pagamento de até ${brl(dueCents)})`], ['reduce', 'Reduzir a obrigação']]
+      : [['acknowledge', 'Registrar ciência do repasse já pago']];
+  const [choice, setChoice] = useState<ReviewChoice>(choices[0]![0]);
+  const [reason, setReason] = useState('');
+  const [amount, setAmount] = useState('');
+  const cents = toCents(amount);
+  const reduceInvalid = choice === 'reduce' && (!Number.isFinite(cents) || cents < 1 || cents > dueCents);
+  return (
+    <form
+      className="flex w-full min-w-64 flex-col gap-(--sp-2) rounded-(--r-md) border border-border p-(--sp-2)"
+      aria-label="Decidir a revisão do repasse"
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit(
+          () =>
+            decidePayoutReviewAction({
+              reviewId,
+              decision: choice,
+              reason,
+              ...(choice === 'reduce' ? { reduceCents: cents } : {}),
+            }),
+          'Revisão decidida',
+        );
+      }}
+    >
+      <fieldset className="flex flex-col gap-(--sp-1) text-(length:--fs-sm)">
+        <legend className="font-medium">Decisão</legend>
+        {choices.map(([value, label]) => (
+          <label key={value} className="flex items-center gap-(--sp-2)">
+            <input type="radio" name={`${id}-d`} value={value} checked={choice === value} onChange={() => setChoice(value)} />
+            {label}
+          </label>
+        ))}
+      </fieldset>
+      {choice === 'reduce' ? (
+        <Field label={`Reduzir quanto (até ${brl(dueCents)})`} htmlFor={`${id}-v`} required>
+          <Input id={`${id}-v`} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        </Field>
+      ) : null}
+      <Field label="Motivo" htmlFor={`${id}-m`} hint="10 a 500 caracteres; fica no histórico da revisão." required>
+        <Textarea id={`${id}-m`} rows={2} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} />
+      </Field>
+      <Button type="submit" size="sm" variant="primary" disabled={pending || reason.trim().length < 10 || reduceInvalid}>
+        {pending ? 'Aguarde…' : 'Confirmar decisão'}
+      </Button>
     </form>
   );
 }
