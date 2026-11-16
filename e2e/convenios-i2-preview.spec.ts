@@ -33,7 +33,8 @@ const OTHER_ACCOUNTS = process.env.E2E_HI_ACCOUNTS;
 const STATE = process.env.E2E_HI_I2;
 
 test.skip(!BASE || !ACCOUNTS || !OTHER_ACCOUNTS || !STATE, 'requer E2E_BASE_URL (Preview no DEV) e a fixture setup-i2');
-test.describe.configure({ mode: 'serial' });
+// Em ordem (1 worker), sem abortar os demais quando um falha: cada cenário é uma prova própria.
+test.describe.configure({ mode: 'default' });
 test.use({ actionTimeout: 45_000 });
 
 type Account = { email: string; password: string; userId: string; clinic: string; role: string };
@@ -53,7 +54,7 @@ const fx = STATE
     })
   : null;
 
-const NO_PERMISSION = 'Seu perfil não tem permissão para esta operação de convênios.';
+const NO_PERMISSION = /Seu perfil não tem permissão para esta (?:operação|configuração) de convênios./u;
 const APPOINTMENT_NOT_FOUND = 'Atendimento não encontrado nesta clínica.';
 const INTERNAL = /(?:\bat\s+\S+\s+\(|node_modules|drizzle|postgres|SQLSTATE|stack)/iu;
 
@@ -96,7 +97,15 @@ async function capture(page: Page, marker: string, abort: boolean, trigger: () =
     const body = req.postData();
     if (req.method() === 'POST' && h['next-action'] && body?.includes(marker) && !got) {
       got = { id: h['next-action'], body, contentType: h['content-type'] ?? 'text/plain;charset=UTF-8', routerTree: h['next-router-state-tree'] };
-      if (abort) return route.abort();
+      // Não chega ao servidor: responde no lugar dele com uma recusa bem formada (um aborto de rede
+      // viraria "Failed to fetch" no monitoramento do Preview).
+      if (abort) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'text/x-component',
+          body: ['0:{"a":"$@1","f":"","b":"e2e"}', '1:{"ok":false,"error":"Captura do teste: nada foi enviado."}', ''].join('\n'),
+        });
+      }
     }
     return route.continue();
   };
@@ -123,10 +132,11 @@ async function replay(page: Page, action: Captured, body = action.body): Promise
   );
 }
 
-function expectRefused(res: { text: string }, message: string) {
+function expectRefused(res: { text: string }, message: string | RegExp) {
   expect(res.text).toContain('"ok":false');
   expect(res.text).not.toContain('"ok":true');
-  expect(res.text).toContain(message);
+  if (typeof message === 'string') expect(res.text).toContain(message);
+  else expect(res.text).toMatch(message);
   expect(res.text).not.toMatch(INTERNAL);
 }
 
@@ -176,7 +186,7 @@ test('gestora: vê valores e administra; as actions de política (D-2) e de pre�
     await line.getByRole('button', { name: 'Salvar nova versão' }).click();
   });
   expect((await server(s, insurerPage())).body).not.toContain('999,99');
-  expect(s.errors.filter((e) => !/Failed to fetch|NetworkError|aborted/iu.test(e))).toEqual([]);
+  expect(s.errors).toEqual([]);
 });
 
 test('dona: administra Convênios (política, lotes, repasses) como a gestora', async ({ browser }) => {
@@ -398,5 +408,133 @@ test('conta desativada: não entra e não chega a dado nenhum', async ({ browser
     }
   } finally {
     await context.close();
+  }
+});
+
+// ── D-5: via de atendimento (fase 2) ─────────────────────────────────────────────────────────────
+
+const via = (which: 'own' | 'other') => `/financeiro/convenios/guias/${fx!.guides[which].id}/via`;
+const fullPdf = (which: 'own' | 'other') => `/financeiro/convenios/guias/${fx!.guides[which].id}/pdf`;
+const FULL_CARD = '0081234500033331';
+const MASKED_CARD = '************3331';
+const COPY_MARK = 'VIA DE ATENDIMENTO';
+/** Fase 3 ativa (PDF completo só para quem vê faturamento)? O pedido da execução diz. */
+const PHASE3 = process.env.E2E_HI_D5_PHASE === '3';
+
+async function pdfOf(s: Session, path: string): Promise<{ status: number; type: string; text: string; cache: string }> {
+  const r = await s.context.request.get(path, { maxRedirects: 0, failOnStatusCode: false });
+  const type = r.headers()['content-type'] ?? '';
+  let text = '';
+  if (r.status() === 200 && type.includes('application/pdf')) {
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const doc = await pdfjs.getDocument({ data: new Uint8Array(await r.body()), disableFontFace: true, verbosity: 0 }).promise;
+    for (let n = 1; n <= doc.numPages; n++) {
+      const content = await (await doc.getPage(n)).getTextContent();
+      text += ` ${(content.items as Array<{ str: string }>).map((i) => i.str).join(' ')}`;
+    }
+  }
+  return { status: r.status(), type, text, cache: r.headers()['cache-control'] ?? '' };
+}
+
+test('D-5: a gestora confere e emite a guia; antes da emissão não existe via', async ({ browser }) => {
+  test.setTimeout(240_000);
+  const s = await session(browser, 'i2-gestor');
+  await s.page.goto(guide('own'));
+  const situation = s.page.getByRole('region', { name: 'Situação da guia' });
+  if (!(await situation.getByText('Aprovada', { exact: true }).first().isVisible().catch(() => false))) {
+    expect((await pdfOf(s, via('own'))).status).toBe(404);
+    const review = s.page.getByRole('button', { name: 'Marcar como conferida' });
+    if (await review.isVisible().catch(() => false)) await review.click();
+    const approve = s.page.getByRole('button', { name: 'Aprovar e emitir' });
+    await expect(approve).toBeVisible({ timeout: 60_000 });
+    await approve.click();
+    await expect(situation.getByText('Aprovada', { exact: true }).first()).toBeVisible({ timeout: 90_000 });
+  }
+  // A guia da outra médica continua sem emissão: a via dela não existe para ninguém.
+  expect((await pdfOf(s, via('other'))).status).toBe(404);
+  expect(s.errors).toEqual([]);
+});
+
+test('D-5: recepção baixa a via pelo botão; o PDF não tem valor nem a carteirinha completa', async ({ browser }) => {
+  test.setTimeout(180_000);
+  const s = await session(browser, 'i2-recepcao');
+  await s.page.goto(guide('own'));
+  const button = s.page.getByRole('button', { name: 'Via para assinatura' });
+  await expect(button).toBeVisible();
+  await button.focus();
+  const [download] = await Promise.all([s.page.waitForEvent('download', { timeout: 90_000 }), s.page.keyboard.press('Enter')]);
+  expect(download.suggestedFilename()).toMatch(/^via-atendimento-consulta-.+\.pdf$/u);
+  await expect(s.page.getByRole('status').filter({ hasText: 'Via baixada' })).toBeVisible();
+
+  const copy = await pdfOf(s, via('own'));
+  expect([copy.status, copy.type]).toEqual([200, 'application/pdf']);
+  expect(copy.cache).toContain('no-store');
+  expect(copy.text).toContain(COPY_MARK);
+  expect(copy.text).toContain('Paciente Sintético Matriz Um');
+  expect(copy.text).toContain('10101012');
+  expect(copy.text).toContain(MASKED_CARD);
+  expect(copy.text).not.toContain(FULL_CARD);
+  expect(copy.text).not.toContain(fx!.value);
+  expect(copy.text.split(/\s+/u).filter((t) => /^\d{1,3}(?:\.\d{3})*,\d{2}$/u.test(t))).toEqual([]);
+  // Download repetido: a mesma via, de novo auditada.
+  expect((await pdfOf(s, via('own'))).status).toBe(200);
+  // URL adulterada e guia inexistente: o mesmo 404.
+  expect((await pdfOf(s, `/financeiro/convenios/guias/${randomUUID()}/via`)).status).toBe(404);
+  expect((await pdfOf(s, '/financeiro/convenios/guias/nao-e-uuid/via')).status).toBe(404);
+
+  const full = await pdfOf(s, fullPdf('own'));
+  if (PHASE3) {
+    // Fase 3: o PDF completo (com valores) deixou de existir para a recepção; a tela não oferece.
+    expect(full.status).toBe(404);
+    await expect(s.page.getByRole('link', { name: 'Ver PDF da guia' })).toHaveCount(0);
+  } else {
+    expect(full.status).toBe(200);
+  }
+  expect(s.errors).toEqual([]);
+});
+
+test('D-5: financeiro tem a via e o PDF completo (com valor); médica só a via da PRÓPRIA guia', async ({ browser }) => {
+  test.setTimeout(180_000);
+  const fin = await session(browser, 'i2-financeiro');
+  const finCopy = await pdfOf(fin, via('own'));
+  expect(finCopy.status).toBe(200);
+  expect(finCopy.text).not.toContain(fx!.value);
+  const finFull = await pdfOf(fin, fullPdf('own'));
+  expect(finFull.status).toBe(200);
+  expect(finFull.text).toContain(fx!.value);
+  expect(finFull.text).not.toContain(COPY_MARK);
+
+  const medica = await session(browser, 'i2-medica');
+  const own = await pdfOf(medica, via('own'));
+  expect(own.status).toBe(200);
+  expect(own.text).toContain(COPY_MARK);
+  expect(own.text).not.toContain(fx!.value);
+  expect(own.text).not.toContain(FULL_CARD);
+  expect((await pdfOf(medica, fullPdf('own'))).status).toBe(404);
+  await medica.page.goto(guide('own'));
+  await expect(medica.page.getByRole('button', { name: 'Via para assinatura' })).toBeVisible();
+  await expect(medica.page.getByRole('link', { name: 'Ver PDF da guia' })).toHaveCount(0);
+
+  // A outra médica não é executante nem solicitante desta guia: a via não existe para ela.
+  const medica2 = await session(browser, 'i2-medica2');
+  expect((await pdfOf(medica2, via('own'))).status).toBe(404);
+  expect((await pdfOf(medica2, fullPdf('own'))).status).toBe(404);
+});
+
+test('D-5: sem permissão, outra clínica e sessão encerrada não recebem a via', async ({ browser }) => {
+  test.setTimeout(120_000);
+  const semperm = await session(browser, 'i2-semperm');
+  expect((await pdfOf(semperm, via('own'))).status).toBe(404);
+  const outra = await session(browser, 'outra-gestor');
+  expect((await pdfOf(outra, via('own'))).status).toBe(404);
+  expect((await pdfOf(outra, fullPdf('own'))).status).toBe(404);
+  // Sem sessão (cookies descartados): nenhum PDF sai.
+  const anon = await browser.newContext({ baseURL: BASE!, extraHTTPHeaders: vercelBypassHeaders() });
+  try {
+    const r = await anon.request.get(via('own'), { maxRedirects: 0, failOnStatusCode: false });
+    expect(r.status()).not.toBe(200);
+    expect(r.headers()['content-type'] ?? '').not.toContain('application/pdf');
+  } finally {
+    await anon.close();
   }
 });

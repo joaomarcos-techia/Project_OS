@@ -73,7 +73,7 @@ export async function renderIssuedGuidePdf(args: {
  * D-5 fase 1: VIA DE ATENDIMENTO (assinatura do paciente), do MESMO snapshot emitido e pela mesma
  * leitura auditada, com a finalidade própria (`via_atendimento`). Sem valores, fator, indicação
  * clínica nem observação; carteirinha mascarada por padrão (`attendance-copy.ts`). Só em memória:
- * não grava em hi_files. Sem rota nem botão nesta fase (§10.2 da matriz I.2).
+ * não grava em hi_files. Fase 2: rota `/financeiro/convenios/guias/:id/via` e botão na guia.
  */
 export async function renderIssuedGuideAttendanceCopyPdf(args: {
   clinicId: string;

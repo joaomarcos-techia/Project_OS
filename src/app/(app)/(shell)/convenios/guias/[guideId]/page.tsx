@@ -29,6 +29,7 @@ import {
 } from '@/contexts/health-insurance/queries';
 
 import { brl, brlOrDash, ConveniosHeader, conveniosAccess, shortDate } from '../../_lib/access';
+import { AttendanceCopyButton } from '../../_lib/attendance-copy-ui';
 import { ActionButton, Actions, AnswerAppealForm, AppealForm, FileAppealForm, TextAction } from '../../_lib/action-ui';
 import { ConsultaFieldsPanel } from '../../_lib/consulta-fields-ui';
 import { GlossStatusBadge, GuideStatusBadge } from '../../_lib/status';
@@ -93,10 +94,16 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
         description={`${g.insurerName}${g.patientName ? ` · ${g.patientName}` : ''}`}
         crumbs={[{ label: 'Guias', href: '/convenios/guias' }, { label }]}
         actions={
-          ISSUED.includes(g.status) && access.rights.emittedDocuments ? (
-            <a href={`/financeiro/convenios/guias/${g.id}/pdf`} target="_blank" rel="noopener" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
-              Ver PDF da guia
-            </a>
+          ISSUED.includes(g.status) ? (
+            <>
+              {/* D-5: a via de atendimento (sem valores, carteirinha mascarada) é o documento da recepção e da médica. */}
+              {access.rights.attendanceCopy ? <AttendanceCopyButton guideId={g.id} /> : null}
+              {access.rights.emittedDocuments ? (
+                <a href={`/financeiro/convenios/guias/${g.id}/pdf`} target="_blank" rel="noopener" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
+                  Ver PDF da guia
+                </a>
+              ) : null}
+            </>
           ) : null
         }
       />

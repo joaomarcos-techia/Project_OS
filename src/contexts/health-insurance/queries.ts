@@ -53,6 +53,20 @@ function guideScopeSql(scope: GuideScope) {
     : sql``;
 }
 
+/**
+ * A guia existe nesta clínica E está no escopo da pessoa (clínica inteira ou posse por executante/
+ * solicitante)? Usado pelas rotas de documento antes da leitura auditada (D-4, D-5): fora do escopo
+ * é "não encontrado", igual a guia inexistente.
+ */
+export async function isGuideWithinScope(clinicId: string, guideId: string, scope: GuideScope): Promise<boolean> {
+  return withTenant(clinicId, async (tx) => {
+    const rows = (await tx.execute(
+      sql`SELECT 1 AS ok FROM public.hi_guides g WHERE g.clinic_id = ${clinicId}::uuid AND g.id = ${guideId}::uuid ${guideScopeSql(scope)}`,
+    )) as unknown as unknown[];
+    return rows.length > 0;
+  });
+}
+
 export { GUIDE_STATUS_LABELS };
 export { guideEventLabel } from './guide-event-label';
 

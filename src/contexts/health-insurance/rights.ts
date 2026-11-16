@@ -41,6 +41,12 @@ export const CONVENIOS_RULES = {
    * por `seeValues`. A médica não tinha e continua sem.
    */
   emittedDocuments: [PERMISSIONS.VIEW_FATURAMENTO_CONVENIO, PERMISSIONS.OPERATE_CONVENIOS],
+  /**
+   * Via de atendimento (D-5 fase 2): sem valores, fator, indicação clínica nem observação, com a
+   * carteirinha mascarada. Quem opera, quem fatura e a médica (D-4) nas PRÓPRIAS guias: a posse é
+   * conferida no servidor pela rota, antes da leitura auditada.
+   */
+  attendanceCopy: [PERMISSIONS.OPERATE_CONVENIOS, PERMISSIONS.VIEW_FATURAMENTO_CONVENIO, PERMISSIONS.VIEW_CONVENIOS],
   /** Cobrança Asaas da coparticipação do PACIENTE: continua no financeiro (matriz 4.3, sem mudança). */
   patientCharge: [PERMISSIONS.MANAGE_FINANCIAL],
 } as const satisfies Record<string, readonly Permission[]>;
@@ -61,6 +67,7 @@ export interface ConveniosRights {
   broad: boolean;
   readReceipt: boolean;
   emittedDocuments: boolean;
+  attendanceCopy: boolean;
   patientCharge: boolean;
 }
 
@@ -78,6 +85,7 @@ export function conveniosRights(permissions: readonly string[]): ConveniosRights
     broad: operate || seeValues || bill,
     readReceipt: allows(permissions, 'readReceipt'),
     emittedDocuments: allows(permissions, 'emittedDocuments'),
+    attendanceCopy: allows(permissions, 'attendanceCopy'),
     patientCharge: allows(permissions, 'patientCharge'),
   };
 }
