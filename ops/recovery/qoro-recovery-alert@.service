@@ -1,0 +1,16 @@
+[Unit]
+Description=Qoro recovery continuity failure notification
+
+[Service]
+Type=oneshot
+User=qoro-recovery
+Group=qoro-recovery
+WorkingDirectory=/opt/qoro-recovery
+ExecStart=/usr/bin/node --import tsx scripts/recovery-backup-alert.ts
+LoadCredentialEncrypted=sentry-dsn:/etc/credstore.encrypted/qoro-recovery-sentry-dsn
+TimeoutStartSec=30s
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+

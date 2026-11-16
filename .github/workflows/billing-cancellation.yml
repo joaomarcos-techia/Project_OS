@@ -70,13 +70,13 @@ jobs:
             target="$RUNNER_TEMP/qoro-cancel-$variant"
             mkdir "$target"
             if [[ "$variant" == candidate-160 ]]; then
-              tar -xf dist/cancellation-proof/qoro-saas-cancellation-4a4203e3.tar -C "$target"
+              tar -xf dist/cancellation-proof/qoro-saas-cancellation-0fca4409.tar -C "$target"
             else
               git archive 5620a0987ec53db7d7358728eb7d457d9d373df3 | tar -xf - -C "$target"
               if [[ "$variant" == main-160 ]]; then
                 rm -r "$target/drizzle/migrations"
                 mkdir -p "$target/drizzle/migrations"
-                tar -xf dist/cancellation-proof/qoro-saas-cancellation-4a4203e3.tar -C "$target" ./drizzle/migrations
+                tar -xf dist/cancellation-proof/qoro-saas-cancellation-0fca4409.tar -C "$target" ./drizzle/migrations
               fi
             fi
             cp scripts/security/legacy-cancellation-db.ts scripts/security/scratch-schema.ts "$target/scripts/security/"
@@ -95,6 +95,8 @@ jobs:
           export PATH="$SECURITY_PG_BIN:$PATH"
           pnpm exec tsx scripts/security/scheduled-backup-db.ts
           cp dist/scheduled-backup-synthetic.json dist/cancellation-proof/
+      - name: Check prepared systemd units without installing or enabling them
+        run: systemd-analyze verify ops/recovery/*.service ops/recovery/*.timer
       - name: Preserve sanitized reports and source package only
         if: always()
         uses: actions/upload-artifact@v4

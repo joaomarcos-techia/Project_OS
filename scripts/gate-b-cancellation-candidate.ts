@@ -15,7 +15,7 @@ import {
 
 assert.equal(process.platform, 'linux', 'Isolated Linux runner required');
 const BASE = '94f6da4aeb32b1ae7da856dc9afa105120ce6dd9';
-const PATCH = '4a4203e3743ef618047016119cc6acb7aeadc875';
+const PATCH = '0fca440917b52636033d5ba2c2236e3b63249387';
 const MAIN = '5620a0987ec53db7d7358728eb7d457d9d373df3';
 const archive = path.resolve(z.string().min(1).parse(process.argv[2]));
 const output = path.resolve(z.string().min(1).parse(process.argv[3]));

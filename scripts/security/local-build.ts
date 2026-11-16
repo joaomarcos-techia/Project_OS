@@ -25,6 +25,8 @@ const copied = [
   'scripts/abacatepay-release-validation.ts',
   'scripts/abacatepay-release-apply.ts',
   'scripts/abacatepay-checkout-session.ts',
+  'scripts/recovery-scheduled-backup.ts',
+  'scripts/recovery-backup-alert.ts',
   'package.json',
   'tsconfig.json',
   'next.config.ts',
