@@ -9,6 +9,9 @@
  * em primeiro lugar; então o afrouxamento (TRUNCATE-como-privilégio) vem com a
  * contraprova de que TRUNCATE-como-comando AINDA é pego.
  */
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { scanSql } from '../../../scripts/check-migration-safety';
@@ -77,6 +80,55 @@ describe('scanSql — TRUNCATE: privilégio vs comando', () => {
         'ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon;\nDROP TABLE public.t;',
       ),
     ).toEqual(['DROP TABLE']);
+  });
+});
+
+// Trilha da plataforma append-only: o gatilho que RECUSA o esvaziamento precisa da palavra no
+// CREATE TRIGGER. A isenção é do statement que define o gatilho, e só dele.
+describe('scanSql — TRUNCATE como evento de gatilho', () => {
+  const triggerDef =
+    'CREATE TRIGGER t_stmt\n  BEFORE TRUNCATE ON public.t\n  FOR EACH STATEMENT EXECUTE FUNCTION public.f();';
+
+  it('NÃO acusa CREATE TRIGGER ... BEFORE TRUNCATE', () => {
+    expect(kinds(triggerDef)).toEqual([]);
+  });
+
+  it('NÃO acusa CREATE OR REPLACE TRIGGER com TRUNCATE entre os eventos', () => {
+    expect(
+      kinds(
+        'CREATE OR REPLACE TRIGGER t_stmt BEFORE UPDATE OR DELETE OR TRUNCATE ON public.t\n' +
+          '  FOR EACH STATEMENT EXECUTE FUNCTION public.f();',
+      ),
+    ).toEqual([]);
+  });
+
+  it('a isenção do gatilho não cega o TRUNCATE-comando seguinte', () => {
+    expect(kinds(`${triggerDef}\nTRUNCATE TABLE public.t;`)).toEqual(['TRUNCATE']);
+  });
+
+  it('CREATE TRIGGER não isenta DROP', () => {
+    expect(kinds(`${triggerDef}\nDROP TABLE public.t;`)).toEqual(['DROP TABLE']);
+  });
+
+  it('a palavra no corpo de uma função de gatilho continua acusada', () => {
+    expect(
+      kinds(
+        'CREATE OR REPLACE FUNCTION public.f() RETURNS trigger LANGUAGE plpgsql AS $$\n' +
+          "BEGIN IF TG_OP = 'TRUNCATE' THEN RAISE EXCEPTION 'x'; END IF; END $$;",
+      ),
+    ).toEqual(['TRUNCATE']);
+  });
+
+  it('a candidata da trilha append-only passa no gate sem destructive-approved', () => {
+    const raw = readFileSync(
+      resolve(
+        process.cwd(),
+        'docs/security/migrations/0163_super_admin_actions_append_only.candidate.sql',
+      ),
+      'utf8',
+    );
+    expect(raw).not.toMatch(/migration:destructive-approved/i);
+    expect(scanSql('0163_super_admin_actions_append_only.candidate.sql', raw)).toEqual([]);
   });
 });
 
