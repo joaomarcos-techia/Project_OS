@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { createReadStream } from 'node:fs';
+import { createReadStream, lstatSync } from 'node:fs';
 import { lstat, open, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -36,6 +36,94 @@ const reviewedBackup = z.object({
   restoreEvidenceFile: z.string().min(1),
   reviewedBy: z.string().min(1).max(120),
 });
+
+export function assertB3ExecutionPlatform(
+  platform: NodeJS.Platform,
+  decision: string,
+  allowWindowsDeferredRecovery: boolean,
+  forbiddenRunner = false,
+) {
+  assert.equal(forbiddenRunner, false, 'Production apply is forbidden in CI/Actions');
+  if (platform === 'linux') {
+    assert.equal(allowWindowsDeferredRecovery, false, 'Windows opt-in on a different platform');
+    return;
+  }
+  assert.equal(platform, 'win32', 'Unsupported B3 execution platform');
+  assert.equal(
+    allowWindowsDeferredRecovery,
+    true,
+    'Explicit Windows metadata-only opt-in required',
+  );
+  assert.equal(
+    decision,
+    'APPROVED_FOR_B3_WITH_DEFERRED_RESTORE',
+    'Windows cannot read real backups',
+  );
+}
+
+/** Only configuration/metadata/evidence, never a real backup on Windows. */
+export function assertPrivateOperationalPath(
+  file: string,
+  kind: 'file' | 'directory',
+  parent: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform = process.platform,
+) {
+  assert.ok(path.isAbsolute(file));
+  const stat = lstatSync(file);
+  assert.ok(!stat.isSymbolicLink() && (kind === 'file' ? stat.isFile() : stat.isDirectory()));
+  if (platform === 'linux') {
+    assert.equal(stat.mode & 0o077, 0, 'Private operational path required');
+    return;
+  }
+  assert.equal(platform, 'win32');
+  assert.ok(!file.startsWith('\\\\'), 'Local operational path required');
+  const environment: NodeJS.ProcessEnv = { NODE_ENV: 'production' };
+  for (const key of ['PATH', 'Path', 'SystemRoot', 'WINDIR', 'PATHEXT', 'TEMP', 'TMP'])
+    if (parent[key]) environment[key] = parent[key];
+  const script = `
+$ErrorActionPreference='Stop'
+$target=[Console]::In.ReadToEnd()
+$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User
+$item=Get-Item -LiteralPath $target -Force
+for($ancestor=$item;$null -ne $ancestor;) {
+ if(($ancestor.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0){throw 'REPARSE_POINT'}
+ if($ancestor -is [IO.FileInfo]){$ancestor=$ancestor.Directory}else{$ancestor=$ancestor.Parent}
+}
+$acl=Get-Acl -LiteralPath $target
+if($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $sid.Value){throw 'OWNER'}
+$guard=if($item.PSIsContainer){$acl}else{Get-Acl -LiteralPath $item.Directory.FullName}
+if(-not $guard.AreAccessRulesProtected){throw 'INHERITANCE'}
+$rules=$acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])
+$own=$false
+foreach($rule in $rules) {
+ if($rule.IdentityReference.Value -notin @($sid.Value,'S-1-5-18')){throw 'FOREIGN_PRINCIPAL'}
+ if($rule.AccessControlType -ne 'Allow'){throw 'UNEXPECTED_DENY'}
+ if($rule.IdentityReference.Value -eq $sid.Value -and ($rule.FileSystemRights -band [Security.AccessControl.FileSystemRights]::FullControl) -eq [Security.AccessControl.FileSystemRights]::FullControl){$own=$true}
+}
+if(-not $own){throw 'OWNER_ACCESS'}
+[Console]::Out.Write('QORO_PRIVATE_OPERATIONAL_PATH')
+`;
+  const result = spawnSync(
+    'powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-Command', script],
+    {
+      env: environment,
+      input: file,
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: 15_000,
+      maxBuffer: 64 << 10,
+      windowsHide: true,
+    },
+  );
+  assert.ok(
+    !result.error &&
+      !result.signal &&
+      result.status === 0 &&
+      result.stdout === 'QORO_PRIVATE_OPERATIONAL_PATH',
+    'Private Windows ACL verification failed; details suppressed',
+  );
+}
 const deferredBackupReview = z
   .object({
     decision: z.literal('APPROVED_FOR_B3_WITH_DEFERRED_RESTORE'),
@@ -188,6 +276,7 @@ async function main(parent: NodeJS.ProcessEnv) {
   const { values } = parseArgs({
     options: {
       'authorize-production-migrations': { type: 'boolean', default: false },
+      'allow-windows-deferred-recovery': { type: 'boolean', default: false },
       approval: { type: 'string' },
       project: { type: 'string' },
       release: { type: 'string' },
@@ -205,7 +294,6 @@ async function main(parent: NodeJS.ProcessEnv) {
     .string()
     .regex(/^[a-zA-Z0-9_-]{8,120}$/u)
     .parse(values.approval);
-  assert.equal(process.platform, 'linux', 'This B3 operator is Linux-only');
   const project = z
     .string()
     .regex(/^[a-z]{20}$/u)
@@ -220,10 +308,21 @@ async function main(parent: NodeJS.ProcessEnv) {
     path.join(path.resolve(z.string().min(1).parse(values.release)), 'drizzle/migrations'),
     FINANCIAL_REF,
   );
-  const reviewInput: unknown = JSON.parse(
-    await readFile(z.string().min(1).parse(values['backup-review']), 'utf8'),
-  );
+  const reviewFile = path.resolve(z.string().min(1).parse(values['backup-review']));
+  const reviewStat = await lstat(reviewFile);
+  assert.ok(reviewStat.isFile() && !reviewStat.isSymbolicLink() && reviewStat.size <= 64 << 10);
+  if (process.platform === 'win32') {
+    assert.equal(values['allow-windows-deferred-recovery'], true);
+    assertPrivateOperationalPath(reviewFile, 'file', parent);
+  }
+  const reviewInput: unknown = JSON.parse(await readFile(reviewFile, 'utf8'));
   const decision = z.object({ decision: z.string() }).parse(reviewInput).decision;
+  assertB3ExecutionPlatform(
+    process.platform,
+    decision,
+    values['allow-windows-deferred-recovery'] === true,
+    Boolean(parent.CI || parent.GITHUB_ACTIONS),
+  );
   let backupIdentity: {
     backupSha256: string | null;
     backupId: string | null;
@@ -235,8 +334,8 @@ async function main(parent: NodeJS.ProcessEnv) {
   };
   if (decision === 'APPROVED_FOR_B3_WITH_DEFERRED_RESTORE') {
     const review = validateDeferredBackupReview(reviewInput, project, Date.now());
-    const file = await lstat(review.backupEvidenceFile);
-    assert.ok(file.isFile() && !file.isSymbolicLink() && (file.mode & 0o077) === 0);
+    assertPrivateOperationalPath(review.backupEvidenceFile, 'file', parent);
+    assert.ok((await lstat(review.backupEvidenceFile)).size <= 64 << 10);
     const metadata = await readFile(review.backupEvidenceFile);
     assert.equal(createHash('sha256').update(metadata).digest('hex'), review.backupEvidenceSha256);
     const managed = validateManagedBackupEvidence(
@@ -285,6 +384,9 @@ async function main(parent: NodeJS.ProcessEnv) {
     };
   }
   const evidencePath = path.resolve(z.string().min(1).parse(values.evidence));
+  if (process.platform === 'win32') {
+    assertPrivateOperationalPath(path.dirname(evidencePath), 'directory', parent);
+  }
   const evidence = await open(evidencePath, 'wx', 0o600); // Existing/partial attempts block replay.
   const startedAt = new Date().toISOString();
   try {
@@ -319,6 +421,8 @@ async function main(parent: NodeJS.ProcessEnv) {
       stage,
       approval,
       financial: FINANCIAL_REF,
+      executionPlatform: process.platform,
+      allowWindowsDeferredRecovery: values['allow-windows-deferred-recovery'],
       startedAt,
       finishedAt: new Date().toISOString(),
       ...backupIdentity,

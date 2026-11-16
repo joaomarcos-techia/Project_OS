@@ -9,6 +9,8 @@ import {
   validateBackupReview,
   validateDeferredBackupReview,
   validateManagedBackupEvidence,
+  assertB3ExecutionPlatform,
+  assertPrivateOperationalPath,
 } from '../../../../scripts/abacatepay-release-apply';
 import type { ReleasePlan } from '../../../../scripts/abacatepay-release-validation';
 const bodies = Array.from(
@@ -36,6 +38,53 @@ const plan: ReleasePlan = {
 };
 afterEach(() => vi.clearAllMocks());
 describe('future B3 operator, not authorization to execute', () => {
+  it('allows Windows only with explicit metadata-only mode, never real backup/restore input', () => {
+    const decision = 'APPROVED_FOR_B3_WITH_DEFERRED_RESTORE';
+    expect(() => assertB3ExecutionPlatform('linux', 'APPROVED_FOR_B3', false)).not.toThrow();
+    expect(() => assertB3ExecutionPlatform('win32', decision, true)).not.toThrow();
+    expect(() => assertB3ExecutionPlatform('win32', decision, false)).toThrow();
+    expect(() => assertB3ExecutionPlatform('win32', 'APPROVED_FOR_B3', true)).toThrow();
+    expect(() => assertB3ExecutionPlatform('darwin', decision, true)).toThrow();
+    expect(() => assertB3ExecutionPlatform('linux', decision, true)).toThrow();
+    expect(() => assertB3ExecutionPlatform('linux', decision, false, true)).toThrow();
+    expect(() => assertB3ExecutionPlatform('win32', decision, true, true)).toThrow();
+  });
+  it('fails closed on a Windows ACL subprocess error without forwarding credentials', () => {
+    mocks.spawnSync.mockReturnValue({ status: 1, signal: null, stdout: 'private details' });
+    expect(() =>
+      assertPrivateOperationalPath(
+        path.resolve('package.json'),
+        'file',
+        { NODE_ENV: 'test', PGPASSWORD: 'never-forward' },
+        'win32',
+      ),
+    ).toThrow();
+    const [, args, options] = mocks.spawnSync.mock.calls[0]!;
+    expect(options.env.PGPASSWORD).toBeUndefined();
+    expect(JSON.stringify(args)).not.toContain('never-forward');
+    expect(options.timeout).toBe(15000);
+    mocks.spawnSync.mockReturnValue({
+      status: 0,
+      signal: null,
+      stdout: 'QORO_PRIVATE_OPERATIONAL_PATH',
+    });
+    expect(() =>
+      assertPrivateOperationalPath(
+        path.resolve('package.json'),
+        'file',
+        { NODE_ENV: 'test' },
+        'win32',
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertPrivateOperationalPath(
+        path.resolve('package.json'),
+        'directory',
+        { NODE_ENV: 'test' },
+        'win32',
+      ),
+    ).toThrow();
+  });
   it('uses a single bounded transaction and lock, exact prefix, ordered SQL/journal and legacy fingerprints', () => {
     const sql = buildAtomicReleaseSql(plan, bodies);
     expect(sql).toContain('BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE READ WRITE');

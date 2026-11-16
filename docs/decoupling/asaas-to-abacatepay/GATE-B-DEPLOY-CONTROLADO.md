@@ -37,7 +37,7 @@ Flags do **novo deployment fechado**, não de um deployment antigo: SIGNUP_ENABL
 | Webhook AbacatePay |503 antes de inbox com runtime desarmado; catálogo live sem registro | Não registrar webhook nem ativar consumidor no Gate B |
 | Asaas legado/pacientes |33 testes do webhook Asaas passam com SIGNUPfalse/runtime AbacatePay off; cancelamento/paid period/RLS já comprovados | GET/login/status/clínico preservados; sem cancelamento real de teste |
 
-**131 testes dirigidos únicos/7 arquivos PASS**, incluindo11 da nova conferência WAF e a revisão do aceite/backup gerenciado. Fixtures testam o contrato de configuração e os handlers reais com dependências sintéticas; não executam o motor WAF Vercel. Testes de normalização/query/barra final/headers Next-Action/x-matched-path, GET/HEAD e preservação de webhooks/login exigem observação live após o GO. Só HTTP403 não prova contenção: registrar evento com regra/rota/deployment; divergência bloqueia B3.
+**133 testes dirigidos únicos/7 arquivos PASS**, incluindo11 da nova conferência WAF e a revisão do aceite/backup gerenciado. Fixtures testam o contrato de configuração e os handlers reais com dependências sintéticas; não executam o motor WAF Vercel. Testes de normalização/query/barra final/headers Next-Action/x-matched-path, GET/HEAD e preservação de webhooks/login exigem observação live após o GO. Só HTTP403 não prova contenção: registrar evento com regra/rota/deployment; divergência bloqueia B3.
 
 ### Checklist operacional único — B2-B/B3 e pontos de parada
 
@@ -52,7 +52,7 @@ Este é o checklist vigente. As tabelas de execução anteriores são histórica
 | 5 RELEASE_ROOT | Aplicação44323990…, TAR6038df0d…/234700800bytes/2787files; SQLref94f6da4a,160hashes,manifesto;0136–0159 somente | Hash/manifesto diferente: parar, não regerar/mesclar TISS/UI |
 | 6 Backup ativo | Nova leitura administrativa, último físico COMPLETED, sem falha atual ocultada; workflow legado ativo/caracterizado | Backup ausente/stale/falha atual: parar; aceite B1-B não dispensa continuidade |
 | 7 Recuperação | Registro DEFERRED_RISK_ACCEPTED_NOT_VERIFIED com autor/data/referência; sem simular checksum/restore | Não pedir restore/host B1-B nem registrar PASS |
-| 8 Executor B3 | `abacatepay-release-apply.ts` permanece Linux-only; verificar ambiente nativo/psql/CA/credenciais de processo, sem backup clínico/Actions | Nesta máquina só há docker-desktop parado. Não iniciar Docker ou alegar executor Linux disponível. Ambiente de execução B3 ainda NÃO COMPROVADO |
+| 8 Executor B3 | Windows nativo com psql17.5 já usado no B2-A TLS; modo explícito --allow-windows-deferred-recovery, revisão de metadata e ACL privada;6provas Windows PASS | Nenhum Docker/restore/arquivo de backup real; CI/Actions recusados. SQLwriteWindows não executado nesta rodada; requer GO B3 |
 | 9 B2-A fresco | Operador validado READ ONLY, prefixo136/24hashes/schema/RLS/locks/timeouts; fingerprints financeiros e inventário | Drift/concorrrência: parar, nunca editar journal |
 | 10 Snapshot B2-B | Captura privada integral WAF e flags não secretas, IDs de deployment/versão/hash; renovada imediatamente antes da alteração | Alteração concorrente: comparar/preservar; snapshot histórico não é rollback atual |
 | 11 GO B2-B | Aplicar só regra exata/ordem/flags aprovadas; manter status/webhooks/login/Asaas | Sem GO, sem escrita; negar caminhos excessivos exige reversão só da própria mudança |
@@ -72,13 +72,29 @@ O modo anterior com cópia cifrada/restauração continua disponível e estrito.
 
 Exige consulta de metadados com no máximo30min e último backup diário com no máximo26h (margem operacional26h, não RPO/SLA contratado). Backup futuro, falho, metadata stale, projeto/hash divergente ou um restore falsamente alegado são recusados. Audit registra backupId, checksum real nulo, recuperação DEFERRED, autor/data/referência, além do GO B3 próprio. **Não há flag genérica que simplesmente pule backup; não foi executada aplicação real.** A validação de prefixo/hash/TLS/lock/transação/commit/readback foi preservada e as nove provas PostgreSQL continuam no gate CI. A CI do novo SHA é obrigatória.
 
+### Execução nativa Windows limitada ao novo escopo B3
+
+A limitação Linux-only impediria executar esta proposta sem outro ambiente. Foi preservada para a via de cópia/restore real e acrescentada uma opção explícita **--allow-windows-deferred-recovery**, somente junto da revisão APPROVED_FOR_B3_WITH_DEFERRED_RESTORE e da aprovação própria --authorize-production-migrations/--approval. Esse modo pode aplicar o SQL autorizado; **metadata-only descreve apenas a evidência de backup, não torna migrations read-only**. Ele não abre/decifra dump, não executa pg_dump/GPG/Docker, não lê dados de pacientes para arquivos e não autoriza dados reais em Actions. CI/Actions são recusados em ambas as plataformas.
+
+Arquivos JSON de revisão/metadados têm limite64KiB, lstat/anti-symlink; revisão, metadados e diretório de evidência devem passar por ACL nativa: proprietário atual, apenas proprietário/SYSTEM, herança do diretório protegida, acesso necessário e nenhum reparse point nos ancestrais. PowerShell recebe apenas caminhos via stdin e ambiente OS mínimo, sem PGPASSWORD/credenciais. Subprocesso com timeout/erro é recusado sem expor detalhes. A via Linux/POSIX/restore estrito permanece disponível.
+
+**6 provas nativas Windows PASS em08:18:37UTC**: opt-in de plataforma; rejeição da via de backup real; ACL de pasta; ACL de arquivo herdado privado; rejeição de ACL comum do repositório; rejeição de tipo errado. Cliente real psql17.5 confirmado, mesmo cliente que executou o B2-A verify-full. A identidade de arquivo e hashes/age do review têm regressões dirigidas. O arquivo marcador contém somente synthetic:true/medicalData:false e foi preservado na pasta privada. Não houve DDL Windows, banco sintético local ou processo pesado. As nove provas PostgreSQL remotas verificam a transação SQL portável, não uma migration real desta máquina. A execução futura exige readback/TLS/prefixo/backup frescos e GO exatos.
+
+Exemplo **somente para uma janela B3 autorizada**, com caminhos privados, variáveis de processo já fornecidas de forma segura e sem credenciais em argv:
+
+```powershell
+node --conditions=react-server --import tsx scripts/abacatepay-release-apply.ts --authorize-production-migrations --allow-windows-deferred-recovery --approval $GO_ID --project shlcbxawrxuaebazuiue --release $RELEASE_ROOT --backup-review $REVIEW_JSON --evidence $EVIDENCE_JSON
+```
+
+Não executar o comando nesta preparação. O GO B3 deve identificar expressamente Windows nativo/psql e o modo de revisão de backup gerenciado com B1-B adiado.
+
 ### Gate C / piloto e decisão remanescente
 
 Catálogo live atual PASS por GET; webhook live **não registrado**, runtime/consumers **não ativados**. Gate C exige GO próprio para endpoint, autenticidade/inbox/dedup, consumidores/cron/scanner/leases/alertas e reconciliação. HTTP200 não equivale a invoice/entitlement aplicados. Usar a matriz de12 provas do [runbook operacional](../../runbooks/abacatepay-operacao.md), sem criar outra documentação concorrente.
 
 R1–R4 continuam PARTIAL em evidência, aceite residual limitado ao eventual piloto assistido1clínica; renovação13/12/2026 futura. D exige clínica/plano/preço/consentimento/responsáveis e GO financeiro específicos; expansão1→3→10 exige decisão por etapa. Checkout/cancelamento/entitlements/renovação sintética anteriores preservados; nenhum novo pagamento ou cancelamento externo de teste.
 
-**Quatro estados:** candidato técnico PASS na baseline; novo HEAD aguarda seus checks. Pronto para B3 PARTIAL até CI final, confirmação de responsáveis/janela e executor Linux verificável (não falta de restore B1-B). Production com aquisição fechada NÃO IMPLANTADA. AbacatePay comercialmente ativa NÃO. O formulário consolidado B2-B/B3 só pode ser submetido como executável após esses itens; GO de uma etapa não libera a outra. Nenhuma AWS/VM/cofre B1-B será solicitada neste ciclo.
+**Quatro estados:** candidato técnico PASS na baseline; novo HEAD aguarda seus checks. Pronto para B3 PARTIAL até CI final e confirmação de responsáveis/janela. Executor Windows nativo preparado com opt-in/ACL; sem exigir outro ambiente B1-B. Production com aquisição fechada NÃO IMPLANTADA. AbacatePay comercialmente ativa NÃO. O formulário consolidado B2-B/B3 só pode ser submetido como executável após esses itens; GO de uma etapa não libera a outra. Nenhuma AWS/VM/cofre B1-B será solicitada neste ciclo.
 
 ## Checkpoint prevalente — autorização e execução de 16/11/2026
 

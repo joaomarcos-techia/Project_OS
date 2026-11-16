@@ -27887,11 +27887,34 @@
       "managedBackupMaxAgeHours": 26,
       "metadataMaxAgeMinutes": 30,
       "realRestoreModePreserved": true,
-      "LinuxOnly": true,
-      "availableLinuxExecutorVerified": false
+      "LinuxOnly": false,
+      "availableLinuxExecutorVerified": false,
+      "WindowsRequiresExplicitDeferredRecoveryOptIn": true,
+      "WindowsRealBackupOrRestoreAllowed": false,
+      "CIExecutionAllowed": false,
+      "WindowsJSONMaxBytes": 65536,
+      "WindowsNativeProof": {
+        "at": "2026-11-16T08:18:37.366Z",
+        "status": "PASS",
+        "results": [
+          "explicit Windows metadata-only mode accepted",
+          "real-backup/restore mode rejected",
+          "actual private Windows directory ACL accepted",
+          "actual inherited private Windows file ACL accepted",
+          "ordinary inherited repository ACL rejected",
+          "wrong object kind rejected"
+        ],
+        "checks": 6,
+        "psql": "psql (PostgreSQL) 17.5",
+        "databaseCalls": 0,
+        "productionWrites": 0,
+        "backupFilesRead": 0,
+        "syntheticMarkerPreserved": true,
+        "executionScope": "Native Windows ACL/platform proof only, SQL writes remain unexecuted; Linux native PG atomic tests in CI"
+      }
     },
     "directedTests": {
-      "unique": 131,
+      "unique": 133,
       "files": 7,
       "status": "PASS",
       "heavyLocalProcessesStarted": 0
@@ -27914,7 +27937,7 @@
     },
     "readiness": {
       "technical": "PASS previous application baseline; new ops CI pending",
-      "readyForB3": "PARTIAL: final CI, owners/window and verified Linux execution",
+      "readyForB3": "PARTIAL: final CI and owners/window; Windows native bounded SQL mode prepared, no Production writes",
       "closedProduction": "NOT DEPLOYED",
       "commercial": "NOT ACTIVATED"
     },
