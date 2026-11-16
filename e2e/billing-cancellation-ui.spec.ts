@@ -2,6 +2,10 @@ import { expect, test } from '@playwright/test';
 
 // Presentation/HTTP doubles only. Separate loopback PostgreSQL proofs exercise persistence.
 const harness = '/cadastro/qoro-billing-harness';
+test.beforeEach(async ({ baseURL }) => {
+  test.skip(process.env.E2E_ABACATEPAY_PLAN_UI !== '1', 'Explicit isolated local harness required');
+  expect(baseURL && new URL(baseURL).hostname).toBe('127.0.0.1');
+});
 for (const width of [390, 1280]) {
   test(`Asaas cancellation confirmation, keyboard and layout at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
