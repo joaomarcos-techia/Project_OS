@@ -129,6 +129,57 @@ describe('listConversations', () => {
     expect(decryptForTenant).toHaveBeenCalledWith('clinic-1', '+5511999991234');
     expect(decryptForTenant).toHaveBeenCalledWith('clinic-1', '+5511988885678');
   });
+
+  it('na sessão de suporte (S-01b): não decifra a prévia e só entrega o telefone mascarado', async () => {
+    const startedAt = new Date('2026-07-01T12:00:00.000Z');
+    const tx = { select: vi.fn(), selectDistinctOn: vi.fn() };
+    tx.select
+      .mockReturnValueOnce(
+        query([
+          {
+            id: 'conversation-1',
+            patientId: 'patient-1',
+            patientName: 'Ana',
+            patientPhoneEncrypted: '+5511999991234',
+            status: 'active',
+            intentAtual: null,
+            startedAt,
+            lastMessageAt: startedAt,
+            assignedToUserId: null,
+            handoffPriority: null,
+            handoffDueAt: null,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(query([{ total: 1 }]));
+    tx.selectDistinctOn.mockReturnValue(
+      query([
+        {
+          conversationId: 'conversation-1',
+          contentEncrypted: 'Última mensagem da Ana',
+          lastInboundEpochMs: String(Date.now() - 60_000),
+        },
+      ]),
+    );
+    withTenant.mockImplementation(
+      async (_clinicId: string, fn: (transaction: typeof tx) => unknown) => fn(tx),
+    );
+
+    const result = await listConversations('clinic-1', { redactForSupport: true });
+
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        patientDisplayName: 'Ana',
+        lastMessagePreview: null,
+        previewHidden: true,
+        contactPhone: null,
+        maskedPhone: '+5511*****1234',
+        windowOpen: true,
+      }),
+    ]);
+    // A prévia nem chega a ser decifrada.
+    expect(decryptForTenant).not.toHaveBeenCalledWith('clinic-1', 'Última mensagem da Ana');
+  });
 });
 
 describe('telefone no histórico', () => {

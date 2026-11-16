@@ -135,6 +135,11 @@ export interface AIConversationListItem {
   contactName: string | null;
   /** Trecho da última mensagem, truncado. Decifrado no servidor. */
   lastMessagePreview: string | null;
+  /**
+   * S-01b (ADR-074): presente quando a lista foi vista numa sessão de suporte —
+   * a prévia não foi decifrada e o telefone saiu só mascarado.
+   */
+  previewHidden?: true;
   status: AIConversationStatus;
   lastMessageAt: string;
   intentAtual: string | null;

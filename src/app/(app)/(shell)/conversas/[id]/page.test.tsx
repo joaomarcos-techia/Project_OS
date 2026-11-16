@@ -16,7 +16,10 @@ vi.mock('next/link', () => ({
   default: (props: ComponentProps<'a'>) => <a {...props} />,
 }));
 vi.mock('@/lib/auth/page-guard', () => ({ pageGate }));
-vi.mock('@/contexts/ai-agent/queries', () => ({ getConversationThread }));
+// S-01b: a rota direta lê pela fronteira que registra a abertura do suporte.
+vi.mock('@/contexts/ai-agent/conversation-access', () => ({
+  readConversationThread: getConversationThread,
+}));
 vi.mock('@/contexts/identity/queries', () => ({ getProfileNames }));
 vi.mock('./_components/conversa-actions', () => ({
   ConversaActions: () => <form aria-label="Composer persistente" />,
@@ -97,6 +100,11 @@ describe('workspace da conversa', () => {
     expect(screen.getByText('+55 11 99999-1234')).toBeTruthy();
     expect(screen.getByRole('form', { name: 'Composer persistente' })).toBeTruthy();
     expect(container.textContent).toContain('Posso ajudar com o agendamento.');
+    expect(getConversationThread).toHaveBeenCalledWith(
+      'clinic-1',
+      conversationId,
+      'conversa_direta',
+    );
   });
 
   it('mantém o diagnóstico técnico recolhido por padrão', async () => {

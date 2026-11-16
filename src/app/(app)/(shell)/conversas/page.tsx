@@ -3,10 +3,10 @@ import { MessagesSquare, SlidersHorizontal, Timer } from 'lucide-react';
 import Link from 'next/link';
 import { z } from 'zod';
 import {
-  countOpenHandoffs,
-  getConversationThread,
-  listConversations,
-} from '@/contexts/ai-agent/queries';
+  listConversationsForViewer,
+  readConversationThread,
+} from '@/contexts/ai-agent/conversation-access';
+import { countOpenHandoffs } from '@/contexts/ai-agent/queries';
 import type { AIConversationStatus } from '@/contexts/ai-agent/types';
 import { getProfileNames } from '@/contexts/identity/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
@@ -63,7 +63,7 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
   //
   // Rodada 1: a lista e o pulso da fila, que não dependem um do outro.
   const [result, pulso] = await Promise.all([
-    listConversations(clinicId, {
+    listConversationsForViewer(clinicId, {
       ...(status ? { status } : {}),
       ...(q ? { search: q } : {}),
       ...(overdueOnly ? { overdueOnly: true } : {}),
@@ -76,7 +76,9 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
 
   const selected =
     (selection.success ? result.items.find((item) => item.id === selection.data) : undefined) ??
-    result.items[0];
+    // Na sessão de suporte nenhuma conversa abre sozinha: abrir é escolha, e
+    // cada abertura fica na trilha da clínica (S-01b, ADR-074).
+    (result.supportSession ? undefined : result.items[0]);
 
   // Rodada 2: thread e nomes, em paralelo — antes os nomes esperavam a thread.
   //
@@ -85,7 +87,7 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
   // antes decifraria o histórico de uma conversa que talvez não seja exibida.
   // Uma rodada a menos não vale relaxar isso (coberto por teste).
   const [thread, assigneeNames] = await Promise.all([
-    selected ? getConversationThread(clinicId, selected.id) : null,
+    selected ? readConversationThread(clinicId, selected.id, 'conversas_inbox') : null,
     getProfileNames(clinicId, [
       ...new Set(result.items.flatMap((item) => item.handoff?.assignedToUserId ?? [])),
     ]),
@@ -224,7 +226,9 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
                             <span className={styles.phone}>{contato.telefone}</span>
                           ) : null}
                           <p className={styles.preview}>
-                            {item.lastMessagePreview ?? 'Nenhuma mensagem ainda'}
+                            {item.previewHidden
+                              ? 'Prévia oculta na sessão de suporte'
+                              : (item.lastMessagePreview ?? 'Nenhuma mensagem ainda')}
                           </p>
                           <div className={styles.contactStatus} data-tone={estado.tone}>
                             <estado.Icon aria-hidden="true" size={12} />
@@ -275,7 +279,11 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
             <EmptyState
               icon={<MessagesSquare />}
               title="Selecione uma conversa"
-              description="O histórico e as opções de atendimento aparecem aqui."
+              description={
+                result.supportSession
+                  ? 'Na sessão de suporte, a conversa só abre quando você a escolhe, e cada abertura fica registrada na auditoria da clínica.'
+                  : 'O histórico e as opções de atendimento aparecem aqui.'
+              }
             />
           </div>
         )}
