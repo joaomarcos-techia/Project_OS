@@ -12,6 +12,34 @@
 
 ## ESTADO ATUAL DA EXECUÇÃO
 
+- **FECHAMENTO DO CICLO 3 (16/11/2026, ~03h) — LEIA PRIMEIRO.** O prompt de retomada está em
+  `docs/ui-final-prompt-continuidade.md`.
+  - **Código:** igual ao `5462c209`; os commits seguintes são só documento. Última mudança de lógica:
+    `2761563c`. PR #56 em draft, **sem merge**.
+  - **CI oficial do #56: VERMELHA** (job "Lint + Typecheck + Test + Build").
+    - Run `43749686301` no `a1d64d11`. O `464aa0ba` deu o mesmo; o `5462c209` foi cancelado por push.
+    - Passaram: auditoria de dependências, typecheck, lint, arquitetura (madge e DB), migrations,
+      observabilidade e registry.
+    - Falhou: **Test + coverage gate**, com 6740/6742 testes passando.
+    - Pulados, portanto **sem evidência**: inventário, isolamento de tenant, build, bundle e e2e
+      público.
+  - **As 2 falhas são asserções desatualizadas por mudanças intencionais desta frente em 14/11**
+    (seção 28, P-21):
+    1. `src/app/(app)/(shell)/documentação/page.test.tsx:57` espera "Agendar, remarcar e cancelar |
+       Ajuda Qoro". A página dá "… · Ajuda" desde o UX-008 (`5d04e48f`,
+       `documentacao/[topic]/page.tsx:31`).
+    2. `src/app/(app)/(shell)/configuracoes/whatsapp/whatsapp-connect.test.tsx:764` espera
+       `aria-describedby` só com `whatsapp-registration-pin-help`. Desde o UX-001 (`06af3f84`,
+       `src/components/ui/field.tsx:52`), o `Field` liga também `…-pin-hint`.
+
+    Elas não apareceram antes porque a suíte inteira nunca rodou localmente (RAM).
+  - **Frentes derivadas, fora desta branch:**
+    - S-01 → PR draft #57 (console, ADR-073) e #58 (app da clínica, ADR-074). O #58 entra **depois
+      do #56**, porque os dois conflitam em `conversas/`.
+    - Trilha `super_admin_actions` append-only → PR draft #59 (ADR-075, candidata 0165).
+    - Decididas pelo fundador em 15–16/11, com donos próprios.
+  - **Ordem de integração:** #53 → #56 → #55; o #58 depois do #56; o #59 só depois de #53 → UI → #55.
+
 - **Ciclo 3 (15/11, 14h30–16h) — resumo para retomar:**
   - **Código:** última mudança de lógica no `2761563c` (sessão morta → `/login`). Depois, só visual
     e texto: `05e4378c` (token âmbar) e `5462c209` (alvo do "Criar conta" e descrição de
@@ -96,6 +124,7 @@ investigue a divergência e registre a reconciliação na seção 27 antes de se
 | Base | `origin/ui/refactor-qoro-20261108` em `e47ec2f0` (redesign "Qoro App v5", 42 commits à frente da `main`, sem PR) |
 | `main` na data | `5620a098` (PR #54) |
 | Ordem de integração conhecida | PR #53 (billing AbacatePay, rascunho) → branch de UI → esta branch. A branch de UI carrega 3 commits do billing (`6cccfc01`, `35d09d4b`, `311e5dd0`) e só entra depois da #53 |
+| PR desta frente | **#56** (draft, só CI; não fazer merge). Ordem revista no ciclo 3: **#53 → #56 → #55**. O #58 (S-01b) entra depois do #56; o #59 (trilha), depois de #53 → UI → #55; o #57 (S-01 console) segue revisão própria |
 | Convênios TISS | PR #55 (rascunho, "do not merge"), branch `feat/convenios-tiss-20261110`, worktree `C:\dev\Qoro_convenios_tiss_20261110`, **outro agente com trabalho não commitado**. Não tocar nesse worktree |
 | Commits e push | Autorizados pelo fundador em 14/11 (noite) **só nesta branch**; merge e PR continuam dependendo dele |
 
@@ -1878,6 +1907,7 @@ sondas da UI de hoje: 0 ocorrência. Isso não encerra a causa histórica.
 | 15/11/2026 15h30–15h38 | A-01 (P1.8), documento | Token âmbar base 4,45 → 4,86:1; seções 25.9, 31.R, 32 e 33 | contraste 4/4 | `05e4378c` |
 | 15/11/2026 15h39 | P1.1 | PR draft #56 para a CI oficial (base `main`, sem merge); automações conferidas antes: CI com valores falsos, ADR (aviso), Vercel Preview, Snyk, Semgrep; nenhuma com efeito em Production | CI em andamento ao abrir | PR #56 |
 | 15/11/2026 15h45–15h56 | Sonda do ciclo 3, P1.7, inventário | Sonda de 1 login no `05e4378c` (25.10): Dashboard e Financeiro validados no Preview; "Criar conta" com 23 px → 24 px; descrição de Documentos coerente com o botão; inventário de segurança regenerado (P-15); A-02 registrado | Documentos e componentes compartilhados 74/74; contrato de alvos 4/4; `tsc` 0; ESLint 0; `inventory.ts --check` OK | `464aa0ba`, `5462c209` |
+| 16/11/2026 ~03h | Fechamento do ciclo 3 | CI do #56 lida (vermelha por 2 asserções desatualizadas; diagnóstico e dono em P-21); frentes S-01 (#57, #58) e trilha (#59) registradas; ordem de integração revista; prompt de retomada em `docs/ui-final-prompt-continuidade.md` | nenhum teste rodado nesta etapa (máquina reservada) | este commit |
 
 ## 28. Pendências e bloqueios
 
@@ -1899,10 +1929,11 @@ sondas da UI de hoje: 0 ocorrência. Isso não encerra a causa histórica.
 | P-14 | Limpeza de disco fora deste worktree (00.5, P0.3): `.next` de ~12 worktrees já na `main` (~16 GB), `dist` de 10,3 GB no worktree do billing, worktrees integrados | decisão | fundador (e agente do billing para o `dist`) |
 | P-15 | **Regenerado nesta branch no ciclo 3** (inventário sem nenhuma superfície `REVIEW_REQUIRED`; diff revisado: ações do trial vindas do #53, `criarPacienteRapido`, perfil do WhatsApp, rota de destino do cadastro e números de linha). Regenerar de novo depois de cada rebase. Texto original: regenerar `docs/security/acoes.md` (`inventory.ts --write`) no commit de integração depois da #53 — o portão `security:inventory --check` falha nesta branch desde a base (ações do billing) e agora inclui `criarPacienteRapido` (UX-006) | integração | esta frente, no merge |
 | P-16 | Conflitos na integração. Com a #55, simulados no ciclo 3 contra `0206d7d1`: **8 arquivos**, com a resolução proposta em 31.R; o de regra financeira é `financeiro/page.tsx`, que fica com `valorGlosado`. Com a #53: 124 arquivos em comum vindos dos 3 commits do billing na base; `modelos-receita/templates-manager.tsx` | integração | esta frente + agentes TISS e billing |
-| P-17 | S-01: leitura de conversas da IA no console da plataforma sem sessão de suporte e sem auditoria de leitura (33) | segurança/privacidade | fundador / plataforma |
+| P-17 | (EM PR: #57/#58/#59, frente S-01) S-01: leitura de conversas da IA no console da plataforma sem sessão de suporte e sem auditoria de leitura (33) | segurança/privacidade | fundador / plataforma |
 | P-18 | S-02: middleware com 307 no POST de Server Action sem cookie; proposta de não redirecionar `next-action` pede revisão de segurança (33) | plataforma | fundador / plataforma |
 | P-19 | Corrida residual do Caixa depois de recarregar a página com a 1ª requisição ainda no servidor; proposta `valorPagoEsperado` em `confirmPayment` (25.9) | contrato financeiro | domínio financeiro |
 | P-20 | Latência de Server Action no Preview, de 11,4 s (seção 33): precisa dos logs da Vercel/Supabase | observabilidade | plataforma |
+| P-21 | **CI do #56 vermelha por 2 asserções desatualizadas por esta frente** (bloco de estado): título da Ajuda ('· Ajuda', UX-008) e `aria-describedby` do PIN com o hint (UX-001). Antes de alterar: confirmar que o título sem 'Qoro' segue o contrato de `src/app/page-titles.test.ts` e que hint e ajuda do PIN têm textos diferentes (sem anúncio duplicado). Depois, atualizar só as duas expectativas, sem enfraquecer, e deixar a CI rodar inteira (inventário, isolamento, build e e2e público ainda sem evidência) | teste | esta frente |
 
 ## 29. Estado de execução
 
@@ -1918,6 +1949,7 @@ Ver o bloco **ESTADO ATUAL DA EXECUÇÃO** no topo (fonte única). Histórico de
 
 ## 30. Protocolo de continuidade
 
+0. Começar por `docs/ui-final-prompt-continuidade.md` (prompt de retomada, com a lista de leitura).
 1. Ler o bloco de estado e a seção 00.
 2. `git -C C:\dev\Qoro_ui_otimizacao_final_20261114 status` e `git log -5`: conferir que o código
    bate com a seção 27.
@@ -2057,6 +2089,7 @@ middleware ou regra financeira.
 | ID | Achado | Evidência | Risco | O que esta frente fez | Dono |
 | --- | --- | --- | --- | --- | --- |
 | S-01 | `/admin/conversas-ia` decifra e mostra o conteúdo das conversas da IA de qualquer clínica **fora de sessão de suporte**, e a leitura **não grava auditoria**: `conversations.repo.ts` `getDetail` → `decryptForTenant`; a página só chama `guardAdminAccess()` | código lido (15/11) | Privacidade/LGPD: acesso privilegiado a conteúdo que pode ter dado de saúde, sem trilha. Contraste: o prontuário grava `clinical.prontuario.viewed` na mesma transação | Nenhuma correção. A nota de Equipe não diz que a sessão de suporte é o único acesso | fundador / plataforma |
+| S-01 (atualização 16/11) | Tratado em frente separada, por decisão do fundador: PR draft #57 (console: texto só em sessão de suporte da mesma clínica, com trilha; ADR-073), #58 (app da clínica: leitura pelo suporte só por escolha, com trilha da clínica; ADR-074) e #59 (trilha da plataforma append-only; ADR-075) | memória `s01-conversas-ia-admin`, `trilha-plataforma-append-only` | — | Esta branch não muda nada do S-01; o #58 conflita com o #56 em `conversas/` e rebaseia depois | frente S-01 |
 | S-02 | `src/middleware.ts` responde 307 → `/login` a qualquer requisição sem cookie de sessão, inclusive o POST de Server Action. O cliente do Next lança e a fronteira de erro mostra "Algo deu errado…" (achado do TISS no Preview) | relato do TISS | Qualquer formulário depois de sair em outra aba vira erro aparente e vai para o Sentry | Caixa: a exceção cai no `catch` do `run` (mensagem de resultado desconhecido; repetir é seguro). Proposta, não aplicada: o middleware não redirecionar requisições com `next-action`, já que as actions exigem sessão por conta própria. **Exige revisão de segurança** e vale para todas as actions | fundador / plataforma |
 | S-03 | 17 páginas do shell liam o usuário com `requireUser()` no render. Sessão morta + Server Action dava "Algo deu errado" (OBS-001 reaberto) | mecanismo já documentado no Dashboard e no `page-guard`; o TISS reproduziu em Convênios | Erro 500 e Sentry numa revogação normal | **Corrigido (`2761563c`)**: `requirePageUser()` (mesmo `authenticate()`, redireciona) e contrato estático em `page-guard.test.ts`. `configuracoes/assinatura` fica para o #53 (seção 32) | UI (feito) |
 | A-01 | Badge e Alert âmbar: `--warning-700` sobre `--warning-50` no `:root` dava **4,45:1**, abaixo do AA de texto pequeno (4,5:1). O axe do TISS mediu 4,44:1 | cálculo a partir do `globals.css` | AA fora do shell v5 (console da plataforma, telas sem `data-qoro-tokens='app-v5'`) | **Corrigido**: `:root --warning-700` de `oklch(0.56 …)` para `oklch(0.54 0.11 58)` = 4,86:1 sobre o âmbar e 5,26:1 sobre o branco. No shell v5 o par já passava (6,78:1 claro, 9,17:1 escuro). Contrato em `src/app/contrast-tokens.test.ts` | UI (feito) |
