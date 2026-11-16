@@ -15,7 +15,7 @@ import {
 
 assert.equal(process.platform, 'linux', 'Isolated Linux runner required');
 const BASE = '94f6da4aeb32b1ae7da856dc9afa105120ce6dd9';
-const PATCH = '0fca440917b52636033d5ba2c2236e3b63249387';
+const PATCH = '44323990b3f1fb9282418fec44a3182b02148c66';
 const MAIN = '5620a0987ec53db7d7358728eb7d457d9d373df3';
 const archive = path.resolve(z.string().min(1).parse(process.argv[2]));
 const output = path.resolve(z.string().min(1).parse(process.argv[3]));
@@ -33,7 +33,10 @@ const changes = git('diff', '--name-only', BASE, PATCH, '--', 'src')
   .trim()
   .split('\n')
   .filter((name) => !/\.test\.tsx?$/u.test(name));
-assert.deepEqual(changes, ['src/contexts/billing/internal/deferred-checkout.ts']);
+assert.deepEqual(changes, [
+  'src/contexts/billing/internal/cancellation-charges.ts',
+  'src/contexts/billing/internal/deferred-checkout.ts',
+]);
 const directory = await mkdtemp(path.join(tmpdir(), 'qoro-cancellation-candidate-'));
 const home = await mkdtemp(path.join(tmpdir(), 'qoro-cancellation-home-'));
 const startedAt = new Date().toISOString();
@@ -49,6 +52,8 @@ try {
   const patched = [
     'src/contexts/billing/internal/deferred-checkout.ts',
     'src/contexts/billing/internal/deferred-overview-origin.test.ts',
+    'src/contexts/billing/internal/cancellation-charges.ts',
+    'src/contexts/billing/internal/cancellation-charges.test.ts',
   ];
   const oldFile = git('show', BASE + ':' + patched[0]);
   assert.equal(before.get(patched[0]!), hash(oldFile));
@@ -70,7 +75,7 @@ try {
     JSON.stringify(provenance, null, 2) + '\n',
   );
   for (const [file, expected] of before) {
-    if (file === patched[0]) continue;
+    if (patched.includes(file)) continue;
     assert.equal(
       hash(await readFile(path.join(directory, file))),
       expected,

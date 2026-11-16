@@ -481,7 +481,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/e2e-mutation-fixture.ts:206`                      | `E2E_USER_EMAIL`                       | `process.env.E2E_USER_EMAIL`                                                |
 | `scripts/e2e-paid-pause-ops.ts:54`                         | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
 | `scripts/e2e-paid-pause-ops.ts:55`                         | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                                                |
-| `scripts/gate-b-cancellation-candidate.ts:111`             | `<object>`                             | `process.env`                                                               |
+| `scripts/gate-b-cancellation-candidate.ts:116`             | `<object>`                             | `process.env`                                                               |
 | `scripts/gate-b-composed-build.ts:131`                     | `<object>`                             | `process.env`                                                               |
 | `scripts/gate-b-isolated-restore.ts:35`                    | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/gate-b-isolated-restore.ts:230`                   | `BACKUP_PASSPHRASE`                    | `process.env.BACKUP_PASSPHRASE`                                             |
@@ -583,8 +583,8 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/recovery-portable-drill.ts:47`                    | `<object>`                             | `process.env`                                                               |
 | `scripts/recovery-portable-drill.ts:88`                    | `<object>`                             | `process.env`                                                               |
 | `scripts/recovery-scheduled-backup.ts:98`                  | `<object>`                             | `process.env`                                                               |
-| `scripts/recovery-scheduled-backup.ts:273`                 | `STATE_DIRECTORY`                      | `process.env.STATE_DIRECTORY`                                               |
-| `scripts/recovery-scheduled-backup.ts:280`                 | `CREDENTIALS_DIRECTORY`                | `process.env.CREDENTIALS_DIRECTORY`                                         |
+| `scripts/recovery-scheduled-backup.ts:283`                 | `STATE_DIRECTORY`                      | `process.env.STATE_DIRECTORY`                                               |
+| `scripts/recovery-scheduled-backup.ts:290`                 | `CREDENTIALS_DIRECTORY`                | `process.env.CREDENTIALS_DIRECTORY`                                         |
 | `scripts/resend-inbox-check.ts:21`                         | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
 | `scripts/resend-inbox-check.ts:24`                         | `E2E_RESEND_INBOX_ADDRESS`             | `process.env.E2E_RESEND_INBOX_ADDRESS`                                      |
 | `scripts/resend-live-check.ts:17`                          | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |

@@ -1,6 +1,6 @@
 /** Real pg_dump/GPG/psql, synthetic local PostgreSQL only. Never runs on Windows. */
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -102,6 +102,14 @@ try {
     } finally {
       decrypt.kill();
       restore.kill();
+      assert.equal(
+        spawnSync('gpgconf', ['--homedir', gpgHome, '--kill', 'gpg-agent'], {
+          env,
+          stdio: 'ignore',
+          timeout: 5_000,
+        }).status,
+        0,
+      );
       await rm(gpgHome, { recursive: true });
     }
     const postgres = (await import('postgres')).default;
@@ -110,10 +118,13 @@ try {
       onnotice: () => undefined,
     });
     try {
-      assert.deepEqual(await restored`SELECT * FROM public.qoro_backup_fixture ORDER BY id`, [
-        { id: 1, label: 'ação — synthetic' },
-        { id: 2, label: '漢字' },
-      ]);
+      assert.deepEqual(
+        Array.from(await restored`SELECT * FROM public.qoro_backup_fixture ORDER BY id`),
+        [
+          { id: 1, label: 'ação — synthetic' },
+          { id: 2, label: '漢字' },
+        ],
+      );
     } finally {
       await restored.end();
     }

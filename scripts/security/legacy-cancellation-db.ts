@@ -178,19 +178,48 @@ try {
     remote.setPauseFailure(false);
   });
   await check('lost deletion acknowledgement is verified by authoritative reread', async () => {
-    remote.loseDeleteResponse();
-    const result = await removeSubscriptionCharges(remote.provider, context);
+    const lost = await seed();
+    const provider = gateway(lost);
+    provider.loseDeleteResponse();
+    const pending = await getSubscriptionCancellationContext(lost.clinicId, now);
+    const result = await removeSubscriptionCharges(provider.provider, pending);
     assert.equal(result.ok, true);
-    assert.deepEqual(result.removedPaymentIds, [a.openId]);
+    assert.equal((await provider.provider.getPayment(lost.openId)).deleted, true);
+    if (variant === 'candidate-160') {
+      assert.deepEqual(result.removedPaymentIds, [lost.openId]);
+      await withTenant(lost.clinicId, (tx) =>
+        requestSubscriptionCancellation(tx, {
+          clinicId: lost.clinicId,
+          requestedBy: lost.userId,
+          idempotencyKey: randomUUID(),
+          request: { ip: null, origin: null, requestId: 'synthetic-lost-ack' },
+          now,
+          removedPaymentIds: result.removedPaymentIds,
+          paidPaymentIds: result.paidPaymentIds,
+        }),
+      );
+      const [invoice] =
+        await sql`SELECT status FROM public.invoices WHERE asaas_payment_id=${lost.openId}`;
+      assert.equal(invoice?.status, 'cancelled');
+    } else {
+      // Baseline defect, not a green claim for local invoice reconciliation.
+      assert.deepEqual(result.removedPaymentIds, []);
+      const [invoice] =
+        await sql`SELECT status FROM public.invoices WHERE asaas_payment_id=${lost.openId}`;
+      assert.equal(invoice?.status, 'open');
+    }
   });
+  const confirmedCharges = await removeSubscriptionCharges(remote.provider, context);
+  assert.equal(confirmedCharges.ok, true);
+  assert.deepEqual(confirmedCharges.removedPaymentIds, [a.openId]);
   const input = {
     clinicId: a.clinicId,
     requestedBy: a.userId,
     idempotencyKey: randomUUID(),
     request: { ip: null, origin: null, requestId: 'synthetic-cancellation' },
     now,
-    removedPaymentIds: [a.openId],
-    paidPaymentIds: [],
+    removedPaymentIds: confirmedCharges.removedPaymentIds,
+    paidPaymentIds: confirmedCharges.paidPaymentIds,
   };
   await check(
     'database failure rolls back local intent; retry remains safe after provider pause',
@@ -311,6 +340,7 @@ try {
         observedAt: new Date().toISOString(),
         variant,
         status: failure ? 'FAIL' : 'PASS',
+        baselineLostAcknowledgementGap: variant !== 'candidate-160',
         migrations: expected,
         journalEntries: journal.entries.length,
         results,

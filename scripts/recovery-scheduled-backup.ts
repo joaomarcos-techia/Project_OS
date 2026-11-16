@@ -1,6 +1,6 @@
 /** Linux operator, outside GitHub Actions. No dotenv, clinical logs or plaintext SQL files. */
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
 import {
@@ -227,6 +227,16 @@ export async function createScheduledBackup(input: {
     if (!complete)
       for (const own of [partial, cipher, manifestFile + '.partial'])
         await rm(own, { force: true });
+    const agent = spawnSync('gpgconf', ['--homedir', gpgHome, '--kill', 'gpg-agent'], {
+      env,
+      stdio: 'ignore',
+      timeout: 5_000,
+    });
+    assert.equal(
+      agent.status,
+      0,
+      'Isolated GPG agent cleanup failed; preserve keyring and lock for review',
+    );
     await rm(gpgHome, { recursive: true });
     await rm(lock, { recursive: true });
   }

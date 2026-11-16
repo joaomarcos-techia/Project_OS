@@ -70,13 +70,13 @@ jobs:
             target="$RUNNER_TEMP/qoro-cancel-$variant"
             mkdir "$target"
             if [[ "$variant" == candidate-160 ]]; then
-              tar -xf dist/cancellation-proof/qoro-saas-cancellation-0fca4409.tar -C "$target"
+              tar -xf dist/cancellation-proof/qoro-saas-cancellation-44323990.tar -C "$target"
             else
               git archive 5620a0987ec53db7d7358728eb7d457d9d373df3 | tar -xf - -C "$target"
               if [[ "$variant" == main-160 ]]; then
                 rm -r "$target/drizzle/migrations"
                 mkdir -p "$target/drizzle/migrations"
-                tar -xf dist/cancellation-proof/qoro-saas-cancellation-0fca4409.tar -C "$target" ./drizzle/migrations
+                tar -xf dist/cancellation-proof/qoro-saas-cancellation-44323990.tar -C "$target" ./drizzle/migrations
               fi
             fi
             cp scripts/security/legacy-cancellation-db.ts scripts/security/scratch-schema.ts "$target/scripts/security/"
@@ -98,13 +98,28 @@ jobs:
           cp dist/scheduled-backup-synthetic.json dist/cancellation-proof/
       - name: Check prepared systemd units without installing or enabling them
         if: ${{ !cancelled() }}
-        run: systemd-analyze verify ops/recovery/*.service ops/recovery/*.timer
-      - name: Preserve sanitized reports and source package only
+        run: |
+          mkdir -p "$RUNNER_TEMP/qoro-unit-check"
+          for unit in ops/recovery/*.service ops/recovery/*.timer; do
+            sed "s|/usr/bin/node|$(command -v node)|g" "$unit" > "$RUNNER_TEMP/qoro-unit-check/$(basename "$unit")"
+          done
+          systemd-analyze verify "$RUNNER_TEMP"/qoro-unit-check/*.service "$RUNNER_TEMP"/qoro-unit-check/*.timer
+      - name: Preserve sanitized reports only
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: cancellation-evidence-${{ github.sha }}
-          path: dist/cancellation-proof/
+          path: |
+            dist/cancellation-proof/*.json
+            dist/cancellation-proof/*.log
+          retention-days: 7
+          if-no-files-found: warn
+      - name: Preserve revised source package separately, never database data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cancellation-source-${{ github.sha }}
+          path: dist/cancellation-proof/*.tar
           compression-level: 0
           retention-days: 3
           if-no-files-found: warn
