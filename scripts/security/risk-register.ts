@@ -169,6 +169,18 @@ export const RISK_REGISTER: RiskEntry[] = [
       'Encadear prev_hash no logAudit e espelhar para storage WORM; revogar UPDATE/DELETE exige revisar o que hoje depende de service_role na tabela.',
   },
   {
+    id: 'trilha-plataforma-alteravel',
+    peso: 7,
+    risco:
+      'super_admin_actions (trilha forense da plataforma: sessão de suporte, exports, abertura do texto de conversa) só é append-only para quem a RLS alcança. O dono (postgres: dbAdmin, scripts, migrador) e o service_role (BYPASSRLS, UPDATE/DELETE da 0010) alteram e apagam linhas, e um token de super_admin grava linha forjada pela Data API (a política de INSERT só pede app_role). Barreira decidida na ADR-075 e preparada como candidata 0165: NÃO aplicada em DEV nem em produção.',
+    status: 'pendente',
+    dono: 'pendente do humano',
+    registradoEm: '2026-11-16',
+    revisarEm: REVISAR_EM,
+    evidencia:
+      'docs/security/migrations/0165_super_admin_actions_append_only.candidate.sql, provada por scripts/security/super-admin-actions-append-only-db.ts (job platform-audit-synthetic-db.yml). Fecha ao aplicar a 0165 depois da cauda do #53 e do #55; a detecção do bypass por DDL vem com a parte 2 da ADR-075.',
+  },
+  {
     id: 'ci-supply-chain',
     peso: 6,
     risco:

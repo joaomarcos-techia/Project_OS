@@ -61,6 +61,18 @@ const PRIVILEGE_STATEMENT = /^\s*(grant|revoke)\b/i;
  * para o arquivo inteiro. Mesmo raciocínio que motivou PRIVILEGE_STATEMENT.
  */
 const DEFAULT_PRIVILEGE_STATEMENT = /^\s*alter\s+default\s+privileges\b/i;
+
+/**
+ * `CREATE TRIGGER ... BEFORE TRUNCATE ON tabela` também traz a palavra sem apagar nada: ali
+ * TRUNCATE é o EVENTO que o gatilho escuta, e um gatilho assim existe para RECUSAR o esvaziamento
+ * (trilha append-only de `super_admin_actions`). Sem esta linha, a única saída seria
+ * `destructive-approved` no arquivo inteiro, o mesmo falso positivo das duas regras acima.
+ *
+ * A isenção vale só para o statement que DEFINE o gatilho. Um TRUNCATE-comando depois dele e a
+ * palavra dentro do corpo de uma função continuam acusados (src/lib/db/migration-safety.test.ts).
+ */
+const TRIGGER_DEFINITION_STATEMENT =
+  /^\s*create\s+(?:or\s+replace\s+)?(?:constraint\s+)?trigger\b/i;
 const TRUNCATE_KIND = 'TRUNCATE';
 
 export interface Finding {
@@ -93,11 +105,13 @@ export function scanSql(file: string, raw: string): Finding[] {
   for (const statement of code.split(';')) {
     const isPrivilegeStatement =
       PRIVILEGE_STATEMENT.test(statement) || DEFAULT_PRIVILEGE_STATEMENT.test(statement);
+    const isTriggerDefinition = TRIGGER_DEFINITION_STATEMENT.test(statement);
     for (const d of DESTRUCTIVE) {
       const match = d.re.exec(statement);
       if (!match) continue;
-      // Dentro de GRANT/REVOKE, TRUNCATE é o nome do privilégio — não apaga nada.
-      if (d.kind === TRUNCATE_KIND && isPrivilegeStatement) continue;
+      // Dentro de GRANT/REVOKE, TRUNCATE é o nome do privilégio; num CREATE TRIGGER, é o evento
+      // escutado. Nenhum dos dois apaga nada.
+      if (d.kind === TRUNCATE_KIND && (isPrivilegeStatement || isTriggerDefinition)) continue;
       const line = code.slice(0, cursor + match.index).split('\n').length;
       findings.push({
         file,
