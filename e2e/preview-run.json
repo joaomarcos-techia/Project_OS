@@ -1,0 +1,9 @@
+{
+  "note": "Pedido de E2E no Preview (navegador remoto). Mudar este arquivo dispara convenios-preview-e2e.yml.",
+  "run": "R1117A",
+  "specs": ["e2e/convenios-authorizations-preview.spec.ts"],
+  "env": {
+    "E2E_HI_ACCOUNTS": "e2e-hi-accounts.json",
+    "E2E_HI_AUTHS": "e2e-hi-auths.json"
+  }
+}
