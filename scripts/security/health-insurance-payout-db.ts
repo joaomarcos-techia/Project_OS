@@ -369,8 +369,9 @@ try {
   // (i) reaproveitar a ação antiga (mesma chave) não duplica o pagamento
   await rejects(() => settle(C, pN, 2000, kOld), /mesma chave/u);
   assert.deepEqual(await movements(pN), ['authorization:6000', 'settlement:2000']);
-  // (ii) pagamento acima do autorizado continua recusado
-  await rejects(() => settle(C, pN, 4001), /acima do autorizado/u);
+  // (ii) pagamento acima do autorizado continua recusado. Com a 0163, a revisão aberta recusa ANTES do
+  //      teto (por decisão); o teto do autorizado volta a ser provado depois de "manter" (seção 15.3).
+  await rejects(() => settle(C, pN, 4001), /em revisão/u);
   // (iii) repasse com pagamento não se cancela: o histórico fica e a correção é por ajuste
   await assert.rejects(
     () => fx.asUser(C, (tx) => pay.cancelInsurancePayoutTx(tx, { clinicId: C.clinicId, payoutId: pN, reason: 'Guia cancelada antes do envio', actorUserId: C.doctorId })),
