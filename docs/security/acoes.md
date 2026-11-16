@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 546 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
+Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 547 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -415,9 +415,10 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/abacatepay-observe-renewal.ts:72`                 | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/abacatepay-observe-renewal.ts:73`                 | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/abacatepay-readonly-check.ts:17`                  | `ABACATEPAY_API_KEY`                   | `process.env.ABACATEPAY_API_KEY`                                            |
-| `scripts/abacatepay-release-preflight.ts:23`               | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
-| `scripts/abacatepay-release-preflight.ts:25`               | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
-| `scripts/abacatepay-release-preflight.ts:42`               | `<object>`                             | `process.env`                                                               |
+| `scripts/abacatepay-release-apply.ts:242`                  | `<object>`                             | `process.env`                                                               |
+| `scripts/abacatepay-release-preflight.ts:27`               | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
+| `scripts/abacatepay-release-preflight.ts:28`               | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
+| `scripts/abacatepay-release-preflight.ts:30`               | `<object>`                             | `process.env`                                                               |
 | `scripts/abacatepay-release-rehearsal-db.ts:87`            | `<object>`                             | `process.env`                                                               |
 | `scripts/abacatepay-release-rehearsal-db.ts:96`            | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/abacatepay-release-rehearsal-db.ts:97`            | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
@@ -782,9 +783,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/subscription-plan-change-sandbox.ts:216` | `SANDBOX_RENEWAL_PROBE`                | `process.env.SANDBOX_RENEWAL_PROBE`                                         |
 | `scripts/security/subscription-plan-change-sandbox.ts:219` | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                                                 |
 | `scripts/security/subscription-plan-change-sandbox.ts:222` | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                                                |
-| `scripts/security/tenant-isolation.ts:12`                  | `SECURITY_PG_BIN`                      | `process.env.SECURITY_PG_BIN`                                               |
-| `scripts/security/tenant-isolation.ts:136`                 | `<dynamic>`                            | `process.env[key]`                                                          |
-| `scripts/security/tenant-isolation.ts:137`                 | `<object>`                             | `process.env`                                                               |
+| `scripts/security/tenant-isolation.ts:16`                  | `SECURITY_PG_BIN`                      | `process.env.SECURITY_PG_BIN`                                               |
+| `scripts/security/tenant-isolation.ts:327`                 | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/security/tenant-isolation.ts:328`                 | `<object>`                             | `process.env`                                                               |
 | `scripts/security/track-o-load.ts:90`                      | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/track-o-load.ts:91`                      | `SIGNUP_IDENTITY_ENABLED`              | `process.env.SIGNUP_IDENTITY_ENABLED`                                       |
 | `scripts/security/track-o-load.ts:92`                      | `SIGNUP_AUTH_ENABLED`                  | `process.env.SIGNUP_AUTH_ENABLED`                                           |

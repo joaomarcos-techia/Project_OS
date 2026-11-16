@@ -211,6 +211,31 @@ export function assertReleaseSchema(input: unknown, phase: 'before' | 'after') {
   };
 }
 
+export function assertReleaseCatalog(plan: ReleasePlan, input: unknown, phase: 'before' | 'after') {
+  const catalog = z
+    .object({
+      readOnly: z.literal('on'),
+      operational: z.object({
+        ssl: z.literal(true),
+        statementTimeout: z.literal('10s'),
+        lockTimeout: z.literal('2s'),
+        longTransactions: z.literal(0),
+        waitingLocks: z.literal(0),
+      }),
+      history: z.unknown(),
+      schema: z.unknown(),
+    })
+    .parse(input);
+  return {
+    history: assertReleaseHistory(plan, catalog.history, phase),
+    schema: assertReleaseSchema(catalog.schema, phase),
+    transaction: 'REPEATABLE READ READ ONLY',
+    databaseWrites: 0,
+    tls: 'verify-full',
+    operational: catalog.operational,
+  };
+}
+
 /** All statements are catalog/history SELECTs in a mandatory read-only transaction. */
 export async function checkReleaseDatabase(sql: Sql, plan: ReleasePlan, phase: 'before' | 'after') {
   return sql.begin(async (tx) => {

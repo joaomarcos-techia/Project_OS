@@ -26159,5 +26159,239 @@
       "production": "NO-GO"
     },
     "finalDocumentationCI": "New documentation HEAD requires its own normal CI; final readback in PR53; dedicated heavy workflow not rerun"
+  },
+  "finalOperatorAndContinuityCycle20261115": {
+    "observedAt": "2026-11-16T01:47:44.054Z",
+    "scope": "Final release operators, workflow metadata audit and executable gate preparation; no real data operation",
+    "baseline": {
+      "head": "6aa4b61764e5122989fb96ee4854afae62cd02de",
+      "pr": 53,
+      "draft": true,
+      "ci": 43773892091,
+      "conclusion": "success",
+      "tests": 7270,
+      "files": 642,
+      "e2e": 22,
+      "skips": 0
+    },
+    "frozenFinancial": "94f6da4aeb32b1ae7da856dc9afa105120ce6dd9",
+    "frozenTar": "3902f2007742df4016450eeaece806a8f2bc0b535631d33da9a5e691b59ce3f6",
+    "migrations": "0136-0159",
+    "excluded": ["0160", "0161", "0162"],
+    "defects": [
+      {
+        "confirmed": true,
+        "source": "scripts/abacatepay-release-preflight.ts -> src/lib/db/index.ts ssl=require",
+        "correction": "Dedicated libpq verify-full CA-validated read-only catalog transport with bounded queries, locks and environment allowlist"
+      },
+      {
+        "confirmed": true,
+        "source": "scripts/db-migrate-prod.ts holds lock on separate connection from migrator, SSLrequire, session timeout not proven",
+        "correction": "Dedicated Linux B3 psql operator using one SERIALIZABLE transaction, same-session lock, exact prefix and hash checks, ordered SQL/journal and legacy fingerprint rollback; original generic tool and frozen artifact untouched"
+      }
+    ],
+    "testsThisCycle": {
+      "localUnit": {
+        "passed": 50,
+        "files": 3,
+        "skipped": 0,
+        "scope": "pure/mocked operator contracts; no database or browser suite"
+      },
+      "pgSyntheticNew": {
+        "expected": 9,
+        "state": "PENDING_CI",
+        "scope": "existing security:tenant private TLS PostgreSQL cluster; not actual release migrations or Production"
+      },
+      "heavyRestoreAndComposedBuildRepeated": false,
+      "WindowsDockerCancellation": "NOT RUN; NOT APPLICABLE to proposed Linux-only B3 target, not claimed PASS Windows"
+    },
+    "backupWorkflow": {
+      "observedAt": "2026-11-16T01:01:17.438Z",
+      "workflow": {
+        "id": 305661908,
+        "state": "active",
+        "path": ".github/workflows/db-backup.yml",
+        "updatedAt": "2026-07-01T21:10:31.000-03:00"
+      },
+      "definition": {
+        "blobSha": "5750ffcd476cbae7163f2631455dfa7eda215bff",
+        "sourceSha256": "cede181f4afed34e090b1c127109379fa4ac88cd38a945e572fe2b3faa3c200b",
+        "productionSecretNames": ["DATABASE_URL_PROD", "BACKUP_PASSPHRASE"],
+        "excludedSchemas": [
+          "storage",
+          "realtime",
+          "extensions",
+          "graphql",
+          "graphql_public",
+          "vault",
+          "supabase_functions",
+          "_realtime",
+          "_analytics",
+          "pgsodium",
+          "pgsodium_masks",
+          "pgbouncer"
+        ],
+        "authExplicitlyExcluded": false,
+        "pgDump": true,
+        "encryptionAES256": true,
+        "plaintextSQLFile": false,
+        "artifactDestination": true,
+        "retentionDays": "30",
+        "schedulesUTC": ["0 6 * * *"],
+        "manualDispatch": true,
+        "declaresTokenPermissions": false,
+        "databaseURLPassedInArgv": true
+      },
+      "defaultTokenPermissions": {
+        "default_workflow_permissions": "read",
+        "can_approve_pull_request_reviews": false
+      },
+      "requiredSecretNamePresence": {
+        "DATABASE_URL_PROD": true,
+        "BACKUP_PASSPHRASE": true
+      },
+      "recentRuns": [
+        {
+          "id": 43719455568,
+          "event": "schedule",
+          "branch": "main",
+          "headSha": "5620a0987ec53db7d7358728eb7d457d9d373df3",
+          "status": "completed",
+          "conclusion": "success",
+          "createdAt": "2026-11-15T13:31:40Z",
+          "updatedAt": "2026-11-15T13:32:27Z",
+          "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43719455568"
+        },
+        {
+          "id": 43597806257,
+          "event": "schedule",
+          "branch": "main",
+          "headSha": "5620a0987ec53db7d7358728eb7d457d9d373df3",
+          "status": "completed",
+          "conclusion": "failure",
+          "createdAt": "2026-11-14T13:03:14Z",
+          "updatedAt": "2026-11-14T13:03:16Z",
+          "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43597806257"
+        },
+        {
+          "id": 43438745083,
+          "event": "schedule",
+          "branch": "main",
+          "headSha": "5620a0987ec53db7d7358728eb7d457d9d373df3",
+          "status": "completed",
+          "conclusion": "success",
+          "createdAt": "2026-11-13T14:00:58Z",
+          "updatedAt": "2026-11-13T14:02:27Z",
+          "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43438745083"
+        },
+        {
+          "id": 43240228158,
+          "event": "schedule",
+          "branch": "main",
+          "headSha": "5620a0987ec53db7d7358728eb7d457d9d373df3",
+          "status": "completed",
+          "conclusion": "success",
+          "createdAt": "2026-11-12T14:43:54Z",
+          "updatedAt": "2026-11-12T14:44:54Z",
+          "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43240228158"
+        },
+        {
+          "id": 43031230265,
+          "event": "schedule",
+          "branch": "main",
+          "headSha": "5620a0987ec53db7d7358728eb7d457d9d373df3",
+          "status": "completed",
+          "conclusion": "success",
+          "createdAt": "2026-11-11T13:40:19Z",
+          "updatedAt": "2026-11-11T13:41:24Z",
+          "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43031230265"
+        },
+        {
+          "id": 42834147198,
+          "event": "schedule",
+          "branch": "main",
+          "headSha": "5620a0987ec53db7d7358728eb7d457d9d373df3",
+          "status": "completed",
+          "conclusion": "success",
+          "createdAt": "2026-11-10T14:26:45Z",
+          "updatedAt": "2026-11-10T14:27:08Z",
+          "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/42834147198"
+        },
+        {
+          "id": 42644288279,
+          "event": "schedule",
+          "branch": "main",
+          "headSha": "534995b0a41d3b856fa0310e9e4359245a44589a",
+          "status": "completed",
+          "conclusion": "success",
+          "createdAt": "2026-11-09T15:24:07Z",
+          "updatedAt": "2026-11-09T15:24:50Z",
+          "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/42644288279"
+        },
+        {
+          "id": 42482193465,
+          "event": "schedule",
+          "branch": "main",
+          "headSha": "534995b0a41d3b856fa0310e9e4359245a44589a",
+          "status": "completed",
+          "conclusion": "success",
+          "createdAt": "2026-11-08T12:51:33Z",
+          "updatedAt": "2026-11-08T12:52:37Z",
+          "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/42482193465"
+        }
+      ],
+      "artifactCount": 30,
+      "latestArtifactMetadata": {
+        "id": 14163123648,
+        "name": "db-backup",
+        "bytes": 921422,
+        "expired": false,
+        "createdAt": "2026-11-15T13:32:24Z",
+        "expiresAt": "2026-12-15T13:32:23Z",
+        "run": 43719455568
+      },
+      "artifactContentsOrLogsRead": false,
+      "secretValuesRead": false,
+      "routineTriggeredChangedOrDisabled": false,
+      "continuityDecision": "Separate authorization: approved replacement and cutover, explicit temporary exception, or disabling old routine while accepting managed-only transition. No automatic acceptance."
+    },
+    "recoveryVMProposal": {
+      "provider": "AWS EC2",
+      "region": "sa-east-1",
+      "instance": "m7i.xlarge",
+      "vCPU": 4,
+      "ramGiB": 16,
+      "operationalHours": 4,
+      "maximumExistenceHours": 24,
+      "publicComputePricePerHourUSD": 0.3213,
+      "computeFourHoursUSD": 1.2852,
+      "compute24HoursUSD": 7.7112,
+      "source": "https://b0.p.awsstatic.com/pricing/2.0/meteredUnitMaps/ec2/USD/current/ec2-ondemand-without-sec-sel/South%20America%20(Sao%20Paulo)/Linux/index.json",
+      "priceObservedAt": "2026-11-16T01:39:37.469Z",
+      "budgetCeilingProposalUSD": 20,
+      "diskNetworkKeysEgressTaxesNotIncluded": true,
+      "approvedOrProvisioned": false,
+      "recurringBackupSolution": false
+    },
+    "finalCI": "Must pass on new final SHA; readback and new native PostgreSQL results recorded in PR53 without transferring old CI",
+    "status": {
+      "B1B": "BLOCKED / NOT AUTHORIZED",
+      "B2A": "NOT AUTHORIZED",
+      "B2B": "NOT AUTHORIZED",
+      "B3": "NOT AUTHORIZED",
+      "C": "NOT AUTHORIZED",
+      "D": "NOT AUTHORIZED",
+      "E": "NOT AUTHORIZED",
+      "R1R4": "PARTIAL / NOT ACCEPTED",
+      "naturalRenewal": "Future 2026-12-13",
+      "controlledDeployReady": "BLOCKED",
+      "commercialActivationReady": "BLOCKED",
+      "production": "NO-GO"
+    },
+    "productionDatabaseQueries": 0,
+    "realBackupDownloads": 0,
+    "realFinancialCalls": 0,
+    "infrastructureCreatedOrPurchased": false,
+    "otherWorktreesChanged": false
   }
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assertReleaseHistory,
   assertReleaseSchema,
+  assertReleaseCatalog,
   type ReleasePlan,
 } from '../../../../scripts/abacatepay-release-validation';
 
@@ -79,6 +80,58 @@ describe('read-only release preflight', () => {
   };
   it('accepts a secure baseline without future DDL', () =>
     expect(assertReleaseSchema(baseline, 'before').requiredSecuredRelations).toBe(4));
+  it('validates one verified read-only catalog response without mutating its history', () => {
+    const input = {
+      readOnly: 'on',
+      history: history(136),
+      schema: baseline,
+      operational: {
+        ssl: true,
+        statementTimeout: '10s',
+        lockTimeout: '2s',
+        longTransactions: 0,
+        waitingLocks: 0,
+      },
+    };
+    const prior = structuredClone(input);
+    expect(assertReleaseCatalog(plan, input, 'before')).toMatchObject({
+      tls: 'verify-full',
+      databaseWrites: 0,
+      history: { applied: 136 },
+    });
+    expect(input).toEqual(prior);
+  });
+  it.each(['ssl', 'statementTimeout', 'lockTimeout', 'longTransactions', 'waitingLocks'])(
+    'stops on unsafe operational fact %s',
+    (fact) => {
+      const operational = {
+        ssl: true,
+        statementTimeout: '10s',
+        lockTimeout: '2s',
+        longTransactions: 0,
+        waitingLocks: 0,
+      };
+      expect(() =>
+        assertReleaseCatalog(
+          plan,
+          {
+            readOnly: 'on',
+            history: history(136),
+            schema: baseline,
+            operational: {
+              ...operational,
+              [fact]: fact === 'ssl' ? false : fact.endsWith('Timeout') ? '0' : 1,
+            },
+          },
+          'before',
+        ),
+      ).toThrow();
+    },
+  );
+  it.each([null, {}, { readOnly: 'off', history: history(136), schema: baseline }])(
+    'rejects an incomplete or writable catalog snapshot',
+    (input) => expect(() => assertReleaseCatalog(plan, input, 'before')).toThrow(),
+  );
   it.each(['missing_relation', 'rls_disabled', 'future_table', 'future_column'])(
     'rejects schema inconsistency %s',
     (kind) => {
