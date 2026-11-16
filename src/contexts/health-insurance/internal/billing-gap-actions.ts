@@ -10,9 +10,9 @@
  *
  * As funções `*InTx` rodam na transação de quem chama (testes e harness); as
  * exportadas sem sufixo são a fronteira do usuário: permissão no servidor e
- * `withTenant`. Corrigir e tentar de novo pedem `EDIT_AGENDA` (a guia resultante
- * ainda passa por conferência e aprovação com `MANAGE_FINANCIAL`); encerrar e
- * reabrir mexem no faturamento e pedem `MANAGE_FINANCIAL` com sessão recente.
+ * `withTenant` (matriz I.2, P1.12-b). Corrigir e tentar de novo são da recepção (`OPERATE_CONVENIOS`;
+ * a guia resultante ainda passa por conferência e aprovação); encerrar e
+ * reabrir mexem no faturamento e pedem `MANAGE_FATURAMENTO_CONVENIO` fresca.
  */
 import 'server-only';
 
@@ -182,13 +182,13 @@ export async function reopenBillingGapInTx(
 // guia mexida por gente (e não a sobrescreve).
 
 export async function correctCoverageForBillingGap(input: CoverageCorrectionInput) {
-  await requireFreshPermission(PERMISSIONS.EDIT_AGENDA);
+  await requireFreshPermission(PERMISSIONS.OPERATE_CONVENIOS);
   const user = await requireUser();
   return withTenant(input.clinicId, (tx) => correctCoverageInTx(tx, input, user.userId), user.userId);
 }
 
 export async function retryBillingGap(clinicId: string, gapId: string) {
-  await requireFreshPermission(PERMISSIONS.EDIT_AGENDA);
+  await requireFreshPermission(PERMISSIONS.OPERATE_CONVENIOS);
   const user = await requireUser();
   return withTenant(clinicId, (tx) => retryBillingGapInTx(tx, { clinicId, gapId }), user.userId);
 }
@@ -199,7 +199,7 @@ export async function dismissBillingGap(
   note: string,
   expectedVersion: number,
 ) {
-  await requireFreshPermission(PERMISSIONS.MANAGE_FINANCIAL);
+  await requireFreshPermission(PERMISSIONS.MANAGE_FATURAMENTO_CONVENIO);
   const user = await requireUser();
   return withTenant(
     clinicId,
@@ -209,7 +209,7 @@ export async function dismissBillingGap(
 }
 
 export async function reopenBillingGap(clinicId: string, gapId: string, expectedVersion: number) {
-  await requireFreshPermission(PERMISSIONS.MANAGE_FINANCIAL);
+  await requireFreshPermission(PERMISSIONS.MANAGE_FATURAMENTO_CONVENIO);
   const user = await requireUser();
   return withTenant(
     clinicId,

@@ -20,7 +20,7 @@ import {
   TissFileMissingError,
 } from '@/contexts/health-insurance/downloads';
 import { requestContext } from '@/lib/audit/request-context-from-headers';
-import { PERMISSIONS } from '@/lib/auth/permissions';
+import { CONVENIOS_RULES } from '@/contexts/health-insurance/rights';
 import { resourceGate } from '@/lib/auth/page-guard';
 import { assertClinicalPdfDownloadAllowed } from '@/lib/auth/rate-limit';
 import { supabaseTissObjectStore } from '@/lib/storage/tiss-files';
@@ -34,7 +34,9 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ fileId: string }> },
 ): Promise<Response> {
-  const gate = await resourceGate([PERMISSIONS.MANAGE_FINANCIAL]);
+  // Arquivo emitido (XML do lote, recurso, PDFs): faturamento (matriz 4.3), a mesma população que
+  // tinha gerenciar o financeiro (owner, gestor, financeiro). A recepção não tinha e não ganha (D-5).
+  const gate = await resourceGate(CONVENIOS_RULES.seeValues);
   if (!gate) return tissNotFound();
   const parsed = z.uuid().safeParse((await params).fileId);
   if (!parsed.success) return tissNotFound();

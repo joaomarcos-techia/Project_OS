@@ -24,6 +24,7 @@ import {
   AuthError,
   requireCachedPermission,
   requireClinicId,
+  requireFreshPermission,
   requireUser,
 } from '@/lib/auth/tenant-context';
 import type { Tx } from '@/lib/db';
@@ -40,6 +41,7 @@ import { CoverageInputError, recordAppointmentCoverage } from './internal/covera
 import { readMembershipCardNumberAudited } from './internal/membership-access';
 import { ConveniosModuleDisabledError } from './internal/module-guard';
 import { revokeInsurerCredentialTx, saveInsurerCredentialTx } from './internal/insurer-credentials';
+import { allows } from './rights';
 import { ModalityChangeError, changeAppointmentModalityTx } from './modality-change';
 import { CONTRACT_IMPORT_LIMITS, ContractImportFileError } from './internal/contract-import';
 import {
@@ -104,9 +106,23 @@ interface Ctx {
   userId: string;
 }
 
+/**
+ * Recepção com posse (D-3, opção B, aprovada em 16/11): quem opera Convênios age na clínica inteira;
+ * quem só entra no módulo (a médica no pacote padrão) age só no que o servidor confere como dela,
+ * dentro da MESMA transação da escrita. O que não é dela responde "não encontrado" (não confirma
+ * existência por id adulterado).
+ */
+interface OperateOrOwn {
+  kind: 'operate_or_own';
+  /** Confere a posse com a pessoa da sessão (`ctx.userId`); só roda sem `operate:convenios`. */
+  owns: (tx: Tx, ctx: Ctx) => Promise<boolean>;
+  notFound: string;
+}
+type WriteAccess = Permission | OperateOrOwn;
+
 /** Escrita com a pessoa da sessão; o `audit` devolvido pelo passo vai para a MESMA transação. */
 async function write<T>(
-  permission: Permission,
+  access: WriteAccess,
   action: string,
   resourceType: string,
   fn: (
@@ -115,13 +131,21 @@ async function write<T>(
   ) => Promise<{ result: T; resourceId: string | null; before?: unknown; after: unknown }>,
 ): Promise<T> {
   const user = await requireUser();
-  await requireCachedPermission(permission);
+  let ownership: OperateOrOwn | null = null;
+  if (typeof access === 'string') {
+    await requireCachedPermission(access);
+  } else {
+    await requireCachedPermission(PERMISSIONS.VIEW_CONVENIOS);
+    if (!user.isSuperAdmin && !allows(user.permissions, 'operate')) ownership = access;
+  }
   const clinicId = await requireClinicId();
   const ctx = { clinicId, userId: user.userId };
   const rc = await requestContext();
   return withTenant(
     clinicId,
     async (tx) => {
+      if (ownership && !(await ownership.owns(tx, ctx)))
+        throw new cfg.InsuranceConfigError(ownership.notFound, 'NOT_FOUND');
       const out = await fn(tx, ctx);
       await logAudit(tx, {
         clinicId,
@@ -139,7 +163,8 @@ async function write<T>(
   );
 }
 
-const MANAGE = PERMISSIONS.MANAGE_FINANCIAL;
+/** Cadastro e configuração (matriz 4.1; D-1 preços e D-2 política: só owner e gestor). */
+const MANAGE = PERMISSIONS.MANAGE_CONVENIOS;
 
 // ── Identificação do prestador ───────────────────────────────────────────
 
@@ -577,7 +602,7 @@ export async function searchOfficialTermsAction(input: {
   try {
     const d = z.object({ table: z.enum(['22', '24']), term: z.string().max(80) }).parse(input);
     await requireUser();
-    await requireCachedPermission(PERMISSIONS.VIEW_FINANCIAL);
+    await requireCachedPermission(PERMISSIONS.VIEW_CONVENIOS);
     const clinicId = await requireClinicId();
     return { ok: true, data: await searchOfficialTerms(clinicId, d.table, d.term) };
   } catch (error) {
@@ -598,7 +623,49 @@ const Membership = z.object({
   preferred: z.boolean().default(false),
 });
 
-const EDIT = PERMISSIONS.EDIT_PATIENT;
+/**
+ * Carteirinha (matriz 4.2, D-3 opção B): a recepção em qualquer paciente da clínica; sem operar
+ * Convênios, só no paciente com quem a pessoa tem atendimento (não cancelado) nesta clínica.
+ */
+function membershipAccess(patient: (tx: Tx, ctx: Ctx) => Promise<string | null>): OperateOrOwn {
+  return {
+    kind: 'operate_or_own',
+    notFound: 'Carteirinha ou paciente não encontrado nesta clínica.',
+    owns: async (tx, ctx) => {
+      const patientId = await patient(tx, ctx);
+      if (!patientId) return false;
+      const rows = (await tx.execute(sql`
+        SELECT 1 FROM public.appointments
+         WHERE clinic_id = ${ctx.clinicId}::uuid AND patient_id = ${patientId}::uuid
+           AND doctor_id = ${ctx.userId}::uuid AND status::text <> 'cancelado'
+         LIMIT 1`)) as unknown as unknown[];
+      return rows.length > 0;
+    },
+  };
+}
+const membershipPatient =
+  (membershipId: string) =>
+  async (tx: Tx, ctx: Ctx): Promise<string | null> => {
+    const rows = (await tx.execute(sql`
+      SELECT patient_id::text AS patient_id FROM public.hi_memberships
+       WHERE clinic_id = ${ctx.clinicId}::uuid AND id = ${membershipId}::uuid`)) as unknown as Array<{
+      patient_id: string;
+    }>;
+    return rows[0]?.patient_id ?? null;
+  };
+/** Cobertura do atendimento (D-3 opção B): sem operar Convênios, só no atendimento em que a pessoa é a profissional. */
+function appointmentAccess(appointmentId: string): OperateOrOwn {
+  return {
+    kind: 'operate_or_own',
+    notFound: 'Atendimento não encontrado nesta clínica.',
+    owns: async (tx, ctx) => {
+      const rows = (await tx.execute(sql`
+        SELECT 1 FROM public.appointments
+         WHERE clinic_id = ${ctx.clinicId}::uuid AND id = ${appointmentId}::uuid AND doctor_id = ${ctx.userId}::uuid`)) as unknown as unknown[];
+      return rows.length > 0;
+    },
+  };
+}
 
 export async function createMembershipAction(
   input: z.input<typeof Membership>,
@@ -606,7 +673,7 @@ export async function createMembershipAction(
   return run(async () => {
     const d = Membership.parse(input);
     return write(
-      EDIT,
+      membershipAccess(async () => d.patientId),
       'health_insurance.config.membership_created',
       'hi_membership',
       async (tx, ctx) => {
@@ -635,7 +702,7 @@ export async function replaceMembershipAction(input: {
       })
       .parse(input);
     return write(
-      EDIT,
+      membershipAccess(membershipPatient(d.membershipId)),
       'health_insurance.config.membership_replaced',
       'hi_membership',
       async (tx, ctx) => {
@@ -657,7 +724,7 @@ export async function updateMembershipAction(input: {
       .object({ membershipId: uuid, planId: optUuid, holderKind: holder, validUntil: optDay })
       .parse(input);
     await write(
-      EDIT,
+      membershipAccess(membershipPatient(d.membershipId)),
       'health_insurance.config.membership_updated',
       'hi_membership',
       async (tx, ctx) => {
@@ -676,7 +743,7 @@ export async function setMembershipActiveAction(input: {
   return run(async () => {
     const d = z.object({ membershipId: uuid, active: z.boolean() }).parse(input);
     await write(
-      EDIT,
+      membershipAccess(membershipPatient(d.membershipId)),
       `health_insurance.config.membership_${d.active ? 'reactivated' : 'deactivated'}`,
       'hi_membership',
       async (tx, ctx) => {
@@ -699,7 +766,7 @@ export async function setPreferredMembershipAction(input: {
   return run(async () => {
     const d = z.object({ membershipId: uuid }).parse(input);
     await write(
-      EDIT,
+      membershipAccess(membershipPatient(d.membershipId)),
       'health_insurance.config.membership_preferred',
       'hi_membership',
       async (tx, ctx) => {
@@ -768,7 +835,7 @@ export async function recordAppointmentCoverageAction(
   return run(async () => {
     const d = CoverageChoice.parse(input);
     return write(
-      PERMISSIONS.EDIT_AGENDA,
+      appointmentAccess(d.appointmentId),
       'health_insurance.coverage.recorded',
       'hi_appointment_coverage',
       async (tx, ctx) => {
@@ -978,6 +1045,8 @@ export async function saveInsurerCredentialAction(
 ): Promise<ConfigResult<{ rotated: boolean }>> {
   return run(async () => {
     const d = InsurerCredential.parse(input);
+    // Segredo da operadora: permissão FRESCA (relida do banco), não só a do token (matriz 4.1).
+    await requireFreshPermission(MANAGE);
     return write(
       MANAGE,
       'health_insurance.config.insurer_credential_saved',
@@ -1008,6 +1077,7 @@ export async function revokeInsurerCredentialAction(input: {
   return run(async () => {
     const insurerId = uuid.parse(input.insurerId);
     const credentialId = uuid.parse(input.credentialId);
+    await requireFreshPermission(MANAGE);
     return write(
       MANAGE,
       'health_insurance.config.insurer_credential_revoked',

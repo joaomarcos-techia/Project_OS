@@ -15,13 +15,15 @@ export const metadata: Metadata = { title: 'Convênios' };
 export const dynamic = 'force-dynamic';
 
 /**
- * Painel de Convênios: o gestor vê faturado, recebido, glosado e a receber por operadora;
- * a recepção vê, por responsável, o que falta para faturar.
+ * Painel de Convênios: quem vê o faturamento (matriz I.2) vê faturado, recebido, glosado e a receber
+ * por operadora; a recepção vê, por responsável, o que falta para faturar, sem valores; sem visão ampla
+ * (a médica), as contagens são só das próprias guias.
  */
 export default async function ConveniosPage() {
   const access = await conveniosAccess('Convênios');
   if (!access.ok) return access.view;
-  const o = await getInsuranceOverview(access.clinicId);
+  const o = await getInsuranceOverview(access.clinicId, access.guideView);
+  const billing = access.rights.seeValues;
   const s = o.guidesByStatus;
   const pendingByOwner = new Map<string, number>();
   for (const [owner, n] of [...Object.entries(o.guideIssuesByOwner), ...Object.entries(o.openGapsByOwner)]) {
@@ -31,8 +33,8 @@ export default async function ConveniosPage() {
     { label: 'Guias com pendência de dado', n: (s.pending_data ?? 0), href: '/convenios/guias?status=pending_data' },
     { label: 'Guias para conferir', n: s.ready_for_review ?? 0, href: '/convenios/guias?status=ready_for_review' },
     { label: 'Conferidas, aguardando aprovação', n: s.reviewed ?? 0, href: '/convenios/guias?status=conferidas' },
-    { label: 'Aprovadas, prontas para lote', n: s.approved ?? 0, href: '/convenios/lotes' },
-    { label: 'Em lote, aguardando envio', n: (s.in_batch ?? 0) + (s.exported ?? 0), href: '/convenios/lotes?status=exported' },
+    { label: 'Aprovadas, prontas para lote', n: s.approved ?? 0, href: billing ? '/convenios/lotes' : '/convenios/guias?status=prontas' },
+    { label: 'Em lote, aguardando envio', n: (s.in_batch ?? 0) + (s.exported ?? 0), href: billing ? '/convenios/lotes?status=exported' : '/convenios/guias?status=faturadas' },
     { label: 'Na operadora (enviadas ou em análise)', n: (s.sent ?? 0) + (s.under_review ?? 0), href: '/convenios/guias?status=faturadas' },
     { label: 'Com glosa ou pagamento parcial', n: (s.partially_glossed ?? 0) + (s.fully_glossed ?? 0) + (s.partially_paid ?? 0), href: '/convenios/guias?status=desfecho' },
   ];
@@ -53,6 +55,7 @@ export default async function ConveniosPage() {
         </Alert>
       ) : null}
 
+      {o.totals ? (
       <MetricStrip className="mb-(--sp-4)">
         <StatCard label="Faturado" value={brl(o.totals.billedCents)} hint={`${o.totals.guides} guias enviadas`} />
         <StatCard label="Recebido" value={brl(o.totals.paidCents)} />
@@ -61,6 +64,7 @@ export default async function ConveniosPage() {
         <StatCard label="A receber" value={brl(o.totals.pendingCents)} />
         <StatCard label="Recebido sem conciliar" value={brl(o.totals.unreconciledCents)} hint="Alocar às guias em Conciliação" />
       </MetricStrip>
+      ) : null}
 
       <div className="grid gap-(--sp-4) lg:grid-cols-2">
         <PanelCard title="O que falta para faturar" regionLabel="O que falta para faturar">
@@ -93,6 +97,7 @@ export default async function ConveniosPage() {
         </PanelCard>
       </div>
 
+      {billing ? (
       <PanelCard title="Por operadora" regionLabel="Valores por operadora" className="mt-(--sp-4)">
         {o.insurers.length === 0 ? (
           <p className="text-(length:--fs-sm) text-fg-muted">Nenhuma guia enviada a operadoras ainda.</p>
@@ -133,6 +138,7 @@ export default async function ConveniosPage() {
           </TableWrap>
         )}
       </PanelCard>
+      ) : null}
     </>
   );
 }

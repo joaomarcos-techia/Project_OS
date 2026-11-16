@@ -47,7 +47,7 @@ describe('GET /financeiro/convenios/arquivos/:fileId (P12.7)', () => {
 
   it('exige gerenciar financeiro, lê pela clínica da sessão com finalidade e entrega sem cache', async () => {
     const res = await call();
-    expect(mocks.resourceGate).toHaveBeenCalledWith([PERMISSIONS.MANAGE_FINANCIAL]);
+    expect(mocks.resourceGate).toHaveBeenCalledWith([PERMISSIONS.VIEW_FATURAMENTO_CONVENIO]);
     expect(mocks.readTissFile).toHaveBeenCalledWith(mocks.store, expect.objectContaining({
       clinicId: 'clinic-1',
       fileId: FILE,

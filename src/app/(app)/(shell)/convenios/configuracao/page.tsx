@@ -60,7 +60,7 @@ export default async function ConfiguracaoConveniosPage() {
         <p className="mb-(--sp-3) text-(length:--fs-sm) text-fg-muted">
           Dados do contratado que vão em todas as guias. A identificação na operadora (código do prestador, CNPJ ou CPF) fica em cada operadora.
         </p>
-        {access.canManage ? (
+        {access.rights.configure ? (
           <ProviderIdentityForm initial={setup.settings} />
         ) : (
           <p className="text-(length:--fs-sm)">
@@ -71,7 +71,7 @@ export default async function ConfiguracaoConveniosPage() {
       </PanelCard>
 
       <PanelCard title="Operadoras" regionLabel="Operadoras" className="mb-(--sp-4)">
-        {access.canManage ? (
+        {access.rights.configure ? (
           <div className="mb-(--sp-3)">
             <NewInsurerForm />
           </div>
@@ -142,7 +142,7 @@ export default async function ConfiguracaoConveniosPage() {
                     <Badge tone="amber">Sem perfil TISS</Badge>
                   )}
                 </div>
-                {access.canManage ? <ProfessionalProfileForm professional={p} councils={setup.councils} ufs={setup.ufs} /> : null}
+                {access.rights.configure ? <ProfessionalProfileForm professional={p} councils={setup.councils} ufs={setup.ufs} /> : null}
               </li>
             ))}
           </ul>

@@ -15,7 +15,7 @@ import {
   GuidePrintError,
   renderIssuedGuidePdf,
 } from '@/contexts/health-insurance/downloads';
-import { PERMISSIONS } from '@/lib/auth/permissions';
+import { CONVENIOS_RULES } from '@/contexts/health-insurance/rights';
 import { resourceGate } from '@/lib/auth/page-guard';
 import { assertClinicalPdfDownloadAllowed } from '@/lib/auth/rate-limit';
 
@@ -31,7 +31,8 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ guideId: string }> },
 ): Promise<Response> {
-  const gate = await resourceGate([PERMISSIONS.VIEW_FINANCIAL]);
+  // PDF da guia emitida (D-5, fases 1–2): faturamento ou recepção, como era com ver o financeiro.
+  const gate = await resourceGate(CONVENIOS_RULES.emittedDocuments);
   if (!gate) return tissNotFound();
   const parsed = z.uuid().safeParse((await params).guideId);
   if (!parsed.success) return tissNotFound();

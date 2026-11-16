@@ -36,6 +36,7 @@ vi.mock('../../_lib/access', async (orig) => {
 vi.mock('@/contexts/health-insurance/queries', () => ({ getSadtRequestDetail: m.getSadtRequestDetail }));
 
 import SolicitacaoPage from './page';
+import { accessFor, PROFILES } from '../../_lib/access-fixture';
 
 const ID = '978e5d9b-fcb0-4a70-b76c-fcfaeee7ec11';
 const draft: SadtRequestDetail = {
@@ -79,7 +80,7 @@ const draft: SadtRequestDetail = {
 describe('detalhe da solicitação SP/SADT', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    m.conveniosAccess.mockResolvedValue({ ok: true, clinicId: 'c1', canManage: true, commercial: null });
+    m.conveniosAccess.mockResolvedValue(accessFor(PROFILES.gestor, { commercial: null }));
   });
   afterEach(cleanup);
 

@@ -35,6 +35,7 @@ vi.mock('@/lib/db/tenant', () => ({ withTenant: vi.fn() }));
 
 import GuiaPage from './guias/[guideId]/page';
 import ConveniosPage from './page';
+import { accessFor, PROFILES } from './_lib/access-fixture';
 
 const GUIDE = '22222222-2222-4222-8222-222222222222';
 
@@ -64,7 +65,7 @@ describe('interface de Convênios', () => {
   afterEach(cleanup);
 
   it('painel: valores por operadora e o que falta para faturar por responsável', async () => {
-    m.conveniosAccess.mockResolvedValue({ ok: true, clinicId: 'c1', canManage: true });
+    m.conveniosAccess.mockResolvedValue(accessFor(PROFILES.gestor));
     render(await ConveniosPage());
     expect(screen.getAllByText('R$ 450,00').length).toBeGreaterThan(0);
     expect(screen.getByText('Operadora Um')).toBeTruthy();
@@ -75,19 +76,19 @@ describe('interface de Convênios', () => {
   });
 
   it('D24: no trial o recurso aparece como contratável; suspensa = consulta; liberada = sem aviso', async () => {
-    m.conveniosAccess.mockResolvedValue({ ok: true, clinicId: 'c1', canManage: true, commercial: 'trial' });
+    m.conveniosAccess.mockResolvedValue(accessFor(PROFILES.gestor, { commercial: 'trial' }));
     render(await ConveniosPage());
     const trial = screen.getByTestId('convenios-commercial-notice');
     expect(trial.dataset.denial).toBe('trial');
     expect(screen.getByText('Convênios faz parte das assinaturas ativas')).toBeTruthy();
     expect(trial.textContent).toContain('assinatura ativa');
     cleanup();
-    m.conveniosAccess.mockResolvedValue({ ok: true, clinicId: 'c1', canManage: true, commercial: 'period_expired' });
+    m.conveniosAccess.mockResolvedValue(accessFor(PROFILES.gestor, { commercial: 'period_expired' }));
     render(await ConveniosPage());
     expect(screen.getByText('Convênios em modo de consulta')).toBeTruthy();
     expect(screen.getByTestId('convenios-commercial-notice').textContent).toContain('continuam disponíveis');
     cleanup();
-    m.conveniosAccess.mockResolvedValue({ ok: true, clinicId: 'c1', canManage: true, commercial: null });
+    m.conveniosAccess.mockResolvedValue(accessFor(PROFILES.gestor, { commercial: null }));
     render(await ConveniosPage());
     expect(screen.queryByTestId('convenios-commercial-notice')).toBeNull();
   });
@@ -100,15 +101,53 @@ describe('interface de Convênios', () => {
   });
 
   it('guia conferida: quem gerencia vê aprovar/devolver/cancelar; quem só vê, nenhuma ação', async () => {
-    m.conveniosAccess.mockResolvedValue({ ok: true, clinicId: 'c1', canManage: true });
+    m.conveniosAccess.mockResolvedValue(accessFor(PROFILES.gestor));
     render(await GuiaPage({ params: Promise.resolve({ guideId: GUIDE }) }));
     expect(screen.getByRole('button', { name: 'Aprovar e emitir' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Devolver para correção' })).toBeTruthy();
     cleanup();
-    m.conveniosAccess.mockResolvedValue({ ok: true, clinicId: 'c1', canManage: false });
+    m.conveniosAccess.mockResolvedValue(accessFor(PROFILES.leitura));
     render(await GuiaPage({ params: Promise.resolve({ guideId: GUIDE }) }));
     expect(screen.queryByRole('button', { name: 'Aprovar e emitir' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Cancelar guia' })).toBeNull();
+  });
+
+  it('matriz I.2: a recepção confere e devolve, sem valores, sem aprovar nem cancelar; o financeiro aprova e cancela', async () => {
+    m.listConsultaFieldOptions.mockResolvedValue(null);
+    m.getGuideDetail.mockResolvedValue({ ...guide, status: 'ready_for_review', issues: [], consultaOverrides: null, totalValueCents: null });
+    m.conveniosAccess.mockResolvedValue(accessFor(PROFILES.recepcao));
+    render(await GuiaPage({ params: Promise.resolve({ guideId: GUIDE }) }));
+    expect(screen.getByRole('button', { name: 'Marcar como conferida' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Cancelar guia' })).toBeNull();
+    // A consulta foi feita sem valores (o servidor não devolve) e a tela não mostra o campo.
+    expect(m.getGuideDetail).toHaveBeenLastCalledWith('c1', GUIDE, { scope: { kind: 'clinic' }, values: false });
+    expect(screen.queryByText('Valor')).toBeNull();
+    cleanup();
+    m.getGuideDetail.mockResolvedValue({ ...guide, status: 'reviewed', issues: [], consultaOverrides: null, totalValueCents: null });
+    render(await GuiaPage({ params: Promise.resolve({ guideId: GUIDE }) }));
+    expect(screen.getByRole('button', { name: 'Devolver para correção' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Aprovar e emitir' })).toBeNull();
+    cleanup();
+    m.getGuideDetail.mockResolvedValue({ ...guide, status: 'reviewed', issues: [], consultaOverrides: null });
+    m.conveniosAccess.mockResolvedValue(accessFor(PROFILES.financeiro));
+    render(await GuiaPage({ params: Promise.resolve({ guideId: GUIDE }) }));
+    expect(screen.getByRole('button', { name: 'Aprovar e emitir' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Cancelar guia' })).toBeTruthy();
+  });
+
+  it('D-4: a médica abre só a própria guia (consulta por posse), sem valores e sem nenhuma ação', async () => {
+    m.listConsultaFieldOptions.mockResolvedValue(null);
+    m.getGuideDetail.mockResolvedValue({ ...guide, status: 'reviewed', issues: [], consultaOverrides: null, totalValueCents: null });
+    m.conveniosAccess.mockResolvedValue(accessFor(PROFILES.medica, { userId: 'doc-1' }));
+    render(await GuiaPage({ params: Promise.resolve({ guideId: GUIDE }) }));
+    expect(m.getGuideDetail).toHaveBeenLastCalledWith('c1', GUIDE, { scope: { kind: 'own', professionalId: 'doc-1' }, values: false });
+    for (const name of ['Marcar como conferida', 'Aprovar e emitir', 'Devolver para correção', 'Cancelar guia'])
+      expect(screen.queryByRole('button', { name })).toBeNull();
+    expect(screen.queryByText('Ver PDF da guia')).toBeNull();
+    cleanup();
+    // Guia de outra pessoa: a consulta por posse não acha → 404 (não confirma existência).
+    m.getGuideDetail.mockResolvedValue(null);
+    await expect(GuiaPage({ params: Promise.resolve({ guideId: GUIDE }) })).rejects.toThrow('404');
   });
 
   it('D24: em trial ou suspensa, quem gerencia não vê conferir/aprovar/devolver/ajustar (o servidor recusa); cancelar continua', async () => {
@@ -116,7 +155,7 @@ describe('interface de Convênios', () => {
     for (const commercial of ['trial', 'clinic_suspended'] as const) {
       for (const status of ['ready_for_review', 'reviewed']) {
         m.getGuideDetail.mockResolvedValue({ ...guide, status, issues: [], consultaOverrides: null });
-        m.conveniosAccess.mockResolvedValue({ ok: true, clinicId: 'c1', canManage: true, commercial });
+        m.conveniosAccess.mockResolvedValue(accessFor(PROFILES.gestor, { commercial }));
         render(await GuiaPage({ params: Promise.resolve({ guideId: GUIDE }) }));
         for (const name of ['Marcar como conferida', 'Aprovar e emitir', 'Devolver para correção', 'Ajustar dados da consulta'])
           expect(screen.queryByRole('button', { name }), `${commercial}/${status}: ${name}`).toBeNull();
@@ -146,7 +185,7 @@ describe('interface de Convênios', () => {
     };
     const editing = { ...guide, status: 'ready_for_review', terminologyVersion: '202609', consultaOverrides: { tipoConsulta: '4' }, events: [adjusted] };
     m.getGuideDetail.mockResolvedValue(editing);
-    m.conveniosAccess.mockResolvedValue({ ok: true, clinicId: 'c1', canManage: true });
+    m.conveniosAccess.mockResolvedValue(accessFor(PROFILES.gestor));
     render(await GuiaPage({ params: Promise.resolve({ guideId: GUIDE }) }));
     expect(m.listConsultaFieldOptions).toHaveBeenCalledWith('c1', '202609', '2026-11-10');
     const panel = screen.getByTestId('consulta-fields');
@@ -167,13 +206,13 @@ describe('interface de Convênios', () => {
     cleanup();
     // Quem só vê: nunca ajusta.
     m.getGuideDetail.mockResolvedValue(editing);
-    m.conveniosAccess.mockResolvedValue({ ok: true, clinicId: 'c1', canManage: false });
+    m.conveniosAccess.mockResolvedValue(accessFor(PROFILES.leitura));
     render(await GuiaPage({ params: Promise.resolve({ guideId: GUIDE }) }));
     expect(screen.queryByRole('button', { name: 'Ajustar dados da consulta' })).toBeNull();
     cleanup();
     // SP/SADT não tem estes dados.
     m.getGuideDetail.mockResolvedValue({ ...editing, guideType: 'sp_sadt', consultaOverrides: null });
-    m.conveniosAccess.mockResolvedValue({ ok: true, clinicId: 'c1', canManage: true });
+    m.conveniosAccess.mockResolvedValue(accessFor(PROFILES.gestor));
     render(await GuiaPage({ params: Promise.resolve({ guideId: GUIDE }) }));
     expect(screen.queryByTestId('consulta-fields')).toBeNull();
   });

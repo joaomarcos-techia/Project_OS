@@ -17,12 +17,13 @@ export const metadata: Metadata = { title: 'Conciliação de convênios' };
 export const dynamic = 'force-dynamic';
 
 export default async function ConciliacaoPage() {
-  const access = await conveniosAccess('Conciliação');
+  const access = await conveniosAccess('Conciliação', 'broad');
   if (!access.ok) return access.view;
   const [payments, guides, insurers, copays, toReview] = await Promise.all([
-    listInsurerPayments(access.clinicId),
-    access.canManage ? listOpenGuidesForAllocation(access.clinicId) : Promise.resolve([]),
-    access.canManage ? listInsurers(access.clinicId) : Promise.resolve([]),
+    // Pagamentos da operadora são faturamento (matriz 4.3): sem visão de valores, nem a consulta roda.
+    access.rights.seeValues ? listInsurerPayments(access.clinicId) : Promise.resolve([]),
+    access.rights.bill ? listOpenGuidesForAllocation(access.clinicId) : Promise.resolve([]),
+    access.rights.bill ? listInsurers(access.clinicId) : Promise.resolve([]),
     listCopayCharges(access.clinicId),
     listCopaysToReview(access.clinicId),
   ]);
@@ -35,11 +36,13 @@ export default async function ConciliacaoPage() {
         description="Dinheiro recebido das operadoras e a guia de cada parte. Só entra no financeiro da clínica o que estiver alocado a uma guia."
         crumbs={[{ label: 'Conciliação' }]}
       />
-      {access.canManage ? (
+      {access.rights.bill ? (
         <PanelCard title="Importar demonstrativo da operadora" regionLabel="Importar demonstrativo" className="mb-(--sp-4)">
           <StatementImportForm insurers={insurers} action={importStatementAction} />
         </PanelCard>
       ) : null}
+      {access.rights.seeValues ? (
+      <>
       <PanelCard title="Recebido sem conciliar" regionLabel="Pagamentos sem conciliar">
         {pending.length === 0 ? (
           <EmptyState variant="compact" title="Nada para conciliar" description="Todo pagamento registrado está alocado às guias." />
@@ -55,7 +58,7 @@ export default async function ConciliacaoPage() {
                   {p.statementRef ? <span className="text-fg-muted">demonstrativo {p.statementRef}</span> : null}
                   {p.batchNumber ? <span className="text-fg-muted">lote {p.batchNumber}</span> : null}
                 </div>
-                {access.canManage ? (
+                {access.rights.bill ? (
                   <AllocateForm paymentId={p.id} unreconciledCents={p.unreconciledCents} guides={guides.filter((g) => g.insurerId === p.insurerId)} />
                 ) : null}
               </li>
@@ -84,6 +87,8 @@ export default async function ConciliacaoPage() {
           </ul>
         )}
       </PanelCard>
+      </>
+      ) : null}
 
       <PanelCard title="Coparticipações a conferir" regionLabel="Coparticipações a conferir" className="mt-(--sp-4)">
         <p className="mb-(--sp-2) text-(length:--fs-sm) text-fg-muted">
@@ -102,7 +107,7 @@ export default async function ConciliacaoPage() {
                   {c.calculatedCents !== null ? <span className="tabular-nums">calculado {brl(c.calculatedCents)}</span> : null}
                   {c.checkedCents !== null ? <span className="tabular-nums">conferido {brl(c.checkedCents)}</span> : null}
                 </div>
-                <CopayReview copay={c} canCheck={access.canEditPatients} canConfirm={access.canManage} />
+                <CopayReview copay={c} canCheck={access.rights.operate} canConfirm={access.rights.patientCharge} />
               </li>
             ))}
           </ul>
@@ -123,10 +128,10 @@ export default async function ConciliacaoPage() {
                 <span className="text-fg-muted">{shortDate(c.scheduledAt)}</span>
                 <span className="tabular-nums">{brl(c.chargeableCents)}</span>
                 <span>{{"confirmed":"confirmada, a cobrar","charged":"cobrança enviada","paid":"paga","refunded":"estornada"}[c.status as 'confirmed'] ?? c.status}</span>
-                {access.canManage && c.status === 'confirmed' ? (
+                {access.rights.patientCharge && c.status === 'confirmed' ? (
                   <ActionButton describe label="Gerar link de cobrança" success="Pedido de cobrança processado" action={requestCopayChargeAction.bind(null, { copaymentId: c.id })} />
                 ) : null}
-                {access.canManage && c.status === 'charged' ? (
+                {access.rights.patientCharge && c.status === 'charged' ? (
                   <ActionButton describe label="Atualizar situação" success="Situação atualizada" variant="ghost" action={syncCopayChargeAction.bind(null, { copaymentId: c.id })} />
                 ) : null}
               </li>

@@ -1,0 +1,58 @@
+[
+ {
+  "t": "2026-11-16T03:12:22.509Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 0
+ },
+ {
+  "t": "2026-11-16T03:12:24.699Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 0
+ },
+ {
+  "t": "2026-11-16T03:12:26.878Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 0
+ },
+ {
+  "t": "2026-11-16T03:12:29.066Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 0
+ },
+ {
+  "t": "2026-11-16T03:12:31.259Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 0
+ },
+ {
+  "t": "2026-11-16T03:12:33.446Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 0
+ },
+ {
+  "t": "2026-11-16T03:12:35.626Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 0
+ },
+ {
+  "t": "2026-11-16T03:12:37.809Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 0
+ }
+]

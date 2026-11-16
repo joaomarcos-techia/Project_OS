@@ -3,8 +3,15 @@ import type { ReactNode } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
-import { getConveniosCommercialDenial, isInsuranceSchemaInstalled } from '@/contexts/health-insurance/queries';
-import { PERMISSIONS } from '@/lib/auth/permissions';
+import { getConveniosCommercialDenial, isInsuranceSchemaInstalled, type GuideView } from '@/contexts/health-insurance/queries';
+import {
+  allows,
+  conveniosRights,
+  guideScopeFor,
+  type ConveniosRights,
+  type ConveniosRule,
+  type GuideScope,
+} from '@/contexts/health-insurance/rights';
 import { getCurrentUser, requireClinicId } from '@/lib/auth/tenant-context';
 import { premiumDenialMessage, type PremiumDenial } from '@/lib/premium-access';
 
@@ -14,18 +21,26 @@ export type ConveniosAccess =
   | {
       ok: true;
       clinicId: string;
-      canManage: boolean;
-      /** Carteirinha: a recepção cadastra (editar paciente), sem gerenciar o financeiro. */
-      canEditPatients: boolean;
+      userId: string;
+      /** Direitos da matriz I.2 (rights.ts). A tela só esconde; as actions decidem de novo no servidor. */
+      rights: ConveniosRights;
+      /** Clínica inteira ou só as próprias guias (posse por executante/solicitante). */
+      scope: GuideScope;
+      /** O que as consultas de guia devolvem: escopo e valores (D-4). */
+      guideView: GuideView;
       commercial: PremiumDenial | null;
     }
   | { ok: false; view: ReactNode };
 
+/** O que a página exige para abrir: entrar no módulo, visão ampla da clínica ou uma regra da matriz. */
+export type ConveniosPageNeed = ConveniosRule | 'broad';
+
 /**
- * Ver Convênios = ver o financeiro; agir (conferir, aprovar, lote, glosa, pagamento) =
- * gerenciar o financeiro. O médico não precisa entrar aqui: a guia nasce do atendimento.
+ * Entrada em Convênios pela matriz I.2 (P1.12-b): `view:convenios` abre o módulo; cada página pode
+ * exigir mais (lotes, conciliação e repasses: valores; autorizações: visão ampla). Sem visão ampla,
+ * a pessoa vê só as próprias guias e solicitações, sem valores.
  */
-export async function conveniosAccess(title: string): Promise<ConveniosAccess> {
+export async function conveniosAccess(title: string, need: ConveniosPageNeed = 'view'): Promise<ConveniosAccess> {
   // Sessão expirada, revogada ou acesso desativado é estado esperado: vai para o login (mesmo
   // padrão do dashboard). Com `requireUser()`, o AuthError da página vencia a corrida com o
   // redirect do layout e a tela mostrava "Algo deu errado" — achado no Preview em 15/11, ao salvar
@@ -33,14 +48,16 @@ export async function conveniosAccess(title: string): Promise<ConveniosAccess> {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
   await requireClinicId();
-  if (!user.clinicId || !user.permissions.includes(PERMISSIONS.VIEW_FINANCIAL)) {
+  const rights = conveniosRights(user.permissions);
+  const enough = need === 'broad' ? rights.broad : allows(user.permissions, need);
+  if (!user.clinicId || !rights.view || !enough) {
     return {
       ok: false,
       view: (
         <>
           <PageHeader title={title} />
           <Alert variant="warning" title="Sem acesso">
-            Seu perfil não tem permissão para o faturamento de convênios.
+            Seu perfil não tem permissão para esta área de convênios.
           </Alert>
         </>
       ),
@@ -59,14 +76,22 @@ export async function conveniosAccess(title: string): Promise<ConveniosAccess> {
       ),
     };
   }
+  const scope = guideScopeFor(rights, user.userId);
   return {
     ok: true,
     clinicId: user.clinicId,
-    canManage: user.permissions.includes(PERMISSIONS.MANAGE_FINANCIAL),
-    canEditPatients: user.permissions.includes(PERMISSIONS.EDIT_PATIENT),
+    userId: user.userId,
+    rights,
+    scope,
+    guideView: { scope, values: rights.seeValues },
     // D24: a mesma decisão do banco que barra as ações, para a tela avisar antes.
     commercial: await getConveniosCommercialDenial(user.clinicId),
   };
+}
+
+/** Valor em R$ ou travessão quando a pessoa não tem visão de faturamento (o servidor devolve nulo). */
+export function brlOrDash(cents: number | null): string {
+  return cents === null ? '—' : brl(cents);
 }
 
 /** Avaliação ou sem plano: recurso contratável; nada é operado. */

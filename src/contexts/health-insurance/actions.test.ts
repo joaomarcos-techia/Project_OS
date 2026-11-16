@@ -7,6 +7,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const m = vi.hoisted(() => ({
   requireUser: vi.fn(),
   requireCachedPermission: vi.fn(),
+  requireCachedAnyPermission: vi.fn(),
+  requireFreshPermission: vi.fn(),
   requireClinicId: vi.fn(),
   logAudit: vi.fn(),
   execute: vi.fn(),
@@ -33,7 +35,14 @@ vi.mock('@/lib/auth/tenant-context', async () => {
       super(message);
     }
   }
-  return { AuthError, requireUser: m.requireUser, requireCachedPermission: m.requireCachedPermission, requireClinicId: m.requireClinicId };
+  return {
+    AuthError,
+    requireUser: m.requireUser,
+    requireCachedPermission: m.requireCachedPermission,
+    requireCachedAnyPermission: m.requireCachedAnyPermission,
+    requireFreshPermission: m.requireFreshPermission,
+    requireClinicId: m.requireClinicId,
+  };
 });
 vi.mock('@/lib/audit/log', () => ({ logAudit: m.logAudit }));
 vi.mock('@/lib/audit/request-context-from-headers', () => ({ requestContext: async () => ({ ip: null, userAgent: null, requestId: 'r1' }) }));
@@ -98,22 +107,26 @@ const issuanceError = (message: string, issues: Array<{ message: string }> = [])
   Object.assign(new Error(message), { name: 'GuideIssuanceError', issues });
 
 const CLINIC = '11111111-1111-4111-8111-111111111111';
+/** Sessão padrão dos testes: entra, opera e fatura (visão ampla). */
+const SESSION = { userId: 'u1', isSuperAdmin: false, permissions: ['view:convenios', 'operate:convenios', 'view:faturamento_convenio', 'manage:faturamento_convenio'] };
 const GUIDE = '22222222-2222-4222-8222-222222222222';
 const INSURER = '33333333-3333-4333-8333-333333333333';
 
 describe('ações de Convênios', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    m.requireUser.mockResolvedValue({ userId: 'u1' });
+    m.requireUser.mockResolvedValue(SESSION);
     m.requireCachedPermission.mockResolvedValue(undefined);
+    m.requireCachedAnyPermission.mockResolvedValue(undefined);
+    m.requireFreshPermission.mockResolvedValue(undefined);
     m.requireClinicId.mockResolvedValue(CLINIC);
   });
 
-  it('exige gerenciar financeiro antes de qualquer acesso ao banco', async () => {
-    m.requireCachedPermission.mockRejectedValueOnce(new (AuthError as unknown as new (msg: string, code: string) => Error)('negado', 'forbidden'));
+  it('exige faturar (manage:faturamento_convenio, matriz I.2) antes de qualquer acesso ao banco', async () => {
+    m.requireCachedAnyPermission.mockRejectedValueOnce(new (AuthError as unknown as new (msg: string, code: string) => Error)('negado', 'forbidden'));
     const r = await createBatchAction({ insurerId: INSURER, guideIds: [GUIDE], idempotencyKey: 'chave-123456' });
     expect(r).toEqual({ ok: false, error: 'Seu perfil não tem permissão para esta operação de convênios.' });
-    expect(m.requireCachedPermission).toHaveBeenCalledWith('manage:financial');
+    expect(m.requireCachedAnyPermission).toHaveBeenCalledWith(['manage:faturamento_convenio']);
     expect(m.createBatchInTx).not.toHaveBeenCalled();
     expect(m.logAudit).not.toHaveBeenCalled();
   });
@@ -246,7 +259,8 @@ describe('ações de Convênios', () => {
     m.updateConsultaOverridesInTx.mockResolvedValueOnce({ version: 5, overrides: { tipoConsulta: '4' }, changed: true });
     const r = await updateConsultaFieldsAction({ guideId: GUIDE, version: 4, tipoConsulta: '4', regimeAtendimento: '', observacao: null });
     expect(r).toEqual({ ok: true, data: 5 });
-    expect(m.requireCachedPermission).toHaveBeenCalledWith('manage:financial');
+    // Recepção ou faturamento corrigem a Consulta (matriz 4.2).
+    expect(m.requireCachedAnyPermission).toHaveBeenCalledWith(['operate:convenios', 'manage:faturamento_convenio']);
     expect(m.updateConsultaOverridesInTx).toHaveBeenCalledWith(expect.anything(), {
       clinicId: CLINIC,
       guideId: GUIDE,
@@ -287,8 +301,10 @@ describe('indicação clínica da SP/SADT (portão próprio)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    m.requireUser.mockResolvedValue({ userId: 'u1' });
+    m.requireUser.mockResolvedValue(SESSION);
     m.requireCachedPermission.mockResolvedValue(undefined);
+    m.requireCachedAnyPermission.mockResolvedValue(undefined);
+    m.requireFreshPermission.mockResolvedValue(undefined);
     m.requireClinicId.mockResolvedValue(CLINIC);
     m.setClinicalIndicationInTx.mockResolvedValue(3);
   });
@@ -309,8 +325,9 @@ describe('indicação clínica da SP/SADT (portão próprio)', () => {
     expect(m.logAudit).not.toHaveBeenCalled();
   });
 
-  it('solicitante interno exige a permissão clínica; externo, a de gestão; sem ela nada é gravado', async () => {
+  it('solicitante interno exige a permissão clínica; externo, a da recepção; sem ela nada é gravado', async () => {
     m.execute.mockResolvedValueOnce([{ requester_kind: 'internal' }]);
+    m.requireCachedPermission.mockResolvedValueOnce(undefined); // view:convenios
     m.requireCachedPermission.mockRejectedValueOnce(new Err('negado', 'forbidden', 403, 'PERMISSION_DENIED'));
     expect(await setSadtClinicalIndicationAction(input)).toEqual({
       ok: false,
@@ -318,21 +335,33 @@ describe('indicação clínica da SP/SADT (portão próprio)', () => {
     });
     expect(m.requireCachedPermission).toHaveBeenLastCalledWith('create:prontuario');
     m.execute.mockResolvedValueOnce([{ requester_kind: 'external' }]);
+    m.requireCachedPermission.mockResolvedValueOnce(undefined); // view:convenios
     m.requireCachedPermission.mockRejectedValueOnce(new Err('negado', 'forbidden', 403, 'PERMISSION_DENIED'));
     expect((await setSadtClinicalIndicationAction(input)).ok).toBe(false);
-    expect(m.requireCachedPermission).toHaveBeenLastCalledWith('manage:financial');
+    expect(m.requireCachedPermission).toHaveBeenLastCalledWith('operate:convenios');
     expect(m.setClinicalIndicationInTx).not.toHaveBeenCalled();
     expect(m.logAudit).not.toHaveBeenCalled();
   });
 
-  it('solicitação de outra clínica (ou id adulterado): "inexistente nesta clínica", sem consultar permissão nem gravar', async () => {
+  it('solicitação de outra clínica (ou id adulterado): "inexistente nesta clínica", só depois de entrar em Convênios, sem gravar', async () => {
     m.execute.mockResolvedValueOnce([]);
     expect(await setSadtClinicalIndicationAction(input)).toEqual({
       ok: false,
       error: 'Solicitação inexistente nesta clínica.',
     });
-    expect(m.requireCachedPermission).not.toHaveBeenCalled();
+    expect(m.requireCachedPermission).toHaveBeenCalledTimes(1);
+    expect(m.requireCachedPermission).toHaveBeenCalledWith('view:convenios');
     expect(m.setClinicalIndicationInTx).not.toHaveBeenCalled();
+  });
+
+  it('sem operar Convênios (a médica): só a própria solicitação; a de outra profissional é "inexistente"', async () => {
+    m.requireUser.mockResolvedValue({ userId: 'u1', isSuperAdmin: false, permissions: ['view:convenios', 'create:prontuario'] });
+    m.execute.mockResolvedValueOnce([{ requester_kind: 'internal', requester: 'outra-pessoa' }]);
+    expect(await setSadtClinicalIndicationAction(input)).toEqual({ ok: false, error: 'Solicitação inexistente nesta clínica.' });
+    expect(m.setClinicalIndicationInTx).not.toHaveBeenCalled();
+    m.execute.mockResolvedValueOnce([{ requester_kind: 'internal', requester: 'u1' }]);
+    expect((await setSadtClinicalIndicationAction(input)).ok).toBe(true);
+    expect(m.setClinicalIndicationInTx).toHaveBeenCalledTimes(1);
   });
 
   it('clínica suspensa ou em trial (recusa do serviço): mensagem comercial e nenhuma auditoria de sucesso', async () => {
@@ -376,17 +405,19 @@ describe('resposta da operadora à autorização da Consulta (P6.3)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    m.requireUser.mockResolvedValue({ userId: 'u1' });
+    m.requireUser.mockResolvedValue(SESSION);
     m.requireCachedPermission.mockResolvedValue(undefined);
+    m.requireCachedAnyPermission.mockResolvedValue(undefined);
+    m.requireFreshPermission.mockResolvedValue(undefined);
     m.requireClinicId.mockResolvedValue(CLINIC);
     m.recordManualAuthorizationResponseTx.mockResolvedValue({ status: 'authorized' });
   });
 
-  it('exige gerenciar financeiro antes do banco', async () => {
-    m.requireCachedPermission.mockRejectedValueOnce(new (AuthError as unknown as new (msg: string, code: string) => Error)('negado', 'forbidden'));
+  it('exige operar Convênios (recepção, matriz 4.2) antes do banco', async () => {
+    m.requireCachedAnyPermission.mockRejectedValueOnce(new (AuthError as unknown as new (msg: string, code: string) => Error)('negado', 'forbidden'));
     const r = await recordConsultaAuthorizationResponseAction(authorized);
     expect(r).toEqual({ ok: false, error: 'Seu perfil não tem permissão para esta operação de convênios.' });
-    expect(m.requireCachedPermission).toHaveBeenCalledWith('manage:financial');
+    expect(m.requireCachedAnyPermission).toHaveBeenCalledWith(['operate:convenios']);
     expect(m.recordManualAuthorizationResponseTx).not.toHaveBeenCalled();
     expect(m.logAudit).not.toHaveBeenCalled();
   });

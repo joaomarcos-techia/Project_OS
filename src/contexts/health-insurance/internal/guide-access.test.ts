@@ -99,7 +99,7 @@ describe('readGuideContentAudited (R57/R85, parte do módulo)', () => {
     });
     expect(r.content).toEqual(content);
     expect(r.auditEventId).toBe('audit-1');
-    expect(m.requireFreshPermission).toHaveBeenCalledWith(PERMISSIONS.VIEW_FINANCIAL);
+    expect(m.requireFreshPermission).toHaveBeenCalledWith(PERMISSIONS.VIEW_FATURAMENTO_CONVENIO);
     expect(audits()).toHaveLength(1);
     expect(audits()[0]).toMatchObject({
       clinicId: CLINIC_ID,
@@ -146,13 +146,14 @@ describe('readGuideContentAudited (R57/R85, parte do módulo)', () => {
         operation: operation as keyof typeof GUIDE_USER_OPERATIONS,
         surface: 'tela',
       });
-      expect(m.requireFreshPermission).toHaveBeenCalledWith(spec.permission);
+      expect(m.requireFreshPermission).toHaveBeenCalledWith(spec.permissions[0]);
       expect(audits()[0]!.after).toMatchObject({ operation, purpose: spec.purpose });
     }
   });
 
   it('sem permissão: nada é lido nem decifrado, e a negação fica registrada', async () => {
-    m.requireFreshPermission.mockRejectedValueOnce(new Error('forbidden'));
+    // Recusa em TODOS os códigos da regra (a guia emitida aceita recepção ou faturamento).
+    m.requireFreshPermission.mockRejectedValue(new Error('forbidden'));
     await expect(
       readGuideContentAudited({
         clinicId: CLINIC_ID,
@@ -289,7 +290,7 @@ describe('readBatchGuidesAudited (lote, tudo ou nada)', () => {
       surface: 'convenios/lotes/exportar',
     });
     expect(reads.map((r) => r.guideId)).toEqual([G1, G2]);
-    expect(m.requireFreshPermission).toHaveBeenCalledWith(PERMISSIONS.MANAGE_FINANCIAL);
+    expect(m.requireFreshPermission).toHaveBeenCalledWith(PERMISSIONS.MANAGE_FATURAMENTO_CONVENIO);
     expect(audits().map((a) => [a.resourceId, (a.after as { batchRef: string }).batchRef])).toEqual(
       [
         [G1, 'lote-0001'],

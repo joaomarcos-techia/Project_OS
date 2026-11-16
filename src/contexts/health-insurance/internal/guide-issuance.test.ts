@@ -53,7 +53,7 @@ describe('approveConsultaGuide', () => {
   it('sem a permissão de faturamento: nada é lido, nem a guia nem a carteirinha', async () => {
     m.requireFreshPermission.mockRejectedValueOnce(new Error('forbidden'));
     await expect(approveConsultaGuide('clinic-1', 'guide-1')).rejects.toThrow('forbidden');
-    expect(m.requireFreshPermission).toHaveBeenCalledWith(PERMISSIONS.MANAGE_FINANCIAL);
+    expect(m.requireFreshPermission).toHaveBeenCalledWith(PERMISSIONS.MANAGE_FATURAMENTO_CONVENIO);
     expect(m.withTenant).not.toHaveBeenCalled();
     expect(m.readCard).not.toHaveBeenCalled();
   });

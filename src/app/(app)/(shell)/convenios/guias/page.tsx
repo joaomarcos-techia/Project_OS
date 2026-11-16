@@ -15,7 +15,7 @@ import {
   listInsurers,
 } from '@/contexts/health-insurance/queries';
 
-import { brl, ConveniosHeader, conveniosAccess, shortDate } from '../_lib/access';
+import { brlOrDash, ConveniosHeader, conveniosAccess, shortDate } from '../_lib/access';
 import { GuideStatusBadge } from '../_lib/status';
 import { guideLabel } from '../_lib/guide-label';
 
@@ -51,7 +51,7 @@ export default async function GuiasPage({ searchParams }: { searchParams: Search
   const uuidOk = (v?: string) => !v || /^[0-9a-f-]{36}$/u.test(v);
   if (!uuidOk(filters.insurerId)) filters.insurerId = undefined;
   if (filters.owner && !ISSUE_OWNER_LABELS[filters.owner]) filters.owner = undefined;
-  const [{ rows, total }, insurers] = await Promise.all([listGuides(access.clinicId, filters), listInsurers(access.clinicId)]);
+  const [{ rows, total }, insurers] = await Promise.all([listGuides(access.clinicId, filters, access.guideView), listInsurers(access.clinicId)]);
   const pages = Math.max(1, Math.ceil(total / GUIDE_PAGE_SIZE));
   const pageHref = (p: number) => {
     const q = new URLSearchParams();
@@ -61,7 +61,7 @@ export default async function GuiasPage({ searchParams }: { searchParams: Search
 
   return (
     <>
-      <ConveniosHeader commercial={access.commercial} title="Guias" description="Guias de convênio da clínica: o que falta, quem resolve e em que etapa estão." crumbs={[{ label: 'Guias' }]} />
+      <ConveniosHeader commercial={access.commercial} title="Guias" description={access.scope.kind === 'own' ? 'As guias dos seus atendimentos (como executante ou solicitante) e em que etapa estão.' : 'Guias de convênio da clínica: o que falta, quem resolve e em que etapa estão.'} crumbs={[{ label: 'Guias' }]} />
       <form method="get" className="mb-(--sp-4) grid gap-(--sp-2) md:grid-cols-[repeat(4,minmax(0,1fr))_auto]" aria-label="Filtrar guias">
         <Select name="status" defaultValue={filters.status ?? ''} aria-label="Etapa">
           {GROUPS.map(([value, label]) => (
@@ -105,7 +105,7 @@ export default async function GuiasPage({ searchParams }: { searchParams: Search
                 <TableHead>Etapa</TableHead>
                 <TableHead>Pendências</TableHead>
                 <TableHead>Lote</TableHead>
-                <TableHead className="text-right">Valor</TableHead>
+                {access.rights.seeValues ? <TableHead className="text-right">Valor</TableHead> : null}
                 <TableHead>Atualizada</TableHead>
               </TableRow>
             </TableHeader>
@@ -138,7 +138,7 @@ export default async function GuiasPage({ searchParams }: { searchParams: Search
                       )}
                     </TableCell>
                     <TableCell>{g.batchNumber ?? '—'}</TableCell>
-                    <TableCell className="text-right tabular-nums">{brl(g.totalValueCents)}</TableCell>
+                    {access.rights.seeValues ? <TableCell className="text-right tabular-nums">{brlOrDash(g.totalValueCents)}</TableCell> : null}
                     <TableCell>{shortDate(g.updatedAt)}</TableCell>
                   </TableRow>
                 );

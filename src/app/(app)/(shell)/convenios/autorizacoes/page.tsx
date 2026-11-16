@@ -32,7 +32,7 @@ function AuthLink({ r }: { r: AuthorizationRow }) {
  * leitura até o cron da P12.6 existir), o que aguarda a operadora, o que está em uso e o que encerrou.
  */
 export default async function AutorizacoesPage() {
-  const access = await conveniosAccess('Autorizações da operadora');
+  const access = await conveniosAccess('Autorizações da operadora', 'broad');
   if (!access.ok) return access.view;
   const { rows, alerts } = await listAuthorizations(access.clinicId);
   const byId = new Map(rows.map((r) => [r.id, r]));

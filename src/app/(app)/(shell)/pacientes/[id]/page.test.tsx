@@ -164,6 +164,7 @@ describe('/pacientes/[id] CRM', () => {
       canViewDocuments: false,
       canCreateDocuments: false,
       canViewInsurance: false,
+      canOperateInsurance: false,
     });
   });
 
@@ -184,6 +185,7 @@ describe('/pacientes/[id] CRM', () => {
       canViewDocuments: false,
       canCreateDocuments: false,
       canViewInsurance: false,
+      canOperateInsurance: false,
     });
     expect(patientPageCapabilities({ isSuperAdmin: true, aal: 'aal2', permissions: [] })).toEqual({
       canEditPatient: true,
@@ -195,10 +197,11 @@ describe('/pacientes/[id] CRM', () => {
       canViewDocuments: true,
       canCreateDocuments: true,
       canViewInsurance: true,
+      canOperateInsurance: true,
     });
   });
 
-  it('aba Convênios só com ver o financeiro; o deep-link sem permissão cai na visão geral', async () => {
+  it('aba Convênios só com view:convenios (matriz I.2); o deep-link sem permissão cai na visão geral', async () => {
     /** Componentes e a flag da aba no elemento devolvido (sem renderizar os filhos assíncronos). */
     const render = async () => {
       const names: string[] = [];
@@ -234,7 +237,7 @@ describe('/pacientes/[id] CRM', () => {
       user: {
         isSuperAdmin: false,
         aal: 'aal1',
-        permissions: [PERMISSIONS.VIEW_PATIENT, PERMISSIONS.VIEW_FINANCIAL],
+        permissions: [PERMISSIONS.VIEW_PATIENT, PERMISSIONS.VIEW_CONVENIOS],
       },
     });
     const allowed = await render();

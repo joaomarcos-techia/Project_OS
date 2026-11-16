@@ -14,6 +14,7 @@ import { sql } from 'drizzle-orm';
 import { withTenant } from '@/lib/db/tenant';
 
 import { insurerRules, type InsurerRules } from './internal/insurer-rules';
+import type { GuideScope } from './rights';
 
 type Row = Record<string, unknown>;
 const n = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));
@@ -299,7 +300,8 @@ export interface ContractLineView {
   description: string;
   procedureId: string | null;
   procedureName: string | null;
-  unitValueCents: number;
+  /** Preço do contrato; nulo para quem não configura nem vê faturamento (matriz 4.4, D-1). */
+  unitValueCents: number | null;
   validFrom: string;
   validUntil: string | null;
   requiresAuthorization: boolean;
@@ -371,6 +373,7 @@ export interface InsurerDetail {
 export async function getInsurerDetail(
   clinicId: string,
   insurerId: string,
+  opts: { prices: boolean },
 ): Promise<InsurerDetail | null> {
   return withTenant(clinicId, async (tx) => {
     const [i] = await rows(
@@ -481,7 +484,7 @@ export async function getInsurerDetail(
         description: String(c.description),
         procedureId: s(c.procedure_id),
         procedureName: s(c.procedure_name),
-        unitValueCents: n(c.unit_value_cents),
+        unitValueCents: opts.prices ? n(c.unit_value_cents) : null,
         validFrom: day(c.valid_from) ?? '',
         validUntil: day(c.valid_until),
         requiresAuthorization: Boolean(c.requires_authorization),
@@ -733,8 +736,11 @@ export interface UpcomingInsuranceAppointment {
 /** Atendimentos de convênio a partir de hoje (até 30), com a cobertura e as pendências. */
 export async function listUpcomingInsuranceAppointments(
   clinicId: string,
+  scope: GuideScope,
   limit = 30,
 ): Promise<UpcomingInsuranceAppointment[]> {
+  // Sem visão ampla (D-3, opção B): só os atendimentos em que a pessoa é a profissional.
+  const own = scope.kind === 'own' ? sql`AND a.doctor_id = ${scope.professionalId}::uuid` : sql``;
   return withTenant(clinicId, async (tx) => {
     const r = await rows(
       tx,
@@ -752,6 +758,7 @@ export async function listUpcomingInsuranceAppointments(
            WHERE a.clinic_id = ${clinicId}::uuid AND a.billing_mode = 'convenio'
              AND a.status::text IN ('agendado', 'confirmado', 'chegou')
              AND a.scheduled_at >= date_trunc('day', now())
+             ${own}
            ORDER BY a.scheduled_at LIMIT ${limit}`,
     );
     return r.map((x) => ({
@@ -1080,5 +1087,27 @@ export async function getPatientInsuranceOverview(
         passwordValidUntil: day(a.password_valid_until),
       })),
     };
+  });
+}
+
+/**
+ * D-3 (opção B): a pessoa tem atendimento (não cancelado) com o paciente nesta clínica? Usado só
+ * para a TELA oferecer carteirinha a quem não opera Convênios; a action confere de novo, na mesma
+ * transação da escrita (config-actions.ts, `membershipAccess`).
+ */
+export async function hasOwnAppointmentWithPatient(
+  clinicId: string,
+  professionalId: string,
+  patientId: string,
+): Promise<boolean> {
+  return withTenant(clinicId, async (tx) => {
+    const r = await rows(
+      tx,
+      sql`SELECT 1 AS ok FROM public.appointments
+           WHERE clinic_id = ${clinicId}::uuid AND patient_id = ${patientId}::uuid
+             AND doctor_id = ${professionalId}::uuid AND status::text <> 'cancelado'
+           LIMIT 1`,
+    );
+    return r.length > 0;
   });
 }

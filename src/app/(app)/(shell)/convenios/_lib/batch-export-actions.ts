@@ -36,7 +36,7 @@ export async function requestBatchExportAction(input: { batchId: string; version
   try {
     const d = z.object({ batchId: z.string().uuid(), version: z.number().int().min(1) }).parse(input);
     const user = await requireUser();
-    await requireFreshPermission(PERMISSIONS.MANAGE_FINANCIAL);
+    await requireFreshPermission(PERMISSIONS.MANAGE_FATURAMENTO_CONVENIO);
     const clinicId = await requireClinicId();
     const rc = await requestContext();
     const key = batchExportKey(d.batchId, d.version);

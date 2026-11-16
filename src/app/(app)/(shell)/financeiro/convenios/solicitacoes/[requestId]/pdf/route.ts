@@ -20,7 +20,7 @@ import {
   TissFileMissingError,
 } from '@/contexts/health-insurance/downloads';
 import { requestContext } from '@/lib/audit/request-context-from-headers';
-import { PERMISSIONS } from '@/lib/auth/permissions';
+import { CONVENIOS_RULES } from '@/contexts/health-insurance/rights';
 import { resourceGate } from '@/lib/auth/page-guard';
 import { assertClinicalPdfDownloadAllowed } from '@/lib/auth/rate-limit';
 import { supabaseTissObjectStore } from '@/lib/storage/tiss-files';
@@ -39,7 +39,8 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ requestId: string }> },
 ): Promise<Response> {
-  const gate = await resourceGate([PERMISSIONS.VIEW_FINANCIAL]);
+  // Documento da solicitação SP/SADT: recepção (operar) ou faturamento (matriz 4.2).
+  const gate = await resourceGate(CONVENIOS_RULES.readReceipt);
   if (!gate) return tissNotFound();
   const parsed = z.uuid().safeParse((await params).requestId);
   if (!parsed.success) return tissNotFound();

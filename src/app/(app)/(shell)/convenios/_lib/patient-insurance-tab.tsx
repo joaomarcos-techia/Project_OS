@@ -58,7 +58,7 @@ export async function PatientInsuranceTab({
 }: {
   clinicId: string;
   patientId: string;
-  /** Recepção cadastra carteirinha (editar paciente); o link só aparece com tudo liberado. */
+  /** Quem opera Convênios (recepção, `operate:convenios`) cadastra carteirinha; o link só aparece com tudo liberado. */
   canEditPatients: boolean;
 }) {
   const installed = await isInsuranceSchemaInstalled(clinicId);

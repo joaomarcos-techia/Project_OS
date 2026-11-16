@@ -9,8 +9,6 @@ import {
   getSchedulingInsuranceOptions,
   listUpcomingInsuranceAppointments,
 } from '@/contexts/health-insurance/config-queries';
-import { requireUser } from '@/lib/auth/tenant-context';
-import { PERMISSIONS } from '@/lib/auth/permissions';
 
 import { ConveniosHeader, conveniosAccess } from '../_lib/access';
 import { CoverageForm } from '../_lib/config-ui';
@@ -36,10 +34,12 @@ const TONE: Record<string, 'green' | 'amber' | 'red' | 'blue' | 'gray'> = {
 export default async function AtendimentosConvenioPage() {
   const access = await conveniosAccess('Atendimentos de convênio');
   if (!access.ok) return access.view;
-  const user = await requireUser();
-  const canEditAgenda = user.permissions.includes(PERMISSIONS.EDIT_AGENDA);
+  // Matriz I.2 + D-3 (opção B): a recepção registra a cobertura de qualquer atendimento; sem visão
+  // ampla, a lista já vem só com os atendimentos da própria pessoa, e ela registra só neles (a
+  // action confere a posse de novo no servidor).
+  const canEditAgenda = access.rights.operate || !access.rights.broad;
   const [rows, options] = await Promise.all([
-    listUpcomingInsuranceAppointments(access.clinicId),
+    listUpcomingInsuranceAppointments(access.clinicId, access.scope),
     canEditAgenda ? getSchedulingInsuranceOptions(access.clinicId) : Promise.resolve(null),
   ]);
   const insurers = options?.insurers ?? [];

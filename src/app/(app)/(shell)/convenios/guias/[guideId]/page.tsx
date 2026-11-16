@@ -27,7 +27,7 @@ import {
   listConsultaFieldOptions,
 } from '@/contexts/health-insurance/queries';
 
-import { brl, ConveniosHeader, conveniosAccess, shortDate } from '../../_lib/access';
+import { brl, brlOrDash, ConveniosHeader, conveniosAccess, shortDate } from '../../_lib/access';
 import { ActionButton, Actions, AnswerAppealForm, AppealForm, FileAppealForm, TextAction } from '../../_lib/action-ui';
 import { ConsultaFieldsPanel } from '../../_lib/consulta-fields-ui';
 import { GlossStatusBadge, GuideStatusBadge } from '../../_lib/status';
@@ -49,13 +49,18 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
   if (!access.ok) return access.view;
   const { guideId } = await params;
   if (!/^[0-9a-f-]{36}$/u.test(guideId)) notFound();
-  const g = await getGuideDetail(access.clinicId, guideId);
+  // Sem visão ampla, guia de outra pessoa é "não encontrada" (o servidor filtra por posse).
+  const g = await getGuideDetail(access.clinicId, guideId, access.guideView);
   if (!g) notFound();
-  const m = access.canManage;
+  // Matriz I.2: conferir, devolver e corrigir = recepção ou faturamento; aprovar, cancelar, glosa,
+  // recurso e conciliação = faturamento. As actions conferem de novo no servidor.
+  const review = access.rights.operate || access.rights.bill;
+  const bill = access.rights.bill;
   // D24 (P0.3 de 15/11): em trial ou com a assinatura parada, a tela não oferece o que o
   // servidor recusa (ajustar, conferir, aprovar, devolver). Cancelar, conciliar e o que é da
   // conta com a operadora (preservação) seguem com o servidor decidindo.
-  const operable = m && !access.commercial;
+  const operable = review && !access.commercial;
+  const operableBill = bill && !access.commercial;
   const ref = { guideId: g.id, version: g.version };
   const label = guideLabel(g.guideType, g.number);
   // D11 (P4.6): opções da terminologia da própria guia, vigentes na data do atendimento.
@@ -72,7 +77,7 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
         description={`${g.insurerName}${g.patientName ? ` · ${g.patientName}` : ''}`}
         crumbs={[{ label: 'Guias', href: '/convenios/guias' }, { label }]}
         actions={
-          ISSUED.includes(g.status) ? (
+          ISSUED.includes(g.status) && access.rights.emittedDocuments ? (
             <a href={`/financeiro/convenios/guias/${g.id}/pdf`} target="_blank" rel="noopener" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
               Ver PDF da guia
             </a>
@@ -87,10 +92,12 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
               <dt className="text-fg-muted">Etapa</dt>
               <dd><GuideStatusBadge status={g.status} /></dd>
             </div>
-            <div>
-              <dt className="text-fg-muted">Valor</dt>
-              <dd className="font-semibold tabular-nums">{brl(g.totalValueCents)}</dd>
-            </div>
+            {access.rights.seeValues ? (
+              <div>
+                <dt className="text-fg-muted">Valor</dt>
+                <dd className="font-semibold tabular-nums">{brlOrDash(g.totalValueCents)}</dd>
+              </div>
+            ) : null}
             <div>
               <dt className="text-fg-muted">Lote</dt>
               <dd>{g.batchId ? <Link href={`/convenios/lotes/${g.batchId}`} className="hover:underline">{g.batchNumber}</Link> : '—'}</dd>
@@ -101,22 +108,22 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
             </div>
           </dl>
           {g.cancelReason ? <p className="mt-(--sp-2) text-(length:--fs-sm)">Motivo do cancelamento: {g.cancelReason}</p> : null}
-          {m ? (
+          {review || bill ? (
             <div className="mt-(--sp-3)">
               <Actions>
                 {operable && g.status === 'ready_for_review' && g.issues.length === 0 ? (
                   <ActionButton label="Marcar como conferida" success="Guia conferida" variant="primary" action={reviewGuideAction.bind(null, ref)} />
                 ) : null}
-                {operable && g.status === 'reviewed' ? (
+                {operableBill && g.status === 'reviewed' ? (
                   <ActionButton label="Aprovar e emitir" success="Guia aprovada e emitida" variant="primary" action={approveGuideAction.bind(null, { guideId: g.id })} />
                 ) : null}
                 {operable && ['reviewed', 'approved'].includes(g.status) ? (
                   <TextAction label="Devolver para correção" success="Guia devolvida para correção" action={returnGuideAction} base={ref} field="note" fieldLabel="O que precisa ser corrigido" />
                 ) : null}
-                {['pending_data', 'ready_for_review', 'reviewed', 'approved'].includes(g.status) ? (
+                {bill && ['pending_data', 'ready_for_review', 'reviewed', 'approved'].includes(g.status) ? (
                   <TextAction label="Cancelar guia" success="Guia cancelada" variant="danger" action={cancelGuideAction} base={ref} field="note" fieldLabel="Motivo do cancelamento" hint="O cancelamento é final; o atendimento fica livre para uma guia nova." />
                 ) : null}
-                {g.account && g.account.pendingCents === 0 && g.status !== 'closed' && openGlosses.length === 0 ? (
+                {bill && g.account && g.account.pendingCents === 0 && g.status !== 'closed' && openGlosses.length === 0 ? (
                   <ActionButton label="Conciliar e encerrar" success="Guia conciliada" variant="primary" action={reconcileGuideAction.bind(null, ref)} />
                 ) : null}
               </Actions>
@@ -163,7 +170,7 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
                 <TableHead>Código</TableHead>
                 <TableHead>Descrição</TableHead>
                 <TableHead className="text-right">Qtd.</TableHead>
-                <TableHead className="text-right">Valor</TableHead>
+                {access.rights.seeValues ? <TableHead className="text-right">Valor</TableHead> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -174,7 +181,7 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
                   <TableCell className="tabular-nums">{it.tableCode} · {it.procedureCode}</TableCell>
                   <TableCell>{it.description}</TableCell>
                   <TableCell className="text-right tabular-nums">{it.quantity}</TableCell>
-                  <TableCell className="text-right tabular-nums">{brl(it.totalValueCents)}</TableCell>
+                  {access.rights.seeValues ? <TableCell className="text-right tabular-nums">{brlOrDash(it.totalValueCents)}</TableCell> : null}
                 </TableRow>
               ))}
             </TableBody>
@@ -213,7 +220,7 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
                     {x.reversedCents > 0 ? <span className="text-fg-muted">revertida {brl(x.reversedCents)}</span> : null}
                     <span className="text-fg-muted">{x.source === 'statement' ? 'do demonstrativo' : 'registro manual'} · {shortDate(x.createdAt)}</span>
                   </div>
-                  {m && OPEN_GLOSS.includes(x.status) ? (
+                  {bill && OPEN_GLOSS.includes(x.status) ? (
                     <Actions>
                       {x.status === 'informed' ? (
                         <ActionButton label="Analisar" success="Glosa em análise" action={decideGlossAction.bind(null, { glossId: x.id, version: x.version, to: 'under_analysis' })} />
@@ -239,7 +246,7 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
           )}
 
           <h3 className="mt-(--sp-4) mb-(--sp-2) text-(length:--fs-sm) font-semibold">Recursos</h3>
-          {m ? (
+          {bill ? (
             <AppealForm
               guideId={g.id}
               glosses={openGlosses.map((x) => ({ id: x.id, label: `Código ${x.code} · ${brl(x.amountCents)}` }))}
@@ -261,7 +268,7 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
                     {a.answeredOn ? <span className="text-fg-muted">respondido em {shortDate(a.answeredOn)}</span> : null}
                   </div>
                   <Actions>
-                    {m && a.status === 'draft' && !a.xmlFileId ? (
+                    {bill && a.status === 'draft' && !a.xmlFileId ? (
                       <ActionButton label="Gerar XML do recurso (TISS)" success="XML do recurso gerado e validado no XSD" action={exportAppealXmlAction.bind(null, { appealId: a.id })} />
                     ) : null}
                     {a.xmlFileId ? (
@@ -270,8 +277,8 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
                       </a>
                     ) : null}
                   </Actions>
-                  {m && a.status === 'draft' ? <FileAppealForm appealId={a.id} version={a.version} action={fileAppealAction} /> : null}
-                  {m && a.status === 'filed' ? (
+                  {bill && a.status === 'draft' ? <FileAppealForm appealId={a.id} version={a.version} action={fileAppealAction} /> : null}
+                  {bill && a.status === 'filed' ? (
                     <AnswerAppealForm
                       appealId={a.id}
                       version={a.version}
@@ -295,7 +302,7 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
                   <span className="tabular-nums">{brl(a.amountCents)}</span>
                   <span className="text-fg-muted">pago em {shortDate(a.paidOn)}</span>
                   {a.reason ? <span className="text-fg-muted">— {a.reason}</span> : null}
-                  {m && a.kind === 'allocation' && !a.reversed ? (
+                  {bill && a.kind === 'allocation' && !a.reversed ? (
                     <TextAction label="Estornar" success="Pagamento estornado (lançamento compensatório)" variant="ghost" action={reverseAllocationAction} base={{ allocationId: a.id }} field="reason" fieldLabel="Motivo do estorno" />
                   ) : null}
                 </li>

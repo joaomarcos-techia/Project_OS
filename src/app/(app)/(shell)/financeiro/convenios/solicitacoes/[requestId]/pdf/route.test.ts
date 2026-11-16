@@ -68,7 +68,7 @@ describe('GET /financeiro/convenios/solicitacoes/:requestId/pdf (P6.2)', () => {
 
   it('exige ver o financeiro, lê o PDF GUARDADO da clínica da sessão com finalidade auditada, sem cache', async () => {
     const res = await call();
-    expect(mocks.resourceGate).toHaveBeenCalledWith([PERMISSIONS.VIEW_FINANCIAL]);
+    expect(mocks.resourceGate).toHaveBeenCalledWith([PERMISSIONS.OPERATE_CONVENIOS, PERMISSIONS.MANAGE_FATURAMENTO_CONVENIO]);
     expect(mocks.findSadtRequestDocument).toHaveBeenCalledWith('clinic-1', REQUEST, 'user-1');
     expect(mocks.readTissFile).toHaveBeenCalledWith(
       mocks.store,

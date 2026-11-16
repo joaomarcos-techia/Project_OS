@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { PanelCard } from '@/components/ui/panel-card';
 import {
   getPatientMemberships,
+  hasOwnAppointmentWithPatient,
   MEMBERSHIP_STATUS_LABELS,
   searchPatientsForCards,
 } from '@/contexts/health-insurance/config-queries';
@@ -39,6 +40,11 @@ export default async function CarteirinhasPage({ searchParams }: { searchParams:
     q.trim().length >= 2 ? searchPatientsForCards(access.clinicId, q) : Promise.resolve([]),
     patientId ? getPatientMemberships(access.clinicId, patientId) : Promise.resolve(null),
   ]);
+  // Matriz I.2 + D-3 (opção B): a recepção opera em qualquer paciente; sem operar Convênios, só no
+  // paciente com quem a pessoa tem atendimento. A action confere de novo no servidor.
+  const canEditCards =
+    access.rights.operate ||
+    (selected !== null && !access.rights.broad && (await hasOwnAppointmentWithPatient(access.clinicId, access.userId, selected.patient.id)));
 
   return (
     <>
@@ -82,12 +88,12 @@ export default async function CarteirinhasPage({ searchParams }: { searchParams:
 
       {selected ? (
         <PanelCard title={selected.patient.nome} regionLabel="Carteirinhas do paciente" className="mb-(--sp-4)">
-          {access.canEditPatients ? (
+          {canEditCards ? (
             <div className="mb-(--sp-3)">
               <NewMembershipForm patientId={selected.patient.id} insurers={selected.insurers} />
             </div>
           ) : (
-            <p className="mb-(--sp-3) text-(length:--fs-sm) text-fg-muted">Seu perfil vê as carteirinhas; cadastrar e alterar é de quem edita pacientes.</p>
+            <p className="mb-(--sp-3) text-(length:--fs-sm) text-fg-muted">Seu perfil vê as carteirinhas; cadastrar e alterar é da recepção ou da profissional que atende o paciente.</p>
           )}
           {selected.cards.length === 0 ? (
             <EmptyState title="Nenhuma carteirinha" description="Cadastre a carteirinha para o atendimento de convênio sair sem pendência." />
@@ -106,7 +112,7 @@ export default async function CarteirinhasPage({ searchParams }: { searchParams:
                     {c.planName ?? 'Plano não informado'} · {c.holderKind === 'dependente' ? 'Dependente' : 'Titular'} · validade{' '}
                     {c.validUntil ? shortDate(c.validUntil) : 'não informada'} · cadastrada em {shortDate(c.createdAt)}
                   </div>
-                  {access.canEditPatients ? <MembershipActions card={c} insurer={selected.insurers.find((i) => i.id === c.insurerId)} /> : null}
+                  {canEditCards ? <MembershipActions card={c} insurer={selected.insurers.find((i) => i.id === c.insurerId)} /> : null}
                 </li>
               ))}
             </ul>

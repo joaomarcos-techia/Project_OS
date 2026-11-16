@@ -36,6 +36,7 @@ vi.mock('@/contexts/health-insurance/queries', () => ({
 
 import AutorizacaoPage from './[authorizationId]/page';
 import AutorizacoesPage from './page';
+import { accessFor, PROFILES } from '../_lib/access-fixture';
 
 const A1 = '11111111-1111-4111-8111-111111111111';
 const A2 = '22222222-2222-4222-8222-222222222222';
@@ -77,7 +78,7 @@ const rows = [
 afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
-  m.conveniosAccess.mockResolvedValue({ ok: true, clinicId: 'c1', canManage: true, commercial: null });
+  m.conveniosAccess.mockResolvedValue(accessFor(PROFILES.gestor, { commercial: null }));
   m.listAuthorizations.mockResolvedValue({
     today: '2026-11-16',
     rows,
@@ -133,11 +134,11 @@ describe('detalhe da autorização', () => {
     render(await AutorizacaoPage(params(A2)));
     expect(screen.getByRole('button', { name: 'Registrar resposta da operadora' })).toBeTruthy();
     cleanup();
-    m.conveniosAccess.mockResolvedValueOnce({ ok: true, clinicId: 'c1', canManage: false, commercial: null });
+    m.conveniosAccess.mockResolvedValueOnce(accessFor(PROFILES.leitura, { commercial: null }));
     render(await AutorizacaoPage(params(A2)));
     expect(screen.queryByRole('button', { name: 'Registrar resposta da operadora' })).toBeNull();
     cleanup();
-    m.conveniosAccess.mockResolvedValueOnce({ ok: true, clinicId: 'c1', canManage: true, commercial: 'trial' });
+    m.conveniosAccess.mockResolvedValueOnce(accessFor(PROFILES.gestor, { commercial: 'trial' }));
     render(await AutorizacaoPage(params(A2)));
     expect(screen.queryByRole('button', { name: 'Registrar resposta da operadora' })).toBeNull();
   });

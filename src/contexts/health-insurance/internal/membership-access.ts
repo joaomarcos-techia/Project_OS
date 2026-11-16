@@ -34,18 +34,18 @@ import { hiMemberships } from '../schema-clinic';
 
 /**
  * Finalidades declaradas, ligadas à operação e à permissão exigida.
- * As permissões próprias do convênio chegam na P1.12; até lá, as mais próximas
- * do catálogo atual.
+ * Permissões próprias do convênio (matriz I.2, P1.12-b, aprovada em 16/11): a recepção
+ * (`operate:convenios`) no atendimento e na autorização; o faturamento nas demais.
  */
 export const CARD_ACCESS_PURPOSES = {
   /** Recepção confere a carteirinha completa no atendimento. */
-  atendimento: { permission: PERMISSIONS.EDIT_PATIENT },
+  atendimento: { permission: PERMISSIONS.OPERATE_CONVENIOS },
   /** Pedido de autorização à operadora. */
-  autorizacao: { permission: PERMISSIONS.EDIT_PATIENT },
+  autorizacao: { permission: PERMISSIONS.OPERATE_CONVENIOS },
   /** Montagem da guia (Consulta ou SP/SADT). */
-  geracao_guia: { permission: PERMISSIONS.MANAGE_FINANCIAL },
+  geracao_guia: { permission: PERMISSIONS.MANAGE_FATURAMENTO_CONVENIO },
   /** Lote, envio e conferência de faturamento. */
-  faturamento: { permission: PERMISSIONS.MANAGE_FINANCIAL },
+  faturamento: { permission: PERMISSIONS.MANAGE_FATURAMENTO_CONVENIO },
   /** Exportação de dados do paciente (LGPD ou pedido da clínica). */
   exportacao: { permission: PERMISSIONS.EXPORT_PATIENT },
 } as const satisfies Record<string, { permission: Permission }>;

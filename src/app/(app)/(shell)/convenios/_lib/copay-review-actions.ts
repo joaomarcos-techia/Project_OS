@@ -64,7 +64,7 @@ async function write(permission: Permission, action: string, copaymentId: string
 export async function checkCopayReviewAction(input: { copaymentId: string; checkedCents: number }): Promise<Result> {
   try {
     const d = z.object({ copaymentId: uuid, checkedCents: cents }).parse(input);
-    await write(PERMISSIONS.EDIT_PATIENT, 'health_insurance.copay.checked', d.copaymentId, async (tx, ctx) => {
+    await write(PERMISSIONS.OPERATE_CONVENIOS, 'health_insurance.copay.checked', d.copaymentId, async (tx, ctx) => {
       await checkCopay(tx, { clinicId: ctx.clinicId, copaymentId: d.copaymentId, checkedCents: d.checkedCents, actorUserId: ctx.userId });
       return { checkedCents: d.checkedCents };
     });

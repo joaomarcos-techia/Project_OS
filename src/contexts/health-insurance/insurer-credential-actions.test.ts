@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const m = vi.hoisted(() => ({
   requireUser: vi.fn(),
   requireCachedPermission: vi.fn(),
+  requireFreshPermission: vi.fn(),
   requireClinicId: vi.fn(),
   logAudit: vi.fn(),
   saveInsurerCredentialTx: vi.fn(),
@@ -32,6 +33,7 @@ vi.mock('@/lib/auth/tenant-context', async () => {
     AuthError,
     requireUser: m.requireUser,
     requireCachedPermission: m.requireCachedPermission,
+    requireFreshPermission: m.requireFreshPermission,
     requireClinicId: m.requireClinicId,
   };
 });
@@ -70,6 +72,7 @@ describe('ações de credencial da operadora', () => {
     vi.clearAllMocks();
     m.requireUser.mockResolvedValue({ userId: 'u1' });
     m.requireCachedPermission.mockResolvedValue(undefined);
+    m.requireFreshPermission.mockResolvedValue(undefined);
     m.requireClinicId.mockResolvedValue(CLINIC);
     m.saveInsurerCredentialTx.mockResolvedValue({ credentialId: CREDENTIAL, rotated: true });
     for (const level of ['log', 'info', 'warn', 'error', 'debug'] as const) {
@@ -88,7 +91,7 @@ describe('ações de credencial da operadora', () => {
       secret: SECRET,
     });
     expect(r).toEqual({ ok: true, data: { rotated: true } });
-    expect(m.requireCachedPermission).toHaveBeenCalledWith(PERMISSIONS.MANAGE_FINANCIAL);
+    expect(m.requireCachedPermission).toHaveBeenCalledWith(PERMISSIONS.MANAGE_CONVENIOS);
     expect(m.saveInsurerCredentialTx).toHaveBeenCalledOnce();
     expect(m.logAudit).toHaveBeenCalledOnce();
     const audit = m.logAudit.mock.calls[0]![1];
@@ -150,7 +153,7 @@ describe('ações de credencial da operadora', () => {
   it('revogar exige gerenciar o financeiro e audita o novo estado', async () => {
     const r = await revokeInsurerCredentialAction({ insurerId: INSURER, credentialId: CREDENTIAL });
     expect(r).toEqual({ ok: true, data: null });
-    expect(m.requireCachedPermission).toHaveBeenCalledWith(PERMISSIONS.MANAGE_FINANCIAL);
+    expect(m.requireCachedPermission).toHaveBeenCalledWith(PERMISSIONS.MANAGE_CONVENIOS);
     expect(m.revokeInsurerCredentialTx).toHaveBeenCalledWith(expect.anything(), {
       clinicId: CLINIC,
       insurerId: INSURER,

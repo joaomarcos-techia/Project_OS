@@ -70,8 +70,10 @@ export function patientPageCapabilities(user: PatientPageUser) {
     canSignProntuario: has(PERMISSIONS.SIGN_PRONTUARIO),
     canViewDocuments: has(PERMISSIONS.VIEW_PRESCRIPTION),
     canCreateDocuments: has(PERMISSIONS.CREATE_PRESCRIPTION),
-    // Convênios = ver o financeiro (o mesmo gate de /convenios); a aba só lê.
-    canViewInsurance: has(PERMISSIONS.VIEW_FINANCIAL),
+    // Convênios (matriz I.2): entrar no módulo abre a aba (só leitura, número mascarado); o link de
+    // gestão das carteirinhas é de quem opera Convênios (recepção). O mesmo gate de /convenios.
+    canViewInsurance: has(PERMISSIONS.VIEW_CONVENIOS),
+    canOperateInsurance: has(PERMISSIONS.OPERATE_CONVENIOS),
   };
 }
 
@@ -163,6 +165,7 @@ export default async function PacienteDetailPage({
     canViewDocuments,
     canCreateDocuments,
     canViewInsurance,
+    canOperateInsurance,
   } = capabilities;
   // Sem a permissão, o deep-link `?tab=convenios` cai na visão geral (mesma regra do AUTHZ-003).
   const tab: Tab =
@@ -236,7 +239,7 @@ export default async function PacienteDetailPage({
           <PatientInsuranceTab
             clinicId={clinicId}
             patientId={p.id}
-            canEditPatients={canEditPatient}
+            canEditPatients={canOperateInsurance}
           />
         </Suspense>
       ) : null}

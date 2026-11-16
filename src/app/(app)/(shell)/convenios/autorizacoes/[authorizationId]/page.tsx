@@ -23,7 +23,7 @@ const stateLabel = (s: string | null) => (s ? (AUTHORIZATION_STATUS[s]?.label ??
 
 /** P6.3 — uma autorização: itens e saldo, resposta da operadora, comprovantes e histórico. */
 export default async function AutorizacaoPage({ params }: { params: Promise<{ authorizationId: string }> }) {
-  const access = await conveniosAccess('Autorização da operadora');
+  const access = await conveniosAccess('Autorização da operadora', 'broad');
   if (!access.ok) return access.view;
   const { authorizationId } = await params;
   if (!/^[0-9a-f-]{36}$/u.test(authorizationId)) notFound();
@@ -31,7 +31,7 @@ export default async function AutorizacaoPage({ params }: { params: Promise<{ au
   if (!detail) notFound();
   const { row: r, events, receipts } = detail;
   const waiting = WAITING.includes(r.status);
-  const canRespond = waiting && r.guideType === 'consulta' && access.canManage && !access.commercial;
+  const canRespond = waiting && r.guideType === 'consulta' && access.rights.operate && !access.commercial;
   const title = `Autorização · ${r.guideType === 'sp_sadt' ? 'SP/SADT' : 'Consulta'}`;
 
   return (

@@ -17,7 +17,7 @@ import {
   type ContractLineView,
 } from '@/contexts/health-insurance/config-queries';
 
-import { brl, ConveniosHeader, conveniosAccess, shortDate } from '../../../_lib/access';
+import { brl, brlOrDash, ConveniosHeader, conveniosAccess, shortDate } from '../../../_lib/access';
 import {
   ContractRevisionForm,
   CredentialRevisionForm,
@@ -81,14 +81,16 @@ export default async function OperadoraPage({ params }: { params: Promise<{ insu
   const access = await conveniosAccess('Operadora');
   if (!access.ok) return access.view;
   if (!UUID.test(insurerId)) notFound();
-  const d = await getInsurerDetail(access.clinicId, insurerId);
+  // Preço do contrato só para quem configura ou vê faturamento (D-1, matriz 4.4): o servidor nem devolve.
+  const prices = access.rights.configure || access.rights.seeValues;
+  const d = await getInsurerDetail(access.clinicId, insurerId, { prices });
   if (!d) notFound();
   const i = d.insurer;
   const live = d.lines.filter((l) => l.live);
   const history = d.lines.filter((l) => !l.live);
-  const editable = access.canManage && i.status !== 'archived';
+  const editable = access.rights.configure && i.status !== 'archived';
   const imports = editable ? await listContractImports(access.clinicId, insurerId) : [];
-  const credentials = access.canManage ? await listInsurerCredentials(access.clinicId, insurerId) : [];
+  const credentials = access.rights.configure ? await listInsurerCredentials(access.clinicId, insurerId) : [];
 
   return (
     <>
@@ -125,7 +127,7 @@ export default async function OperadoraPage({ params }: { params: Promise<{ insu
             Rascunho: a operadora ainda não aparece no agendamento. Cadastre os procedimentos contratados e ative-a.
           </Alert>
         ) : null}
-        {access.canManage ? (
+        {access.rights.configure ? (
           <div className="flex flex-col gap-(--sp-3)">
             <InsurerStatusActions insurerId={i.id} status={i.status} />
             {i.status !== 'archived' ? <InsurerEditForm insurer={i} /> : null}
@@ -235,7 +237,7 @@ export default async function OperadoraPage({ params }: { params: Promise<{ insu
         ) : null}
       </PanelCard>
 
-      {access.canManage ? (
+      {access.rights.configure ? (
         <PanelCard title="Conexão com a operadora" regionLabel="Conexão com a operadora" className="mb-(--sp-4)">
           <InsurerConnectionPanel insurerId={i.id} credentials={credentials} editable={editable} />
         </PanelCard>
@@ -346,7 +348,7 @@ export default async function OperadoraPage({ params }: { params: Promise<{ insu
                     <TableCell>{GUIDE_LABEL[l.guideType]}</TableCell>
                     <TableCell>{l.planName ?? 'Todos'}</TableCell>
                     <TableCell>{period(l)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{brl(l.unitValueCents)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{brlOrDash(l.unitValueCents)}</TableCell>
                     <TableCell>{copayText(l)}</TableCell>
                     <TableCell>
                       {l.requiresAuthorization ? 'Exige' : 'Não exige'}
@@ -384,7 +386,7 @@ export default async function OperadoraPage({ params }: { params: Promise<{ insu
                         {l.procedureCode} · {GUIDE_LABEL[l.guideType]}
                       </TableCell>
                       <TableCell>{period(l)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{brl(l.unitValueCents)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{brlOrDash(l.unitValueCents)}</TableCell>
                       <TableCell>{copayText(l)}</TableCell>
                       <TableCell>
                         {shortDate(l.createdAt)}

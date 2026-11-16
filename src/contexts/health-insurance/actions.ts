@@ -5,7 +5,8 @@
  * devolver, aprovar, cancelar), lote (criar, exportar XML, enviar, protocolo, análise,
  * cancelar) e conta da guia (glosa, recurso, pagamento, estorno, conciliação).
  *
- * Pipeline de toda escrita: requireUser → permissão (gerenciar financeiro) → Zod →
+ * Pipeline de toda escrita: requireUser → permissão da matriz I.2 (`rights.ts`: a regra de cada
+ * escrita sai do evento de auditoria, falha fechada) → Zod →
  * serviço dentro de withTenant com a pessoa da sessão (as funções do banco conferem a
  * clínica, a versão, o estado e o bloqueio comercial de novo) → auditoria na mesma
  * transação. O resultado é `{ ok, data } | { ok: false, error }` com mensagem para o
@@ -22,8 +23,10 @@ import { requestContext } from '@/lib/audit/request-context-from-headers';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import {
   AuthError,
+  requireCachedAnyPermission,
   requireCachedPermission,
   requireClinicId,
+  requireFreshPermission,
   requireUser,
 } from '@/lib/auth/tenant-context';
 import { withTenant } from '@/lib/db/tenant';
@@ -60,6 +63,7 @@ import {
   type StatementImportResult,
 } from './internal/statement-import-service';
 import { loadXmllintValidator } from './tiss/xml/xsd-validator';
+import { CONVENIOS_RULES, allows, ruleForAuditAction, type ConveniosRule } from './rights';
 
 export type ActionResult<T = null> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -71,9 +75,10 @@ const cents = z.number().int().min(1).max(9_999_999_999);
 const reason = z.string().trim().min(10, 'Informe o motivo (10 a 500 caracteres).').max(500);
 const key = z.string().min(8).max(200);
 
-async function gate(): Promise<{ clinicId: string; userId: string }> {
+/** Portão: sessão → QUALQUER código da regra (matriz I.2) → clínica da sessão. */
+async function gate(rule: ConveniosRule): Promise<{ clinicId: string; userId: string }> {
   const user = await requireUser();
-  await requireCachedPermission(PERMISSIONS.MANAGE_FINANCIAL);
+  await requireCachedAnyPermission(CONVENIOS_RULES[rule]);
   const clinicId = await requireClinicId();
   return { clinicId, userId: user.userId };
 }
@@ -175,7 +180,7 @@ async function write<T>(
     ctx: { clinicId: string; userId: string },
   ) => Promise<T>,
 ): Promise<T> {
-  const ctx = await gate();
+  const ctx = await gate(ruleForAuditAction(action));
   const rc = await requestContext();
   return withTenant(
     ctx.clinicId,
@@ -324,7 +329,8 @@ export async function cancelGuideAction(
 export async function approveGuideAction(input: { guideId: string }): Promise<ActionResult<null>> {
   return run(async () => {
     const { guideId } = z.object({ guideId: uuid }).parse(input);
-    const ctx = await gate();
+    const ctx = await gate('bill');
+    await requireFreshPermission(PERMISSIONS.MANAGE_FATURAMENTO_CONVENIO);
     await approveConsultaGuide(ctx.clinicId, guideId);
     return null;
   });
@@ -360,7 +366,8 @@ export async function createBatchAction(
 export async function exportBatchAction(input: { batchId: string }): Promise<ActionResult<string>> {
   return run(async () => {
     const { batchId } = z.object({ batchId: uuid }).parse(input);
-    const ctx = await gate();
+    const ctx = await gate('bill');
+    await requireFreshPermission(PERMISSIONS.MANAGE_FATURAMENTO_CONVENIO);
     const validateXsd = loadXmllintValidator();
     const guideIds = await withTenant(ctx.clinicId, async (tx) =>
       (
@@ -655,7 +662,7 @@ export async function exportAppealXmlAction(input: {
 }): Promise<ActionResult<string>> {
   return run(async () => {
     const { appealId } = z.object({ appealId: uuid }).parse(input);
-    const ctx = await gate();
+    const ctx = await gate('bill');
     const out = await exportAppealXml(
       { store: supabaseTissObjectStore(), validateXsd: loadXmllintValidator() },
       {
@@ -816,7 +823,7 @@ export async function importStatementAction(
   form: FormData,
 ): Promise<ActionResult<StatementImportResult>> {
   return run(async () => {
-    const ctx = await gate();
+    const ctx = await gate('bill');
     const d = z
       .object({ insurerId: uuid, receivedOn: day })
       .parse({ insurerId: form.get('insurerId'), receivedOn: form.get('receivedOn') });
@@ -958,7 +965,7 @@ async function generateSadtRequestDocument(
   requestId: string,
   newborn: boolean,
 ): Promise<SadtRequestDocumentOutcome> {
-  const ctx = await gate();
+  const ctx = await gate('operate');
   const membershipId = await withTenant(
     ctx.clinicId,
     async (tx) => {
@@ -1223,17 +1230,22 @@ export async function setSadtClinicalIndicationAction(
       text: z.string().trim().min(3, 'Indicação clínica de 3 a 500 caracteres.').max(500),
     }).parse(input);
     const user = await requireUser();
+    // Sem entrar em Convênios, nem a existência da solicitação é consultada.
+    await requireCachedPermission(PERMISSIONS.VIEW_CONVENIOS);
     const clinicId = await requireClinicId();
-    const kind = await withTenant(clinicId, async (tx) => {
+    const req = await withTenant(clinicId, async (tx) => {
       const rows = (await tx.execute(
-        sql`SELECT requester_kind FROM public.hi_sadt_requests WHERE clinic_id = ${clinicId}::uuid AND id = ${d.requestId}::uuid`,
-      )) as unknown as Array<{ requester_kind: string }>;
-      return rows[0]?.requester_kind ?? null;
+        sql`SELECT requester_kind, requester_professional_id::text AS requester FROM public.hi_sadt_requests WHERE clinic_id = ${clinicId}::uuid AND id = ${d.requestId}::uuid`,
+      )) as unknown as Array<{ requester_kind: string; requester: string | null }>;
+      return rows[0] ?? null;
     });
-    if (!kind)
+    // Posse (matriz 4.2, "C + P para a médica"): sem operar Convênios, só a própria solicitação.
+    const broad = allows(user.permissions, 'operate');
+    if (!req || (!broad && !user.isSuperAdmin && req.requester !== user.userId))
       throw new sadt.SadtRequestError('Solicitação inexistente nesta clínica.', 'not_found');
+    const kind = req.requester_kind;
     await requireCachedPermission(
-      kind === 'internal' ? PERMISSIONS.CREATE_PRONTUARIO : PERMISSIONS.MANAGE_FINANCIAL,
+      kind === 'internal' ? PERMISSIONS.CREATE_PRONTUARIO : PERMISSIONS.OPERATE_CONVENIOS,
     );
     const rc = await requestContext();
     await withTenant(
@@ -1478,7 +1490,7 @@ export async function requestCopayChargeAction(input: {
 }): Promise<ActionResult<string>> {
   return run(async () => {
     const d = z.object({ copaymentId: uuid }).parse(input);
-    const ctx = await gate();
+    const ctx = await gate('patientCharge');
     const out = await requestCopayCharge(
       { createCheckout: (i) => paymentsApiV1.createCopayCheckout(i) },
       { clinicId: ctx.clinicId, copaymentId: d.copaymentId, actorUserId: ctx.userId },

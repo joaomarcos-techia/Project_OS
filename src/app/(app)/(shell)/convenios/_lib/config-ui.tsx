@@ -706,7 +706,7 @@ interface TermsState {
 
 function termsFromLine(l?: ContractLineView): TermsState {
   return {
-    value: l ? brlInput(l.unitValueCents) : '',
+    value: l && l.unitValueCents !== null ? brlInput(l.unitValueCents) : '',
     requiresAuthorization: l?.requiresAuthorization ?? false,
     copayKind: l?.copayKind ?? 'none',
     copayFixed: l ? brlInput(l.copayFixedCents) : '',

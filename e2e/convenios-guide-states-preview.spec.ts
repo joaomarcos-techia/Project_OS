@@ -12,8 +12,10 @@
  *   - duplo clique na mesma aba (salvar, conferir, aprovar), segunda aba desatualizada tentando
  *     aprovar de novo e a mesma aba atualizada depois;
  *   - pendência de validação real (carteirinha vencida) aparece e impede conferir;
- *   - ação direta (sem a navegação): recepção sem permissão e gestora de OUTRA clínica chamando a
- *     mesma server action com a guia desta clínica;
+ *   - matriz I.2 (aprovada em 16/11): a recepção (`operate:convenios`) RECEBE o ajuste da Consulta;
+ *     a médica (só `view:convenios`) abre a própria guia sem ajuste, e a server action chamada direto
+ *     por ela é recusada; a gestora de OUTRA clínica chamando a mesma action com a guia desta clínica
+ *     também;
  *   - controle positivo no fim: com tudo restaurado, o mesmo ajuste salva (as recusas acima eram
  *     do estado, não de um formulário quebrado).
  *
@@ -27,8 +29,8 @@
  *   E2E_HI_FIXTURE_CMD=<script> [E2E_HI_SHOTS=<dir>] VERCEL_AUTOMATION_BYPASS_SECRET=… MAGIC_TOKEN_SECRET=… \
  *     npx playwright test e2e/convenios-guide-states-preview.spec.ts --project=chromium
  *
- * Logins: gestora da clínica paga (2, o segundo depois de reativar o acesso), recepção (1) e a
- * gestora da clínica de configuração (1). Não rode outro spec autenticado na mesma janela.
+ * Logins: gestora da clínica paga (2, o segundo depois de reativar o acesso), recepção (1), médica (1)
+ * e a gestora da clínica de configuração (1). Não rode outro spec autenticado na mesma janela.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -678,17 +680,28 @@ test('pendência de validação: a carteirinha vencida aparece e a guia não se 
   await s.context.close();
 });
 
-test('ação direta sem permissão: a recepção chama a server action do ajuste e o servidor recusa', async ({
+test('matriz I.2: a recepção recebe o ajuste da Consulta em edição (operar Convênios)', async ({ browser }) => {
+  test.setTimeout(120_000);
+  const s = await login(browser, 'recepcao');
+  expect(await visit(s, g1())).toBe(200);
+  await expect(panel(s.page).getByRole('button', { name: 'Ajustar dados da consulta' })).toHaveCount(1);
+  // Sem visão de faturamento: o valor da guia não aparece (o servidor nem devolve).
+  await expect(s.page.getByRole('region', { name: 'Situação da guia' }).getByText('Valor')).toHaveCount(0);
+  expect(s.errors).toEqual([]);
+  await s.context.close();
+});
+
+test('ação direta sem permissão: a médica (só view:convenios) abre a própria guia, sem ajuste, e o servidor recusa a action', async ({
   browser,
 }) => {
   test.setTimeout(150_000);
-  const s = await login(browser, 'recepcao');
+  const s = await login(browser, 'medica');
   expect(await visit(s, g1())).toBe(200);
   await expect(
     panel(s.page).getByRole('button', { name: 'Ajustar dados da consulta' }),
   ).toHaveCount(0);
   const res = await callActionDirectly(s.page, captured!.body);
-  console.log(`recepção, chamada direta: HTTP ${res.status}`);
+  console.log(`médica, chamada direta: HTTP ${res.status}`);
   expect(res.text).toContain('"ok":false');
   expect(res.text).not.toContain('"ok":true');
   expect(res.text).toContain(NO_PERMISSION_MSG);

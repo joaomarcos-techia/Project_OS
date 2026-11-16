@@ -17,19 +17,19 @@ export const dynamic = 'force-dynamic';
 type Search = Promise<Record<string, string | string[] | undefined>>;
 
 export default async function LotesPage({ searchParams }: { searchParams: Search }) {
-  const access = await conveniosAccess('Lotes');
+  const access = await conveniosAccess('Lotes', 'seeValues');
   if (!access.ok) return access.view;
   const sp = await searchParams;
   const status = typeof sp.status === 'string' && BATCH_STATUS_LABELS[sp.status] ? sp.status : undefined;
   const [batches, candidates] = await Promise.all([
     listBatches(access.clinicId, status ? { status } : {}),
-    access.canManage ? listBatchCandidates(access.clinicId) : Promise.resolve([]),
+    access.rights.bill ? listBatchCandidates(access.clinicId) : Promise.resolve([]),
   ]);
 
   return (
     <>
       <ConveniosHeader commercial={access.commercial} title="Lotes" description="Guias aprovadas agrupadas por operadora, com o XML oficial validado." crumbs={[{ label: 'Lotes' }]} />
-      {access.canManage ? (
+      {access.rights.bill ? (
         <PanelCard title="Montar lote" regionLabel="Montar lote" className="mb-(--sp-4)">
           <NewBatchForm candidates={candidates} />
         </PanelCard>

@@ -57,14 +57,14 @@ const RETURN_LABELS: Record<string, string> = {
 };
 
 export default async function LotePage({ params }: { params: Promise<{ batchId: string }> }) {
-  const access = await conveniosAccess('Lote');
+  const access = await conveniosAccess('Lote', 'seeValues');
   if (!access.ok) return access.view;
   const { batchId } = await params;
   if (!/^[0-9a-f-]{36}$/u.test(batchId)) notFound();
   const b = await getBatchDetail(access.clinicId, batchId);
   const job = b && b.status === 'prepared' ? await getBatchExportJob(access.clinicId, b.id, b.version) : null;
   if (!b) notFound();
-  const m = access.canManage;
+  const m = access.rights.bill;
   const ref = { batchId: b.id, version: b.version };
   const atOperator = ['sent', 'received', 'under_review', 'processed'].includes(b.status);
   const guideOptions = b.guides.map((g) => ({ id: g.id, number: g.number, pendingCents: g.pendingCents, guideType: b.guideType }));

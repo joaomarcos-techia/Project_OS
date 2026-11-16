@@ -40,9 +40,9 @@ export default async function SolicitacaoPage({ params }: { params: Promise<{ re
   if (!access.ok) return access.view;
   const { requestId } = await params;
   if (!/^[0-9a-f-]{36}$/u.test(requestId)) notFound();
-  const r = await getSadtRequestDetail(access.clinicId, requestId);
+  const r = await getSadtRequestDetail(access.clinicId, requestId, access.scope);
   if (!r) notFound();
-  const m = access.canManage;
+  const m = access.rights.operate;
   const ref = { requestId: r.id, version: r.version };
   const activeItems = r.itemRows.filter((i) => i.status === 'active');
   const careLabel = CARE_TYPES.find(([code]) => code === r.careType)?.[1] ?? r.careType ?? '—';

@@ -265,7 +265,7 @@ export async function issueConsultaGuide(
  * leitura auditada da carteirinha e emissão transacional.
  */
 export async function approveConsultaGuide(clinicId: string, guideId: string) {
-  await requireFreshPermission(PERMISSIONS.MANAGE_FINANCIAL);
+  await requireFreshPermission(PERMISSIONS.MANAGE_FATURAMENTO_CONVENIO);
   const user = await requireUser();
   const head = await withTenant(clinicId, async (tx) => {
     const [g] = await tx

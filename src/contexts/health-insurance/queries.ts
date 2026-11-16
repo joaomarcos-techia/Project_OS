@@ -27,11 +27,29 @@ import {
 } from './tiss/assembly/consulta-overrides';
 
 import type { GuideIssue } from './tiss/validation/common';
+import type { GuideScope } from './rights';
 
 type Row = Record<string, unknown>;
 const n = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));
 const s = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
 const iso = (v: unknown): string | null => (v instanceof Date ? v.toISOString() : v ? String(v) : null);
+
+/**
+ * Visão da guia (matriz I.2, P1.12-b): o ESCOPO (clínica inteira ou só as próprias, por executante ou
+ * solicitante) e se os VALORES saem. Obrigatória nas consultas de guia: sem visão de faturamento, os
+ * valores nem saem do servidor (D-4: ocultos por padrão), e guia de outra pessoa sem visão ampla é
+ * "não encontrada".
+ */
+export interface GuideView {
+  scope: GuideScope;
+  values: boolean;
+}
+
+function guideScopeSql(scope: GuideScope) {
+  return scope.kind === 'own'
+    ? sql`AND (g.executant_professional_id = ${scope.professionalId}::uuid OR g.requester_professional_id = ${scope.professionalId}::uuid)`
+    : sql``;
+}
 
 export { GUIDE_STATUS_LABELS };
 export { guideEventLabel } from './guide-event-label';
@@ -101,8 +119,10 @@ export interface InsurerSummary {
 
 export interface InsuranceOverview {
   enabled: boolean;
+  /** Vazio sem visão de faturamento. */
   insurers: InsurerSummary[];
-  totals: Omit<InsurerSummary, 'insurerId' | 'name' | 'guides'> & { guides: number };
+  /** Nulo sem visão de faturamento (nenhum valor sai do servidor). */
+  totals: (Omit<InsurerSummary, 'insurerId' | 'name' | 'guides'> & { guides: number }) | null;
   guidesByStatus: Record<string, number>;
   /** Pendências de faturamento abertas (atendimento sem guia pronta), por responsável. */
   openGapsByOwner: Record<string, number>;
@@ -112,30 +132,32 @@ export interface InsuranceOverview {
   ledgerDrift: number;
 }
 
-export async function getInsuranceOverview(clinicId: string): Promise<InsuranceOverview> {
+export async function getInsuranceOverview(clinicId: string, view: GuideView): Promise<InsuranceOverview> {
+  const own = view.scope.kind === 'own';
   return withTenant(clinicId, async (tx) => {
     const [settings] = (await tx.execute(
       sql`SELECT enabled FROM public.hi_clinic_settings WHERE clinic_id = ${clinicId}::uuid`,
     )) as unknown as Row[];
-    const receivables = (await tx.execute(
+    const receivables = !view.values ? [] : (await tx.execute(
       sql`SELECT r.*, i.name FROM public.hi_insurer_receivables r
             JOIN public.hi_insurers i ON i.clinic_id = r.clinic_id AND i.id = r.insurer_id
            WHERE r.clinic_id = ${clinicId}::uuid ORDER BY i.name`,
     )) as unknown as Row[];
     const byStatus = (await tx.execute(
-      sql`SELECT status, count(*)::int AS n FROM public.hi_guides WHERE clinic_id = ${clinicId}::uuid GROUP BY status`,
+      sql`SELECT status, count(*)::int AS n FROM public.hi_guides g WHERE g.clinic_id = ${clinicId}::uuid ${guideScopeSql(view.scope)} GROUP BY status`,
     )) as unknown as Row[];
-    const gaps = (await tx.execute(
+    // Pendência de faturamento é da clínica (sem guia ainda): só para quem tem visão ampla.
+    const gaps = own ? [] : (await tx.execute(
       sql`SELECT owner, count(*)::int AS n FROM public.hi_billing_gaps
            WHERE clinic_id = ${clinicId}::uuid AND status = 'open' GROUP BY owner`,
     )) as unknown as Row[];
     const issues = (await tx.execute(
       sql`SELECT x->>'owner' AS owner, count(*)::int AS n
             FROM public.hi_guides g CROSS JOIN LATERAL jsonb_array_elements(g.issues) x
-           WHERE g.clinic_id = ${clinicId}::uuid AND g.status IN ('pending_data', 'ready_for_review') AND g.live
+           WHERE g.clinic_id = ${clinicId}::uuid AND g.status IN ('pending_data', 'ready_for_review') AND g.live ${guideScopeSql(view.scope)}
            GROUP BY 1`,
     )) as unknown as Row[];
-    const [drift] = (await tx.execute(
+    const [drift] = !view.values ? [] : (await tx.execute(
       sql`SELECT count(*)::int AS n FROM public.hi_ledger_drift WHERE clinic_id = ${clinicId}::uuid`,
     )) as unknown as Row[];
 
@@ -154,7 +176,7 @@ export async function getInsuranceOverview(clinicId: string): Promise<InsuranceO
     return {
       enabled: settings?.enabled === true,
       insurers,
-      totals: {
+      totals: !view.values ? null : {
         guides: sum('guides'),
         billedCents: sum('billedCents'),
         paidCents: sum('paidCents'),
@@ -183,7 +205,8 @@ export interface GuideListRow {
   insurerId: string;
   insurerName: string;
   patientName: string | null;
-  totalValueCents: number;
+  /** Nulo sem visão de faturamento (os valores não saem do servidor). */
+  totalValueCents: number | null;
   issues: GuideIssue[];
   batchNumber: string | null;
   updatedAt: string | null;
@@ -209,7 +232,11 @@ export const GUIDE_STATUS_GROUPS: Record<string, string[]> = {
   encerradas: ['closed', 'cancelled', 'replaced'],
 };
 
-export async function listGuides(clinicId: string, f: GuideFilters = {}): Promise<{ rows: GuideListRow[]; total: number }> {
+export async function listGuides(
+  clinicId: string,
+  f: GuideFilters,
+  view: GuideView,
+): Promise<{ rows: GuideListRow[]; total: number }> {
   // Só estados conhecidos (lista fechada) entram no literal de array; qualquer outro valor = sem filtro.
   const chosen = f.status ? (GUIDE_STATUS_GROUPS[f.status] ?? (GUIDE_STATUS_LABELS[f.status] ? [f.status] : null)) : null;
   // drizzle expande array JS em lista de parâmetros; o filtro precisa de UM text[] (literal seguro: [a-z_]).
@@ -221,7 +248,8 @@ export async function listGuides(clinicId: string, f: GuideFilters = {}): Promis
       AND (${statuses}::text[] IS NULL OR g.status = ANY(${statuses}::text[]))
       AND (${f.insurerId ?? null}::uuid IS NULL OR g.insurer_id = ${f.insurerId ?? null}::uuid)
       AND (${f.owner ?? null}::text IS NULL OR EXISTS (SELECT 1 FROM jsonb_array_elements(g.issues) x WHERE x->>'owner' = ${f.owner ?? null}::text))
-      AND (${q}::text IS NULL OR g.number ILIKE ${q} OR p.nome ILIKE ${q})`;
+      AND (${q}::text IS NULL OR g.number ILIKE ${q} OR p.nome ILIKE ${q})
+      ${guideScopeSql(view.scope)}`;
     const rows = (await tx.execute(
       sql`SELECT g.id, g.number, g.guide_type, g.status, g.version, g.revision, g.insurer_id, i.name AS insurer_name,
                  p.nome AS patient_name, g.total_value_cents, g.issues, g.updated_at,
@@ -249,7 +277,7 @@ export async function listGuides(clinicId: string, f: GuideFilters = {}): Promis
         insurerId: String(r.insurer_id),
         insurerName: String(r.insurer_name),
         patientName: s(r.patient_name),
-        totalValueCents: n(r.total_value_cents),
+        totalValueCents: view.values ? n(r.total_value_cents) : null,
         issues: (Array.isArray(r.issues) ? r.issues : []) as GuideIssue[],
         batchNumber: s(r.batch_number),
         updatedAt: iso(r.updated_at),
@@ -267,7 +295,8 @@ export interface GuideItemRow {
   procedureCode: string;
   description: string;
   quantity: number;
-  totalValueCents: number;
+  /** Nulo sem visão de faturamento. */
+  totalValueCents: number | null;
 }
 
 export interface GuideEventRow {
@@ -387,14 +416,14 @@ export async function listConsultaFieldOptions(
   return out;
 }
 
-export async function getGuideDetail(clinicId: string, guideId: string): Promise<GuideDetail | null> {
-  return withTenant(clinicId, async (tx) => {
+export async function getGuideDetail(clinicId: string, guideId: string, view: GuideView): Promise<GuideDetail | null> {
+  const detail = await withTenant(clinicId, async (tx) => {
     const [g] = (await tx.execute(
       sql`SELECT g.*, i.name AS insurer_name, p.nome AS patient_name
             FROM public.hi_guides g
             JOIN public.hi_insurers i ON i.clinic_id = g.clinic_id AND i.id = g.insurer_id
             LEFT JOIN public.patients p ON p.clinic_id = g.clinic_id AND p.id = g.patient_id
-           WHERE g.clinic_id = ${clinicId}::uuid AND g.id = ${guideId}::uuid`,
+           WHERE g.clinic_id = ${clinicId}::uuid AND g.id = ${guideId}::uuid ${guideScopeSql(view.scope)}`,
     )) as unknown as Row[];
     if (!g) return null;
     const items = (await tx.execute(
@@ -540,6 +569,21 @@ export async function getGuideDetail(clinicId: string, guideId: string): Promise
         : null,
     };
   });
+  return detail && !view.values ? withoutValues(detail) : detail;
+}
+
+/** Sem visão de faturamento: nenhum valor, conta, glosa, pagamento, recurso ou recebível sai do servidor. */
+function withoutValues(d: GuideDetail): GuideDetail {
+  return {
+    ...d,
+    totalValueCents: null,
+    items: d.items.map((it) => ({ ...it, totalValueCents: null })),
+    account: null,
+    glosses: [],
+    allocations: [],
+    appeals: [],
+    receivable: null,
+  };
 }
 
 // ── Lotes ─────────────────────────────────────────────────────────────────
@@ -829,7 +873,16 @@ export interface SadtRequestListRow {
   createdAt: string | null;
 }
 
-export async function listSadtRequests(clinicId: string, f: { status?: string } = {}): Promise<SadtRequestListRow[]> {
+/** Sem visão ampla (matriz 4.4): só as solicitações em que a pessoa é a solicitante. */
+function requestScopeSql(scope: GuideScope) {
+  return scope.kind === 'own' ? sql`AND r.requester_professional_id = ${scope.professionalId}::uuid` : sql``;
+}
+
+export async function listSadtRequests(
+  clinicId: string,
+  f: { status?: string },
+  scope: GuideScope,
+): Promise<SadtRequestListRow[]> {
   return withTenant(clinicId, async (tx) => {
     const rows = (await tx.execute(
       sql`SELECT r.id, r.request_number, r.status, r.version, p.nome AS patient_name, i.name AS insurer_name, r.requested_on,
@@ -846,6 +899,7 @@ export async function listSadtRequests(clinicId: string, f: { status?: string } 
             LEFT JOIN public.profiles pr ON pr.clinic_id = r.clinic_id AND pr.id = r.requester_professional_id
            WHERE r.clinic_id = ${clinicId}::uuid
              AND (${f.status ?? null}::text IS NULL OR r.status = ${f.status ?? null}::text)
+             ${requestScopeSql(scope)}
            ORDER BY r.created_at DESC LIMIT 200`,
     )) as unknown as Row[];
     return rows.map((r) => ({
@@ -910,7 +964,11 @@ export interface SadtRequestDetail extends SadtRequestListRow {
   document: { pdfFileId: string | null; xmlFileId: string | null; generatedAt: string | null } | null;
 }
 
-export async function getSadtRequestDetail(clinicId: string, requestId: string): Promise<SadtRequestDetail | null> {
+export async function getSadtRequestDetail(
+  clinicId: string,
+  requestId: string,
+  scope: GuideScope,
+): Promise<SadtRequestDetail | null> {
   const found = await withTenant(clinicId, async (tx) => {
     const [r] = (await tx.execute(
       sql`SELECT r.*, p.nome AS patient_name, i.name AS insurer_name, coalesce(pr.nome, r.requester_external->>'name') AS requester_name,
@@ -921,7 +979,7 @@ export async function getSadtRequestDetail(clinicId: string, requestId: string):
             JOIN public.hi_insurers i ON i.clinic_id = r.clinic_id AND i.id = r.insurer_id
             LEFT JOIN public.profiles pr ON pr.clinic_id = r.clinic_id AND pr.id = r.requester_professional_id
             LEFT JOIN public.hi_authorizations a ON a.clinic_id = r.clinic_id AND a.id = r.authorization_id
-           WHERE r.clinic_id = ${clinicId}::uuid AND r.id = ${requestId}::uuid`,
+           WHERE r.clinic_id = ${clinicId}::uuid AND r.id = ${requestId}::uuid ${requestScopeSql(scope)}`,
     )) as unknown as Row[];
     if (!r) return null;
     const items = (await tx.execute(

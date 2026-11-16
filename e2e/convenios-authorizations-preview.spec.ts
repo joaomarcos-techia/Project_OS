@@ -7,8 +7,9 @@
  *   - registro: a gestora registra a resposta da operadora numa autorização de Consulta aguardando;
  *     sem evidência o formulário recusa; com o número da operadora, a autorização passa a
  *     "Autorizada" e a senha nunca volta à tela;
- *   - recepção sem `manage:financial`: vê a fila e o detalhe, mas não recebe o formulário (a recusa
- *     da action chamada direto é provada nos testes da action: `actions.test.ts`);
+ *   - recepção (`operate:convenios`, matriz I.2 aprovada em 16/11): vê a fila e o detalhe e RECEBE o
+ *     formulário na Consulta aguardando (roda ANTES da gestora, que registra a resposta); sem valores
+ *     de faturamento na tela. A recusa a quem não opera é provada em `actions.test.ts`;
  *   - acessibilidade: axe-core (A/AA) na fila e no detalhe, sem exceção nova.
  *
  * Antes de executar (P1 do ciclo de 16/11): confirmar o SHA servido pelo Preview, que o runtime é o
@@ -88,6 +89,21 @@ test.beforeAll(async () => {
   await assertPreviewRuntimeIsDev(BASE!, { requireSandboxAsaas: true });
 });
 
+test('recepção (operate:convenios): vê a fila e o detalhe e recebe o formulário na Consulta aguardando', async ({ browser }) => {
+  const s = await login(browser, 'recepcao');
+  try {
+    const r = await s.page.goto('/convenios/autorizacoes');
+    expect(r?.status()).toBe(200);
+    await expect(s.page.getByText('Sem acesso')).toHaveCount(0);
+    await s.page.goto(`/convenios/autorizacoes/${fx!.waiting}`);
+    await expect(s.page.getByRole('region', { name: 'Situação da autorização' })).toBeVisible();
+    await expect(s.page.getByRole('button', { name: 'Registrar resposta da operadora' })).toHaveCount(1);
+    expect(s.errors).toEqual([]);
+  } finally {
+    await s.context.close();
+  }
+});
+
 test('gestora: alerta antes do vencimento, registro da resposta com evidência e senha que não volta', async ({ browser }) => {
   const s = await login(browser, 'gestor');
   try {
@@ -115,16 +131,3 @@ test('gestora: alerta antes do vencimento, registro da resposta com evidência e
   }
 });
 
-test('recepção: vê a fila e o detalhe, sem formulário de resposta', async ({ browser }) => {
-  const s = await login(browser, 'recepcao');
-  try {
-    const r = await s.page.goto('/convenios/autorizacoes');
-    expect(r?.status()).toBe(200);
-    await s.page.goto(`/convenios/autorizacoes/${fx!.expiring}`);
-    await expect(s.page.getByRole('region', { name: 'Situação da autorização' })).toBeVisible();
-    await expect(s.page.getByRole('button', { name: 'Registrar resposta da operadora' })).toHaveCount(0);
-    expect(s.errors).toEqual([]);
-  } finally {
-    await s.context.close();
-  }
-});

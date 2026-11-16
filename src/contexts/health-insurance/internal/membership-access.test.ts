@@ -87,7 +87,7 @@ describe('readMembershipCardNumberAudited (R85, parte do módulo)', () => {
 
   it('cada finalidade exige a sua permissão, conferida de forma fresca', async () => {
     await readMembershipCardNumberAudited(CLINIC_ID, MEMBERSHIP_ID, 'faturamento', 'lote');
-    expect(m.requireFreshPermission).toHaveBeenCalledWith(PERMISSIONS.MANAGE_FINANCIAL);
+    expect(m.requireFreshPermission).toHaveBeenCalledWith(PERMISSIONS.MANAGE_FATURAMENTO_CONVENIO);
     await readMembershipCardNumberAudited(CLINIC_ID, MEMBERSHIP_ID, 'exportacao', 'lgpd');
     expect(m.requireFreshPermission).toHaveBeenLastCalledWith(PERMISSIONS.EXPORT_PATIENT);
   });

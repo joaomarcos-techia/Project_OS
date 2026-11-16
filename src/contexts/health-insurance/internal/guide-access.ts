@@ -41,47 +41,40 @@ import {
   type GuideSnapshotContent,
 } from '../tiss/guides/snapshot';
 
+import { CONVENIOS_RULES } from '../rights';
+
 import { requesterStillHasPermission } from './delegation-permission';
 import { loadApprovedSnapshots, type ApprovedSnapshotRow } from './guide-snapshot-repo';
 
 /**
- * Operações de usuário. As permissões próprias do convênio (I.2) chegam na
- * P1.12; até lá, as mais próximas do catálogo atual.
+ * Operações de usuário (matriz I.2, P1.12-b; `rights.ts`). Cada uma aceita QUALQUER um dos códigos
+ * listados, conferido de forma FRESCA. PDF, guia emitida e arquivo emitido: D-5 em três fases — até a
+ * via de atendimento ser validada, a recepção (`operate:convenios`) mantém o acesso que tinha com
+ * `view:financial`; a fase 3 deixa só `view:faturamento_convenio`. A médica não tinha e não ganha.
  */
+const EMITTED = CONVENIOS_RULES.emittedDocuments;
 export const GUIDE_USER_OPERATIONS = {
   /** Abrir a guia emitida na tela de conferência. */
-  guide_view: { purpose: 'conferencia_guia', permission: PERMISSIONS.VIEW_FINANCIAL, batch: false },
+  guide_view: { purpose: 'conferencia_guia', permissions: EMITTED, batch: false },
   /** Gerar o PDF oficial da guia. */
-  guide_pdf: { purpose: 'impressao_guia', permission: PERMISSIONS.VIEW_FINANCIAL, batch: false },
+  guide_pdf: { purpose: 'impressao_guia', permissions: EMITTED, batch: false },
   /** Baixar um arquivo gerado (PDF/XML) da guia. */
-  file_download: {
-    purpose: 'download_arquivo',
-    permission: PERMISSIONS.VIEW_FINANCIAL,
-    batch: false,
-  },
+  file_download: { purpose: 'download_arquivo', permissions: EMITTED, batch: false },
   /** Consulta administrativa (auditoria interna da clínica). */
   admin_query: {
     purpose: 'consulta_administrativa',
-    permission: PERMISSIONS.VIEW_AUDIT,
+    permissions: [PERMISSIONS.VIEW_AUDIT],
     batch: false,
   },
   /** Reprocessar uma guia a pedido do usuário. */
-  reprocessing: {
-    purpose: 'reprocessamento',
-    permission: PERMISSIONS.MANAGE_FINANCIAL,
-    batch: false,
-  },
-  /** Ver as guias de um lote. */
-  batch_view: { purpose: 'conferencia_lote', permission: PERMISSIONS.VIEW_FINANCIAL, batch: true },
+  reprocessing: { purpose: 'reprocessamento', permissions: CONVENIOS_RULES.bill, batch: false },
+  /** Ver as guias de um lote (tela de faturamento, com valores). */
+  batch_view: { purpose: 'conferencia_lote', permissions: CONVENIOS_RULES.seeValues, batch: true },
   /** Gerar o XML do lote para a operadora. */
-  batch_xml_export: {
-    purpose: 'exportacao_xml',
-    permission: PERMISSIONS.MANAGE_FINANCIAL,
-    batch: true,
-  },
+  batch_xml_export: { purpose: 'exportacao_xml', permissions: CONVENIOS_RULES.bill, batch: true },
   /** Montar e conferir o faturamento. */
-  billing: { purpose: 'faturamento', permission: PERMISSIONS.MANAGE_FINANCIAL, batch: true },
-} as const satisfies Record<string, { purpose: string; permission: Permission; batch: boolean }>;
+  billing: { purpose: 'faturamento', permissions: CONVENIOS_RULES.bill, batch: true },
+} as const satisfies Record<string, { purpose: string; permissions: readonly Permission[]; batch: boolean }>;
 
 /** Operações de serviço técnico (workers), sem sessão de usuário. */
 export const GUIDE_SYSTEM_OPERATIONS = {
@@ -97,6 +90,20 @@ export const GUIDE_SYSTEM_OPERATIONS = {
    */
   delegated_batch_export: { purpose: 'exportacao_xml_delegada', services: ['insurance-batch-export'] },
 } as const satisfies Record<string, { purpose: string; services: readonly string[] }>;
+
+/** Fresca, com QUALQUER um dos códigos: só recusa se todos recusarem (a última recusa é a lançada). */
+async function requireFreshAnyPermission(permissions: readonly Permission[]): Promise<void> {
+  let last: unknown = new Error('nenhuma permissão listada');
+  for (const p of permissions) {
+    try {
+      await requireFreshPermission(p);
+      return;
+    } catch (e) {
+      last = e;
+    }
+  }
+  throw last;
+}
 
 export type GuideUserOperation = keyof typeof GUIDE_USER_OPERATIONS;
 export type GuideSystemOperation = keyof typeof GUIDE_SYSTEM_OPERATIONS;
@@ -347,7 +354,7 @@ async function userRead(args: {
     batchRef: args.batchRef,
   };
   try {
-    await requireFreshPermission(spec.permission);
+    await requireFreshAnyPermission(spec.permissions);
   } catch (e) {
     await logDenied(args.clinicId, actor, meta, args.guideIds, 'permission', context).catch(
       () => undefined,
@@ -509,7 +516,7 @@ export async function readBatchGuidesDelegated(args: {
   if (members.length === 0) throw new GuideAccessError('o lote não tem guias nesta clínica', 'not_found');
   const guideIds = assertGuideIds(members.map((m) => m.guide_id));
   // Autorização NA EXECUÇÃO (não só no pedido): papel e exceções atuais de quem pediu.
-  const allowed = await requesterStillHasPermission(args.clinicId, args.requestedBy, PERMISSIONS.MANAGE_FINANCIAL);
+  const allowed = await requesterStillHasPermission(args.clinicId, args.requestedBy, PERMISSIONS.MANAGE_FATURAMENTO_CONVENIO);
   if (!allowed) {
     await logDenied(args.clinicId, actor, meta, guideIds, 'permission_revoked', context).catch(() => undefined);
     throw new GuideAccessError('quem pediu a exportação não tem mais permissão para o faturamento', 'permission_revoked');

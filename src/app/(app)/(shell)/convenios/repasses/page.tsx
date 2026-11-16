@@ -24,7 +24,7 @@ const DECISIONS: Record<string, string> = {
 };
 
 export default async function RepassesPage() {
-  const access = await conveniosAccess('Repasses de convênio');
+  const access = await conveniosAccess('Repasses de convênio', 'seeValues');
   if (!access.ok) return access.view;
   const { rows, eligibility } = await listInsurancePayouts(access.clinicId);
   const byPro = new Map<string, { name: string; forecast: number; eligible: number; authorized: number; settled: number; due: number }>();
@@ -47,7 +47,7 @@ export default async function RepassesPage() {
       />
       <PanelCard title="Política da clínica" regionLabel="Política de repasse" className="mb-(--sp-4)">
         <p className="mb-(--sp-2) text-(length:--fs-sm)">Atual: {ELIGIBILITY_LABELS[eligibility] ?? eligibility}.</p>
-        {access.canManage ? <PayoutPolicyForm eligibility={eligibility} /> : null}
+        {access.rights.configure ? <PayoutPolicyForm eligibility={eligibility} /> : null}
         <Alert variant="info" className="mt-(--sp-3)">
           As regras de percentual ou valor fixo são as do cadastro de repasse do profissional. Pagamento parcial da operadora nunca vira repasse integral; o Qoro registra o repasse, não paga ninguém.
         </Alert>
@@ -104,7 +104,7 @@ export default async function RepassesPage() {
                 <TableHead className="text-right">Autorizado</TableHead>
                 <TableHead className="text-right">Repassado</TableHead>
                 <TableHead className="text-right">Devido</TableHead>
-                {access.canManage ? <TableHead aria-label="Ações" /> : null}
+                {access.rights.bill ? <TableHead aria-label="Ações" /> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -132,7 +132,7 @@ export default async function RepassesPage() {
                   <TableCell className="text-right tabular-nums">{brl(r.authorizedCents + r.adjustmentsCents)}</TableCell>
                   <TableCell className="text-right tabular-nums">{brl(r.settledCents)}</TableCell>
                   <TableCell className={`text-right tabular-nums ${r.dueCents < 0 ? 'text-danger-600' : ''}`}>{brl(r.dueCents)}</TableCell>
-                  {access.canManage ? (
+                  {access.rights.bill ? (
                     <TableCell>
                       {r.status === 'active' ? (
                         <PayoutActions payoutId={r.payoutId} pendingAuthorizationCents={r.pendingAuthorizationCents} dueCents={r.dueCents} decision={r.decision} />

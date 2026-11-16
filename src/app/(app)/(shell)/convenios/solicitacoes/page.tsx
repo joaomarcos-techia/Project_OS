@@ -23,8 +23,8 @@ export default async function SolicitacoesPage({ searchParams }: { searchParams:
   const sp = await searchParams;
   const status = typeof sp.status === 'string' && SADT_STATUS[sp.status] ? sp.status : undefined;
   const [rows, form] = await Promise.all([
-    listSadtRequests(access.clinicId, status ? { status } : {}),
-    access.canManage ? getSadtRequestFormData(access.clinicId) : Promise.resolve(null),
+    listSadtRequests(access.clinicId, status ? { status } : {}, access.scope),
+    access.rights.operate ? getSadtRequestFormData(access.clinicId) : Promise.resolve(null),
   ]);
 
   return (
