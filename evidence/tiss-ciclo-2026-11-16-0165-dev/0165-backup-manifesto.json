@@ -1,0 +1,32 @@
+{
+ "at": "2026-11-16T07:52:50.338Z",
+ "target": {
+  "host": "aws-1-us-west-1.pooler.supabase.com",
+  "user": "postgres.<ref DEV>"
+ },
+ "files": [
+  {
+   "file": "schema-public-drizzle.sql",
+   "bytes": 1048621,
+   "sha256": "d1626807c24835b28a5de5c874e12a9001e85187f2cb03c745e885e080ffb661",
+   "ms": 76674
+  },
+  {
+   "file": "data-hi-tables.sql",
+   "bytes": 283158,
+   "sha256": "0e2342e461aac1888f3195d47efc5e64817556a8a0a4f877ae466db562857b47",
+   "ms": 23484
+  },
+  {
+   "file": "data-drizzle-ledger.sql",
+   "bytes": 14469,
+   "sha256": "bcf718646b4b3e4c4d86163124a47a3881677c96c76e7cd6bc048dbe848aee51",
+   "ms": 20351
+  }
+ ],
+ "verify": {
+  "hi_guides": true,
+  "ledger": true
+ },
+ "tabelas": 42
+}

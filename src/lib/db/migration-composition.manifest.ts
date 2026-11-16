@@ -273,5 +273,15 @@ export const MIGRATION_COMPOSITION_MANIFEST: CompositionManifest = {
       requires: ['0163_hi_payout_reviews'],
       sentinel: 'function:public.hi_module_guard()',
     },
+    {
+      // P7.5: cancelamento na operadora e substituição só com recibo. Fixada ao ser aplicada no DEV (16/11).
+      tag: '0165_hi_guide_cancellations',
+      idx: 165,
+      when: 1795555373857,
+      sha256: 'a3af4a973f14cc3fb3720423d4c03f71f32330024f028d07191f40f4077c64cb',
+      owner: 'PR #55 (convênios)',
+      requires: ['0164_hi_module_switch_guard'],
+      sentinel: 'relation:public.hi_guide_cancellations',
+    },
   ],
 };
