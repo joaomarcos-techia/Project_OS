@@ -81,21 +81,23 @@ jobs:
             fi
             cp scripts/security/legacy-cancellation-db.ts scripts/security/scratch-schema.ts "$target/scripts/security/"
             ln -s "$GITHUB_WORKSPACE/node_modules" "$target/node_modules"
-            (cd "$target" && node --import tsx scripts/security/legacy-cancellation-db.ts "$variant")
+            (cd "$target" && node --conditions=react-server --import tsx scripts/security/legacy-cancellation-db.ts "$variant")
             cp "$target/dist/cancellation-$variant.json" dist/cancellation-proof/
             if [[ "$variant" == candidate-160 ]]; then
-              (cd "$target" && node --import tsx scripts/security/signup-free-trial-db.ts --shared-schema)
+              (cd "$target" && node --conditions=react-server --import tsx scripts/security/signup-free-trial-db.ts --shared-schema)
               cp "$target/dist/signup-free-trial-db.json" dist/cancellation-proof/
             fi
             rm -r "$target"
           done
       - name: Replacement scheduler pipeline rehearsal, synthetic only
+        if: ${{ !cancelled() }}
         run: |
           export SECURITY_PG_BIN="$(pg_config --bindir)"
           export PATH="$SECURITY_PG_BIN:$PATH"
           pnpm exec tsx scripts/security/scheduled-backup-db.ts
           cp dist/scheduled-backup-synthetic.json dist/cancellation-proof/
       - name: Check prepared systemd units without installing or enabling them
+        if: ${{ !cancelled() }}
         run: systemd-analyze verify ops/recovery/*.service ops/recovery/*.timer
       - name: Preserve sanitized reports and source package only
         if: always()
