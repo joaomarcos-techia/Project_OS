@@ -15,6 +15,7 @@ import { buildApplicationUrl, resolvePreviewCallbackOrigin } from '@/lib/http/ap
 import {
   assertAbacatePayRuntime,
   abacatePayCheckoutAllowed,
+  isAbacatePayRuntime,
 } from '@/lib/payments/saas/acquisition';
 import { createPostgresGatewayOperationJournal } from '@/lib/payments/saas/postgres-store';
 import { createAbacatePayCommands } from '@/lib/payments/abacatepay/sandbox-commands';
@@ -282,7 +283,6 @@ const overviewSchema = z.object({
 export async function getDeferredSubscriptionOverview(clinicId: string) {
   if (!env.ABACATEPAY_STORE_ID) return null;
   z.uuid().parse(clinicId);
-  assertAbacatePayRuntime();
   // N/N-1 compatibility: deployments with the additive schema absent are still
   // entirely Asaas. Do not change those callers or silently create a binding.
   const [schema] = z
@@ -291,6 +291,19 @@ export async function getDeferredSubscriptionOverview(clinicId: string) {
       await dbAdmin.execute(sql`SELECT to_regclass('billing_gateway.bindings') IS NOT NULL ready`),
     );
   if (!schema?.ready) return null;
+  // Select management by the persisted obligation, before checking the new
+  // provider's environment. A disarmed AbacatePay must not break legacy Asaas.
+  const [origin] = z
+    .array(z.object({ provider: z.enum(['asaas', 'abacatepay']) }))
+    .max(1)
+    .parse(
+      await dbAdmin.execute(sql`SELECT billing_provider provider FROM public.subscriptions
+        WHERE clinic_id=${clinicId}::uuid`),
+    );
+  if (!origin || origin.provider === 'asaas') return null;
+  // The legacy overview also checks persisted origin and shows the existing
+  // unavailable state for AbacatePay; it never sends this contract to Asaas.
+  if (!isAbacatePayRuntime()) return null;
   const [overview] = z
     .array(overviewSchema)
     .max(1)
