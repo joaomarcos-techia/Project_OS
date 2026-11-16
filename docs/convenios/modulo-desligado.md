@@ -118,6 +118,11 @@ restritiva e atrasa o registro de fatos reais, sem ganho de segurança financeir
 
 ## 7. Proposta: o interruptor também nos gatilhos do banco (16/11/2026)
 
+> **Estado atual (16/11/2026):** aprovada e **aplicada no DEV como 0164** (`hi_module_switch_guard`,
+> `coordenacao-migrations.md` §23), com a classe C preservada (resposta da Consulta e da SP/SADT, vencimento de
+> autorização, comprovante). Prova sintética: `health-insurance-module-switch-triggers-db.ts`. O texto abaixo é o
+> histórico da proposta; a candidata sem número foi substituída pelo arquivo numerado.
+
 **Situação:** proposta técnica, **não aplicada**. A candidata
 [`migrations/hi_module_switch_guard.candidate.sql`](migrations/hi_module_switch_guard.candidate.sql) está fora do
 journal e **sem número**. O número é escolhido só na autorização, depois da 0162 e pela coordenação com o #53. Não

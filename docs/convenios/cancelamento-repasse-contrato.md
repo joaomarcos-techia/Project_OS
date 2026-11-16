@@ -1,5 +1,13 @@
 # Repasse de guia cancelada: contrato da revisão humana (especificação para decisão)
 
+> **Estado atual (16/11/2026):** contrato aprovado pelo fundador e **implementado**. Migration **0163**
+> (`hi_payout_reviews`, gatilho adiado `hi_guides_zz_payout_review`, decisão `hi_payout_review_decide`;
+> aplicada no DEV, `coordenacao-migrations.md` §23). Com revisão aberta, pagar e autorizar o repasse são
+> recusados; "ciente" com saldo a pagar é recusado. Segregação e limiar de risco bloqueiam o mesmo usuário;
+> quatro olhos não é obrigatório por padrão. Prova: `health-insurance-payout-db.ts` (23 provas). Backfill: fora
+> da migration (script só do DEV, só clínica sintética); o inventário do pré-voo no DEV achou **0 casos**
+> (`evidence/tiss-ciclo-2026-11-16-0163-0164-dev`), então nada foi executado. O texto abaixo é a especificação.
+
 **Situação (16/11/2026):** especificação. **Nada implementado.** Nenhuma migration, nenhuma mudança de ledger,
 nenhuma alteração no contrato do repasse. A direção foi aprovada pelo fundador como proposta de segurança financeira
 (confirmação explícita na tela, pendência de revisão humana idempotente, pagamento bloqueado até a revisão). Antes de

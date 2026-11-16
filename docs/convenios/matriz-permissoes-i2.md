@@ -1,5 +1,14 @@
 # Matriz de permissões I.2 de Convênios (P1.12): proposta para decisão
 
+> **Estado atual (16/11/2026, fim do dia):** D-1 a D-8 **aprovadas** pelo fundador (D-3 opção B; D-4 valores
+> ocultos; D-5 em 3 fases; D-7 R1–R4). A 0162 está **aplicada no DEV** (`coordenacao-migrations.md` §23) e a
+> P1.12-b está no código do PR #55 (draft): `src/contexts/health-insurance/rights.ts` + portões das actions,
+> páginas e rotas. **D-5:** fase 1 implementada (via de atendimento sem valores, `tiss/print/attendance-copy.ts`,
+> leitura auditada `via_atendimento`, sem rota nem botão); fases 2 e 3 pendentes. Campos da via: carteirinha
+> **mascarada por padrão** (4 últimos), à espera da decisão do fundador sobre o que a operadora exige no papel.
+> **Validação no Preview com as contas de cada papel: não executada** (sem navegador remoto autorizado). O texto
+> abaixo é o histórico da proposta.
+
 **Situação (15/11/2026, noite):** proposta. Nada aplicado. Código-base: HEAD `50319d2f` do PR #55 (draft). DEV com
 162 migrations (a última é a 0161), 28 códigos de permissão e **nenhum** override individual (sonda só leitura de
 15/11, sem dado pessoal). A migration candidata está em

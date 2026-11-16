@@ -1,5 +1,12 @@
 # Substituição de guia já enviada (P7.5): estudo do contrato
 
+> **Estado atual (16/11/2026, fim do dia):** implementada com a regra do fundador (substituta só aprovada
+> como substituição com o **recibo de cancelamento da operadora**, Tabela 46 situação 1). Migration **0165**
+> (`hi_guide_cancellations`, aplicada no DEV, `coordenacao-migrations.md` §23); serviço
+> `internal/guide-cancellation-service.ts`; XML `cancelaGuia` validado no XSD 4.03.00; tela de substituição na
+> guia. Prova: `health-insurance-guide-cancellation-db.ts`. Sem operadora real: o recibo é registrado por
+> pessoa (canal e protocolo), nunca fabricado. O texto abaixo é o estudo que levou ao contrato.
+
 **Situação (16/11/2026):** estudo. **Nenhum fluxo novo foi implementado.** O fundador proibiu inventar a substituição
 sem contrato TISS ou regra de negócio comprovada. Este documento separa o que o padrão e o banco já dizem do que
 depende de decisão ou da operadora.

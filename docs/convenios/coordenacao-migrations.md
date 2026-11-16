@@ -785,3 +785,40 @@ de D-1 a D-5 não mudam a candidata (matriz-permissoes-i2.md §10).
 
 Nenhuma das duas reserva número. Cada uma recebe o próximo número livre **na autorização**, depois da 0162 e
 conferindo o journal remoto do #53 (o gate dele exige `idx` contíguo).
+
+## 23. 16/11: 0162, 0163, 0164 e 0165 APLICADAS no DEV (autorização do fundador)
+
+**Autorização:** prompt de autorização ampla de 16/11 (0162 e os contratos da revisão do repasse e do interruptor
+do módulo) e, para a 0165, a autorização expressa da retomada ("após os controles técnicos"). Nada em produção.
+As candidatas sem número do §22 receberam os números **na autorização**: 0163 (revisão do repasse), 0164
+(interruptor do módulo), 0165 (cancelamento e substituição de guia, P7.5).
+
+Cada aplicação seguiu o procedimento da 0161 (§18): pré-voo só leitura, backup lógico com manifesto de SHA-256,
+dry-run, aplicador limitado (`db-migrate-dev-limited.ts` com `--expected-ref`, `--expect-from`, `--expect-to`),
+observador de locks em paralelo, pós-voo, pino no manifesto de composição.
+
+| Migration | Aplicada (UTC) | Ledger antes → depois | Duração da transação | Pós-voo | Locks |
+| --- | --- | --- | --- | --- | --- |
+| 0162 `hi_permission_matrix` | 16/11 03:12 | 162 → 163 | 2,8 s | 14/14 | 8 amostras, 0 sessão esperando |
+| 0163 `hi_payout_reviews` + 0164 `hi_module_switch_guard` | 16/11 07:24 | 163 → 165 | 10,8 s (as duas) | 12/12 | 12 amostras, 0 esperando |
+| 0165 `hi_guide_cancellations` | 16/11 07:55 | 165 → 166 | 7,1 s | 8/8 | 10 amostras, 0 esperando |
+
+- **SHA-256 pinados** em `src/lib/db/migration-composition.manifest.ts` (e na lista do
+  `migration-composition.test.ts`): 0162 `eed2d0de…`, 0163 `d94b652d…`, 0164 `da5f8b90…`, 0165 `a3af4a97…`.
+  Nenhum hash histórico alterado; o journal foi gerado pelo fluxo normal (sem edição manual).
+- **Evidência:** `evidence/tiss-ciclo-2026-11-16-0162-dev`, `-0163-0164-dev`, `-0165-dev` (pré e pós-voo,
+  dry-run, aplicação, observador, manifesto do backup). Provas sintéticas antes de cada aplicação:
+  `convenios-synthetic-db.yml` (runs 43822849019 e 43825927031 anexados).
+- **Reversão:** 0162 pelo cabeçalho da candidata (prova 10 do ensaio); 0163/0164 em
+  `docs/convenios/reversao-0163-0164.sql`; 0165 pelo cabeçalho do arquivo. Nenhuma foi exercida no DEV.
+- **Efeito para usuários do DEV:** a P1.12-b (matriz I.2 no código) está só no PR #55 (draft). A Vercel publica
+  o Preview desta branch a cada push (status "Vercel success" nos commits), então ali a matriz nova já vale contra
+  o banco do Preview. A validação da I.2 no Preview com as contas de cada papel **não foi executada** (sem
+  navegador remoto autorizado neste ciclo). Produção não muda: o código não foi para `main`.
+
+**Estado depois:** DEV com 166 entradas (última 0165, `when` 1795555373857). **Próxima migration livre: 0166.**
+Antes do merge, conferir o journal remoto do #53 (o gate dele exige `idx` contíguo) e reordenar o `when` só pelo
+fluxo do §18, nunca à mão.
+
+**Fora deste ciclo:** qualquer passo em produção (pré-voo só leitura de produção continua pendente de autorização;
+§16), o backfill da revisão do repasse fora do DEV, e a aplicação das quatro em qualquer outro banco.

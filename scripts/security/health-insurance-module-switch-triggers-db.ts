@@ -312,7 +312,7 @@ try {
   assert.deepEqual(await moduleTriggers(), triggers);
   pass('9. a reversão do cabeçalho remove os 8 gatilhos e a função (o banco volta ao comportamento de hoje) e a candidata reaplica igual');
 
-  console.log(`\nOK — ${passed}/9 provas da proposta de gatilhos do módulo (candidata sem número, NÃO aplicada no DEV).`);
+  console.log(`\nOK — ${passed}/9 provas dos gatilhos do módulo (migration 0164, arquivo final; aplicada no DEV em 16/11).`);
   assert.equal(passed, 9);
 } finally {
   await cluster.stop();

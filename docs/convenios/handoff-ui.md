@@ -710,3 +710,26 @@ altera `relatorios/repasses` e o spec `payout-review-preview`, que são do repas
 - **D-5 (plano de 3 fases na matriz §10.2):** o botão "Via para assinatura" só depois da aprovação dos campos.
 
 **Ordem proposta, sem mudança:** #53 → #56 → #55. Não é autorização de merge. Nenhum rebase feito.
+
+## 13. 16/11 (fim do dia): o que mudou para a interface
+
+**Mesclagem simulada de novo** (`git merge-tree --write-tree`, só em memória; nenhum worktree ou branch da UI tocado)
+entre o HEAD do #55 e o #56 em `cc1f1f1c`: **os mesmos 9 arquivos em conflito do §12**, nenhum novo. Os arquivos em
+comum deste ciclo **mesclam sem conflito**: `equipe/member-row-actions.tsx` (+5, códigos da matriz no diálogo de
+permissões), `pacientes/[id]/page.tsx` e `page.test.tsx` (a aba Convênios passa a usar `view:convenios`),
+`src/lib/auth/permissions.ts` (+9, os 5 códigos da 0162) e `api/cron/financial-reconcile/route.ts` (etapa final da
+manutenção de Convênios). `docs/security/acoes.md` continua sendo resolvido por `inventory.ts --write`.
+
+**Telas novas ou alteradas no #55 (só arquivos do #55):**
+- **Autorização (`/convenios/autorizacoes/[id]`):** formulário "Anexar comprovante da operadora" (até 10 MB, enviado
+  em partes; progresso por parte em `role="status"` e erro em `role="alert"`) para quem opera; link "Baixar (leitura registrada)" para
+  quem opera ou fatura. Rota de download `/financeiro/convenios/comprovantes/[id]`;
+- **Guia (`/convenios/guias/[id]`):** painel de substituição (pedir o cancelamento, registrar o recibo da operadora
+  com a situação da Tabela 46, baixar o XML `cancelaGuia`, criar a substituta só com cancelamento confirmado);
+- **Repasses de Convênios:** selo "Em revisão", pagamento desabilitado com o motivo, diálogo de decisão e a política
+  de segregação (0163 aplicada no DEV);
+- **Via de atendimento (D-5 fase 1):** só o gerador no servidor. **Nenhum botão nesta fase**; o botão "Via para
+  assinatura" é a fase 2, depois da decisão dos campos e da validação no Preview.
+
+Todos usam os componentes do design system (`PanelCard`, `Field`, `Input`, `Table`, `Badge`, `Alert`), sem estilo
+próprio novo. **Ordem proposta, sem mudança:** #53 → #56 → #55. Não é autorização de merge; nenhum rebase feito.
