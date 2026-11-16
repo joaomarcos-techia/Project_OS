@@ -131,7 +131,8 @@ try {
       await preflightDb.unsafe(
         `ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY; ALTER TABLE public.${table} FORCE ROW LEVEL SECURITY`,
       );
-    const environment = {
+    const environment: NodeJS.ProcessEnv = {
+      NODE_ENV: 'test',
       PGHOST: 'localhost',
       PGPORT: String(port),
       PGUSER: 'security_local',

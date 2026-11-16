@@ -8,7 +8,8 @@ import {
 
 const project = 'abcdefghijklmnopqrst';
 const url = `postgresql://postgres.${project}:synthetic-only@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require`;
-const parent = {
+const parent: NodeJS.ProcessEnv = {
+  NODE_ENV: 'test',
   PATH: '/synthetic/bin',
   SUPABASE_PROJECT_ENV: 'prod',
   PGSSLROOTCERT: '/approved/ca.pem',
@@ -35,6 +36,7 @@ describe('operator preflight verifies the server without the runtime pool', () =
       });
       expect(Object.values(env)).not.toContain('must-not-survive');
       expect(env.NODE_OPTIONS).toBeUndefined();
+      expect(env.NODE_ENV).toBe('production');
       expect(parent.PGSSLMODE).toBe('disable');
     },
   );

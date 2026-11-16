@@ -784,8 +784,8 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/subscription-plan-change-sandbox.ts:219` | `ASAAS_API_KEY`                        | `process.env.ASAAS_API_KEY`                                                 |
 | `scripts/security/subscription-plan-change-sandbox.ts:222` | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                                                |
 | `scripts/security/tenant-isolation.ts:16`                  | `SECURITY_PG_BIN`                      | `process.env.SECURITY_PG_BIN`                                               |
-| `scripts/security/tenant-isolation.ts:327`                 | `<dynamic>`                            | `process.env[key]`                                                          |
-| `scripts/security/tenant-isolation.ts:328`                 | `<object>`                             | `process.env`                                                               |
+| `scripts/security/tenant-isolation.ts:328`                 | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/security/tenant-isolation.ts:329`                 | `<object>`                             | `process.env`                                                               |
 | `scripts/security/track-o-load.ts:90`                      | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/track-o-load.ts:91`                      | `SIGNUP_IDENTITY_ENABLED`              | `process.env.SIGNUP_IDENTITY_ENABLED`                                       |
 | `scripts/security/track-o-load.ts:92`                      | `SIGNUP_AUTH_ENABLED`                  | `process.env.SIGNUP_AUTH_ENABLED`                                           |

@@ -89,7 +89,8 @@ describe('future B3 operator, not authorization to execute', () => {
       ),
     ).toThrow();
   });
-  const env = {
+  const env: NodeJS.ProcessEnv = {
+    NODE_ENV: 'test',
     PGSSLMODE: 'verify-full',
     PGSSLROOTCERT: '/synthetic/ca.pem',
     PGPASSWORD: 'never-in-argv',

@@ -26,7 +26,8 @@ export function approvedPreflightEnvironment(
   );
   assert.ok(url.password, 'Database credential required');
   assert.ok(parent.PGSSLROOTCERT?.trim(), 'Explicit trusted CA path required');
-  const env: NodeJS.ProcessEnv = {};
+  // Next.js requires NODE_ENV in ProcessEnv; use a fixed value, never inherit it.
+  const env: NodeJS.ProcessEnv = { NODE_ENV: 'production' };
   for (const name of OS_ENVIRONMENT) if (parent[name]) env[name] = parent[name];
   return {
     ...env,
