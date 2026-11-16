@@ -19,15 +19,19 @@ e traduz qualquer falha em `notFound()` (404 — NUNCA redirect/401/403). Chamad
 - `_lib/conversation-content.ts` — ÚNICO ponto que decifra conversa da IA (ver abaixo).
 - Escritas: só de nível de plataforma (sessão de suporte, convites, flags e anúncios, gestão de
   feedback, exports e o registro de abertura de conversa), todas com linha em
-  `super_admin_actions` via `superAdminAction`/`superAdminAuditedRead`. Read-only sobre dados de
-  clínica é garantido por `_lib/admin-read-only.test.ts` (arch test).
+  `super_admin_actions` via `superAdminAction`/`superAdminAuditedRead`. A ÚNICA linha que o
+  painel grava numa tabela da clínica é a da abertura de conversa pelo suporte em
+  `audit_events` (ver abaixo). Read-only sobre dados de clínica é garantido por
+  `_lib/admin-read-only.test.ts` (arch test), que também trava essa exceção.
 
 ## Conversas IA (S-01, ADR-073)
 `/admin/conversas-ia` mostra metadado de qualquer conversa (autor, horário, intent, tools,
 modelo, latência). O TEXTO só aparece com sessão de suporte ativa para a MESMA clínica, e cada
 abertura grava `ai_conversation.content_viewed` em `super_admin_actions` na mesma transação da
-leitura (fail-closed). Trava estática em `_lib/conversation-content.test.ts`: dentro do
-`(admin)`, decifrar só ali e no CNPJ da clínica (`clinics.repo.ts`).
+leitura (fail-closed). Na mesma tx, a trilha da clínica recebe
+`ai_agent.conversation.support_viewed` uma vez por conversa por sessão de suporte (a clínica vê
+no CSV de `/configuracoes/auditoria`). Trava estática em `_lib/conversation-content.test.ts`:
+dentro do `(admin)`, decifrar só ali e no CNPJ da clínica (`clinics.repo.ts`).
 
 ## Impersonate
 Cookie assinado (`qoro_imp`) + tabela autoritativa `impersonation_sessions` (TTL 1h, kill

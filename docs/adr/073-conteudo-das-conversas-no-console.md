@@ -52,6 +52,15 @@ O sistema já tinha as duas peças de que a correção precisava:
    nada: a trilha registra leitura que aconteceu. O payload leva `conversationId`,
    `impersonationId`, `surface`, `messageCount`, `decryptFailures` e `requestId`, nunca texto,
    telefone, nome ou ciphertext, e passa por `sanitizePayload`.
+   **A clínica também vê (decidido em 15/11/2026, junto com a S-01b).** Na mesma transação, a
+   trilha da clínica (`audit_events`) recebe `ai_agent.conversation.support_viewed`, com o
+   super_admin como `user_id`, uma vez por conversa por sessão de suporte
+   (`recordSupportConversationView`, `src/lib/audit/support-conversation-view.ts`). Se essa
+   gravação falha, a leitura falha junto. O nome da ação diz que foi o suporte, porque o CSV da
+   clínica não traz o `after`. A trilha da plataforma continua registrando cada abertura e aponta
+   para a linha da clínica (`clinicAuditEventId`). É a regra que a S-01b aplica à tela de
+   conversas da própria clínica: leitura de conversa pelo suporte aparece para a clínica, pelo
+   console ou pelo app.
 4. **Abrir é ato explícito.** Os links da página usam `prefetch={false}`. Além disso, o cookie da
    sessão de suporte é `SameSite=Strict`: uma navegação vinda de outro site chega sem ele, cai no
    modo metadado e não decifra nem grava nada.
@@ -70,10 +79,11 @@ Junto disso, mudaram duas coisas na página:
 
 - **Suporte:** para ler texto, é preciso uma sessão de suporte da clínica, com TOTP. O metadado
   continua livre. A sessão leva ao painel da clínica, e o console segue acessível durante ela.
-- **Trilha:** `super_admin_actions` ganha um valor de `action`. Não precisa de migration, porque a
-  coluna é texto livre.
-- **Clínica:** a clínica não vê esses acessos, porque não há espelho em `audit_events`. A decisão
-  está em aberto (ver Pendências).
+- **Trilha:** `super_admin_actions` e `audit_events` ganham um valor de `action` cada. Não precisa
+  de migration, porque as duas colunas são texto livre.
+- **Clínica:** o CSV de `/configuracoes/auditoria` mostra `ai_agent.conversation.support_viewed`
+  na primeira abertura de cada conversa em cada sessão de suporte. É a única escrita do console
+  numa tabela da clínica, travada em `admin-read-only.test.ts`.
 - **Rollback:** reverter o PR devolve o comportamento anterior, sem dado a migrar.
 - **Limite herdado:** a trilha só é tão imutável quanto o caminho de serviço permite (ver
   Pendências).
@@ -92,11 +102,10 @@ Junto disso, mudaram duas coisas na página:
 
 ## Pendências (frentes separadas)
 
-- Espelhar esses acessos para a clínica em `audit_events` (decisão do fundador).
 - Exigir um motivo ao abrir a sessão de suporte. Cabe no `payload` do `impersonate_start`, sem
   migration (decisão do fundador).
-- Trilha de leitura na tela da clínica `/conversas/[id]` durante a sessão de suporte, onde também
-  aparece o telefone completo.
+- Trilha de leitura na tela da clínica `/conversas` durante a sessão de suporte: decidida em
+  15/11/2026 e tratada na S-01b (ADR-074, PR próprio).
 - Registrar o fim da sessão de suporte quando ela vence: hoje o `impersonate_stop` só sai pelo
   botão.
 - Uma tela ou alerta que leia `super_admin_actions`. Hoje nada no produto lê essa tabela.

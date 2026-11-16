@@ -6,11 +6,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * S-01 / ADR-073 — matriz de testes da abertura de conversa no console.
  *
- * Unidade (com `superAdminAuditedRead` e `sanitizePayload` REAIS e tx sintética):
- * sessão da mesma clínica, sem sessão, sessão de outra clínica, ids adulterados,
- * falha da trilha, abertura concorrente, falha de decifragem, super_admin sem
- * AAL2, logs e autoria. Gate estático (no fim): quem decifra no `(admin)`, quem
- * lê as linhas com ciphertext, e a página sem prefetch.
+ * Unidade (com `superAdminAuditedRead`, `recordSupportConversationView`,
+ * `logAudit` e `sanitizePayload` REAIS e tx sintética): sessão da mesma
+ * clínica, sem sessão, sessão de outra clínica, ids adulterados, falha de cada
+ * trilha, trilha da clínica uma vez por sessão, abertura concorrente, falha de
+ * decifragem, super_admin sem AAL2, logs e autoria. Gate estático (no fim):
+ * quem decifra no `(admin)`, quem lê as linhas com ciphertext, e a página sem
+ * prefetch.
  */
 
 const {
@@ -44,6 +46,9 @@ vi.mock('./repositories/conversations.repo', async (importOriginal) => {
   const original = (await importOriginal()) as Record<string, unknown>;
   return { ...original, conversationsRepository: { getMetadata, findContentRowsTx } };
 });
+
+import { SUPPORT_CONVERSATION_VIEWED } from '@/lib/audit/support-conversation-view';
+import { superAdminActions } from '@/lib/db/schema/infra/super-admin';
 
 import {
   CONVERSATION_CONTENT_VIEWED,
@@ -102,16 +107,29 @@ const metadata = {
   messages: [toMessageMeta(row())],
 };
 
+// Duas trilhas na mesma tx sintética: a da plataforma (`super_admin_actions`)
+// e a da clínica (`audit_events`). `alreadyInSession` simula a linha que a
+// sessão de suporte já tinha gravado para esta conversa.
 const values = vi.fn();
-const insert = vi.fn(() => ({ values }));
-const tx = { insert };
+const clinicValues = vi.fn();
+const insert = vi.fn((table: unknown) => ({
+  values: table === superAdminActions ? values : clinicValues,
+}));
+const alreadyInSession: Array<{ id: string }> = [];
+const select = vi.fn(() => ({
+  from: () => ({ where: () => ({ limit: async () => alreadyInSession }) }),
+}));
+const tx = { insert, select };
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  alreadyInSession.length = 0;
   requireSuperAdmin.mockResolvedValue(undefined);
   requireUser.mockResolvedValue(superAdmin(CLINIC_X));
   transaction.mockImplementation(async (cb: (t: typeof tx) => unknown) => cb(tx));
   values.mockResolvedValue(undefined);
+  clinicValues.mockResolvedValue(undefined);
   requestContext.mockResolvedValue({ ip: '203.0.113.7', userAgent: 'vitest', requestId: 'req-1' });
   decryptForTenant.mockResolvedValue(SECRET_TEXT);
   getMetadata.mockResolvedValue(metadata);
@@ -146,16 +164,54 @@ describe('abertura de conversa no console (S-01)', () => {
           surface: 'admin_conversas_ia',
           messageCount: 1,
           decryptFailures: 0,
+          clinicAuditEventId: expect.stringMatching(UUID),
           requestId: 'req-1',
         },
         ipAddress: '203.0.113.7',
         userAgent: 'vitest',
       },
     ]);
-    const trail = JSON.stringify(auditRows());
+    const trail = JSON.stringify([auditRows(), clinicValues.mock.calls]);
     expect(trail).not.toContain(SECRET_TEXT);
     expect(trail).not.toContain(CIPHERTEXT);
     expect(JSON.stringify(result)).not.toContain(CIPHERTEXT);
+  });
+
+  it('trilha da clínica: a 1ª abertura na sessão grava support_viewed com o suporte como ator', async () => {
+    await openConversationForAdmin(CLINIC_X, CONV);
+
+    expect(clinicValues).toHaveBeenCalledOnce();
+    const clinicRow = clinicValues.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(clinicRow).toMatchObject({
+      clinicId: CLINIC_X,
+      userId: 'admin-1',
+      action: SUPPORT_CONVERSATION_VIEWED,
+      resourceType: 'ai_conversation',
+      resourceId: CONV,
+      before: null,
+      after: { surface: 'admin_conversas_ia', impersonationId: IMP, messageCount: 1 },
+    });
+    // O evento da plataforma aponta para a linha que a clínica vê.
+    expect(auditRows()[0]).toMatchObject({ payload: { clinicAuditEventId: clinicRow.id } });
+  });
+
+  it('trilha da clínica uma vez por sessão: reabrir não repete; a plataforma registra cada abertura', async () => {
+    alreadyInSession.push({ id: 'audit-1' });
+
+    await openConversationForAdmin(CLINIC_X, CONV);
+
+    expect(clinicValues).not.toHaveBeenCalled();
+    expect(auditRows()).toHaveLength(1);
+    expect(auditRows()[0]).toMatchObject({ payload: { clinicAuditEventId: null } });
+  });
+
+  it('fail-closed na trilha da clínica: se ela não grava, a abertura falha e o texto não sai', async () => {
+    clinicValues.mockRejectedValue(new Error('audit_events insert failed'));
+
+    await expect(openConversationForAdmin(CLINIC_X, CONV)).rejects.toThrow(
+      'audit_events insert failed',
+    );
+    expect(values).not.toHaveBeenCalled();
   });
 
   it('sem sessão (ausente, vencida ou revogada): só metadado, nada decifrado, nada gravado', async () => {
@@ -174,6 +230,7 @@ describe('abertura de conversa no console (S-01)', () => {
     expect(findContentRowsTx).not.toHaveBeenCalled();
     expect(transaction).not.toHaveBeenCalled();
     expect(values).not.toHaveBeenCalled();
+    expect(clinicValues).not.toHaveBeenCalled();
     expect(emit).toHaveBeenCalledWith('admin.conversation.metadata_only', {
       targetClinicId: CLINIC_X,
       reason: 'no_support_session',
@@ -189,6 +246,7 @@ describe('abertura de conversa no console (S-01)', () => {
     expect(decryptForTenant).not.toHaveBeenCalled();
     expect(transaction).not.toHaveBeenCalled();
     expect(values).not.toHaveBeenCalled();
+    expect(clinicValues).not.toHaveBeenCalled();
   });
 
   it('ids adulterados (conversa de outra clínica) com sessão: não encontrada, nada decifrado nem gravado', async () => {
@@ -197,6 +255,7 @@ describe('abertura de conversa no console (S-01)', () => {
     await expect(openConversationForAdmin(CLINIC_X, CONV)).resolves.toEqual({ kind: 'not_found' });
     expect(decryptForTenant).not.toHaveBeenCalled();
     expect(values).not.toHaveBeenCalled();
+    expect(clinicValues).not.toHaveBeenCalled();
   });
 
   it('conversa inexistente sem sessão: não encontrada, sem métrica de metadado', async () => {
@@ -252,6 +311,9 @@ describe('abertura de conversa no console (S-01)', () => {
 
     expect(transaction).toHaveBeenCalledTimes(2);
     expect(values).toHaveBeenCalledTimes(2);
+    // Na trilha da clínica, duas aberturas simultâneas podem gravar duas linhas:
+    // duplicata aceita, nunca lacuna.
+    expect(clinicValues.mock.calls.length).toBeLessThanOrEqual(2);
   });
 
   it('nenhum log com texto ou ciphertext, no sucesso nem nas falhas', async () => {

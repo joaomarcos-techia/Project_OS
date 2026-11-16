@@ -186,7 +186,9 @@ para qualquer super_admin com AAL2, sem sessão de suporte e sem registro. Agora
 (ADR-073) o console mostra só metadado; o texto só sai numa sessão de suporte da
 **mesma clínica**, por `openConversationForAdmin`, que grava
 `ai_conversation.content_viewed` em `super_admin_actions` **na mesma transação da
-leitura** (`superAdminAuditedRead`). Se a trilha falhar, o texto não sai. Trava
+leitura** (`superAdminAuditedRead`). A clínica também vê: na mesma tx, a trilha
+dela recebe `ai_agent.conversation.support_viewed`, uma vez por conversa por
+sessão de suporte. Se qualquer das trilhas falhar, o texto não sai. Trava
 estática: dentro do `(admin)`, decifrar só nesse leitor e no CNPJ da clínica.
 
 ### Peso 3 — CSP não bloqueava nada

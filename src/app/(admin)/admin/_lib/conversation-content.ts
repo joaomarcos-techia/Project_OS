@@ -12,7 +12,11 @@
  *
  * Cada abertura de texto grava `ai_conversation.content_viewed` em
  * `super_admin_actions` NA MESMA TRANSAÇÃO da leitura (`superAdminAuditedRead`).
- * Se o INSERT falhar, a leitura falha junto e o texto não sai daqui.
+ * Na mesma tx, a trilha DA CLÍNICA recebe `ai_agent.conversation.support_viewed`
+ * uma vez por conversa por sessão de suporte (`recordSupportConversationView`,
+ * decisão de 15/11/2026 junto com a S-01b): a clínica vê que o suporte abriu a
+ * conversa, pelo console ou pelo app. Se qualquer INSERT falhar, a leitura
+ * falha junto e o texto não sai daqui.
  *
  * Decisões:
  *  1. A SESSÃO vem de `requireUser()` (cookie assinado + linha ativa em
@@ -32,6 +36,7 @@ import 'server-only';
 
 import { requestContext } from '@/lib/audit/request-context-from-headers';
 import { superAdminAuditedRead } from '@/lib/audit/super-admin';
+import { recordSupportConversationView } from '@/lib/audit/support-conversation-view';
 import { requireSuperAdmin, requireUser } from '@/lib/auth/tenant-context';
 import { decryptForTenant } from '@/lib/crypto';
 import { metrics } from '@/lib/observability/metrics';
@@ -55,10 +60,12 @@ export type ConversationOpenResult =
   | { kind: 'metadata'; reason: MetadataOnlyReason; conversation: ConversationMetadataDTO }
   | { kind: 'content'; conversation: ConversationContentDTO };
 
-/** O que sai da tx auditada: o texto vai para a página; a contagem, para o evento. */
+/** O que sai da tx auditada: o texto vai para a página; o resto, para o evento. */
 interface ContentRead {
   conversation: ConversationContentDTO;
   decryptFailures: number;
+  /** Linha nova na trilha da clínica, ou `null` se a sessão já a tinha gravado. */
+  clinicAuditEventId: string | null;
 }
 
 /**
@@ -98,6 +105,7 @@ export async function openConversationForAdmin(
         surface: CONVERSATION_CONTENT_SURFACE,
         messageCount: r.conversation.messages.length,
         decryptFailures: r.decryptFailures,
+        clinicAuditEventId: r.clinicAuditEventId,
         requestId: context.requestId,
       }),
     },
@@ -129,7 +137,18 @@ export async function openConversationForAdmin(
         status: found.conversation.status,
         messages,
       };
-      return { conversation, decryptFailures };
+      // Trilha da clínica na MESMA tx: falhou, o texto não sai.
+      const clinicAuditEventId = await recordSupportConversationView(tx, {
+        clinicId,
+        conversationId: found.conversation.id,
+        superAdminId: user.userId,
+        impersonationId: impersonation.impersonationId,
+        sessionStartedAt: impersonation.startedAt,
+        surface: CONVERSATION_CONTENT_SURFACE,
+        messageCount: messages.length,
+        requestContext: context,
+      });
+      return { conversation, decryptFailures, clinicAuditEventId };
     },
   );
 
