@@ -1,5 +1,15 @@
 # Operação e recuperação AbacatePay
 
+## Checkpoint operacional prevalente — 16/11/2026
+
+Ver [execução e gate de cancelamento](../decoupling/asaas-to-abacatepay/GATE-B-DEPLOY-CONTROLADO.md#checkpoint-prevalente--autorização-e-execução-de-16112026). B2-A passou em leitura de catálogos/histórico Production, com TLS verificado; não houve DDL ou ativação. R1–R4 permanecem PARTIAL com aceite residual limitado ao futuro piloto assistido de uma clínica, sem autorizar seleção/contratação. B1-B real continua bloqueado por host/cofre/roles; B2-B/B3 e consumidores live não executados.
+
+**Cancelamento por obrigação persistida:** Asaas legado continua na ação de Configurações → Assinatura → Cancelar assinatura. Pausa recorrência e remove/reconfere pendências antes de gravar o cancelamento local; conserva invoices pagas e vigência. AbacatePay usa Cancelar renovação → endpoint próprio → binding persistido e GET/POST/GET. Pedido, confirmação, estado financeiro e direito de acesso são separados. Falha ambígua exige releitura/reconciliação; não prometer cancelamento definitivo nem tentar outro gateway. Não reembolsar automaticamente. A regressão de carregamento da tela Asaas com runtime novo desarmado foi corrigida pontualmente e tem nova revisão de artefato/gates.
+
+**Rollback:** antes da primeira obrigação AbacatePay, o main anterior só pode ser retomado se compatível com o schema aditivo. Depois de existir contrato live AbacatePay, não trocar cegamente para esse main: ele não fornece a gestão do novo provedor. Fechar aquisição preserva gestão, cancelamento, processamento/reconciliação e obrigações já existentes; usar release compatível com os dois provedores. Nunca executar DOWN financeiro ou reabrir checkout para corrigir um cancelamento desconhecido.
+
+O novo backup recorrente é uma preparação para host protegido fora de Actions, não uma rotina já instalada. Health local não detecta sozinho a perda total do próprio host: o cutover exige monitor independente/heartbeat ou conferência operacional externa e canal de incidente comprovado. Templates/manifestos não substituem restore real, recuperação da chave fora do host nem evidência de execução agendada. Workflow antigo permanece ativo até transição aprovada.
+
 ## Operação final preparada — provas e autorizações separadas
 
 Prevalece o [checklist B2-C e novo aplicador B3](../decoupling/asaas-to-abacatepay/GATE-B-DEPLOY-CONTROLADO.md#ciclo-final--operadores-executáveis-e-paradas-de-autorização). Notebook excluído de Docker/build/backup real, GitHub somente sintéticos/CI; não repetir restore20/build composto aceitos. Operador B2-A agora exige psql/CA explícita/verify-full e verifica timeouts/locks; B3 usa uma conexão/transação/lock e SQL congelado. Provas novas ainda dependem da CI do novo HEAD. O checkpoint antigo de BLOCKED por RAM abaixo é histórico, não o estado do ensaio Linux já PASS.

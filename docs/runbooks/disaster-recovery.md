@@ -1,5 +1,28 @@
 # Recuperação de banco — Qoro
 
+## Continuidade prevalente — 16/11/2026
+
+A anotação administrativa do check132455944005 esclareceu a falha43597806257: o GitHub não iniciou o job por pagamento recente da conta ou limite de gastos. Não distingue qual das duas causas; nenhum step de dump executou. Não foram baixados logs/artifacts reais. O workflow antigo continua ativo e inalterado: a nova orientação não permite removê-lo antes de comprovar/aprovar a continuidade substituta.
+
+### Substituto recorrente implementado, não instalado
+
+`scripts/recovery-scheduled-backup.ts` é um operador separado, sem dotenv/pool da aplicação. Linux protegido fora de Actions, identidade Production explícita, CA/verify-full/read-only, pg_dump real por stream para GPG AES256, segredo por FD3 e keyring temporário exclusivo. Diretório0700/cifra0600, lock de execução, interrupção/timeout, verificação autenticada/rodapé/hash e manifesto publicado atomicamente. Não mantém SQL em claro em arquivo. Retenção7dias, mínimo2 cópias verificadas; arquivos alheios não são candidatos. Manifesto não afirma cobertura de Storage binário/configuração gerenciada de Auth.
+
+Templates em `ops/recovery`: backup diário09:30UTC, health horário (atraso26h ou hash inválido falha), OnFailure para notificação Sentry sanitizada. Credenciais via `LoadCredentialEncrypted`, nunca EnvironmentFile/argv: database-url, recovery-passphrase, database-ca e sentry-dsn. `recovery-backup-alert.ts` envia envelope oficial HTTPS com até3 tentativas e um mesmo event ID; 2xx comprova ingestão, não notificação recebida. Falha permanece não zero/journal sanitizado. Antes de instalar, validar versions/path Node/tsx, unit files, permissions e dependências no host designado.
+
+**Ensaio somente sintético:** `scripts/security/scheduled-backup-db.ts` no runner Linux próprio, PostgreSQL real e conexão TLS, pg_dump/GPG/psql reais; restaura em segundo banco e compara UTF8, verifica lock, indisponibilidade, cancelamento real/sem parcial, adulteração, retenção/freshness. Resultados efetivos ficam na evidência da rodada. Nunca executar esse PostgreSQL no notebook ou usar credenciais Production na CI.
+
+### Cutover futuro — pontos de parada
+
+1. Aprovar host permanente ou agenda durável equivalente; VM de recuperação que será destruída não substitui a rotina diária. Definir região, proteção do volume/swap/hibernação, rede/TLS, responsável e custo total.
+2. Guardar a chave recuperável também em cofre independente do host/TPM/perfil. `systemd-creds` cifrado só para a máquina não garante reconstrução em outro host. Não imprimir ou copiar segredos para chat/Git/Actions.
+3. Revisar escopo, retenção e descarte; testar Storage e inventário Auth separadamente. Conferir plano/retenção gerenciada Supabase por acesso administrativo, sem inferir de oito backups.
+4. Após autorização específica para dados reais, instalar/verificar units, criar uma cifra real no destino aprovado e comprovar restore/integridade/tempo e recuperação da chave. Testar cancelamento/retentativa com sintéticos, sem destruir backups históricos.
+5. Comprovar execução agendada, health e recebimento do alerta no canal responsável; registrar primeiro/segundo backup saudáveis, RPO/RTO observados e rollback da rotina.
+6. Somente após continuidade e aprovação documentadas, desabilitar o workflow antigo. Preservar artifacts/secrets históricos; sua remoção exige análise/autorização própria. Se falhar o cutover, manter a rotina anterior e tratar a falha, sem afirmar migração concluída.
+
+B2-A já passou em16/11 somente catálogos/histórico com TLS direto verificado. Não equivale ao B1-B real, que continua BLOCKED por host/cofre/roles/tratamento de dados. Sem dados reais transferidos, backup Production gerado ou infraestrutura contratada nesta rodada.
+
 ## Auditoria efetiva da rotina antiga e plano de continuidade — 15/11
 
 Consulta somente de metadados GitHub em16/11 01:01UTC (15/11 Brasília), sem logs/artefatos/dados/valores de secrets: workflow305661908 **active**, definição main idêntica à branch; agenda06:00UTC e workflow_dispatch. Repositório privado; YAML sem permissions explícitas, default_workflow_permissions=read; nenhum environment de aprovação no job. Nomes DATABASE_URL_PROD e BACKUP_PASSPHRASE presentes; não é leitura dos seus valores. Escopo: pg_dump de public/auth e demais schemas não excluídos; exclui storage/realtime/extensions/graphql/graphql_public/vault/supabase_functions/\_realtime/\_analytics/pgsodium/pgsodium_masks/pgbouncer. Inclui usuários Auth/hashes e dados clínicos/financeiros do banco; não inclui Storage binário, raiz Vault e todas as configurações gerenciadas.

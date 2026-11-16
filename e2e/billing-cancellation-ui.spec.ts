@@ -65,7 +65,8 @@ for (const width of [390, 1280]) {
     await submit.click();
     await expect(submit).toBeDisabled();
     await expect(page.getByText('Renovação cancelada', { exact: false })).toBeVisible();
-    await expect(page.getByText('15/01/2027', { exact: false }).first()).toBeVisible();
+    // The paid-period timestamp is midnight UTC, hence the previous date in Brasília.
+    await expect(page.getByText('14/01/2027', { exact: false }).first()).toBeVisible();
     await expect(page.getByRole('button', { name: 'Cancelar renovação', exact: true })).toHaveCount(
       0,
     );

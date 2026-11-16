@@ -25339,7 +25339,10 @@
       "nativeWindowsTarListingEncoding": "windows-1252; ./ prefix normalized",
       "sqlProofEntries": 160,
       "frozenManifestSha256": "bf2775be25ae3bdb2d58d52b99708a3d1ee32620425f1d98ac214a849185af5f",
-      "excluded": ["0160", "0161"],
+      "excluded": [
+        "0160",
+        "0161"
+      ],
       "freshExtraction": false,
       "dependencyInstallation": false,
       "nextBuildExecuted": false,
@@ -25489,8 +25492,16 @@
         "privateWorkingSetSumMiB": 5.4,
         "privateCommitSumMiB": 324.4
       },
-      { "name": "chrome.exe", "count": 0, "workingSetSumMiB": 0 },
-      { "name": "msedge.exe", "count": 0, "workingSetSumMiB": 0 }
+      {
+        "name": "chrome.exe",
+        "count": 0,
+        "workingSetSumMiB": 0
+      },
+      {
+        "name": "msedge.exe",
+        "count": 0,
+        "workingSetSumMiB": 0
+      }
     ],
     "classifications": [
       {
@@ -25658,7 +25669,10 @@
       "parentPid": 20240,
       "tissOrUiOwnership": "NOT_PROVEN"
     },
-    "editorOriginCheck": { "cli": "STATUS_READ", "commandLinesOrWindowTitlesDisclosed": false },
+    "editorOriginCheck": {
+      "cli": "STATUS_READ",
+      "commandLinesOrWindowTitlesDisclosed": false
+    },
     "options": {
       "local": "Save and close only recognized extra VS Code windows. Potential resident memory recovery is hundreds of MiB; no guarantee of 4GiB.",
       "restart": "Proposal only; save all work/session checkpoints and obtain explicit decision; never automatic.",
@@ -25666,7 +25680,11 @@
       "ci": "No composed TAR build workflow exists. Requires approved workflow diff, private artifact source/content review and cost budget; no extra dispatch."
     },
     "workflowAudit": {
-      "files": ["ci.yml", "adr-check.yml", "db-backup.yml"],
+      "files": [
+        "ci.yml",
+        "adr-check.yml",
+        "db-backup.yml"
+      ],
       "conventionalBuild": "security:build shadow copy adds harness; not the exact composed TAR",
       "onlyManualDispatch": "Production backup; must not be repurposed or triggered for these tests",
       "configurationChanges": false,
@@ -25759,15 +25777,34 @@
           "name": "restored_schema_data_indexes_constraints_functions_journal",
           "status": "PASS",
           "evidence": {
-            "exitCodes": { "gpg": 0, "psql": 0 },
+            "exitCodes": {
+              "gpg": 0,
+              "psql": 0
+            },
             "snapshot": {
               "parents": [
-                { "id": 1, "label": "Clínica sintética — João" },
-                { "id": 2, "label": "漢字 — fixture" }
+                {
+                  "id": 1,
+                  "label": "Clínica sintética — João"
+                },
+                {
+                  "id": 2,
+                  "label": "漢字 — fixture"
+                }
               ],
               "children": [
-                { "id": 1, "parent_id": 1, "amount": 1.05, "note": "ação" },
-                { "id": 2, "parent_id": 1, "amount": 2.1, "note": "UTF8" },
+                {
+                  "id": 1,
+                  "parent_id": 1,
+                  "amount": 1.05,
+                  "note": "ação"
+                },
+                {
+                  "id": 2,
+                  "parent_id": 1,
+                  "amount": 2.1,
+                  "note": "UTF8"
+                },
                 {
                   "id": 3,
                   "parent_id": 2,
@@ -25785,7 +25822,11 @@
                   "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
                 }
               ],
-              "tables": ["children", "journal", "parents"],
+              "tables": [
+                "children",
+                "journal",
+                "parents"
+              ],
               "indexes": [
                 [
                   "children_parent_idx",
@@ -25821,16 +25862,36 @@
                   "FOREIGN KEY (parent_id) REFERENCES qoro_synthetic.parents(id)",
                   true
                 ],
-                ["children_pkey", "p", "PRIMARY KEY (id)", true],
+                [
+                  "children_pkey",
+                  "p",
+                  "PRIMARY KEY (id)",
+                  true
+                ],
                 [
                   "journal_hash_check",
                   "c",
                   "CHECK ((length(hash) = 64))",
                   true
                 ],
-                ["journal_pkey", "p", "PRIMARY KEY (id)", true],
-                ["parents_label_key", "u", "UNIQUE (label)", true],
-                ["parents_pkey", "p", "PRIMARY KEY (id)", true]
+                [
+                  "journal_pkey",
+                  "p",
+                  "PRIMARY KEY (id)",
+                  true
+                ],
+                [
+                  "parents_label_key",
+                  "u",
+                  "UNIQUE (label)",
+                  true
+                ],
+                [
+                  "parents_pkey",
+                  "p",
+                  "PRIMARY KEY (id)",
+                  true
+                ]
               ],
               "functionCount": 3,
               "orphans": 0,
@@ -25839,38 +25900,73 @@
             "snapshotSha256": "2ae591574f5384e62e7c253ae5ae67186e342b4373268534f38cda7cd4305ffa"
           }
         },
-        { "name": "foreign_key_enforced", "status": "PASS" },
+        {
+          "name": "foreign_key_enforced",
+          "status": "PASS"
+        },
         {
           "name": "wrong_passphrase",
           "status": "PASS",
-          "evidence": { "gpg": 2, "psql": 0 }
+          "evidence": {
+            "gpg": 2,
+            "psql": 0
+          }
         },
         {
           "name": "hash_mismatch_before_restore",
           "status": "PASS",
-          "evidence": { "rejected": true }
+          "evidence": {
+            "rejected": true
+          }
         },
         {
           "name": "tampered_ciphertext",
           "status": "PASS",
-          "evidence": { "gpg": 2, "psql": 3 }
+          "evidence": {
+            "gpg": 2,
+            "psql": 3
+          }
         },
         {
           "name": "truncated_ciphertext",
           "status": "PASS",
-          "evidence": { "gpg": 2, "psql": 0 }
+          "evidence": {
+            "gpg": 2,
+            "psql": 0
+          }
         },
         {
           "name": "invalid_SQL_psql_nonzero",
           "status": "PASS",
-          "evidence": { "gpg": 0, "psql": 3 }
+          "evidence": {
+            "gpg": 0,
+            "psql": 3
+          }
         },
-        { "name": "journal_divergence", "status": "PASS" },
-        { "name": "data_integrity_divergence", "status": "PASS" },
-        { "name": "missing_label_inspection_contract", "status": "PASS" },
-        { "name": "network_enabled_inspection_contract", "status": "PASS" },
-        { "name": "published_port_inspection_contract", "status": "PASS" },
-        { "name": "unexpected_target_inspection_contract", "status": "PASS" },
+        {
+          "name": "journal_divergence",
+          "status": "PASS"
+        },
+        {
+          "name": "data_integrity_divergence",
+          "status": "PASS"
+        },
+        {
+          "name": "missing_label_inspection_contract",
+          "status": "PASS"
+        },
+        {
+          "name": "network_enabled_inspection_contract",
+          "status": "PASS"
+        },
+        {
+          "name": "published_port_inspection_contract",
+          "status": "PASS"
+        },
+        {
+          "name": "unexpected_target_inspection_contract",
+          "status": "PASS"
+        },
         {
           "name": "cancel",
           "status": "PASS",
@@ -26075,7 +26171,10 @@
       "files": 2785,
       "sqlHashes": 160,
       "pendingMigrations": "0136-0159",
-      "excluded": ["0160", "0161"],
+      "excluded": [
+        "0160",
+        "0161"
+      ],
       "changed": false
     },
     "alternatives": {
@@ -26177,7 +26276,11 @@
     "frozenFinancial": "94f6da4aeb32b1ae7da856dc9afa105120ce6dd9",
     "frozenTar": "3902f2007742df4016450eeaece806a8f2bc0b535631d33da9a5e691b59ce3f6",
     "migrations": "0136-0159",
-    "excluded": ["0160", "0161", "0162"],
+    "excluded": [
+      "0160",
+      "0161",
+      "0162"
+    ],
     "defects": [
       {
         "confirmed": true,
@@ -26216,7 +26319,10 @@
       "definition": {
         "blobSha": "5750ffcd476cbae7163f2631455dfa7eda215bff",
         "sourceSha256": "cede181f4afed34e090b1c127109379fa4ac88cd38a945e572fe2b3faa3c200b",
-        "productionSecretNames": ["DATABASE_URL_PROD", "BACKUP_PASSPHRASE"],
+        "productionSecretNames": [
+          "DATABASE_URL_PROD",
+          "BACKUP_PASSPHRASE"
+        ],
         "excludedSchemas": [
           "storage",
           "realtime",
@@ -26237,7 +26343,9 @@
         "plaintextSQLFile": false,
         "artifactDestination": true,
         "retentionDays": "30",
-        "schedulesUTC": ["0 6 * * *"],
+        "schedulesUTC": [
+          "0 6 * * *"
+        ],
         "manualDispatch": true,
         "declaresTokenPermissions": false,
         "databaseURLPassedInArgv": true
@@ -26393,5 +26501,700 @@
     "realFinancialCalls": 0,
     "infrastructureCreatedOrPurchased": false,
     "otherWorktreesChanged": false
+  },
+  "executiveExecutionAndCancellation20261116": {
+    "observedAt": "2026-11-16T04:31:33.151Z",
+    "scope": "latest executive master plus mandatory pre-Production cancellation gate",
+    "previousValidatedOperator": "ff829f0ee9e682ebe02bfb8ea68787511f5a40f2",
+    "previousCI": {
+      "run": 43794578384,
+      "tests": 7305,
+      "e2e": 22,
+      "skips": 0,
+      "reusedAsPreviousEvidenceOnly": true
+    },
+    "sourceRevision": "44323990b3f1fb9282418fec44a3182b02148c66",
+    "baseFinancial": "94f6da4aeb32b1ae7da856dc9afa105120ce6dd9",
+    "originalTarSha256": "3902f2007742df4016450eeaece806a8f2bc0b535631d33da9a5e691b59ce3f6",
+    "originalArtifactPreserved": true,
+    "revisionFiles": [
+      "src/contexts/billing/internal/deferred-checkout.ts",
+      "src/contexts/billing/internal/deferred-overview-origin.test.ts",
+      "src/contexts/billing/internal/cancellation-charges.ts",
+      "src/contexts/billing/internal/cancellation-charges.test.ts",
+      "saas-cancellation-revision.json"
+    ],
+    "schema": {
+      "releaseEntries": 160,
+      "pending": "0136-0159",
+      "pendingCount": 24,
+      "excluded": [
+        "0160",
+        "0161",
+        "0162"
+      ],
+      "migrationsModified": false,
+      "DEVWrites": 0,
+      "productionWrites": 0
+    },
+    "B2A": {
+      "startedAt": "2026-11-16T03:54:12.471Z",
+      "finishedAt": "2026-11-16T03:54:27.635Z",
+      "operator": "ff829f0ee9e682ebe02bfb8ea68787511f5a40f2",
+      "transportSourceSha256": "9b7a5e5660419fb0efd50f95189e1299b4db234a92b34e5fee0a874f0d511be6",
+      "workingRevision": "direct endpoint extension locally tested; final CI pending",
+      "endpoint": "approved project direct connection",
+      "project": "shlcbxawrxuaebazuiue",
+      "CA": "official Supabase CA; provenance recorded separately",
+      "exitCode": 0,
+      "proof": {
+        "status": "PASS_READ_ONLY_PREFLIGHT",
+        "financial": "94f6da4aeb32b1ae7da856dc9afa105120ce6dd9",
+        "phase": "before",
+        "targetFingerprint": "49e1c98a71abbbfe1e55cb4204a4ef814956e5c3e7f4925daddd727c30a6efe3",
+        "history": {
+          "applied": 136,
+          "pending": [
+            {
+              "idx": 136,
+              "tag": "0136_trial_resource_limits",
+              "when": 1794096000000,
+              "hash": "43bb658055c581eae20788c6df87d50fc16ec00e472a73da52500d4a22e2fe10"
+            },
+            {
+              "idx": 137,
+              "tag": "0137_trial_service_role_privileges",
+              "when": 1794168300000,
+              "hash": "e1515b18deebdfd1dac558d9f02d5024655e81ad3ea196ad38ed12e3f3e9aaa7"
+            },
+            {
+              "idx": 138,
+              "tag": "0138_saas_gateway_bindings",
+              "when": 1794171600000,
+              "hash": "22e4c7f622ee269d17b51b97238489d77d6cde5c385a765df8c613278219a69f"
+            },
+            {
+              "idx": 139,
+              "tag": "0139_saas_gateway_recontracts",
+              "when": 1794189600000,
+              "hash": "aa935cd0cadcf6156636f9c7c98fe6201bdba5c1384f556ff026ebb4eb95d4be"
+            },
+            {
+              "idx": 140,
+              "tag": "0140_saas_recurring_payment_observations",
+              "when": 1794199882765,
+              "hash": "98269c83b754785a7e9ecf0b2b4b142ff121cc22b56b8f3055575299ba8ca330"
+            },
+            {
+              "idx": 141,
+              "tag": "0141_saas_scheduled_plan_changes",
+              "when": 1794222981810,
+              "hash": "a13faef1aa291981c3e4c337cbde868225d9d1433bdeed8dd320fd7a74fdf5fd"
+            },
+            {
+              "idx": 142,
+              "tag": "0142_saas_review_replays",
+              "when": 1794326400000,
+              "hash": "410c61834e2a1eb1bf11331b71f7660205fa426b76d1a9fa566e6b13d7d3fb3d"
+            },
+            {
+              "idx": 143,
+              "tag": "0143_tiss_catalog",
+              "when": 1794330000000,
+              "hash": "9f9b483aaeff60a9ca4f5b182c3b071408a7d3eec9ecea7cfe8f98bcf602e807"
+            },
+            {
+              "idx": 144,
+              "tag": "0144_hi_clinic_setup",
+              "when": 1794367436665,
+              "hash": "b9ac6c7a0b335582f3bf69385a3b004cf9d0784955f27d7c3cd22776a4590589"
+            },
+            {
+              "idx": 145,
+              "tag": "0145_hi_memberships",
+              "when": 1794391493822,
+              "hash": "98425850e4c2dae613734aa337ce588df641e5c3b67476c055147cb9c82632c4"
+            },
+            {
+              "idx": 146,
+              "tag": "0146_hi_authorizations",
+              "when": 1794395869610,
+              "hash": "15cbf34c1439cc1d7a0ca4be40267729b44c1cdea1760d5090deb10288493cb6"
+            },
+            {
+              "idx": 147,
+              "tag": "0147_hi_guides",
+              "when": 1794399173366,
+              "hash": "a344a7e86074d90a4b13b007ef6f9e3357ac23e3b8bc43743158d131ca45238a"
+            },
+            {
+              "idx": 148,
+              "tag": "0148_hi_coverage_copay",
+              "when": 1794405160338,
+              "hash": "45f0b90b9307c5888e8e0ac61fab9685561f89a62cdf54ea60d2bd3becfdcb0b"
+            },
+            {
+              "idx": 149,
+              "tag": "0149_hi_billing_gaps",
+              "when": 1794416643149,
+              "hash": "56c0d5f29a409b65e0fe4fc1ac7512bbd8c979150c2252e375a375b85139d183"
+            },
+            {
+              "idx": 150,
+              "tag": "0150_hi_batches",
+              "when": 1794418524711,
+              "hash": "e7dc279a073501a4f2e03dd95ff9773564cbc690ea2591a3e94a03f9a273c992"
+            },
+            {
+              "idx": 151,
+              "tag": "0151_hi_premium_gate",
+              "when": 1794432173857,
+              "hash": "a0e446dbce4121c538c4a3e206a406e0977d5d1729ed14b03417a3937b71ae0b"
+            },
+            {
+              "idx": 152,
+              "tag": "0152_hi_glosses_payments",
+              "when": 1794518573857,
+              "hash": "f16efcaabf8ed205b102005883c8627d3f1037edbcd91908f1d700123720766a"
+            },
+            {
+              "idx": 153,
+              "tag": "0153_hi_ledger_bridge",
+              "when": 1794604973857,
+              "hash": "ebb976532db49b2d36947cd5c37724a6b6b9c85713e2f92818fcefc992b23378"
+            },
+            {
+              "idx": 154,
+              "tag": "0154_hi_premium_period_evidence",
+              "when": 1794691373857,
+              "hash": "3e493911867aa5cf1157ee083a451a9bd1f86a084f371d36da5312d08676925a"
+            },
+            {
+              "idx": 155,
+              "tag": "0155_ledger_payment_sum_by_clinic",
+              "when": 1794777773857,
+              "hash": "aecc5c2d0b7cf36a3dbdcf7331d4247077acf8c7466cbc853e2d40dc905e1d33"
+            },
+            {
+              "idx": 156,
+              "tag": "0156_hi_sadt_requests",
+              "when": 1794864173857,
+              "hash": "cdf3004b15a8a09d6e8f2065bf42be39a05b979eb4d12cd8a5ac1d32b492f860"
+            },
+            {
+              "idx": 157,
+              "tag": "0157_hi_professional_payouts",
+              "when": 1794950573857,
+              "hash": "f39a58d0401b3d221b03cbe0b41c9f4b530947d0f03b4b3564929e11349b5f15"
+            },
+            {
+              "idx": 158,
+              "tag": "0158_hi_copay_charge",
+              "when": 1795036973857,
+              "hash": "40cc90493b5abf980c209485c83451f33c4cfc5931b87f3af7653f2091af63a2"
+            },
+            {
+              "idx": 159,
+              "tag": "0159_saas_period_snapshot",
+              "when": 1795036973858,
+              "hash": "eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74"
+            }
+          ],
+          "fingerprint": "1f2a641215d3e5328999acaf7028c46ab4782c7d596134d979bc31f9c50f91fc"
+        },
+        "schema": {
+          "requiredSecuredRelations": 4,
+          "scope": "Critical release objects only; not a full schema equivalence certification"
+        },
+        "transaction": "REPEATABLE READ READ ONLY",
+        "databaseWrites": 0,
+        "tls": "verify-full",
+        "operational": {
+          "ssl": true,
+          "statementTimeout": "10s",
+          "lockTimeout": "2s",
+          "longTransactions": 0,
+          "waitingLocks": 0
+        },
+        "productionWrites": 0,
+        "providerCalls": 0,
+        "authorizationToApply": false
+      },
+      "productionWrites": 0,
+      "patientOrContractRowsRead": 0,
+      "supplemental": {
+        "at": "2026-11-16T03:55:34.454Z",
+        "project": "shlcbxawrxuaebazuiue",
+        "scope": "0051/0093/0124 catalogs only",
+        "catalog": {
+          "ssl": true,
+          "columns": [
+            {
+              "type": "_text",
+              "table": "ai_clinic_config",
+              "column": "convenios",
+              "default": "ARRAY[]::text[]",
+              "nullable": "NO"
+            },
+            {
+              "type": "uuid",
+              "table": "ai_messages",
+              "column": "sent_by_user_id",
+              "default": null,
+              "nullable": "YES"
+            },
+            {
+              "type": "bool",
+              "table": "subscriptions",
+              "column": "enforce_trial_deadline",
+              "default": "false",
+              "nullable": "NO"
+            }
+          ],
+          "authorFK": [
+            {
+              "name": "ai_messages_sent_by_user_id_profiles_id_fk",
+              "validated": true,
+              "definition": "FOREIGN KEY (sent_by_user_id) REFERENCES profiles(id) ON DELETE RESTRICT"
+            }
+          ],
+          "readOnly": "on",
+          "trialVersion": 1,
+          "invalidIndexes": 0,
+          "unvalidatedFKs": 0,
+          "permissionRoles": [
+            [
+              "gestor",
+              "manage:conversations"
+            ],
+            [
+              "gestor",
+              "view:conversations"
+            ],
+            [
+              "doctor",
+              "view:conversations"
+            ],
+            [
+              "attendant",
+              "manage:conversations"
+            ],
+            [
+              "attendant",
+              "view:conversations"
+            ],
+            [
+              "owner",
+              "manage:conversations"
+            ],
+            [
+              "owner",
+              "view:conversations"
+            ]
+          ],
+          "permissionCatalog": [
+            "manage:conversations",
+            "view:conversations"
+          ]
+        },
+        "productionWrites": 0,
+        "clinicalRowsRead": 0
+      },
+      "caProvenance": {
+        "source": "https://supabase-downloads.s3-ap-southeast-1.amazonaws.com/prod/ssl/prod-ca-2021.crt",
+        "discoveredFrom": "supabase/supabase@8e2fd7c578266ffec80f87d00c5dfe8722b16044:apps/studio/hooks/custom-content/custom-content.json",
+        "fingerprint256": "80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA",
+        "validFrom": "Apr 28 10:56:53 2021 GMT",
+        "validTo": "Apr 26 10:56:53 2031 GMT",
+        "systemTrustModified": false,
+        "at": "2026-11-16T03:48:11.559Z"
+      },
+      "scope": "catalog/history/SSL only; no clinical or contract/invoice/ledger rows",
+      "requiresFreshCheckBeforeDDL": true
+    },
+    "productionDeployment": {
+      "observedAt": "2026-11-16T03:39:31.212Z",
+      "id": "dpl_2gHasgxKuWkFY8ct1w56VLeHDhQP",
+      "sha": "5620a0987ec53db7d7358728eb7d457d9d373df3",
+      "readOnly": true,
+      "valuesExposed": false
+    },
+    "cancellation": {
+      "mainSource": "5620a0987ec53db7d7358728eb7d457d9d373df3",
+      "mainPath": "/configuracoes/assinatura",
+      "mainAction": "requestSubscriptionCancellationAction",
+      "mainSelfService": true,
+      "asaasRecurrencePausedBeforeUnpaidChargesRemoved": true,
+      "paidAccessPreserved": true,
+      "patientPaymentsUntouched": true,
+      "deterministicRegression": "new runtime asserted before discovering legacy persisted origin; prevents reaching Asaas subscription screen when AbacatePay disarmed",
+      "correction": "inspect schema and persisted origin first; unknown origin rejected; no gateway fallback",
+      "redBeforeFix": 2,
+      "regressionTestsPassedLocally": 4,
+      "existingDirectedCancellationTests": 79,
+      "lostAcknowledgement": {
+        "confirmedInMain": true,
+        "mainLocalInvoiceReconciliation": "PARTIAL until webhook or review",
+        "candidateFix": "returns authoritative missing payment IDs including retry/404/lost response; no duplicate provider DELETE",
+        "directedTests": 43,
+        "usesActualHelperOutputForNativePersistence": true
+      },
+      "additionalDirectedRun": {
+        "files": 4,
+        "tests": 52,
+        "environment": "local lightweight units only; no DB or provider"
+      },
+      "notificationUnits": {
+        "tests": 4,
+        "externalSend": false
+      },
+      "abacatepayPath": "/api/billing/cancellation",
+      "abacatepayRecovery": "durable intent/operation; GET/POST/GET; authoritative reread after lost response; paid period retained",
+      "nativeVariants": [
+        "main-136",
+        "main-160",
+        "candidate-160"
+      ],
+      "remoteProof": {
+        "run": 43804391473,
+        "workflowHead": "23cef35f46c3b994046e7da1de3b554740f0582f",
+        "variants": [
+          {
+            "variant": "main-136",
+            "status": "PASS",
+            "checks": 8,
+            "journal": 136,
+            "baselineLostAcknowledgementGap": true,
+            "networkCalls": 0,
+            "cleanup": true
+          },
+          {
+            "variant": "main-160",
+            "status": "PASS",
+            "checks": 9,
+            "journal": 160,
+            "baselineLostAcknowledgementGap": true,
+            "networkCalls": 0,
+            "cleanup": true
+          },
+          {
+            "variant": "candidate-160",
+            "status": "PASS",
+            "checks": 10,
+            "journal": 160,
+            "baselineLostAcknowledgementGap": false,
+            "networkCalls": 0,
+            "cleanup": true
+          }
+        ],
+        "mainFunctionalClassification": "PARTIAL: normal self-service proven; lost acknowledgement leaves local invoice open until webhook/review",
+        "candidateAsaasClassification": "PASS: missing invoice reconciliation fixed without repeat DELETE",
+        "abacatepay": {
+          "checks": 52,
+          "status": "PASS",
+          "networkCalls": 0,
+          "fixtureHttpCalls": 373,
+          "cancellationCases": [
+            {
+              "name": "free trial creates complete tenant, quotas and immutable origin without provider IO",
+              "status": "PASS"
+            },
+            {
+              "name": "12 concurrent retries return the original tenant without restarting trial",
+              "status": "PASS"
+            },
+            {
+              "name": "12 concurrent initial requests create only one tenant",
+              "status": "PASS"
+            },
+            {
+              "name": "failure after provisioning rolls back tenant, claim, binding and draft consumption",
+              "status": "PASS"
+            },
+            {
+              "name": "cancelled is never accepted as payment",
+              "status": "PASS"
+            },
+            {
+              "name": "cancelled contract is not revived by a delayed initial payment",
+              "status": "PASS"
+            },
+            {
+              "name": "another tenant actor or stale generation cannot request cancellation",
+              "status": "PASS"
+            },
+            {
+              "name": "12 cancellation clicks stop recurrence at most once without shortening access",
+              "status": "PASS"
+            },
+            {
+              "name": "lost cancellation response is recovered by authoritative GET, never another POST",
+              "status": "PASS"
+            },
+            {
+              "name": "lost recontract response is recovered across 12 concurrent attempts without a second checkout",
+              "status": "PASS"
+            },
+            {
+              "name": "recontract transaction rollback preserves cancelled state and original payment",
+              "status": "PASS"
+            },
+            {
+              "name": "authoritative missing-webhook recontract activates exactly once without restarting trial",
+              "status": "PASS"
+            },
+            {
+              "name": "late old cancellation and old checkout cannot cancel or reactivate the replacement",
+              "status": "PASS"
+            },
+            {
+              "name": "private cancellation and recontract snapshots are immutable and not client-accessible",
+              "status": "PASS"
+            },
+            {
+              "name": "paid-end write gate does not grant delinquency grace after renewal cancellation",
+              "status": "PASS"
+            },
+            {
+              "name": "second-generation cancellation and authenticated new-checkout webhook keep lineage intact",
+              "status": "PASS"
+            },
+            {
+              "name": "tenant-scoped entitlement cannot borrow another paid clinic",
+              "status": "PASS"
+            }
+          ]
+        },
+        "e2e": "Five presentation-only browser regressions; outcome verified in exact final CI readback, not inferred from PostgreSQL",
+        "realProviderCancellations": 0
+      },
+      "externalClientCancellations": 0,
+      "realCharges": 0,
+      "finalCIRequired": true,
+      "gate": "Native proofs PASS; GO only after exact final CI including browser regressions passes"
+    },
+    "backup": {
+      "oldWorkflowChanged": false,
+      "oldWorkflowDisabled": false,
+      "oldRunFailure": {
+        "run": 43597806257,
+        "check": 132455944005,
+        "stepsStarted": false,
+        "annotationCause": "GitHub account recent payment failure OR spending limit; exact alternative not distinguishable",
+        "logsOrArtifactsDownloaded": false
+      },
+      "replacement": {
+        "script": "scripts/recovery-scheduled-backup.ts",
+        "platform": "protected Linux outside Actions",
+        "dotenv": false,
+        "tls": "verify-full + explicit CA + project identity + read-only",
+        "encryption": "AES256; private passphrase FD; isolated keyring",
+        "atomicPublication": true,
+        "exclusiveLock": true,
+        "cipherMode": "0600",
+        "directoryMode": "0700",
+        "retentionDays": 7,
+        "minHealthyGenerations": 2,
+        "healthHours": 26,
+        "schedule": "09:30 UTC daily, health hourly",
+        "alert": "sanitized Sentry envelope; 2xx not channel receipt proof",
+        "unitsPrepared": true,
+        "installed": false,
+        "syntheticProof": {
+          "status": "PASS",
+          "observedAt": "2026-11-16T04:33:14.859Z",
+          "environment": "ephemeral Linux runner; loopback synthetic only",
+          "results": [
+            {
+              "name": "real read-only TLS dump streams into AES256 envelope and authenticated verification",
+              "status": "PASS"
+            },
+            {
+              "name": "real GPG to psql restores UTF8 rows in a second isolated database",
+              "status": "PASS"
+            },
+            {
+              "name": "overlapping scheduler execution is refused without replacing last healthy backup",
+              "status": "PASS"
+            },
+            {
+              "name": "unavailable database fails closed and preserves healthy ciphertext",
+              "status": "PASS"
+            },
+            {
+              "name": "actual cancellation kills pipeline, publishes no manifest and leaves no partial result",
+              "status": "PASS"
+            },
+            {
+              "name": "tampering is detected; unverifiable backups cannot be pruned",
+              "status": "PASS"
+            },
+            {
+              "name": "retention keeps at least two healthy copies and ignores unrelated files",
+              "status": "PASS"
+            }
+          ],
+          "cleanupComplete": true,
+          "realData": false,
+          "scheduledOnProduction": false,
+          "oldWorkflowDisabled": false,
+          "productionWrites": 0,
+          "run": 43804391473,
+          "unitValidation": "PASS on runner with only ExecStart Node path adapted; no units installed"
+        },
+        "doesNotCover": [
+          "Storage object binaries",
+          "managed Auth configuration and external credentials"
+        ]
+      },
+      "cutover": "BLOCKED until permanent schedule/host/key recovery/restore/monitoring/approval; old routine stays active"
+    },
+    "infrastructure": {
+      "awsCLIAvailable": false,
+      "awsProfilesConfigured": false,
+      "infrastructurePurchased": false,
+      "VMProvisioned": false,
+      "conditionalBudgetUSD": 20,
+      "accountRoleAndWholeCostNotProven": true,
+      "notebookExcluded": true,
+      "realRecoveryHostApproved": false,
+      "planAndContractualRetention": "NOT VERIFIED",
+      "humanNeeds": [
+        "legitimate approved AWS role or protected existing Linux host",
+        "responsible technical/recovery and operational/incident roles",
+        "recovery scope/location/key vault/retention/disposal approval",
+        "current Supabase plan and retention evidence"
+      ]
+    },
+    "risks": {
+      "R1": "PARTIAL",
+      "R2": "PARTIAL; natural renewal expected 2026-12-13",
+      "R3": "PARTIAL",
+      "R4": "PARTIAL",
+      "acceptance": "explicit residual acceptance limited to future one-clinic assisted pilot; no authorization to select clinic or charge",
+      "automaticFinancialAcceptance": false
+    },
+    "status": {
+      "DEV": "Synthetic application and cancellation PASS; whole release CI required at exact final HEAD",
+      "backup": "PARTIAL: synthetic replacement PASS7; real host/schedule/cutover blocked",
+      "B1B": "BLOCKED",
+      "B2A": "PASS POINT-IN-TIME",
+      "B2B": "BLOCKED",
+      "B3": "BLOCKED",
+      "productionClosedDeploy": "NOT DEPLOYED",
+      "GateC": "BLOCKED",
+      "pilot": "NOT AUTHORIZED",
+      "PR": "DRAFT",
+      "production": "NO-GO"
+    },
+    "finalCI": {
+      "verification": "exact final HEAD readback required after commit; final immutable run reported in PR53 and delivery",
+      "checksURL": "https://github.com/joaomarcos-techia/Project_OS/pull/53/checks",
+      "previousGreenNotTransferred": true
+    },
+    "otherWorktreesModified": false,
+    "realBackupDownloaded": false,
+    "realDatabaseDumpCreated": false,
+    "revisedBuild": {
+      "status": "PASS",
+      "startedAt": "2026-11-16T04:30:02.733Z",
+      "completedAt": "2026-11-16T04:32:46.705Z",
+      "baseSource": "94f6da4aeb32b1ae7da856dc9afa105120ce6dd9",
+      "baseTarSha256": "3902f2007742df4016450eeaece806a8f2bc0b535631d33da9a5e691b59ce3f6",
+      "patchSource": "44323990b3f1fb9282418fec44a3182b02148c66",
+      "mainSource": "5620a0987ec53db7d7358728eb7d457d9d373df3",
+      "patchedFiles": [
+        {
+          "file": "src/contexts/billing/internal/deferred-checkout.ts",
+          "sha256": "75cdc585ea2c057768e2d9c8e53d7b6eb317c92d4f0cd0e289949e3c2b4bcb73"
+        },
+        {
+          "file": "src/contexts/billing/internal/deferred-overview-origin.test.ts",
+          "sha256": "6eeae3d9f3d88c07ca6907bb664504cde4a0c7cfbe15badd23c211155c1d61ea"
+        },
+        {
+          "file": "src/contexts/billing/internal/cancellation-charges.ts",
+          "sha256": "eb21e609dab0560374b1abf28369d37a1ab0fd858721c6e193589565f306b2ab"
+        },
+        {
+          "file": "src/contexts/billing/internal/cancellation-charges.test.ts",
+          "sha256": "8a2295d3c26f7799a37102e1c58b2154d20b3c75133ff6843d8938e2f80a8729"
+        }
+      ],
+      "sqlHashesPreserved": 160,
+      "excludedMigrations": [
+        "0160",
+        "0161",
+        "0162"
+      ],
+      "reason": "deterministic legacy cancellation regression; explicit application revision",
+      "sourceScope": "original composed package plus two reviewed cancellation files only",
+      "archiveSha256": "6038df0da3a6afaee68528c2f38c08743356ef6bdf6ece7ca808fd41672d0e64",
+      "archiveBytes": 234700800,
+      "files": 2787,
+      "node": "v22.23.4",
+      "commands": [
+        {
+          "name": "exact revised package: next build (no presentation harness)",
+          "code": 0,
+          "durationMs": 161267
+        }
+      ],
+      "sourceParity": true,
+      "buildEnvironment": "fresh HOME; OS allowlist; synthetic variables; no inherited credentials",
+      "securityHarnessInjected": false,
+      "deployed": false,
+      "productionWrites": 0,
+      "run": 43804391473,
+      "sourceArtifact": 14197807651,
+      "reportArtifact": 14197777770,
+      "operatorFileSha256": "a5ad566453ce1df1d63830dac505933dc0a8601157c0358c1c304e2d4691dbea",
+      "originalBuildReused": false
+    },
+    "firewallPreparation": {
+      "at": "2026-11-16T04:33:40.110Z",
+      "status": "READ_ONLY_METADATA",
+      "project": "project-os",
+      "projectId": "prj_GYB0Y9e02ka9jurpJvF6m0feH3eZ",
+      "responseKeys": [
+        "active",
+        "draft",
+        "versions"
+      ],
+      "activeKeys": [
+        "id",
+        "crs",
+        "updatedAt",
+        "firewallEnabled",
+        "projectKey",
+        "changes",
+        "version",
+        "ips",
+        "ownerId",
+        "rules"
+      ],
+      "rulesObserved": true,
+      "firewallEnabled": true,
+      "version": 3,
+      "configSha256": "22cc40be8250a9b745bdb9884967717591b4b6433c91dd87120dedad5612bfa1",
+      "rules": [
+        {
+          "id": "rule_rate_limit_login_CSaHZ7",
+          "active": true,
+          "action": "rate_limit"
+        },
+        {
+          "id": "rule_rate_limit_webhook_meta_NIuAge",
+          "active": true,
+          "action": "rate_limit"
+        }
+      ],
+      "conditionsOrIPValuesRecorded": false,
+      "fullSnapshotRetained": false,
+      "configurationWrites": 0,
+      "productionWrites": 0,
+      "containmentApplied": false,
+      "acquisitionClosureRuleObserved": false
+    }
   }
 }
