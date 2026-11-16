@@ -16,6 +16,7 @@
  */
 import 'server-only';
 
+import { attendanceCopyView, type AttendanceCopyOptions } from '../tiss/print/attendance-copy';
 import { GuidePrintError } from '../tiss/print/print-data';
 import { renderGuidePdf } from '../tiss/print/render';
 import { consultaPrintView, spSadtCobrancaPrintView } from '../tiss/print/values';
@@ -61,6 +62,48 @@ export async function renderIssuedGuidePdf(args: {
   return {
     pdf,
     fileName: `guia-${c.guideType === 'consulta' ? 'consulta' : 'sp-sadt'}-${read.number}-r${read.revision}.pdf`,
+    guideNumber: read.number,
+    revision: read.revision,
+    snapshotSha256: read.contentSha256,
+    pages: layout.pages.length + (layout.continuation.length > 0 ? 1 : 0),
+  };
+}
+
+/**
+ * D-5 fase 1: VIA DE ATENDIMENTO (assinatura do paciente), do MESMO snapshot emitido e pela mesma
+ * leitura auditada, com a finalidade própria (`via_atendimento`). Sem valores, fator, indicação
+ * clínica nem observação; carteirinha mascarada por padrão (`attendance-copy.ts`). Só em memória:
+ * não grava em hi_files. Sem rota nem botão nesta fase (§10.2 da matriz I.2).
+ */
+export async function renderIssuedGuideAttendanceCopyPdf(args: {
+  clinicId: string;
+  guideId: string;
+  surface: string;
+  card?: AttendanceCopyOptions['card'];
+  software?: { name: string; version: string | null };
+}): Promise<IssuedGuidePdf> {
+  const read = await readGuideContentAudited({
+    clinicId: args.clinicId,
+    guideId: args.guideId,
+    operation: 'guide_attendance_copy',
+    surface: args.surface,
+  });
+  const c = read.content;
+  if (!c.print) {
+    throw new GuidePrintError('esta revisão foi emitida sem os dados do impresso; reemita a guia para gerar a via');
+  }
+  const official = c.guideType === 'consulta' ? consultaPrintView(c.data, c.print) : spSadtCobrancaPrintView(c.data, c.print);
+  const view = attendanceCopyView(official, args.card ? { card: args.card } : {});
+  const { pdf, layout } = await renderGuidePdf(view, {
+    guideNumber: read.number,
+    revision: read.revision,
+    snapshotSha256: read.contentSha256,
+    software: args.software ?? { name: 'Qoro', version: null },
+    copy: 'attendance',
+  });
+  return {
+    pdf,
+    fileName: `via-atendimento-${c.guideType === 'consulta' ? 'consulta' : 'sp-sadt'}-${read.number}-r${read.revision}.pdf`,
     guideNumber: read.number,
     revision: read.revision,
     snapshotSha256: read.contentSha256,

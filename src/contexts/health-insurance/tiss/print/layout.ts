@@ -48,7 +48,15 @@ export interface PrintMeta {
   revision: number | null;
   snapshotSha256: string | null;
   software: { name: string; version: string | null };
+  /**
+   * D-5 fase 1: `attendance` = via de atendimento (assinatura do paciente), sem valores. O PDF
+   * leva a marca visível e o rodapé diz que não serve para faturamento.
+   */
+  copy?: 'attendance';
 }
+
+/** Marca da via de atendimento (D-5): visível no papel e no rodapé. */
+export const ATTENDANCE_COPY_MARK = 'VIA DE ATENDIMENTO — SEM VALORES — NÃO SERVE PARA FATURAMENTO';
 
 export interface PrintLayout {
   model: OfficialModel;
@@ -261,6 +269,7 @@ export function layoutGuide(view: GuidePrintView, meta: PrintMeta): PrintLayout 
       });
     }
     ops.push(footer(model, sadt, meta));
+    if (meta.copy === 'attendance') ops.push(attendanceMark(sadt));
     pages.push(ops);
   }
 
@@ -289,6 +298,7 @@ function dedupe(items: PrintLayout['continuation']): PrintLayout['continuation']
 /** Rastreabilidade (R36/S7): software, guia, revisão e o início do SHA-256 do snapshot emitido. */
 function footer(model: OfficialModel, sadt: boolean, meta: PrintMeta): DrawText {
   const parts = [
+    meta.copy === 'attendance' ? 'Via de atendimento (sem valores)' : null,
     `Gerado por ${meta.software.name}${meta.software.version ? ` ${meta.software.version}` : ''}`,
     `guia nº ${meta.guideNumber}`,
     meta.revision !== null ? `revisão ${meta.revision}` : null,
@@ -296,6 +306,16 @@ function footer(model: OfficialModel, sadt: boolean, meta: PrintMeta): DrawText 
     `modelo ANS: Conteúdo e Estrutura 202511, p. ${model.source.page}`,
   ].filter(Boolean);
   return { t: 'text', x: sadt ? 58.9 : 135.8, y: sadt ? 593 : 524, size: sadt ? 3.8 : 5.5, text: parts.join(' · ') };
+}
+
+/**
+ * Onde a marca cabe sem cobrir o modelo: na Consulta, a margem acima da primeira caixa (y 54,5);
+ * na SP/SADT (o modelo ocupa a folha), na linha do rodapé, alinhada à direita da última caixa.
+ */
+function attendanceMark(sadt: boolean): DrawText {
+  if (!sadt) return { t: 'text', x: 121.1, y: 44, size: 9, bold: true, text: ATTENDANCE_COPY_MARK };
+  const size = 5;
+  return { t: 'text', x: 800 - textWidth(ATTENDANCE_COPY_MARK, size, true), y: 593, size, bold: true, text: ATTENDANCE_COPY_MARK };
 }
 
 /** Número do campo de um rótulo do modelo (reexportado para os testes de conformidade). */

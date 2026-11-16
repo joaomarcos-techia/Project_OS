@@ -81,7 +81,7 @@ const DOC_TITLE: Record<GuidePrintView['kind'], string> = {
 };
 
 export function renderGuidePdfFromLayout(layout: PrintLayout, meta: PrintMeta, kind: GuidePrintView['kind']): Promise<Buffer> {
-  const docTitle = `${DOC_TITLE[kind]} nº ${meta.guideNumber}`;
+  const docTitle = `${meta.copy === 'attendance' ? 'Via de atendimento — ' : ''}${DOC_TITLE[kind]} nº ${meta.guideNumber}`;
   return renderToBuffer(
     <Document title={docTitle} author={meta.software.name} creator={meta.software.name} producer={meta.software.name}>
       {layout.pages.map((ops, i) => (

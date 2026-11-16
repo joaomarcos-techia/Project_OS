@@ -58,6 +58,11 @@ export const GUIDE_USER_OPERATIONS = {
   guide_view: { purpose: 'conferencia_guia', permissions: EMITTED, batch: false },
   /** Gerar o PDF oficial da guia. */
   guide_pdf: { purpose: 'impressao_guia', permissions: EMITTED, batch: false },
+  /**
+   * Via de atendimento sem valores (D-5 fase 1). Mesmo acesso do PDF completo nesta fase: ninguém
+   * ganha nem perde nada; a fase 2 decide quem recebe o botão, a fase 3 tira o PDF completo da recepção.
+   */
+  guide_attendance_copy: { purpose: 'via_atendimento', permissions: EMITTED, batch: false },
   /** Baixar um arquivo gerado (PDF/XML) da guia. */
   file_download: { purpose: 'download_arquivo', permissions: EMITTED, batch: false },
   /** Consulta administrativa (auditoria interna da clínica). */
