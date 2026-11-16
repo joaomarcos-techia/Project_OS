@@ -757,3 +757,31 @@ fora do journal. A P1.12-b (troca dos portões no código) não sobe antes da ap
 **Pedido final (separado):** decidir D-1 a D-8 (matriz-permissoes-i2.md §8, com a revisão de D-3/D-5/D-6) e, então,
 autorizar a aplicação **só no DEV** pelo procedimento do §18 (pré-voo só leitura, backup, aplicador de uma entrada,
 pós-voo, entrada no journal com `when` = 0161 + 1 dia e pino no manifesto).
+
+## 22. 16/11: pedido específico para aplicar a 0162 no DEV (não autorizado neste ciclo)
+
+**Estado preservado:** DEV com 162 entradas (última 0161). 0162 candidata fora do journal, ensaio sintético 12/12
+(§21). Nenhuma alteração no DEV neste ciclo. O ensaio não é repetido sem mudança relevante: as escolhas recomendadas
+de D-1 a D-5 não mudam a candidata (matriz-permissoes-i2.md §10).
+
+**Pedido (curto):**
+
+| Item | Conteúdo |
+| --- | --- |
+| O quê | só a `0162_hi_permission_matrix` (5 códigos, pacotes por papel, overrides R1–R4). Só inserções, sem DDL |
+| Onde | só o DEV compartilhado. Nada em produção |
+| Pré-requisito | resposta do fundador às decisões D-1 a D-7 (matriz §10.3). Se a D-7 mudar, a candidata e o ensaio são refeitos antes |
+| Como | procedimento da 0161 (§18): pré-voo só leitura (catálogo 28, pacotes, overrides, `claims_version`); backup de `permissions`, `role_permissions`, `user_permission_overrides` e do ledger; aplicador de uma entrada com `lock_timeout`; pós-voo (catálogo 33, pacotes da matriz, efetivas, token); entrada no journal com `when` = 0161 + 1 dia e pino no manifesto de composição |
+| Efeito para usuários | nenhum até a P1.12-b subir: o código de hoje não lê os códigos novos e `sanitizePermissions` descarta o que o catálogo TS não conhece. Cada perfil renova o token uma vez (`claims_version`) |
+| Reversão | cabeçalho da candidata (provado na prova 10 do ensaio), com a P1.12-b ainda fora do ar |
+| Fora do pedido | P1.12-b (sobe depois, em commit próprio); a candidata dos gatilhos do módulo; o contrato da revisão do repasse; qualquer passo em produção |
+| Evidência a entregar | pré e pós-voo, hash do backup, duração e esperas de lock, SHA servido pelo Preview |
+
+**Candidatas sem número (16/11), para a mesma coordenação:**
+- `docs/convenios/migrations/hi_module_switch_guard.candidate.sql`: o interruptor do módulo nos gatilhos do banco
+  (modulo-desligado.md §7). Prova sintética própria;
+- contrato da revisão do repasse depois do cancelamento (`cancelamento-repasse-contrato.md`): ainda sem SQL,
+  porque o contrato precisa ser aprovado antes.
+
+Nenhuma das duas reserva número. Cada uma recebe o próximo número livre **na autorização**, depois da 0162 e
+conferindo o journal remoto do #53 (o gate dele exige `idx` contíguo).

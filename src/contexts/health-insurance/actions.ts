@@ -29,6 +29,7 @@ import {
 import { withTenant } from '@/lib/db/tenant';
 import { premiumAccessErrorFrom, premiumDenialMessage } from '@/lib/premium-access';
 import { ConveniosModuleDisabledError, assertConveniosOperableTx } from './internal/module-guard';
+import { AuthorizationError, recordManualAuthorizationResponseTx } from './internal/authorizations';
 // eslint-disable-next-line boundaries/element-types -- paymentsApiV1 é a API pública do Pagamentos (M14): o único caminho Asaas do convênio é o da coparticipação.
 import { paymentsApiV1 } from '@/contexts/payments/api';
 import { supabaseTissObjectStore, TissStorageError } from '@/lib/storage/tiss-files';
@@ -101,6 +102,8 @@ function messageOf(error: unknown): string {
   if (premium) return premiumDenialMessage(premium.feature, premium.reason);
   if (error instanceof ConveniosModuleDisabledError) return error.message;
   if (error instanceof z.ZodError) return error.issues[0]?.message ?? 'Dados inválidos.';
+  // Autorização da operadora (P6.1/P6.3): a mensagem já é para o usuário e não leva dado pessoal.
+  if (error instanceof AuthorizationError) return error.message;
   if (error instanceof acct.InsuranceAccountError) return error.message;
   if (error instanceof batches.BatchExportError) return error.message;
   // Pelo nome (não por instanceof): a regra contratual do lote (P2.5) já traz a mensagem do usuário.
@@ -1008,6 +1011,72 @@ export async function exportSadtRequestDocumentAction(input: {
     const d = z.object({ requestId: uuid, newborn: z.boolean().default(false) }).parse(input);
     const out = await generateSadtRequestDocument(d.requestId, d.newborn);
     return out.pdfFileId;
+  });
+}
+
+const ConsultaAuthorizationResponse = z.discriminatedUnion('decision', [
+  z.object({
+    decision: z.literal('denied'),
+    authorizationId: uuid,
+    version,
+    denialReason: z.string().trim().min(3, 'Informe o motivo da negativa da operadora.').max(500),
+  }),
+  z.object({
+    decision: z.literal('authorized'),
+    authorizationId: uuid,
+    version,
+    authorizedOn: day,
+    operatorGuideNumber: z.string().trim().max(20).nullable(),
+    operatorProtocol: z.string().trim().max(40).nullable(),
+    password: z.string().trim().max(64).nullable(),
+    passwordValidUntil: day.nullable(),
+    items: z.array(z.object({ itemId: uuid, quantityAuthorized: z.number().int().min(0).max(999) })).min(1),
+  }),
+]);
+
+/**
+ * P6.3: resposta da operadora a um pedido de autorização da Guia de Consulta (serviço da P6.1). A
+ * clínica e o autor vêm da sessão; o serviço confere estado, versão, evidência, datas e quantidades.
+ * A auditoria guarda só o resultado (nunca a senha).
+ */
+export async function recordConsultaAuthorizationResponseAction(
+  input: z.input<typeof ConsultaAuthorizationResponse>,
+): Promise<ActionResult<string>> {
+  return run(async () => {
+    const d = ConsultaAuthorizationResponse.parse(input);
+    const filled = (v: string | null) => (v && v.length > 0 ? v : undefined);
+    return write(
+      'health_insurance.authorization.response_recorded',
+      { type: 'hi_authorization', id: d.authorizationId },
+      async (tx, ctx) =>
+        (
+          await recordManualAuthorizationResponseTx(
+            tx,
+            d.decision === 'denied'
+              ? {
+                  decision: 'denied',
+                  clinicId: ctx.clinicId,
+                  authorizationId: d.authorizationId,
+                  version: d.version,
+                  denialReason: d.denialReason,
+                  actorUserId: ctx.userId,
+                }
+              : {
+                  decision: 'authorized',
+                  clinicId: ctx.clinicId,
+                  authorizationId: d.authorizationId,
+                  version: d.version,
+                  authorizedOn: d.authorizedOn,
+                  operatorGuideNumber: filled(d.operatorGuideNumber),
+                  operatorProtocol: filled(d.operatorProtocol),
+                  password: filled(d.password),
+                  passwordValidUntil: d.passwordValidUntil ?? undefined,
+                  items: d.items,
+                  actorUserId: ctx.userId,
+                },
+          )
+        ).status,
+    );
   });
 }
 

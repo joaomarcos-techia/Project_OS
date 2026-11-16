@@ -262,7 +262,9 @@ try {
   const restored = await outcome(() =>
     sql.begin(async (tx) => {
       await tx.unsafe(`set local session_replication_role = replica`);
-      await tx.unsafe(`update public.hi_guides set status = 'reviewed', reviewed_by = '${A.doctorId}' where id = '${gEditing}'`);
+      // Em replica NENHUM gatilho roda (nem o que preenche reviewed_at), mas os CHECKs continuam:
+      // a linha vem completa, como numa restauração de verdade (execução 43785054810).
+      await tx.unsafe(`update public.hi_guides set status = 'reviewed', reviewed_by = '${A.doctorId}', reviewed_at = now() where id = '${gEditing}'`);
       throw Object.assign(new Error('desfaz'), { code: 'ROLLBACK_OK', constraint_name: 'replica' });
     }),
   );

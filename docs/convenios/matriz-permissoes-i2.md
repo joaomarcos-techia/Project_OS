@@ -5,8 +5,9 @@
 15/11, sem dado pessoal). A migration candidata está em
 [`migrations/0162_hi_permission_matrix.candidate.sql`](migrations/0162_hi_permission_matrix.candidate.sql), fora do
 journal. A prova em Postgres descartável é
-[`scripts/security/health-insurance-permission-matrix-db.ts`](../../scripts/security/health-insurance-permission-matrix-db.ts):
-escrita, mas **ainda não executada**, porque a máquina está reservada à janela do AbacatePay.
+[`scripts/security/health-insurance-permission-matrix-db.ts`](../../scripts/security/health-insurance-permission-matrix-db.ts).
+**Atualização de 16/11:** o ensaio sintético passou 12/12 no Actions (`coordenacao-migrations.md` §21); a aplicação
+no DEV continua **não autorizada**. A proposta final consolidada, com a decisão pedida por item, está no §10.
 
 A direção funcional foi aprovada pelo fundador em 15/11 **como diretriz de desenho**:
 - a recepção opera sem ver valores;
@@ -285,3 +286,60 @@ com "preservação", mas a 0151 não o lista.
   financeiro sem cadastro; médica só as próprias.
 - **Não regressão:** `security:inventory`, `permission-enforcement-map.test.ts` (código sem consumidor),
   `critical-actions.test.ts`, `smoke-c3` e `dev-rbac-matrix` com o catálogo novo.
+
+## 10. Proposta final consolidada (16/11/2026)
+
+**Situação:** proposta para decisão. Nada aplicado. **A 0162 não é aplicada no DEV neste ciclo** (D-8). Os direitos
+efetivos não mudam antes da aprovação. A candidata passou no ensaio sintético 12/12 (`coordenacao-migrations.md` §21).
+
+**O que cada escolha muda na 0162:** nenhuma das escolhas recomendadas de D-1 a D-5 muda a candidata. Elas mudam só o
+mapa ação → código da P1.12-b (o código que troca os portões), então o ensaio continua valendo. Só uma alternativa à
+D-7 (outra regra de herança dos overrides) exigiria refazer a candidata e o ensaio.
+
+| # | Escolha recomendada | Impacto por papel | Risco | Dependência | Testes | Decisão final pedida |
+| --- | --- | --- | --- | --- | --- | --- |
+| D-1 Preços do contrato | editar só owner e gestor (`manage:convenios`); o financeiro continua **vendo** os preços (`view:faturamento_convenio`) e faturando | owner, gestor: igual. Financeiro: perde a edição, mantém a leitura. Recepção e médica: sem acesso aos preços | um financeiro que hoje corrige preço passa a pedir ao gestor. Mitigação: a Equipe pode conceder `manage:convenios` individualmente | P1.12-b (mapa da ação de preço) depois da 0162 no DEV | financeiro recusado ao criar, revisar ou importar linha de preço (action direta); financeiro lê a tabela e aprova guia com o valor; gestor edita e fica auditado (`config.contract_line_*`) | aprovar: só owner e gestor editam preços; o financeiro só lê |
+| D-2 Política de repasse | configurar só owner e gestor (`manage:convenios`), auditado (`payout.policy_changed`); o financeiro consulta e executa repasses autorizados (`manage:faturamento_convenio`) | owner, gestor: igual. Financeiro: perde a mudança de política, mantém autorizar, pagar e ajustar. Demais: sem acesso | baixo. **Não retroage:** cada repasse guarda a regra e a política do momento em que nasceu (`hi_payouts.eligibility`, `rule_*`); mudar a política vale só para os próximos | P1.12-b | financeiro recusado ao mudar a política; gestor muda e a auditoria registra antes e depois; repasse já criado mantém a política antiga (posição igual antes e depois da mudança) | aprovar: política de repasse é cadastro (owner e gestor) |
+| D-3 Médica, carteirinha e cobertura | **opção B** (preferida pelo fundador): a médica registra carteirinha e cobertura só nos atendimentos dela (`appointments.doctor_id` = pessoa da sessão, conferido no servidor), sem `operate:convenios` e sem valores; número completo só com finalidade "atendimento", auditado | médica: perde carteirinha e cobertura de atendimento alheio; mantém as do próprio. Recepção: ganha pelo `operate:convenios`. Owner e gestor: igual | médio: o filtro é código novo. Um id adulterado precisa resolver como "não encontrado", nunca como recusa que confirme existência | P1.12-b; vínculo pelo `doctor_id` do atendimento (já existe) | médica registra no próprio atendimento; recusada no de outra profissional pela action direta e com id adulterado (resposta "não encontrado"); não vê valores; recepção registra em qualquer atendimento da clínica; outra clínica: não encontrado | aprovar a opção B, com ativação só depois de validar os impactos no Preview |
+| D-4 Médica vê as próprias guias | sim, como **filtro de posse no servidor e no acesso aos documentos** (executante **ou** solicitante), não na tela. **Valores ocultos por padrão** (revisão desta rodada, §10.1) | médica: ganha a lista e a tela das próprias guias (estado, pendências, procedimento, data, paciente), sem valores e sem XML. Demais: igual | médio: a consulta do escopo próprio precisa deixar de selecionar as colunas de valor, e o PDF e o XML precisam do mesmo filtro. Esconder na tela não basta | P1.12-b; D-5 (o PDF da médica seria a via sem valores) | guia de outra médica aparece como "não encontrada" (lista, tela, PDF, XML e id adulterado); a própria aparece **sem** campos de valor na resposta do servidor; solicitante vê a guia que solicitou; sem `operate` nem `view:faturamento`, nada da clínica inteira | aprovar a posse por executante ou solicitante e **valores ocultos por padrão** |
+| D-5 PDF e XML para a recepção | transição em 3 fases (§10.2): primeiro a via de atendimento sem valores; só depois o PDF completo e o XML ficam com quem fatura; até lá **nada muda** e nada é ampliado | recepção: mantém o PDF atual (leitura auditada) até a via existir e ser aprovada; nunca recebe o XML. Financeiro, owner e gestor: igual | se a troca vier antes da via, a recepção perde o documento de assinatura. A ordem das fases impede | gerador da via (P7.7, a partir do snapshot emitido); decisão dos campos da via | via sem valores e sem indicação clínica; recepção recusada no XML hoje e no PDF completo depois da fase 3; toda leitura auditada com a finalidade; a via sai do mesmo snapshot (mesmo hash de origem) | aprovar o plano de 3 fases e os campos da via |
+| D-6 Repasses preservados | estabelecida pelo fundador: repasse faturado, autorizado ou pago é obrigação preservada e rastreada; nada de compensação automática nem de apagar pagamento | financeiro: a revisão humana do cancelamento (contrato próprio) decide; demais: sem efeito | o pagamento depois do cancelamento continua possível até a correção aprovada (medido na prova 14 do repasse) | `cancelamento-repasse-contrato.md` (migration nova, a aprovar); não muda contrato financeiro compartilhado | provas 13 e 14 do repasse (não regressão); os 10 testes do contrato depois da correção | aprovar o contrato da revisão humana (documento próprio) |
+| D-7 Overrides individuais | regras R1–R4 da candidata: negativa explícita prevalece; override redundante não amplia direito; efetivas previsíveis; override nunca atravessa clínica (cada override é de um perfil, que é de uma clínica; o acesso aos dados continua pelo `withTenant` e pela RLS) | quem tinha `manage:financial` negado também fica sem operar e faturar. A perda pequena (carteirinha do gestor com gerenciar negado) é revertida pela Equipe | baixo. No DEV não há override; em produção a contagem é desconhecida (pede o pré-voo só leitura, não autorizado) | 0162 | provas 3, 4 e 10 da 0162 (herança, precedência e reversão), preservadas; **a acrescentar na P12.2:** override de uma pessoa da clínica A não muda as efetivas de ninguém da clínica B e não abre dado da clínica B | aprovar R1–R4 como estão |
+| D-8 Aplicar a 0162 | **não neste ciclo.** Depois das decisões D-1 a D-7, aplicar só no DEV pelo procedimento da 0161 | nenhum efeito para usuários até a P1.12-b subir (o código de hoje não lê os códigos novos) | baixo: só inserções, reversível pelo cabeçalho, provado 12/12 em banco descartável | decisões D-1 a D-7; pedido específico no §22 da coordenação | pré e pós-voo só leitura no DEV; backup; o ensaio sintético já feito; `smoke-c3` e `dev-rbac-matrix` depois | autorizar pelo pedido do §22, quando decidir |
+
+### 10.1 D-4: valores da própria guia (avaliação separada pedida pelo fundador)
+
+- **O valor é necessário ao atendimento?** Não. O valor da guia (`valorProcedimento`, `valorUnitario`, `valorTotal`)
+  é dado de faturamento com a operadora. A médica precisa saber que a guia existe, em que estado está e o que falta
+  para ela andar (pendências que dependem dela, como a indicação clínica).
+- **O interesse legítimo na "própria produção"** é o repasse, que é outra tela, de faturamento, com regra e política
+  da clínica. Mostrar o valor da guia como "produção" ainda confundiria: o repasse sai da regra (percentual ou fixo)
+  e da política (recebimento, aprovação ou conclusão), não do valor bruto da guia.
+- **Recomendação (revisada; antes era "sim aos dois"):** valores **ocultos por padrão** no escopo próprio. O servidor
+  não seleciona as colunas de valor para quem só tem posse, e o PDF da médica é a via sem valores da D-5. Ver valores
+  exige `view:faturamento_convenio`, que a clínica pode conceder individualmente pela Equipe.
+- **Efeito na 0162:** nenhum. A médica já não recebe `view:faturamento_convenio`. A regra R3 (concessão individual de
+  `view:financial` a uma médica ⇒ vê com valores) continua valendo só para quem a clínica já concedeu explicitamente.
+
+### 10.2 D-5: plano de transição da recepção
+
+| Fase | O que acontece | Quem vê o quê | Condição para avançar |
+| --- | --- | --- | --- |
+| 0 (hoje) | nada muda | recepção: PDF atual da guia (leitura auditada); XML do lote só com `manage:financial`, que a recepção não tem | aprovação do plano |
+| 1 | gerar a **via de atendimento** a partir do snapshot emitido, sem valores e sem a indicação clínica, com só o necessário para a assinatura do paciente | ninguém perde nada; a via é só um documento a mais | campos da via aprovados pelo fundador (abaixo); prova de que nenhum valor sai na via |
+| 2 | botão "Via para assinatura" para quem opera (`operate:convenios`) | recepção ganha a via; mantém o PDF completo | via validada no Preview (e2e com a conta da recepção) |
+| 3 | o PDF completo e o XML passam a exigir `view:faturamento_convenio` | recepção: só a via; financeiro, owner e gestor: PDF completo e XML | fase 2 validada e aprovada; P1.12-b no ar |
+
+Campos da via a decidir: nome do beneficiário (sim); número da carteirinha completo ou mascarado (depende do que a
+operadora exige no papel); procedimento e data (sim); valores (não); indicação clínica da SP/SADT (não). Reversão de
+qualquer fase: o código volta e os pacotes da 0162 continuam (a 0162 é só de dados).
+
+### 10.3 Pedido final de aprovação da matriz I.2
+
+Peço ao fundador, em uma resposta:
+1. D-1 a D-4 e D-7 como recomendados na tabela acima (D-3 opção B; D-4 com valores ocultos por padrão);
+2. D-5: o plano de 3 fases e os campos da via;
+3. D-6: o contrato da revisão humana (`cancelamento-repasse-contrato.md`), à parte;
+4. D-8: a aplicação da 0162 só no DEV, pelo pedido do §22 da coordenação, quando decidir.
+
+Até lá: nenhuma mudança de direito efetivo, nenhum pacote aplicado no DEV, P1.12-b só local.

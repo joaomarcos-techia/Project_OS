@@ -22,6 +22,23 @@ export const ELIGIBILITY_LABELS: Record<string, string> = {
   on_completion: 'Na conclusão (antecipa sobre o contratado)',
 };
 
+/** Texto do alerta da autorização (P6.6), sem dado pessoal. `validUntil` em AAAA-MM-DD. */
+export function authorizationAlertText(
+  a:
+    | { kind: 'password_expiring'; daysLeft: number; validUntil: string }
+    | { kind: 'sessions_ending'; remaining: number; authorized: number },
+): string {
+  if (a.kind === 'password_expiring') {
+    const [y, m, d] = a.validUntil.split('-');
+    const when = `${d}/${m}/${y}`;
+    if (a.daysLeft === 0) return `Senha vence hoje (${when})`;
+    return a.daysLeft === 1 ? `Senha vence amanhã (${when})` : `Senha vence em ${a.daysLeft} dias (${when})`;
+  }
+  return a.remaining === 1
+    ? `Resta 1 sessão autorizada de ${a.authorized}`
+    : `Restam ${a.remaining} sessões autorizadas de ${a.authorized}`;
+}
+
 /** Ação que falhou sem resposta e a sessão não existe mais (o runner de `action-ui.tsx` leva ao login). */
 export const SESSION_ENDED_MESSAGE = 'Sua sessão terminou. Entre de novo para continuar.';
 /** Ação que falhou sem resposta com a sessão de pé: nunca afirmar sucesso nem fracasso. */

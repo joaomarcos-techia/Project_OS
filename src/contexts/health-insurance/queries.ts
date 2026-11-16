@@ -13,6 +13,8 @@ import { sql } from 'drizzle-orm';
 import { withTenant } from '@/lib/db/tenant';
 import { getPremiumDenialTx, type PremiumDenial } from '@/lib/premium-access';
 
+import { authorizationAlerts, type AuthorizationAlert } from './internal/authorization-alerts';
+import { authorizationDisplayState, remainingQuantity, type AuthorizationDisplayState } from './internal/authorization-rules';
 import { listCopayChargesTx } from './internal/copay-charge-service';
 import { insurerRules } from './internal/insurer-rules';
 import { listInsurancePayoutPositionsTx, type InsurancePayoutPosition } from './internal/insurance-payout-service';
@@ -1115,4 +1117,197 @@ export async function listInsurancePayouts(clinicId: string): Promise<{ rows: In
 /** Coparticipações confirmadas e a situação da cobrança (P10.5). */
 export async function listCopayCharges(clinicId: string) {
   return withTenant(clinicId, (tx) => listCopayChargesTx(tx, clinicId));
+}
+
+// ── Autorizações da operadora (P6.3) ────────────────────────────────────────────────────────
+
+export interface AuthorizationItemRow {
+  id: string;
+  tableCode: string;
+  procedureCode: string;
+  quantityRequested: number;
+  quantityAuthorized: number;
+  quantityConsumed: number;
+}
+
+export interface AuthorizationRow {
+  id: string;
+  guideType: 'consulta' | 'sp_sadt';
+  status: 'draft' | 'requested' | 'pending_operator' | 'authorized' | 'partially_authorized' | 'denied' | 'expired' | 'cancelled';
+  origin: string;
+  version: number;
+  insurerName: string;
+  patientName: string;
+  requestedOn: string | null;
+  authorizedOn: string | null;
+  operatorGuideNumber: string | null;
+  operatorProtocol: string | null;
+  /** Só se há senha guardada (cifrada). A senha nunca sai daqui. */
+  hasPassword: boolean;
+  passwordValidUntil: string | null;
+  denialReason: string | null;
+  sadtRequestId: string | null;
+  sadtRequestNumber: string | null;
+  receipts: number;
+  items: AuthorizationItemRow[];
+}
+
+const AUTHORIZATION_SELECT = sql`
+  SELECT a.id, a.guide_type, a.status, a.origin, a.version, a.requested_on::text AS requested_on,
+         a.authorized_on::text AS authorized_on, a.operator_guide_number, a.operator_protocol,
+         (a.password_encrypted IS NOT NULL) AS has_password, a.password_valid_until::text AS password_valid_until,
+         a.denial_reason, i.name AS insurer_name, p.nome AS patient_name, r.id AS sadt_request_id,
+         r.request_number AS sadt_request_number,
+         (SELECT count(*) FROM public.hi_authorization_attachments x
+           WHERE x.clinic_id = a.clinic_id AND x.authorization_id = a.id) AS receipts,
+         (SELECT coalesce(json_agg(json_build_object(
+                   'id', ai.id, 'tableCode', ai.table_code, 'procedureCode', ai.procedure_code,
+                   'quantityRequested', ai.quantity_requested, 'quantityAuthorized', ai.quantity_authorized,
+                   'quantityConsumed', ai.quantity_consumed) ORDER BY ai.created_at, ai.id), '[]'::json)
+            FROM public.hi_authorization_items ai
+           WHERE ai.clinic_id = a.clinic_id AND ai.authorization_id = a.id) AS items
+    FROM public.hi_authorizations a
+    JOIN public.hi_insurers i ON i.clinic_id = a.clinic_id AND i.id = a.insurer_id
+    LEFT JOIN public.hi_memberships m ON m.clinic_id = a.clinic_id AND m.id = a.membership_id
+    LEFT JOIN public.patients p ON p.clinic_id = m.clinic_id AND p.id = m.patient_id
+    LEFT JOIN public.hi_sadt_requests r ON r.clinic_id = a.clinic_id AND r.authorization_id = a.id`;
+
+function authorizationRow(r: Row): AuthorizationRow {
+  const raw = typeof r.items === 'string' ? (JSON.parse(r.items) as unknown) : r.items;
+  const items = (Array.isArray(raw) ? raw : []) as Array<Record<string, unknown>>;
+  return {
+    id: String(r.id),
+    guideType: r.guide_type === 'sp_sadt' ? 'sp_sadt' : 'consulta',
+    status: String(r.status) as AuthorizationRow['status'],
+    origin: String(r.origin),
+    version: n(r.version),
+    insurerName: String(r.insurer_name ?? ''),
+    patientName: String(r.patient_name ?? ''),
+    requestedOn: s(r.requested_on),
+    authorizedOn: s(r.authorized_on),
+    operatorGuideNumber: s(r.operator_guide_number),
+    operatorProtocol: s(r.operator_protocol),
+    hasPassword: r.has_password === true,
+    passwordValidUntil: s(r.password_valid_until),
+    denialReason: s(r.denial_reason),
+    sadtRequestId: s(r.sadt_request_id),
+    sadtRequestNumber: s(r.sadt_request_number),
+    receipts: n(r.receipts),
+    items: items.map((it) => ({
+      id: String(it.id),
+      tableCode: String(it.tableCode),
+      procedureCode: String(it.procedureCode),
+      quantityRequested: n(it.quantityRequested),
+      quantityAuthorized: n(it.quantityAuthorized),
+      quantityConsumed: n(it.quantityConsumed),
+    })),
+  };
+}
+
+/** Data de hoje no fuso da clínica (a mesma dos vencimentos e dos alertas da P6.6). */
+async function clinicTodayTx(tx: Parameters<Parameters<typeof withTenant>[1]>[0], clinicId: string): Promise<string> {
+  const [row] = (await tx.execute(
+    sql`SELECT (now() AT TIME ZONE coalesce(c.timezone, 'America/Sao_Paulo'))::date::text AS d
+          FROM public.clinics c WHERE c.id = ${clinicId}::uuid`,
+  )) as unknown as Row[];
+  return String(row?.d);
+}
+
+export interface AuthorizationListRow extends AuthorizationRow {
+  /** Estado mostrado (C.8): inclui "consumida" e a vencida antes da rotina que grava o vencimento. */
+  shownState: AuthorizationDisplayState;
+  remaining: number;
+  authorizedTotal: number;
+}
+
+function withBalance(r: AuthorizationRow, today: string): AuthorizationListRow {
+  const granted = r.items.filter((i) => i.quantityAuthorized > 0);
+  return {
+    ...r,
+    shownState: authorizationDisplayState(r, today),
+    remaining: granted.reduce((acc, i) => acc + remainingQuantity(i), 0),
+    authorizedTotal: granted.reduce((acc, i) => acc + i.quantityAuthorized, 0),
+  };
+}
+
+/**
+ * Autorizações da clínica (sem rascunho), as mais recentes primeiro, com a data da clínica, o
+ * estado mostrado, o saldo e os alertas da P6.6 (senha vencendo, sessões acabando).
+ */
+export async function listAuthorizations(
+  clinicId: string,
+): Promise<{ today: string; rows: AuthorizationListRow[]; alerts: AuthorizationAlert[] }> {
+  return withTenant(clinicId, async (tx) => {
+    const today = await clinicTodayTx(tx, clinicId);
+    const raw = (await tx.execute(
+      sql`${AUTHORIZATION_SELECT}
+           WHERE a.clinic_id = ${clinicId}::uuid AND a.status <> 'draft'
+           ORDER BY a.created_at DESC LIMIT 300`,
+    )) as unknown as Row[];
+    const rows = raw.map(authorizationRow);
+    return { today, rows: rows.map((r) => withBalance(r, today)), alerts: authorizationAlerts(rows, today) };
+  });
+}
+
+export interface AuthorizationEventRow {
+  fromStatus: string | null;
+  toStatus: string;
+  note: string | null;
+  actorName: string | null;
+  createdAt: string | null;
+}
+
+export interface AuthorizationReceiptRow {
+  id: string;
+  mediaType: string;
+  sizeBytes: number;
+  uploadedByName: string | null;
+  createdAt: string | null;
+}
+
+/** Uma autorização com histórico e comprovantes (só metadados). `null` = não existe nesta clínica. */
+export async function getAuthorization(
+  clinicId: string,
+  authorizationId: string,
+): Promise<{ today: string; row: AuthorizationListRow; events: AuthorizationEventRow[]; receipts: AuthorizationReceiptRow[] } | null> {
+  return withTenant(clinicId, async (tx) => {
+    const [row] = (await tx.execute(
+      sql`${AUTHORIZATION_SELECT}
+           WHERE a.clinic_id = ${clinicId}::uuid AND a.id = ${authorizationId}::uuid`,
+    )) as unknown as Row[];
+    if (!row) return null;
+    const today = await clinicTodayTx(tx, clinicId);
+    const events = (await tx.execute(
+      sql`SELECT e.from_status, e.to_status, e.note, e.created_at, pr.nome AS actor_name
+            FROM public.hi_authorization_events e
+            LEFT JOIN public.profiles pr ON pr.clinic_id = e.clinic_id AND pr.id = e.actor_id
+           WHERE e.clinic_id = ${clinicId}::uuid AND e.authorization_id = ${authorizationId}::uuid
+           ORDER BY e.created_at, e.id`,
+    )) as unknown as Row[];
+    const receipts = (await tx.execute(
+      sql`SELECT x.id, x.media_type, x.size_bytes, x.created_at, pr.nome AS uploaded_by_name
+            FROM public.hi_authorization_attachments x
+            LEFT JOIN public.profiles pr ON pr.clinic_id = x.clinic_id AND pr.id = x.uploaded_by
+           WHERE x.clinic_id = ${clinicId}::uuid AND x.authorization_id = ${authorizationId}::uuid
+           ORDER BY x.created_at, x.id`,
+    )) as unknown as Row[];
+    return {
+      today,
+      row: withBalance(authorizationRow(row), today),
+      events: events.map((e) => ({
+        fromStatus: s(e.from_status),
+        toStatus: String(e.to_status),
+        note: s(e.note),
+        actorName: s(e.actor_name),
+        createdAt: iso(e.created_at),
+      })),
+      receipts: receipts.map((x) => ({
+        id: String(x.id),
+        mediaType: String(x.media_type),
+        sizeBytes: n(x.size_bytes),
+        uploadedByName: s(x.uploaded_by_name),
+        createdAt: iso(x.created_at),
+      })),
+    };
+  });
 }

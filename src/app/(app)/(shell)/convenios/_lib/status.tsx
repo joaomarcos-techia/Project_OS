@@ -74,3 +74,21 @@ export function SadtStatusBadge({ status }: { status: string }) {
   const st = SADT_STATUS[status];
   return <Badge tone={st?.tone ?? 'gray'}>{st?.label ?? status}</Badge>;
 }
+
+/** Autorização da operadora (C.8), no estado MOSTRADO (inclui "consumida" e a vencida antes da rotina). */
+export const AUTHORIZATION_STATUS: Record<string, { label: string; tone: Tone }> = {
+  draft: { label: 'Rascunho', tone: 'amber' },
+  requested: { label: 'Pedida', tone: 'violet' },
+  pending_operator: { label: 'Aguardando a operadora', tone: 'violet' },
+  authorized: { label: 'Autorizada', tone: 'green' },
+  partially_authorized: { label: 'Autorizada em parte', tone: 'teal' },
+  consumed: { label: 'Consumida', tone: 'gray' },
+  denied: { label: 'Negada', tone: 'red' },
+  expired: { label: 'Vencida', tone: 'gray' },
+  cancelled: { label: 'Cancelada', tone: 'gray' },
+};
+
+export function AuthorizationStatusBadge({ status }: { status: string }) {
+  const st = AUTHORIZATION_STATUS[status];
+  return <Badge tone={st?.tone ?? 'gray'}>{st?.label ?? status}</Badge>;
+}

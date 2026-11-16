@@ -678,3 +678,35 @@ achado como S-02. Esta seção é a versão única do diagnóstico, para evitar 
   - também no diff: `financeiro/page.tsx` (conflito conhecido; o saldo parcial continua descontando a glosa) e a 0136
     com o journal, que vieram do #53 pela base da UI e se resolvem pela composição, nunca à mão;
   - reconferir de novo antes de integrar, porque a branch da UI anda.
+
+## 12. 16/11: reconferência da integração e o que muda para a interface
+
+**Diff efetivo reconferido (só leitura, sem tocar no worktree da UI):** #56 em `a1d64d11` (antes `2a6c54f8`), 411
+arquivos sobre a base `5620a098`. Mesclagem feita só em memória (`git merge-tree --write-tree`, nenhum worktree nem
+branch alterado) entre o HEAD do #55 e o #56: **9 arquivos em conflito real**:
+- os **8** do §9.10: `caixa/caixa-view.tsx`, `caixa/cash-item-card.tsx`, `financeiro/page.tsx`,
+  `agenda/lista-espera/waitlist-manager.tsx`, `consultorio/format.ts`, `consultorio/waiting-card.tsx`,
+  `agenda/new-appointment-drawer.tsx` e `drizzle/migrations/meta/_journal.json`;
+- **mais** `docs/security/acoes.md`. É o inventário **gerado**: resolve-se rodando `inventory.ts --write` depois do
+  rebase, nunca à mão.
+
+**Regra financeira reconferida:** o `financeiro/page.tsx` do #55 tem `l.valor - l.valorPago - l.valorGlosado`; o do #56
+tem `l.valor - l.valorPago`. Na resolução **fica o desconto da glosa**; o visual do selo é o da UI.
+
+**Fora do diff da UI (conferido):** a tela de repasses de Convênios (`convenios/repasses`, `_lib/payout-ui.tsx`). O #56
+altera `relatorios/repasses` e o spec `payout-review-preview`, que são do repasse **particular**, não de Convênios.
+
+**Novo nesta rodada no #55, para a UI saber:**
+- **Tela "Autorizações" (P6.3):** `/convenios/autorizacoes` (fila: vencendo ou acabando, aguardando a operadora,
+  concedidas, encerradas) e `/convenios/autorizacoes/[id]` (procedimentos, resposta da operadora, comprovantes,
+  histórico). Aba nova em `_lib/tabs.tsx`, entre "Solicitações" e "Guias". Se a navegação global da UI listar as telas
+  de Convênios, entra mais esta;
+- formulário da resposta da Consulta em `_lib/authorization-ui.tsx`. Usa `PanelCard`, `Field`, `Input`, `Textarea`,
+  `Table`, `Badge` e `Alert` do design system, sem estilo próprio novo. O erro também fica escrito no formulário
+  (`role="alert"`);
+- **cancelamento com repasse (contrato em `cancelamento-repasse-contrato.md`, a aprovar):** quando aprovado, a tela de
+  repasses de Convênios ganha o selo "Em revisão", o botão de pagamento desabilitado com o motivo e o diálogo de
+  decisão. Só arquivos do #55;
+- **D-5 (plano de 3 fases na matriz §10.2):** o botão "Via para assinatura" só depois da aprovação dos campos.
+
+**Ordem proposta, sem mudança:** #53 → #56 → #55. Não é autorização de merge. Nenhum rebase feito.

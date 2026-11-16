@@ -17,6 +17,7 @@ const m = vi.hoisted(() => ({
   approveConsultaGuide: vi.fn(),
   updateConsultaOverridesInTx: vi.fn(),
   setClinicalIndicationInTx: vi.fn(),
+  recordManualAuthorizationResponseTx: vi.fn(),
 }));
 
 vi.mock('server-only', () => ({}));
@@ -58,6 +59,15 @@ vi.mock('./internal/insurance-account-service', () => {
   }
   return { InsuranceAccountError, transitionGlossInTx: m.transitionGlossInTx, recordPaymentInTx: m.recordPaymentInTx };
 });
+vi.mock('./internal/authorizations', () => {
+  class AuthorizationError extends Error {
+    constructor(message: string, readonly kind: string) {
+      super(message);
+      this.name = 'AuthorizationError';
+    }
+  }
+  return { AuthorizationError, recordManualAuthorizationResponseTx: m.recordManualAuthorizationResponseTx };
+});
 vi.mock('./tiss/xml/xsd-validator', () => ({ loadXmllintValidator: () => null }));
 vi.mock('./internal/sadt-request-service', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
@@ -71,13 +81,16 @@ import {
   approveGuideAction,
   createBatchAction,
   decideGlossAction,
+  recordConsultaAuthorizationResponseAction,
   recordPaymentAction,
   returnGuideAction,
   reviewGuideAction,
   setSadtClinicalIndicationAction,
   updateConsultaFieldsAction,
 } from './actions';
+import { AuthorizationError } from './internal/authorizations';
 import { ConsultaOverridesError } from './internal/consulta-overrides-service';
+import { ConveniosModuleDisabledError } from './internal/module-guard';
 import { notReviewedError } from './internal/issuance-common';
 
 /** Erro com o mesmo nome do da emissão (a ação reconhece pelo nome, como o BatchRuleError). */
@@ -343,5 +356,95 @@ describe('indicação clínica da SP/SADT (portão próprio)', () => {
     });
     expect(m.logAudit).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(m.logAudit.mock.calls[0])).not.toContain('Psicoterapia');
+  });
+});
+
+describe('resposta da operadora à autorização da Consulta (P6.3)', () => {
+  const AUTH = '55555555-5555-4555-8555-555555555555';
+  const ITEM = '66666666-6666-4666-8666-666666666666';
+  const authorized = {
+    decision: 'authorized' as const,
+    authorizationId: AUTH,
+    version: 3,
+    authorizedOn: '2026-11-15',
+    operatorGuideNumber: ' 998877 ',
+    operatorProtocol: '',
+    password: 'S3NHA-OPERADORA',
+    passwordValidUntil: '2026-12-15',
+    items: [{ itemId: ITEM, quantityAuthorized: 1 }],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    m.requireUser.mockResolvedValue({ userId: 'u1' });
+    m.requireCachedPermission.mockResolvedValue(undefined);
+    m.requireClinicId.mockResolvedValue(CLINIC);
+    m.recordManualAuthorizationResponseTx.mockResolvedValue({ status: 'authorized' });
+  });
+
+  it('exige gerenciar financeiro antes do banco', async () => {
+    m.requireCachedPermission.mockRejectedValueOnce(new (AuthError as unknown as new (msg: string, code: string) => Error)('negado', 'forbidden'));
+    const r = await recordConsultaAuthorizationResponseAction(authorized);
+    expect(r).toEqual({ ok: false, error: 'Seu perfil não tem permissão para esta operação de convênios.' });
+    expect(m.requireCachedPermission).toHaveBeenCalledWith('manage:financial');
+    expect(m.recordManualAuthorizationResponseTx).not.toHaveBeenCalled();
+    expect(m.logAudit).not.toHaveBeenCalled();
+  });
+
+  it('autorizada: clínica e autor da sessão, campos vazios viram ausentes, auditoria só com o resultado (nunca a senha)', async () => {
+    expect(await recordConsultaAuthorizationResponseAction(authorized)).toEqual({ ok: true, data: 'authorized' });
+    expect(m.recordManualAuthorizationResponseTx).toHaveBeenCalledWith(expect.anything(), {
+      decision: 'authorized',
+      clinicId: CLINIC,
+      authorizationId: AUTH,
+      version: 3,
+      authorizedOn: '2026-11-15',
+      operatorGuideNumber: '998877',
+      operatorProtocol: undefined,
+      password: 'S3NHA-OPERADORA',
+      passwordValidUntil: '2026-12-15',
+      items: [{ itemId: ITEM, quantityAuthorized: 1 }],
+      actorUserId: 'u1',
+    });
+    expect(m.logAudit).toHaveBeenCalledTimes(1);
+    const audit = m.logAudit.mock.calls[0]![1] as { action: string; resourceId: string; after: unknown };
+    expect([audit.action, audit.resourceId]).toEqual(['health_insurance.authorization.response_recorded', AUTH]);
+    expect(audit.after).toEqual({ result: 'authorized' });
+    expect(JSON.stringify(m.logAudit.mock.calls)).not.toContain('S3NHA');
+  });
+
+  it('negada: motivo obrigatório (mensagem em português, sem chegar ao serviço) e, com motivo, grava', async () => {
+    const short = await recordConsultaAuthorizationResponseAction({ decision: 'denied', authorizationId: AUTH, version: 3, denialReason: ' x ' });
+    expect(short).toEqual({ ok: false, error: 'Informe o motivo da negativa da operadora.' });
+    expect(m.recordManualAuthorizationResponseTx).not.toHaveBeenCalled();
+    m.recordManualAuthorizationResponseTx.mockResolvedValueOnce({ status: 'denied' });
+    const ok = await recordConsultaAuthorizationResponseAction({ decision: 'denied', authorizationId: AUTH, version: 3, denialReason: 'Fora da cobertura do plano' });
+    expect(ok).toEqual({ ok: true, data: 'denied' });
+    expect(m.recordManualAuthorizationResponseTx).toHaveBeenCalledWith(expect.anything(), {
+      decision: 'denied', clinicId: CLINIC, authorizationId: AUTH, version: 3, denialReason: 'Fora da cobertura do plano', actorUserId: 'u1',
+    });
+  });
+
+  it('regra do serviço (evidência, versão, outra clínica) e módulo desligado: a mensagem do serviço, sem auditoria de sucesso', async () => {
+    m.recordManualAuthorizationResponseTx.mockRejectedValueOnce(
+      new AuthorizationError('Autorização só com evidência da operadora: número da guia na operadora, senha ou protocolo.', 'evidence_required'),
+    );
+    expect(await recordConsultaAuthorizationResponseAction(authorized)).toEqual({
+      ok: false,
+      error: 'Autorização só com evidência da operadora: número da guia na operadora, senha ou protocolo.',
+    });
+    m.recordManualAuthorizationResponseTx.mockRejectedValueOnce(new AuthorizationError('Autorização inexistente nesta clínica.', 'not_found'));
+    expect(await recordConsultaAuthorizationResponseAction(authorized)).toEqual({ ok: false, error: 'Autorização inexistente nesta clínica.' });
+    m.recordManualAuthorizationResponseTx.mockRejectedValueOnce(new ConveniosModuleDisabledError());
+    const off = await recordConsultaAuthorizationResponseAction(authorized);
+    expect(off.ok === false && off.error.startsWith('Convênios está desligado nesta clínica.')).toBe(true);
+    expect(m.logAudit).not.toHaveBeenCalled();
+  });
+
+  it('identificador adulterado (não UUID) é recusado antes do portão e do banco', async () => {
+    const r = await recordConsultaAuthorizationResponseAction({ ...authorized, authorizationId: 'abc' });
+    expect(r.ok).toBe(false);
+    expect(m.requireCachedPermission).not.toHaveBeenCalled();
+    expect(m.recordManualAuthorizationResponseTx).not.toHaveBeenCalled();
   });
 });

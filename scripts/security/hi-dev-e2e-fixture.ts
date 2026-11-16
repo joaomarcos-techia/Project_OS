@@ -542,14 +542,57 @@ async function guideState() {
   console.log(`GUIDE_STATE ${JSON.stringify(g)}`);
 }
 
+/**
+ * P6.3: duas autorizações de Consulta NOVAS na clínica paga, pelos serviços reais da P6.1: uma
+ * aguardando a operadora (para registrar a resposta na tela) e uma concedida com a senha vencendo
+ * amanhã (alerta da P6.6 na fila). Cada execução cria as suas; a marca vai no número da operadora.
+ */
+async function setupAuthorizations() {
+  const run = arg('run');
+  if (!run || !/^[A-Z0-9]{3,12}$/u.test(run)) throw new Error('--run <marca> obrigatório (A-Z e 0-9)');
+  const paga = await pagaClinic();
+  const accounts = JSON.parse(readFileSync(accountsFile!, 'utf8')) as Record<string, { userId: string; clinic: string }>;
+  const gestor = accounts.gestor?.clinic === 'paga' ? accounts.gestor.userId : undefined;
+  if (!gestor) throw new Error('conta gestor da clínica paga ausente no arquivo de contas');
+  const [ctx] = await exec<{ insurer: string | null; membership: string | null; today: string; tomorrow: string }>(sql`
+    SELECT (SELECT id::text FROM public.hi_insurers WHERE clinic_id = ${paga}::uuid AND registro_ans = '999901') AS insurer,
+           (SELECT m.id::text FROM public.hi_memberships m JOIN public.patients p ON p.id = m.patient_id AND p.clinic_id = m.clinic_id
+             WHERE m.clinic_id = ${paga}::uuid AND p.nome = 'Paciente Sintético E2E Um' ORDER BY m.created_at LIMIT 1) AS membership,
+           (now() AT TIME ZONE coalesce(c.timezone, 'America/Sao_Paulo'))::date::text AS today,
+           ((now() AT TIME ZONE coalesce(c.timezone, 'America/Sao_Paulo'))::date + 1)::text AS tomorrow
+      FROM public.clinics c WHERE c.id = ${paga}::uuid`);
+  if (!ctx?.insurer || !ctx.membership) throw new Error('clínica paga sem operadora/carteirinha da fixture (rode setup antes)');
+  const auths = await import('../../src/contexts/health-insurance/internal/authorizations');
+  const request = () =>
+    withTenant(paga, (tx) => auths.requestManualAuthorizationTx(tx, {
+      clinicId: paga, insurerId: ctx.insurer!, membershipId: ctx.membership!, requestedOn: ctx.today,
+      items: [{ tableCode: '22', procedureCode: '10101012', quantityRequested: 1 }], actorUserId: gestor,
+    }), gestor);
+  const waiting = await request();
+  const expiring = await request();
+  const [item] = await exec<{ id: string }>(sql`
+    SELECT id::text AS id FROM public.hi_authorization_items WHERE authorization_id = ${expiring.authorizationId}::uuid`);
+  await withTenant(paga, (tx) => auths.recordManualAuthorizationResponseTx(tx, {
+    decision: 'authorized', clinicId: paga, authorizationId: expiring.authorizationId, version: 1, authorizedOn: ctx.today,
+    operatorGuideNumber: `E2E${run}`, passwordValidUntil: ctx.tomorrow, items: [{ itemId: item!.id, quantityAuthorized: 1 }], actorUserId: gestor,
+  }), gestor);
+  const out = { clinicId: paga, run, waiting: waiting.authorizationId, expiring: expiring.authorizationId, tomorrow: ctx.tomorrow };
+  writeFileSync(outFile!, JSON.stringify(out, null, 1));
+  console.log(`[hi-dev-e2e-fixture] ok: 2 autorizações de Consulta (aguardando e vencendo amanhã) na clínica paga, marca ${run}`);
+}
+
+// Comando desconhecido NÃO cai no cleanup (antes era o ramo padrão: um erro de digitação desativava
+// as contas e clínicas e2e-hi-*). O cleanup só roda pelo nome.
 const main =
   command === 'setup' ? setup
   : command === 'setup-config' ? setupConfig
   : command === 'setup-states' ? setupStates
+  : command === 'setup-authorizations' ? setupAuthorizations
   : command === 'set-state' ? setState
   : command === 'set-active' ? setActive
   : command === 'guide-state' ? guideState
-  : cleanup;
+  : command === 'cleanup' ? cleanup
+  : () => Promise.reject(new Error(`comando desconhecido: ${String(command)} (use setup, setup-config, setup-states, setup-authorizations, set-state, set-active, guide-state ou cleanup)`));
 main()
   .then(() => process.exit(0))
   .catch((e: unknown) => {
