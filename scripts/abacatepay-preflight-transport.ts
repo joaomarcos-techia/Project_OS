@@ -16,9 +16,13 @@ export function approvedPreflightEnvironment(
   assert.notEqual(project, 'pqhkirrszzpwezdaqrai', 'DEV is not a production preflight target');
   assert.equal(parent.SUPABASE_PROJECT_ENV, 'prod', 'Production context required');
   assert.ok(['postgres:', 'postgresql:'].includes(url.protocol), 'PostgreSQL URL required');
-  assert.match(url.hostname, /^[a-z0-9-]+\.pooler\.supabase\.com$/u, 'Approved pooler required');
-  assert.equal(decodeURIComponent(url.username).split('.').at(-1), project, 'Project mismatch');
+  const user = decodeURIComponent(url.username);
+  const direct = url.hostname === `db.${project}.supabase.co` && user === 'postgres';
+  const pooled =
+    /^[a-z0-9-]+\.pooler\.supabase\.com$/u.test(url.hostname) && user.split('.').at(-1) === project;
+  assert.ok(direct || pooled, 'Approved project endpoint required');
   assert.ok(['5432', '6543'].includes(url.port || '5432'), 'Unexpected database port');
+  if (direct) assert.equal(url.port || '5432', '5432', 'Direct session port required');
   assert.equal(decodeURIComponent(url.pathname), '/postgres', 'Unexpected database');
   assert.ok(
     ['require', 'verify-full'].includes(url.searchParams.get('sslmode') ?? ''),

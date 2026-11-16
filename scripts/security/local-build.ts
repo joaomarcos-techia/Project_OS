@@ -55,8 +55,20 @@ await writeFile(
   `import { PublicPage, SignupStage, PublicHeading } from '@/components/shared/signup-frame';
 import { PlanSelectionForm } from '../plano/plan-selection-form';
 import { DeferredSubscription } from '@/app/(app)/(shell)/configuracoes/assinatura/deferred-subscription';
+import { PlanChangeForm } from '@/app/(app)/(shell)/configuracoes/assinatura/plan-change-form';
 export default async function Harness({searchParams}:{searchParams:Promise<{billingState?:string}>}) {
   const {billingState}=await searchParams;
+  if(billingState==='asaas-paid')return <PublicPage><PlanChangeForm
+    current={{planId:'plan_synthetic',planName:'Clínica legada sintética',planCode:'clinica',priceAmount:'397.00',billingCycle:'monthly',billingStatus:'active',periodEnd:'2027-01-15T00:00:00Z',trialEndsAt:null}}
+    plans={[]} activeUsers={1} activeDoctors={1} activeStaff={0} pending={null}
+  /></PublicPage>;
+  if(billingState?.startsWith('abacate-'))return <PublicPage><DeferredSubscription
+    planName="Clínica sintética" amountMinor={39700} trialEndsAt="2026-11-08T12:00:00Z"
+    trialActive={false} paid billingStatus="active" paidPeriodActive
+    managementAvailable={billingState!=='abacate-unavailable'}
+    contractId="11111111-1111-4111-8111-111111111111" accessUntil="2027-01-15T00:00:00Z"
+    cancellationState={billingState==='abacate-cancelled'?'confirmed':'none'}
+  /></PublicPage>;
   if(billingState==='processing'||billingState==='paused')return <PublicPage><DeferredSubscription
     planName="Clínica sintética" amountMinor={39700} trialEndsAt="2026-11-08T12:00:00Z"
     trialActive={false} paid={false} billingStatus="trial" paidPeriodActive={false}

@@ -24,6 +24,21 @@ const parent: NodeJS.ProcessEnv = {
 afterEach(() => vi.clearAllMocks());
 
 describe('operator preflight verifies the server without the runtime pool', () => {
+  it('accepts only the exact approved direct endpoint and postgres identity, with verify-full', () => {
+    const direct = `postgresql://postgres:synthetic-only@db.${project}.supabase.co:5432/postgres?sslmode=verify-full`;
+    expect(approvedPreflightEnvironment(direct, project, parent).PGHOST).toBe(
+      `db.${project}.supabase.co`,
+    );
+    expect(() =>
+      approvedPreflightEnvironment(direct.replace('5432', '6543'), project, parent),
+    ).toThrow();
+    expect(() =>
+      approvedPreflightEnvironment(direct.replace('postgres:', 'other:'), project, parent),
+    ).toThrow();
+    expect(() =>
+      approvedPreflightEnvironment(direct.replace(project, 'z'.repeat(20)), project, parent),
+    ).toThrow();
+  });
   it('includes the operators and their transitive imports in the isolated build without copying env files', () => {
     const build = readFileSync('scripts/security/local-build.ts', 'utf8');
     const list = build.match(/const copied = \[([\s\S]*?)\];/u)?.[1];

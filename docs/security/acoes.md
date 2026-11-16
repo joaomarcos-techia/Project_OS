@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 547 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
+Contagem: 200 actions (0 inline); 66 métodos em 62 handlers; 19 props com referência de action; 554 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -366,9 +366,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `playwright.ci.config.ts:69`                               | `TURNSTILE_SECRET_KEY`                 | `process.env.TURNSTILE_SECRET_KEY`                                          |
 | `playwright.ci.config.ts:70`                               | `E2E_ABACATEPAY_PLAN_UI`               | `process.env.E2E_ABACATEPAY_PLAN_UI`                                        |
 | `playwright.ci.config.ts:71`                               | `E2E_BASE_URL`                         | `process.env.E2E_BASE_URL`                                                  |
-| `playwright.ci.config.ts:80`                               | `CI`                                   | `process.env.CI`                                                            |
-| `playwright.ci.config.ts:81`                               | `CI`                                   | `process.env.CI`                                                            |
-| `playwright.ci.config.ts:82`                               | `CI`                                   | `process.env.CI`                                                            |
+| `playwright.ci.config.ts:84`                               | `CI`                                   | `process.env.CI`                                                            |
+| `playwright.ci.config.ts:85`                               | `CI`                                   | `process.env.CI`                                                            |
+| `playwright.ci.config.ts:86`                               | `CI`                                   | `process.env.CI`                                                            |
 | `playwright.config.ts:12`                                  | `E2E_BASE_URL`                         | `process.env.E2E_BASE_URL`                                                  |
 | `playwright.config.ts:13`                                  | `E2E_MUTATION`                         | `process.env.E2E_MUTATION`                                                  |
 | `playwright.config.ts:14`                                  | `E2E_ARTIFACTS`                        | `process.env.E2E_ARTIFACTS`                                                 |
@@ -481,6 +481,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/e2e-mutation-fixture.ts:206`                      | `E2E_USER_EMAIL`                       | `process.env.E2E_USER_EMAIL`                                                |
 | `scripts/e2e-paid-pause-ops.ts:54`                         | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
 | `scripts/e2e-paid-pause-ops.ts:55`                         | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                                                |
+| `scripts/gate-b-cancellation-candidate.ts:111`             | `<object>`                             | `process.env`                                                               |
 | `scripts/gate-b-composed-build.ts:131`                     | `<object>`                             | `process.env`                                                               |
 | `scripts/gate-b-isolated-restore.ts:35`                    | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/gate-b-isolated-restore.ts:230`                   | `BACKUP_PASSPHRASE`                    | `process.env.BACKUP_PASSPHRASE`                                             |
@@ -580,6 +581,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/recovery-package.ts:14`                           | `RECOVERY_EXPORT_PASSPHRASE`           | `process.env.RECOVERY_EXPORT_PASSPHRASE`                                    |
 | `scripts/recovery-portable-drill.ts:47`                    | `<object>`                             | `process.env`                                                               |
 | `scripts/recovery-portable-drill.ts:88`                    | `<object>`                             | `process.env`                                                               |
+| `scripts/recovery-scheduled-backup.ts:98`                  | `<object>`                             | `process.env`                                                               |
+| `scripts/recovery-scheduled-backup.ts:273`                 | `STATE_DIRECTORY`                      | `process.env.STATE_DIRECTORY`                                               |
+| `scripts/recovery-scheduled-backup.ts:280`                 | `CREDENTIALS_DIRECTORY`                | `process.env.CREDENTIALS_DIRECTORY`                                         |
 | `scripts/resend-inbox-check.ts:21`                         | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
 | `scripts/resend-inbox-check.ts:24`                         | `E2E_RESEND_INBOX_ADDRESS`             | `process.env.E2E_RESEND_INBOX_ADDRESS`                                      |
 | `scripts/resend-live-check.ts:17`                          | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
@@ -646,9 +650,11 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/ai-handoff-reliability-db.ts:31`         | `<object>`                             | `process.env`                                                               |
 | `scripts/security/ai-handoff-reliability-db.ts:32`         | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/ai-handoff-reliability-db.ts:34`         | `<object>`                             | `process.env`                                                               |
-| `scripts/security/local-build.ts:105`                      | `<dynamic>`                            | `process.env[key]`                                                          |
-| `scripts/security/local-build.ts:105`                      | `<dynamic>`                            | `process.env[key]`                                                          |
-| `scripts/security/local-build.ts:135`                      | `CI`                                   | `process.env.CI`                                                            |
+| `scripts/security/legacy-cancellation-db.ts:21`            | `<object>`                             | `process.env`                                                               |
+| `scripts/security/legacy-cancellation-db.ts:37`            | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
+| `scripts/security/local-build.ts:117`                      | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/security/local-build.ts:117`                      | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/security/local-build.ts:147`                      | `CI`                                   | `process.env.CI`                                                            |
 | `scripts/security/offer-restored-backup-db.ts:34`          | `<object>`                             | `process.env`                                                               |
 | `scripts/security/offer-restored-backup-db.ts:328`         | `BACKUP_PASSPHRASE`                    | `process.env.BACKUP_PASSPHRASE`                                             |
 | `scripts/security/onboarding-progress-db.ts:44`            | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
@@ -669,6 +675,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/payout-review-db.ts:49`                  | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
 | `scripts/security/payout-review-db.ts:50`                  | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
 | `scripts/security/payout-review-db.ts:51`                  | `LOG_LEVEL`                            | `process.env.LOG_LEVEL`                                                     |
+| `scripts/security/scheduled-backup-db.ts:58`               | `<object>`                             | `process.env`                                                               |
 | `scripts/security/scratch-schema.ts:23`                    | `SECURITY_PG_BIN`                      | `process.env.SECURITY_PG_BIN`                                               |
 | `scripts/security/signup-billing-sandbox.ts:53`            | `SANDBOX_CONFIRM`                      | `process.env.SANDBOX_CONFIRM`                                               |
 | `scripts/security/signup-billing-sandbox.ts:56`            | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                                                |

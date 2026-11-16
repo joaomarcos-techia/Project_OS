@@ -74,7 +74,11 @@ export default defineConfig({
   testDir: './e2e',
   // Só o que dispensa credencial. Acrescentar um spec aqui é uma decisão
   // explícita: ele passa a poder quebrar o merge de todo mundo.
-  testMatch: ['public-surface.spec.ts', 'abacatepay-plan-ui.spec.ts'],
+  testMatch: [
+    'public-surface.spec.ts',
+    'abacatepay-plan-ui.spec.ts',
+    'billing-cancellation-ui.spec.ts',
+  ],
   fullyParallel: false,
   workers: 1,
   forbidOnly: Boolean(process.env.CI),

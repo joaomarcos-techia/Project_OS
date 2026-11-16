@@ -1,0 +1,106 @@
+name: Cancellation compatibility and revised exact package
+
+on:
+  push:
+    branches: [feat/billing-abacatepay-20261107]
+    paths:
+      - .github/workflows/billing-cancellation.yml
+      - scripts/security/legacy-cancellation-db.ts
+      - scripts/gate-b-cancellation-candidate.ts
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: billing-cancellation-synthetic
+  cancel-in-progress: false
+
+jobs:
+  private-input:
+    if: github.repository == 'joaomarcos-techia/Project_OS' && github.ref == 'refs/heads/feat/billing-abacatepay-20261107'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Read original frozen source asset only (no application code)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api repos/joaomarcos-techia/Project_OS/releases/assets/752472125 -H 'Accept: application/octet-stream' > "$RUNNER_TEMP/qoro-base.tar"
+          printf '%s  %s\n' '3902f2007742df4016450eeaece806a8f2bc0b535631d33da9a5e691b59ce3f6' "$RUNNER_TEMP/qoro-base.tar" | sha256sum --check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cancellation-base-input
+          path: ${{ runner.temp }}/qoro-base.tar
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
+  compatibility:
+    needs: private-input
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.4
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: cancellation-base-input
+          path: ${{ runner.temp }}
+      - name: Exact revised composed build, with immutable original preserved
+        run: pnpm exec tsx scripts/gate-b-cancellation-candidate.ts "$RUNNER_TEMP/qoro-base.tar" dist/cancellation-proof
+      - name: Three actual code/schema combinations, sequential and synthetic only
+        env:
+          SECURITY_PG_BIN: /usr/lib/postgresql/16/bin
+        run: |
+          set -euo pipefail
+          export SECURITY_PG_BIN="$(pg_config --bindir)"
+          for variant in main-136 main-160 candidate-160; do
+            target="$RUNNER_TEMP/qoro-cancel-$variant"
+            mkdir "$target"
+            if [[ "$variant" == candidate-160 ]]; then
+              tar -xf dist/cancellation-proof/qoro-saas-cancellation-4a4203e3.tar -C "$target"
+            else
+              git archive 5620a0987ec53db7d7358728eb7d457d9d373df3 | tar -xf - -C "$target"
+              if [[ "$variant" == main-160 ]]; then
+                rm -r "$target/drizzle/migrations"
+                mkdir -p "$target/drizzle/migrations"
+                tar -xf dist/cancellation-proof/qoro-saas-cancellation-4a4203e3.tar -C "$target" ./drizzle/migrations
+              fi
+            fi
+            cp scripts/security/legacy-cancellation-db.ts scripts/security/scratch-schema.ts "$target/scripts/security/"
+            ln -s "$GITHUB_WORKSPACE/node_modules" "$target/node_modules"
+            (cd "$target" && node --import tsx scripts/security/legacy-cancellation-db.ts "$variant")
+            cp "$target/dist/cancellation-$variant.json" dist/cancellation-proof/
+            if [[ "$variant" == candidate-160 ]]; then
+              (cd "$target" && node --import tsx scripts/security/signup-free-trial-db.ts --shared-schema)
+              cp "$target/dist/signup-free-trial-db.json" dist/cancellation-proof/
+            fi
+            rm -r "$target"
+          done
+      - name: Replacement scheduler pipeline rehearsal, synthetic only
+        run: |
+          export SECURITY_PG_BIN="$(pg_config --bindir)"
+          export PATH="$SECURITY_PG_BIN:$PATH"
+          pnpm exec tsx scripts/security/scheduled-backup-db.ts
+          cp dist/scheduled-backup-synthetic.json dist/cancellation-proof/
+      - name: Preserve sanitized reports and source package only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cancellation-evidence-${{ github.sha }}
+          path: dist/cancellation-proof/
+          compression-level: 0
+          retention-days: 3
+          if-no-files-found: warn
