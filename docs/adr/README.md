@@ -50,5 +50,6 @@ Decisão futura só entra aqui quando adotada na implementação. Uma ideia desc
 | C14 reenvia com uma chave por geração: recusa retentável da Meta gera chave nova e backoff; definitiva falha na hora, com o código; timeout nunca reenvia | Accepted em código em 08/10/2026; 0118 não aplicada; sem rollout | [ADR-064](064-c14-reenvio-por-geracao.md) |
 | Validade por tipo na fila C14: job vencido vira `cancelled` com `expired_<tipo>`, nunca envio atrasado | Accepted em código em 09/10/2026; sem migration; sem rollout | [ADR-065](065-validade-por-tipo-c14.md) |
 | Janela de resposta da oferta da lista de espera só corre nas horas de envio (8–20h locais); seam e cron usam a mesma função | Accepted em código em 09/10/2026; sem migration; sem rollout | [ADR-066](066-janela-da-oferta-da-lista-de-espera.md) |
+| Texto das conversas da IA no console da plataforma só em sessão de suporte da mesma clínica; cada abertura com trilha fail-closed na plataforma e, uma vez por sessão, na clínica | Accepted em código em 15/11/2026; sem migration; sem rollout | [ADR-073](073-conteudo-das-conversas-no-console.md) |
 
 ADR-061 permanece reservada ao perfil WhatsApp de Qoro v2 §33; não foi criada nesta fatia.
