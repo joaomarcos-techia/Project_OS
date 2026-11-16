@@ -93,3 +93,10 @@ jobs:
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55551 NODE_OPTIONS=--conditions=react-server \
             pnpm exec tsx scripts/security/health-insurance-module-switch-db.ts
+
+      # Proposta (candidata SEM número, fora do journal): o interruptor também nos gatilhos do banco.
+      - name: Gatilhos do módulo (candidata) — classe A barrada no banco, preservação e recuperação passam
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55552 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/health-insurance-module-switch-triggers-db.ts

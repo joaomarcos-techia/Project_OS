@@ -349,6 +349,38 @@ try {
   }
   pass('13. cancelar guia aprovada (política "na aprovação"): sem repasse → elegível R$ 0,00 e nada a revisar; repasse autorizado → a obrigação de R$ 60,00 continua devida e o excesso (−R$ 60,00) fica visível, sem compensação automática e sem nova autorização; repasse pago → o pagamento fica registrado (nada estornado) e o excesso (−R$ 60,00) visível; nenhum recebível, livro ou caixa tocado; histórico com o autor');
 
+  // ── 14. Não regressão do contrato do cancelamento (16/11). Base da correção proposta em
+  //        docs/convenios/cancelamento-repasse-contrato.md: os invariantes (i)–(iv) precisam
+  //        continuar valendo depois dela; (v) é a LACUNA medida que ela fecha, e só muda por
+  //        decisão, junto com a correção aprovada. ─────────────────────────────────────────
+  const gN = await C.approvedGuide();
+  const pN = await payoutFor(C, gN);
+  await authorize(C, pN, 6000);
+  const kOld = key('rep');
+  await settle(C, pN, 2000, kOld); // pagamento parcial ANTES do cancelamento
+  await cancelGuide(gN);
+  // (i) reaproveitar a ação antiga (mesma chave) não duplica o pagamento
+  await rejects(() => settle(C, pN, 2000, kOld), /mesma chave/u);
+  assert.deepEqual(await movements(pN), ['authorization:6000', 'settlement:2000']);
+  // (ii) pagamento acima do autorizado continua recusado
+  await rejects(() => settle(C, pN, 4001), /acima do autorizado/u);
+  // (iii) repasse com pagamento não se cancela: o histórico fica e a correção é por ajuste
+  await assert.rejects(
+    () => fx.asUser(C, (tx) => pay.cancelInsurancePayoutTx(tx, { clinicId: C.clinicId, payoutId: pN, reason: 'Guia cancelada antes do envio', actorUserId: C.doctorId })),
+    (e: { code?: string }) => e.code === 'has_settlement',
+  );
+  // (iv) ajuste é humano, com motivo, e não deixa o autorizado negativo
+  await rejects(() => adjust(C, pN, -6001, 'Revisão humana depois do cancelamento da guia'), /negativo/u);
+  assert.deepEqual(await movements(pN), ['authorization:6000', 'settlement:2000'], 'as recusas não gravaram movimento');
+  // (v) LACUNA MEDIDA: com uma chave NOVA, o saldo autorizado de guia cancelada ainda pode ser pago.
+  const sBefore = await position(C, pN);
+  assert.deepEqual([sBefore.decision, sBefore.authorizedCents, sBefore.settledCents, sBefore.dueCents], ['NO_LIVE_GUIDE', 6000, 2000, 4000]);
+  await settle(C, pN, 1000);
+  const sN = await position(C, pN);
+  assert.deepEqual([sN.decision, sN.authorizedCents, sN.settledCents, sN.dueCents], ['NO_LIVE_GUIDE', 6000, 3000, 3000]);
+  assert.deepEqual(await money(gN), [0, 0, 0]);
+  pass('14. não regressão do cancelamento (guia cancelada com repasse autorizado e pago em parte): a mesma chave não duplica o pagamento; pagamento acima do autorizado, cancelamento do repasse com pagamento e ajuste que deixaria o autorizado negativo continuam recusados, sem gravar movimento; LACUNA medida: com chave nova, mais R$ 10,00 do saldo autorizado foram pagos depois do cancelamento (devido R$ 40,00 → R$ 30,00); nenhum recebível, livro ou caixa tocado');
+
   console.log(`\nOK — ${passed} provas do repasse profissional de convênio (P10.4).`);
 } finally {
   await cluster.stop();
