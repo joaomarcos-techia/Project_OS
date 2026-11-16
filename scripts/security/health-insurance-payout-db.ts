@@ -398,10 +398,11 @@ try {
   type Decision = 'maintain' | 'reduce' | 'acknowledge';
   const decideAs = (actor: string, reviewId: string, decision: Decision, reason: string, reduceCents: number | null = null, c: Clinic = C) =>
     withTenant(c.clinicId, (tx) => review.decidePayoutReviewTx(tx, { clinicId: c.clinicId, reviewId, decision, reason, reduceCents }), actor);
+  // Array simples (o driver devolve Result, com protótipo próprio, e o deepStrictEqual compara o protótipo).
   const reviewsOf = async (payoutId: string) =>
-    (await sql`select id::text, kind, status, guide_status, opened_by::text, decided_by::text, decision,
+    [...(await sql`select id::text, kind, status, guide_status, opened_by::text, decided_by::text, decision,
                       open_authorized_cents::int a, open_adjustments_cents::int j, open_settled_cents::int s, reduce_cents::int r
-                 from public.hi_payout_reviews where payout_id = ${payoutId}::uuid order by opened_at`) as unknown as Array<{
+                 from public.hi_payout_reviews where payout_id = ${payoutId}::uuid order by opened_at`)] as unknown as Array<{
       id: string; kind: string; status: string; guide_status: string; opened_by: string | null; decided_by: string | null;
       decision: string | null; a: number; j: number; s: number; r: number | null;
     }>;
@@ -562,7 +563,9 @@ try {
       today: '2026-12-31',
     }),
   );
-  const pair = (await sql`select id::text, status, live from public.hi_guides where id in (${gW}::uuid, ${subId}::uuid)`) as unknown as Array<{ id: string; status: string; live: boolean }>;
+  const pair = [...(await sql`select id::text, status, live from public.hi_guides where id in (${gW}::uuid, ${subId}::uuid)`)].map(
+    (r) => ({ id: String(r.id), status: String(r.status), live: r.live === true }),
+  );
   assert.deepEqual(pair.find((r) => r.id === gW), { id: gW, status: 'replaced', live: false });
   assert.deepEqual(pair.find((r) => r.id === subId), { id: subId, status: 'approved', live: true });
   assert.deepEqual(await reviewsOf(pW), [], 'substituta viva no mesmo atendimento: sem revisão');
