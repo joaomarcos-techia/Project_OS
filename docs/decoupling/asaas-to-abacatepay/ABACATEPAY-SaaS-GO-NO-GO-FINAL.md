@@ -1,5 +1,17 @@
 # AbacatePay SaaS — decisão final de release e piloto
 
+## Checkpoint prevalente — C0 técnico concluído, Actions recuperado
+
+**CI oficial GREEN no SHA 4f683402d62489f1b9ed385da904b27792c6e849:** [run43898026077/tentativa 2](https://github.com/joaomarcos-techia/Project_OS/actions/runs/43898026077), 16/11/2026,15:44:28–15:59:34UTC. Logs conferidos: **7.329 testes em 647 arquivos e 27 E2E, zero SKIP**; TypeScript,lint,build,segurança e isolamento PostgreSQL PASS. ADR 43898026138 SUCCESS. Upload de relatório de falha não executado por sucesso não é teste ignorado. O fundador corrigiu Actions, sem alteração do orçamento pelo agente ou comprovação do saldo via API.
+
+**C0 PASS no alcance validado; preparação de C1/C2 concluída.** O commit documental que registra esta prova requer seus próprios checks; resultado final será publicado no PR #53, sem transferir a CI 4f683402 ou gerar commit recursivo. Código financeiro/runtime, preços/cotas, dependências, SQL e artefato44323990/TAR 6038df0d… permanecem congelados. Nenhum defeito financeiro novo reproduzido, nenhuma correção de produto nesta rodada.
+
+Os 368 testes dirigidos e readbacks15:18–15:25UTC são evidências novas do ciclo C0 anterior; cinco compras Sandbox, ensaios transacionais, cancelamento e build do TAR são provas anteriores reutilizadas. A CI acima foi efetivamente reexecutada, não apenas reutilizada. Bloqueios Actions e pedidos de desbloqueio abaixo são históricos.
+
+**Próxima decisão: GO C1 e GO C2 distintos, com nova janela/responsáveis reconfirmados**, conforme [formulário operacional](../../runbooks/abacatepay-operacao.md#solicitação-pronta--c1c2-sem-contratação). C1 registra webhook, sem consumidores; C2 altera configuração e cria deployment para armar receiver e quatro consumidores, mantendo cadastro/checkout/coorte fechados e Asaas/cron existentes. Não há isolamento receiver-only na arquitetura atual. Sem abertura de aquisição, pagamento, merge ou autorização implícita C3/C4. B1-B continua adiado/risco aceito/não verificado; R1–R4 PARTIAL e renovação natural13/12 não mudaram.
+
+O bloco gateC0CiRecovery20261116 registra a recuperação com SHA,run,job,hash do log e escopo. Nenhuma nova mutação Production ou do provedor ocorreu. PR #53 continua draft. **APTO PARA SOLICITAR AUTORIZAÇÃO C1/C2 condicionado ao GREEN do HEAD final; NÃO AUTORIZADO PARA EXECUTAR.**
+
 ## Checkpoint prevalente — homologação C0, 16/11/2026
 
 Escopo autorizado `a51a97b8-a2f2-4f7b-a049-d02bcf75a9c4`, baseline `e5c84f3a08551d6a274762231cb76192fce55a80`. **Sem correção financeira nova necessária no alcance testado; runtime igual à aplicação publicada44323990, SQL/dependências intactos.** Novas evidências e procedimento foram consolidados, sem repetir pagamentos ou ensaios pesados aprovados. Este checkpoint prevalece sobre os estados antigos abaixo.

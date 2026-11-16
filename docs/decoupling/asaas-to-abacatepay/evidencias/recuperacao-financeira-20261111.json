@@ -28911,5 +28911,88 @@
     "deploys": 0,
     "merges": 0,
     "backupLegacyChanged": false
+  },
+  "gateC0CiRecovery20261116": {
+    "recordedAt": "2026-11-16T16:04:37.824Z",
+    "authorization": "a51a97b8-a2f2-4f7b-a049-d02bcf75a9c4; founder corrected Actions budget and requested retry",
+    "validatedHead": "4f683402d62489f1b9ed385da904b27792c6e849",
+    "result": "PASS",
+    "ci": {
+      "run": 43898026077,
+      "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43898026077",
+      "attempt": 2,
+      "conclusion": "success",
+      "startedAt": "2026-11-16T15:44:28Z",
+      "completedAt": "2026-11-16T15:59:34Z",
+      "jobId": 133412454899,
+      "tests": 7329,
+      "testFiles": 647,
+      "e2e": 27,
+      "skippedTests": 0,
+      "skippedSteps": [
+        "Upload E2E report on failure"
+      ],
+      "logSha256": "ff6142d4409a2f9efd6359e1111d47d2fb495eee67d5522b8c3a7bb594780ecf",
+      "successfulGates": [
+        "Set up job",
+        "Run actions/checkout@v4",
+        "Run pnpm/action-setup@v4",
+        "Run actions/setup-node@v4",
+        "Install dependencies",
+        "Prod dependency audit gate (high+)",
+        "Typecheck",
+        "Lint",
+        "Arch check (madge — circular deps)",
+        "Arch DB check (AST connection-origin guard)",
+        "Migration safety gate (anti-destructive)",
+        "Observability drift gate (docs ⇔ vercel.json ⇔ eventos)",
+        "Handler registry gate (catalog ⇔ registry)",
+        "Test + coverage gate",
+        "Security inventory (AST and explicit guard review)",
+        "Two-tenant isolation (temporary local Postgres)",
+        "Build",
+        "Client bundle secrets and local HTTP boundaries",
+        "Install Playwright browser (chromium)",
+        "E2E gate (superfície pública, sem credencial)",
+        "Post Run actions/setup-node@v4",
+        "Post Run pnpm/action-setup@v4",
+        "Post Run actions/checkout@v4",
+        "Complete job"
+      ]
+    },
+    "adr": {
+      "attempt": 2,
+      "conclusion": "success",
+      "databaseId": 43898026138,
+      "headSha": "4f683402d62489f1b9ed385da904b27792c6e849",
+      "status": "completed",
+      "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43898026138"
+    },
+    "budget": {
+      "correctionReportedByFounder": true,
+      "operationalBlockCleared": true,
+      "configuredAmountReportedUsd": 10,
+      "billingApiOrRemainingBalanceVerified": false,
+      "changedByAgent": false
+    },
+    "historicalFailurePreserved": "gateC0Homologation20261116.github records earlier pre-runner failures; not current CI status",
+    "documentationFollowup": "This recovery changes only documentation/evidence; its subsequent HEAD requires its own checks. Record final checks in PR53 without another recursive documentation commit.",
+    "gateC0": "TECHNICAL_CHECKS_COMPLETE_READY_TO_REQUEST_C1_C2_AUTHORIZATION_AFTER_FINAL_HEAD_GREEN",
+    "nextStages": {
+      "C1": "NOT_AUTHORIZED; webhook registration and readback only",
+      "C2": "NOT_AUTHORIZED; configuration, new deployment, receiver and four consumers together; acquisition closed",
+      "C3": "NOT_AUTHORIZED; separate consented clinic and real payment approval",
+      "C4": "NOT_AUTHORIZED; separate expansion approval"
+    },
+    "runtimeChanged": false,
+    "sqlChanged": false,
+    "dependenciesChanged": false,
+    "productionWrites": 0,
+    "providerMutations": 0,
+    "newCheckouts": 0,
+    "payments": 0,
+    "merges": 0,
+    "deployedApplication": "44323990b3f1fb9282418fec44a3182b02148c66",
+    "deployedTarSha256": "6038df0da3a6afaee68528c2f38c08743356ef6bdf6ece7ca808fd41672d0e64"
   }
 }

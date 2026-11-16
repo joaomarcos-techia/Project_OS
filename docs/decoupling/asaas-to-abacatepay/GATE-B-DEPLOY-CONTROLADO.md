@@ -1,5 +1,15 @@
 # Gate B — proposta de deploy técnico com aquisição fechada
 
+## Checkpoint prevalente — C0 concluído e CI recuperada, 16/11/2026
+
+O fundador corrigiu o orçamento do produto Actions e pediu nova tentativa. A [CI 43898026077, tentativa 2](https://github.com/joaomarcos-techia/Project_OS/actions/runs/43898026077), no SHA **4f683402d62489f1b9ed385da904b27792c6e849**, terminou **SUCCESS às15:59:34UTC/12:59:34Brasília**: **7.329 testes/647 arquivos, 27 E2E, zero SKIP**, TypeScript/lint/build/segurança/isolamento aprovados. ADR 43898026138 também SUCCESS no mesmo SHA. O único step ignorado foi o upload de relatório quando há falha; nenhum teste foi ignorado. Bloqueios anteriores abaixo são históricos. Não houve alteração de orçamento, CI/CD ou configuração pelo agente; saldo/custo mensal não foi comprovado pela API.
+
+**C0 técnico concluído no alcance das provas; apto a solicitar GO C1/C2 após conferir os checks do HEAD documental final no PR #53.** Esta atualização só registra evidência, sem alterar runtime, SQL, dependências ou TAR. A CI 4f683402 não é automaticamente a CI do commit documental subsequente: o resultado desse HEAD deve constar no PR, sem novo commit apenas para registrar a própria CI.
+
+Gate B permanece implantado com aquisição fechada. C1/C2/C3/C4 continuam **NÃO AUTORIZADOS**. Registro de webhook e ativação conjunta de receiver/consumidores exigem decisões explícitas; nenhuma nova contratação será aberta por esses dois passos. B1-B adiado/risco aceito/não verificado e R1–R4 PARTIAL permanecem como documentados. [Solicitação preenchida e paradas de C1/C2](../../runbooks/abacatepay-operacao.md#solicitação-pronta--c1c2-sem-contratação).
+
+Evidência nova: bloco gateC0CiRecovery20261116 no registro financeiro existente. Leituras Production e testes dirigidos do checkpoint C0 anterior não foram repetidos. Nenhuma migration, deploy, flag, WAF, webhook, consumer, cobrança ou merge Production nesta rodada.
+
 ## Checkpoint prevalente — C0 de ativação, 16/11/2026
 
 Gate B concluído e preservado. Autorização `a51a97b8-a2f2-4f7b-a049-d02bcf75a9c4` cobre testes/C0 e Production somente leitura, não C1–C4. **Aquisição fechada, runtime/consumidores AbacatePay desarmados, PR53 draft/sem merge.** Sem novo deploy, migration, WAF/flag, webhook ou efeito monetário.
