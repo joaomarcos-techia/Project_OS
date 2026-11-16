@@ -27961,7 +27961,7 @@
     }
   },
   "gateBProductionWindow20261116": {
-    "status": "DEPLOYED_ACQUISITION_CLOSED_AUTHENTICATED_UI_AWAITING_FOUNDER",
+    "status": "DEPLOYED_ACQUISITION_CLOSED_AUTHENTICATED_UI_FOUNDER_CONFIRMED",
     "authorization": {
       "attachment": "9cf59f2e-8b7d-4d67-be46-503717c8c5dd",
       "gates": [
@@ -28078,7 +28078,21 @@
       "publicBoundaries": "PASS",
       "healthAuthHook": "PASS_HTTP_200_SELFTEST_OK",
       "healthGeneral": "PASS_HTTP_200_SHALLOW_CHECKS_OK",
-      "authenticatedClinicUi": "AWAITING_FOUNDER",
+      "authenticatedClinicUi": "PASS_FOUNDER_CONFIRMED",
+      "authenticatedClinicUiEvidence": {
+        "source": "FOUNDER_MANUAL_CONFIRMATION",
+        "reportedResult": "Dashboard e Assinatura abrem normalmente",
+        "confirmedPages": [
+          "/dashboard",
+          "/configuracoes/assinatura"
+        ],
+        "existingAccount": true,
+        "scope": "READ_ONLY_PAGE_OPENING; NOT_A_FINANCIAL_CANCELLATION_OR_PLAN_CHANGE_TEST",
+        "recordedAt": "2026-11-16T14:05:22Z",
+        "recordedAtMeaning": "Evidence recording time, not the time of the user's page visits",
+        "automatedBrowserProof": false,
+        "newProductionAuthorization": false
+      },
       "realSubscriptionCancelled": false,
       "financialProviderCallsByProbes": 0,
       "realCheckoutsCreated": 0,
