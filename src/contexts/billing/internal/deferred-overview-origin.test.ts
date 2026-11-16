@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type * as EnvironmentModule from '@/lib/env';
 const mocks = vi.hoisted(() => ({ execute: vi.fn() }));
 vi.mock('@/lib/db', () => ({ dbAdmin: { execute: mocks.execute } }));
 vi.mock('@/lib/env', async (original) => {
-  const actual = await original<typeof import('@/lib/env')>();
+  const actual = await original<typeof EnvironmentModule>();
   return {
     ...actual,
     env: {
