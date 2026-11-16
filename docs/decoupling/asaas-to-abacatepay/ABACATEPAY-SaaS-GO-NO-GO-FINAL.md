@@ -1,5 +1,11 @@
 # AbacatePay SaaS — decisão final de release e piloto
 
+## Monitoramento posterior à janela — 16/11/2026, 22:25 UTC
+
+**C2 continua implantado, mas a estabilidade operacional é PARTIAL; C3 permanece NO-GO.** Uma consulta somente leitura aos registros de requisições da Vercel, limitada ao deployment `dpl_Dar6PpR89Lc3Zy8Ufdn2LW3i3GQF` e ao período desde 18:40:13 UTC, encontrou 224 execuções de `/api/cron/outbox`: 219 HTTP 200 e cinco HTTP 500, sem truncamento da amostra (limite 1.000). Os erros ocorreram às 19:01:27, 19:58:27, 20:38:27, 22:00:27 e 22:18:27 UTC. Cada requisição com HTTP 500 teve métrica `worker.error` com a classe `GatewayReadError: unavailable`; a última execução observada às 22:24:27 UTC retornou 200. Não houve `binding_mismatch` nesses cinco erros. A correção da identidade técnica da loja permanece válida, mas a indisponibilidade intermitente não está resolvida.
+
+O código usa um GET obrigatório de verificação antes de ler o extrato; nesse GET há timeout de 1,5 s e uma tentativa por padrão. Os logs sanitizados das cinco ocorrências não preservam o stack nem a causa de rede, portanto **não está comprovado** que cada uma falhou nesse mesmo GET, nem se houve timeout, DNS, TLS, reset ou resposta do provedor. A rota aguarda os cinco trabalhos independentes e devolve 500 se algum falhar; isso explica o status do cron, mas não prova perda de trabalho da outbox. Próxima ação técnica proposta: identificar a etapa exata com telemetria sanitizada e avaliar retry de leitura dentro do prazo do cron, com regressão, CI própria e autorização de uma nova implantação. Não abrir C3 nem declarar estabilidade contínua com base apenas no recorte verde das 18:36–18:39 UTC. Nenhuma configuração, dado ou deployment de Production foi alterado nesta conferência.
+
 ## Checkpoint prevalente — C1/C2 executados, 16/11/2026
 
 **C1 PASS; C2 PASS no escopo não monetário. Contratações continuam bloqueadas. C3/C4 NÃO AUTORIZADOS.** Janela 2026-11-16T17:53:36.070Z–2026-11-16T18:40:12.813Z, 46.6min; disponibilidade do fundador e alerta Production5c780b15 confirmados nesta sessão. [Execução e incidente detalhados](GATE-B-DEPLOY-CONTROLADO.md#checkpoint-prevalente--c1c2-executados-16112026).

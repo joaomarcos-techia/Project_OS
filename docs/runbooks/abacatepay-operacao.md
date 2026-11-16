@@ -1,5 +1,11 @@
 # Operação e recuperação AbacatePay
 
+## Alerta posterior à janela — 16/11/2026, 22:25 UTC
+
+O deployment C2 `dpl_Dar6PpR89Lc3Zy8Ufdn2LW3i3GQF` atendeu o cron compartilhado após a janela e teve **cinco HTTP 500 em 224 execuções** desde 18:40:13 UTC; as outras 219 retornaram 200. A consulta foi somente leitura, filtrada por esse deployment e por `/api/cron/outbox`, limite 1.000 sem truncamento. Horários dos 500: 19:01:27, 19:58:27, 20:38:27, 22:00:27 e 22:18:27 UTC. Em cada um, a métrica de runtime `worker.error` classificou a falha como `GatewayReadError: unavailable`. As execuções mais recentes até 22:24:27 UTC voltaram a 200. **Não declarar o incidente de transporte resolvido nem iniciar C3 enquanto esta recorrência não for tratada ou decidida expressamente.** A antiga falha `binding_mismatch` não reapareceu nos cinco erros observados.
+
+O stack do alerta original 7851117028 aponta para o GET do produto de verificação; a telemetria posterior só confirma a classe `unavailable`, sem stack por ocorrência. O probe usa timeout de 1,5 s e uma tentativa padrão. Não atribuir os cinco novos erros ao mesmo ponto sem prova. Preservar o alerta e a falha HTTP; investigar etapa/latência de forma sanitizada e, se indicado, preparar retry limitado com teste de falha, sem renovar a janela de Production implicitamente. O `Promise.allSettled` espera a outbox e os demais trabalhos antes de devolver 500, mas o status HTTP isolado não comprova perda de eventos. Nenhuma alteração de Production foi feita nesta leitura.
+
 ## Checkpoint prevalente — C1/C2 executados, 16/11/2026
 
 **C1 PASS / C2 PASS técnico não monetário; aquisição FECHADA; C3/C4 sem autorização.** Janela encerrada 2026-11-16T18:40:12.813Z, após 46.6min. Atual: dpl_Dar6PpR89Lc3Zy8Ufdn2LW3i3GQF em app.qoro.dev; ABACATEPAY_ENVIRONMENT=production, receiver e quatro jobs ativos. SIGNUP_ENABLED=false, SAAS_SIGNUP_PROVIDER=asaas, ABACATEPAY_NEW_CHECKOUTS_ENABLED=false, coorte vazia e WAF5 preservados. PR53 draft/sem merge. [Dossiê da execução](../decoupling/asaas-to-abacatepay/GATE-B-DEPLOY-CONTROLADO.md#checkpoint-prevalente--c1c2-executados-16112026).
