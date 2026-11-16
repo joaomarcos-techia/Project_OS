@@ -36,15 +36,17 @@ export default async function CarteirinhasPage({ searchParams }: { searchParams:
   if (!access.ok) return access.view;
   const q = (sp.q ?? '').slice(0, 80);
   const patientId = sp.paciente && UUID.test(sp.paciente) ? sp.paciente : null;
+  // Matriz I.2 + D-3 (opção B): sem visão ampla (a médica), só existem aqui os pacientes com
+  // atendimento dela: a busca vem filtrada e a carteirinha de outro paciente é "não encontrado".
+  const own = access.rights.broad ? null : access.userId;
+  const allowed = !patientId || own === null || (await hasOwnAppointmentWithPatient(access.clinicId, own, patientId));
   const [hits, selected] = await Promise.all([
-    q.trim().length >= 2 ? searchPatientsForCards(access.clinicId, q) : Promise.resolve([]),
-    patientId ? getPatientMemberships(access.clinicId, patientId) : Promise.resolve(null),
+    q.trim().length >= 2 ? searchPatientsForCards(access.clinicId, q, own) : Promise.resolve([]),
+    patientId && allowed ? getPatientMemberships(access.clinicId, patientId) : Promise.resolve(null),
   ]);
-  // Matriz I.2 + D-3 (opção B): a recepção opera em qualquer paciente; sem operar Convênios, só no
-  // paciente com quem a pessoa tem atendimento. A action confere de novo no servidor.
-  const canEditCards =
-    access.rights.operate ||
-    (selected !== null && !access.rights.broad && (await hasOwnAppointmentWithPatient(access.clinicId, access.userId, selected.patient.id)));
+  // A recepção opera em qualquer paciente; sem operar Convênios, só no paciente com quem a pessoa
+  // tem atendimento (já conferido acima). A action confere de novo no servidor.
+  const canEditCards = access.rights.operate || (selected !== null && own !== null);
 
   return (
     <>

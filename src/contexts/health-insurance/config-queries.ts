@@ -524,9 +524,14 @@ export interface PatientHit {
 }
 
 /** Busca por nome (mín. 2 letras), só pacientes ativos da clínica. */
+/**
+ * `ownProfessionalId` (matriz I.2, D-3): sem visão ampla, a busca só devolve pacientes com
+ * atendimento não cancelado da própria profissional.
+ */
 export async function searchPatientsForCards(
   clinicId: string,
   term: string,
+  ownProfessionalId: string | null = null,
 ): Promise<PatientHit[]> {
   const t = term.trim();
   if (t.length < 2) return [];
@@ -539,6 +544,10 @@ export async function searchPatientsForCards(
             FROM public.patients p
            WHERE p.clinic_id = ${clinicId}::uuid AND p.deleted_at IS NULL AND p.anonymized_at IS NULL
              AND p.merged_into_patient_id IS NULL AND p.nome ILIKE ${like}
+             AND (${ownProfessionalId}::uuid IS NULL OR EXISTS (
+               SELECT 1 FROM public.appointments a
+                WHERE a.clinic_id = p.clinic_id AND a.patient_id = p.id
+                  AND a.doctor_id = ${ownProfessionalId}::uuid AND a.status::text <> 'cancelado'))
            ORDER BY p.nome LIMIT 20`,
     );
     return r.map((x) => ({ id: String(x.id), nome: String(x.nome), activeCards: n(x.cards) }));

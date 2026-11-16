@@ -118,7 +118,7 @@ test('gestora: alerta antes do vencimento, registro da resposta com evidência e
     await form.getByRole('button', { name: 'Confirmar' }).click();
     await expect(form.getByRole('alert')).toContainText('Sem evidência da operadora, não há autorização');
     await form.getByLabel('Número da guia na operadora').fill(`E2EW${fx!.run}`);
-    await form.getByLabel('Senha').fill(`SENHA-${fx!.run}`);
+    await form.getByLabel('Senha', { exact: true }).fill(`SENHA-${fx!.run}`);
     await form.getByRole('button', { name: 'Confirmar' }).click();
     const box = s.page.getByRole('region', { name: 'Situação da autorização' });
     await expect(box).toContainText('Autorizada');

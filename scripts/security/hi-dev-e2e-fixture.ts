@@ -55,7 +55,7 @@ const outFile = arg('out');
  *   set-active --account <chave> --active true|false perfil ativo/desativado de uma conta e2e-hi-*
  *   guide-state --guide <id>                         status, versão, ajuste e eventos (só leitura)
  */
-const COMMANDS = ['setup', 'setup-config', 'cleanup', 'setup-states', 'setup-authorizations', 'set-state', 'set-active', 'guide-state'];
+const COMMANDS = ['setup', 'setup-config', 'cleanup', 'setup-states', 'setup-authorizations', 'setup-i2', 'set-state', 'set-active', 'guide-state'];
 if (!COMMANDS.includes(command ?? '') || !expectedRef || !accountsFile || !outFile) {
   throw new Error(`uso: ${COMMANDS.join('|')} --expected-ref <ref> --accounts <arquivo> --out <ids.json>`);
 }
@@ -581,6 +581,180 @@ async function setupAuthorizations() {
   console.log(`[hi-dev-e2e-fixture] ok: 2 autorizações de Consulta (aguardando e vencendo amanhã) na clínica paga, marca ${run}`);
 }
 
+/**
+ * Matriz I.2 no Preview (17/11): clínica PRÓPRIA `e2e-hi-i2`, no plano legado `clinica` (permissões
+ * granulares e sem teto de assentos), com um perfil por papel da matriz — dona, gestora, recepção,
+ * financeiro, duas médicas, uma pessoa SEM `view:convenios` (negativa individual) e uma desativada.
+ * Dados da execução (marca): uma guia de Consulta de cada médica e um atendimento futuro de convênio
+ * de cada médica, ainda sem cobertura (D-3). "Outra clínica" é a gestora da `e2e-hi-paga`.
+ */
+async function setupI2() {
+  const run = arg('run');
+  if (!run || !/^[A-Z0-9]{3,12}$/u.test(run)) throw new Error('--run <marca> obrigatório (A-Z e 0-9)');
+  const [tv] = await exec<{ version: string }>(sql`SELECT version FROM public.tiss_terminology_versions ORDER BY version DESC LIMIT 1`);
+  if (!tv) throw new Error('terminologia TISS não carregada no DEV');
+  const i2 = await clinic('e2e-hi-i2', 'Clínica Sintética E2E Matriz');
+  const accounts: Record<string, { email: string; password: string; userId: string; clinic: string; role: string }> = {};
+  const add = async (key: string, role: string, nome: string) => {
+    const email = `e2e-hi-${key}@example.com`;
+    const pass = password();
+    const userId = await ensureUser(email, pass);
+    await profile(userId, i2, nome, role);
+    accounts[key] = { email, password: pass, userId, clinic: 'i2', role };
+    return userId;
+  };
+  // Assinatura paga no plano legado ANTES dos perfis (o teto de assentos é dos planos 2026).
+  await exec(sql`DELETE FROM public.subscriptions WHERE clinic_id = ${i2}::uuid`);
+  const sub = await exec(sql`
+    INSERT INTO public.subscriptions (clinic_id, plan_id, price_id, billing_status, current_period_start, current_period_end)
+    SELECT ${i2}::uuid, pl.id, pr.id, 'active', now() - interval '1 day', now() + interval '30 days'
+      FROM public.plans pl JOIN public.prices pr ON pr.plan_id = pl.id
+     WHERE pl.code = 'clinica' ORDER BY pr.id LIMIT 1 RETURNING id`);
+  if (sub.length !== 1) throw new Error('plano legado clinica ausente no DEV');
+  const owner = await add('i2-owner', 'owner', 'Dona Matriz E2E');
+  const gestor = await add('i2-gestor', 'gestor', 'Gestora Matriz E2E');
+  await add('i2-recepcao', 'attendant', 'Recepção Matriz E2E');
+  await add('i2-financeiro', 'financial', 'Financeiro Matriz E2E');
+  const medica = await add('i2-medica', 'doctor', 'Dra. Matriz Um E2E');
+  const medica2 = await add('i2-medica2', 'doctor', 'Dra. Matriz Dois E2E');
+  const semperm = await add('i2-semperm', 'doctor', 'Dra. Sem Convênios E2E');
+  const desativado = await add('i2-desativado', 'attendant', 'Recepção Desativada E2E');
+  // Estado conhecido das exceções: só a negativa de `view:convenios` da pessoa sem permissão.
+  await exec(sql`DELETE FROM public.user_permission_overrides WHERE clinic_id = ${i2}::uuid`);
+  await exec(sql`
+    INSERT INTO public.user_permission_overrides (user_id, clinic_id, permission_code, granted, granted_by)
+    VALUES (${semperm}::uuid, ${i2}::uuid, 'view:convenios', false, ${owner}::uuid)`);
+  await exec(sql`UPDATE public.profiles SET ativo = false, updated_at = now() WHERE id = ${desativado}::uuid AND clinic_id = ${i2}::uuid`);
+
+  await exec(sql`
+    INSERT INTO public.hi_clinic_settings (clinic_id, enabled, enabled_at, enabled_by, provider_kind, cnes_status, contractor_name)
+    VALUES (${i2}::uuid, true, now(), ${SYS}::uuid, 'PJ', 'none_declared', 'Clínica Sintética Matriz E2E Ltda')
+    ON CONFLICT (clinic_id) DO UPDATE SET enabled = true, contractor_name = EXCLUDED.contractor_name`);
+  for (const [doc, num] of [[medica, '22345'], [medica2, '22346']] as const) {
+    await exec(sql`
+      INSERT INTO public.hi_professional_profiles (clinic_id, professional_id, council, council_number, council_uf, cbo)
+      VALUES (${i2}::uuid, ${doc}::uuid, '06', ${num}, '35', '225125') ON CONFLICT DO NOTHING`);
+  }
+  let [proc] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.procedures WHERE clinic_id = ${i2}::uuid AND codigo = 'E2E-CONS'`);
+  if (!proc) {
+    [proc] = await exec<{ id: string }>(sql`
+      INSERT INTO public.procedures (clinic_id, codigo, descricao, valor_padrao, duracao_padrao_min, ativo)
+      VALUES (${i2}::uuid, 'E2E-CONS', 'Consulta sintética E2E', 150, 30, true) RETURNING id::text AS id`);
+  }
+  const consulta = proc!.id;
+  let [ins] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.hi_insurers WHERE clinic_id = ${i2}::uuid AND registro_ans = '999903'`);
+  if (!ins) {
+    [ins] = await exec<{ id: string }>(sql`
+      INSERT INTO public.hi_insurers (clinic_id, name, registro_ans, provider_id_kind, provider_id_value, status, sadt_grouping, created_by)
+      VALUES (${i2}::uuid, 'Operadora Sintética Matriz', '999903', 'codigoPrestadorNaOperadora', 'E2E0003', 'active', 'per_request', ${SYS}::uuid)
+      RETURNING id::text AS id`);
+    await exec(sql`
+      INSERT INTO public.hi_procedure_contracts (clinic_id, insurer_id, guide_type, table_code, procedure_code, description, procedure_id,
+        unit_value_cents, valid_from, requires_authorization, copay_kind, copay_fixed_cents, created_by)
+      VALUES (${i2}::uuid, ${ins!.id}::uuid, 'consulta', '22', '10101012', 'Consulta em consultório', ${consulta}::uuid, 17350, '2026-01-01', false, 'none', null, ${SYS}::uuid)`);
+  }
+  const insurerId = ins!.id;
+  await exec(sql`
+    INSERT INTO public.hi_credentials (clinic_id, insurer_id, plan_id, professional_id, valid_from, status, created_by)
+    SELECT ${i2}::uuid, ${insurerId}::uuid, NULL, x.pro, '2026-01-01', 'active', ${SYS}::uuid
+      FROM (VALUES (NULL::uuid), (${medica}::uuid), (${medica2}::uuid)) AS x(pro)
+     WHERE NOT EXISTS (SELECT 1 FROM public.hi_credentials c WHERE c.clinic_id = ${i2}::uuid AND c.insurer_id = ${insurerId}::uuid
+                         AND c.plan_id IS NULL AND c.professional_id IS NOT DISTINCT FROM x.pro AND c.status = 'active')`);
+
+  const I2_CPFS = ['577215664', '693147180'].map(cpfOf);
+  const I2_CARDS = ['0081234500033331', '0081234500033332'];
+  const people: Array<{ patient: string; membership: string }> = [];
+  for (const [i, nome] of ['Paciente Sintético Matriz Um', 'Paciente Sintético Matriz Dois'].entries()) {
+    let [p] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.patients WHERE clinic_id = ${i2}::uuid AND nome = ${nome}`);
+    if (!p) {
+      [p] = await exec<{ id: string }>(sql`
+        INSERT INTO public.patients (clinic_id, nome, cpf_encrypted, cpf_hash)
+        VALUES (${i2}::uuid, ${nome}, ${await encryptForTenant(i2, I2_CPFS[i]!)}, ${await hashForLookup(I2_CPFS[i]!)}) RETURNING id::text AS id`);
+    }
+    const hash = await hashForLookup(`${i2}:${I2_CARDS[i]!}`);
+    let [m] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.hi_memberships WHERE clinic_id = ${i2}::uuid AND card_number_hash = ${hash}`);
+    if (!m) {
+      [m] = await exec<{ id: string }>(sql`
+        INSERT INTO public.hi_memberships (clinic_id, patient_id, insurer_id, card_number_encrypted, card_number_hash, card_last4, created_by)
+        VALUES (${i2}::uuid, ${p!.id}::uuid, ${insurerId}::uuid, ${await encryptForTenant(i2, I2_CARDS[i]!)}, ${hash}, ${I2_CARDS[i]!.slice(-4)}, ${SYS}::uuid)
+        RETURNING id::text AS id`);
+    }
+    people.push({ patient: p!.id, membership: m!.id });
+  }
+
+  const coverage = await import('../../src/contexts/health-insurance/internal/coverage-service');
+  const guides = await import('../../src/contexts/health-insurance/internal/consulta-guide-service');
+  const seed = [...run].reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) % 997, 7);
+  /** Atendimento novo num dia livre da profissional (a agenda recusa sobreposição: tenta o dia seguinte). */
+  const appointment = async (key: string, doctor: string, doctorName: string, who: { patient: string }, month: number, hour: string) => {
+    const tag = `e2e-hi:i2-${run}-${key}`;
+    let [ap] = await exec<{ id: string; date: string }>(sql`
+      SELECT id::text AS id, to_char(scheduled_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS date
+        FROM public.appointments WHERE clinic_id = ${i2}::uuid AND observacoes = ${tag}`);
+    for (let attempt = 0; !ap && attempt < 40; attempt++) {
+      const date = new Date(Date.UTC(2026, month, 1 + ((seed + attempt) % 28))).toISOString().slice(0, 10);
+      try {
+        [ap] = await exec<{ id: string; date: string }>(sql`
+          INSERT INTO public.appointments (clinic_id, doctor_id, patient_id, procedure_id, scheduled_at, duration_min, status, valor,
+            snapshot_procedure_name, snapshot_procedure_valor, snapshot_procedure_duracao_min, snapshot_doctor_nome, created_via, observacoes)
+          VALUES (${i2}::uuid, ${doctor}::uuid, ${who.patient}::uuid, ${consulta}::uuid, ${`${date}T${hour}:00:00Z`}::timestamptz, 30,
+            'agendado'::appointment_status, 150, 'Sintético E2E', 150, 30, ${doctorName}, 'attendant', ${tag})
+          RETURNING id::text AS id, ${date}::text AS date`);
+      } catch (e) {
+        if (pgCode(e) !== '23P01') throw e;
+      }
+    }
+    if (!ap) throw new Error(`sem horário livre (${key})`);
+    return ap;
+  };
+  const guide = async (key: string, doctor: string, doctorName: string, who: { patient: string; membership: string }, hour: string) => {
+    const ap = await appointment(key, doctor, doctorName, who, 9, hour);
+    const [st] = await exec<{ status: string }>(sql`SELECT status::text AS status FROM public.appointments WHERE id = ${ap.id}::uuid`);
+    if (st?.status === 'agendado') {
+      await withTenant(i2, (tx) => coverage.recordAppointmentCoverage(tx, {
+        clinicId: i2, appointmentId: ap.id, patientId: who.patient, procedureId: consulta, appointmentDate: ap.date, guideType: 'consulta',
+        insurerId, planId: null, membershipId: who.membership, authorizationId: null, actor: { kind: 'user', userId: gestor },
+      }), gestor);
+      await exec(sql`UPDATE public.appointments SET status = 'atendido' WHERE id = ${ap.id}::uuid`);
+    }
+    const out = await withTenant(i2, (tx) => guides.createConsultaGuideForAppointment(tx, {
+      clinicId: i2,
+      appointment: { id: ap.id, patientId: who.patient, professionalId: doctor, procedureId: consulta, date: ap.date, billingMode: 'convenio' },
+      coverage: { insurerId, planId: null, membershipId: who.membership },
+      terminologyVersion: tv.version,
+      actor: { kind: 'automation' },
+    }), gestor);
+    const guideId = (out as { guideId?: string }).guideId;
+    if (!guideId) throw new Error(`guia não criada (${key})`);
+    const [g] = await exec<{ status: string }>(sql`SELECT status FROM public.hi_guides WHERE id = ${guideId}::uuid`);
+    return { id: guideId, status: g!.status };
+  };
+  const future = async (key: string, doctor: string, doctorName: string, who: { patient: string }, hour: string) => {
+    const ap = await appointment(key, doctor, doctorName, who, 11, hour);
+    await exec(sql`UPDATE public.appointments SET billing_mode = 'convenio' WHERE id = ${ap.id}::uuid AND clinic_id = ${i2}::uuid`);
+    return ap.id;
+  };
+  const out = {
+    clinicId: i2,
+    run,
+    insurerId,
+    insurerName: 'Operadora Sintética Matriz',
+    value: '173,50',
+    patients: { own: people[0]!.patient, other: people[1]!.patient },
+    guides: {
+      own: await guide('guia-a', medica, 'Dra. Matriz Um E2E', people[0]!, '10'),
+      other: await guide('guia-b', medica2, 'Dra. Matriz Dois E2E', people[1]!, '10'),
+    },
+    appointments: {
+      own: await future('futuro-a', medica, 'Dra. Matriz Um E2E', people[0]!, '13'),
+      other: await future('futuro-b', medica2, 'Dra. Matriz Dois E2E', people[1]!, '13'),
+    },
+  };
+  writeFileSync(accountsFile!, JSON.stringify(accounts, null, 1));
+  writeFileSync(outFile!, JSON.stringify(out, null, 1));
+  console.log(`[hi-dev-e2e-fixture] ok: clínica e2e-hi-i2, ${Object.keys(accounts).length} contas, guias ${out.guides.own.status}/${out.guides.other.status}, marca ${run}`);
+}
+
 // Comando desconhecido NÃO cai no cleanup (antes era o ramo padrão: um erro de digitação desativava
 // as contas e clínicas e2e-hi-*). O cleanup só roda pelo nome.
 const main =
@@ -588,6 +762,7 @@ const main =
   : command === 'setup-config' ? setupConfig
   : command === 'setup-states' ? setupStates
   : command === 'setup-authorizations' ? setupAuthorizations
+  : command === 'setup-i2' ? setupI2
   : command === 'set-state' ? setState
   : command === 'set-active' ? setActive
   : command === 'guide-state' ? guideState
