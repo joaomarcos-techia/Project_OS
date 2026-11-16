@@ -56,7 +56,7 @@ const PAID = new Set(['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH']);
 export type ChargeRemovalResult =
   | {
       ok: true;
-      /** Cobranças apagadas nesta chamada. */
+      /** Cobranças cuja ausência foi confirmada, inclusive após resposta perdida/retry. */
       removedPaymentIds: string[];
       /**
        * Cobranças que eram candidatas e JÁ ESTAVAM pagas — em geral um cartão
@@ -158,18 +158,28 @@ export async function removeSubscriptionCharges(
         paidPaymentIds.push(paymentId);
         continue;
       }
+      // Reconcile a known local invoice even when an earlier DELETE response
+      // or webhook was lost. The authoritative read already proved absence.
+      if (estado === 'gone') {
+        removedPaymentIds.push(paymentId);
+        continue;
+      }
       if (estado !== 'deletable') continue;
       try {
         await provider.cancelPayment(paymentId);
         removedPaymentIds.push(paymentId);
       } catch (error) {
-        if (isNotFound(error)) continue;
+        if (isNotFound(error)) {
+          removedPaymentIds.push(paymentId);
+          continue;
+        }
         // O DELETE falhou. O motivo mais provável é o cartão ter sido
         // processado no meio do caminho — reler decide, não o palpite.
         const depois = await readState(provider, paymentId);
         if (depois === 'paid') paidPaymentIds.push(paymentId);
         else if (depois === 'in_flight') emAnalise = true;
-        else if (depois !== 'gone') return fail('provider_unavailable');
+        else if (depois === 'gone') removedPaymentIds.push(paymentId);
+        else return fail('provider_unavailable');
       }
     }
     if (emAnalise) return fail('in_flight');
