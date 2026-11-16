@@ -14,10 +14,11 @@ const { listConversations, getConversationThread, countOpenHandoffs, getProfileN
   }));
 vi.mock('next/link', () => ({ default: (props: ComponentProps<'a'>) => <a {...props} /> }));
 vi.mock('@/lib/auth/page-guard', () => ({ pageGate }));
-vi.mock('@/contexts/ai-agent/queries', () => ({
-  listConversations,
-  getConversationThread,
-  countOpenHandoffs,
+vi.mock('@/contexts/ai-agent/queries', () => ({ countOpenHandoffs }));
+// S-01b: a inbox lê pela fronteira que conhece a sessão de suporte.
+vi.mock('@/contexts/ai-agent/conversation-access', () => ({
+  listConversationsForViewer: listConversations,
+  readConversationThread: getConversationThread,
 }));
 vi.mock('@/contexts/identity/queries', () => ({ getProfileNames }));
 vi.mock('./_components/conversation-auto-refresh', () => ({ ConversationAutoRefresh: () => null }));
@@ -86,7 +87,7 @@ afterEach(cleanup);
 describe('inbox de conversas', () => {
   it('mostra contato e histórico lado a lado, com telefone inclusive para paciente cadastrado', async () => {
     render(await ConversasPage({ searchParams: Promise.resolve({}) }));
-    expect(getConversationThread).toHaveBeenCalledWith('clinic-1', firstId);
+    expect(getConversationThread).toHaveBeenCalledWith('clinic-1', firstId, 'conversas_inbox');
     const inbox = screen.getByRole('region', { name: 'Lista de conversas' });
     expect(within(inbox).getByText('+55 11 99999-1234')).toBeTruthy();
     expect(
@@ -139,7 +140,7 @@ describe('inbox de conversas', () => {
         }),
       }),
     );
-    expect(getConversationThread).toHaveBeenCalledWith('clinic-1', secondId);
+    expect(getConversationThread).toHaveBeenCalledWith('clinic-1', secondId, 'conversas_inbox');
     expect(listConversations).toHaveBeenCalledWith('clinic-1', {
       search: 'Ana',
       status: 'handoff',
@@ -166,7 +167,7 @@ describe('inbox de conversas', () => {
         await ConversasPage({ searchParams: Promise.resolve({ conversation, page: 'Infinity' }) }),
       );
       expect(getConversationThread).toHaveBeenCalledOnce();
-      expect(getConversationThread).toHaveBeenCalledWith('clinic-1', firstId);
+      expect(getConversationThread).toHaveBeenCalledWith('clinic-1', firstId, 'conversas_inbox');
       expect(listConversations).toHaveBeenCalledWith('clinic-1', { page: 1 });
     },
   );
@@ -194,5 +195,43 @@ describe('inbox de conversas', () => {
     render(await ConversasPage({ searchParams: Promise.resolve({}) }));
     expect(listConversations).not.toHaveBeenCalled();
     expect(getConversationThread).not.toHaveBeenCalled();
+  });
+});
+
+describe('inbox na sessão de suporte (S-01b)', () => {
+  // Como `listConversationsForViewer` entrega a lista numa sessão de suporte:
+  // sem prévia, só o telefone mascarado, e `supportSession` ligado.
+  const hidden = (item: AIConversationListItem): AIConversationListItem => ({
+    ...item,
+    lastMessagePreview: null,
+    contactPhone: null,
+    maskedPhone: '+5511*****1234',
+    previewHidden: true,
+  });
+
+  beforeEach(() => {
+    listConversations.mockResolvedValue({
+      items: [hidden(first), hidden(second)],
+      total: 2,
+      page: 1,
+      pageSize: 30,
+      supportSession: true,
+    });
+  });
+
+  it('não abre conversa sozinha e avisa que abrir fica registrado', async () => {
+    render(await ConversasPage({ searchParams: Promise.resolve({}) }));
+
+    expect(getConversationThread).not.toHaveBeenCalled();
+    expect(screen.getAllByText('Prévia oculta na sessão de suporte')).toHaveLength(2);
+    expect(screen.queryByText('Preciso confirmar a consulta.')).toBeNull();
+    expect(screen.getByText(/cada abertura fica registrada na auditoria da clínica/u)).toBeTruthy();
+  });
+
+  it('abre a conversa escolhida pelo leitor auditado', async () => {
+    render(await ConversasPage({ searchParams: Promise.resolve({ conversation: secondId }) }));
+
+    expect(getConversationThread).toHaveBeenCalledOnce();
+    expect(getConversationThread).toHaveBeenCalledWith('clinic-1', secondId, 'conversas_inbox');
   });
 });

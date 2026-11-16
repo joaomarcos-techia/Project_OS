@@ -1,7 +1,7 @@
 /** Rota direta preservada; reutiliza o mesmo histórico e atendimento da inbox. */
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
-import { getConversationThread } from '@/contexts/ai-agent/queries';
+import { readConversationThread } from '@/contexts/ai-agent/conversation-access';
 import { getProfileNames } from '@/contexts/identity/queries';
 import { pageGate } from '@/lib/auth/page-guard';
 import { PERMISSIONS } from '@/lib/auth/permissions';
@@ -18,7 +18,7 @@ export default async function ConversaThreadPage({ params }: { params: Promise<{
   const { id } = await params;
   const parsed = z.string().uuid().safeParse(id);
   if (!parsed.success) notFound();
-  const thread = await getConversationThread(clinicId, parsed.data);
+  const thread = await readConversationThread(clinicId, parsed.data, 'conversa_direta');
   if (!thread) notFound();
   const assigneeNames = await getProfileNames(
     clinicId,

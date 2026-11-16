@@ -204,6 +204,18 @@ US$ 1,00 — conta escrita no código: ~US$ 0,0017 por turno ⇒ ~600 turnos/hor
 mesma clínica. Estourou: fallback operacional **sem chamar o provider**, escalona
 para humano, e sai `ai_agent.quota.blocked`.
 
+### S-01b — Suporte lia as conversas da clínica sem deixar rastro
+
+Na sessão de suporte, `/conversas` decifrava a prévia e o telefone de até 30
+conversas por página, abria sozinha a primeira conversa e se refazia a cada
+10 s — e só o início da sessão ficava registrado. Agora (ADR-074), na sessão de
+suporte a lista não decifra a prévia e mostra o telefone mascarado, nenhuma
+conversa abre sozinha, e abrir uma conversa grava
+`ai_agent.conversation.support_viewed` na trilha **da clínica**, na mesma
+transação da leitura, uma vez por conversa por sessão (com cross-reference em
+`super_admin_actions`). Se a trilha falhar, o histórico não sai. Trava estática
+em `src/contexts/ai-agent/conversation-access.test.ts`.
+
 ### Higiene — SEO, robots, sitemap
 
 O aplicativo tem fluxos públicos de login, convite, recovery e `/cadastro`; `/` redireciona para `/login`. SEO de conteúdo pertence ao site institucional. Cadastro e autenticação devem preservar privacidade e não expor estado sensível a indexadores.

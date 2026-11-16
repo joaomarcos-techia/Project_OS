@@ -19,6 +19,7 @@ import { messagingApiV1 } from '@/contexts/messaging';
 /* eslint-enable boundaries/element-types */
 
 import { decryptForTenant, hashForLookup, normalizePhone } from '@/lib/crypto';
+import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 import { maskPhone } from '@/lib/format';
 import { metrics } from '@/lib/observability/metrics';
@@ -98,6 +99,13 @@ export interface ListConversationsOpts {
   search?: string | undefined;
   page?: number | undefined;
   overdueOnly?: boolean | undefined;
+  /**
+   * S-01b (ADR-074): a lista vista numa sessão de suporte não decifra a prévia
+   * da última mensagem e só entrega o telefone mascarado. Quem decide é
+   * `listConversationsForViewer` (`conversation-access.ts`), pela sessão — nunca
+   * a tela.
+   */
+  redactForSupport?: boolean | undefined;
 }
 
 export interface PendingHandoff {
@@ -325,6 +333,7 @@ export async function listConversations(
     );
     const agora = new Date();
 
+    const redact = opts.redactForSupport === true;
     const items = await Promise.all(
       rows.map(async (r): Promise<AIConversationListItem> => {
         const nome = r.patientName ?? null;
@@ -334,12 +343,15 @@ export async function listConversations(
           id: r.id,
           patientDisplayName: nome,
           // Preserva o fallback mascarado; a UI autorizada usa o contato separado.
-          maskedPhone: nome ? null : maskPhone(contactPhone),
-          contactPhone: contactPhone || null,
+          // Na sessão de suporte, só o mascarado sai do servidor.
+          maskedPhone: nome && !redact ? null : maskPhone(contactPhone),
+          contactPhone: redact ? null : contactPhone || null,
           contactName: await contactNameOf(clinicId, r.contactNameEncrypted),
-          lastMessagePreview: lastMessage
-            ? preview(await decryptForTenant(clinicId, lastMessage))
-            : null,
+          // Na sessão de suporte a prévia nem é decifrada: conteúdo só na
+          // conversa aberta, e essa abertura fica na trilha da clínica.
+          lastMessagePreview:
+            lastMessage && !redact ? preview(await decryptForTenant(clinicId, lastMessage)) : null,
+          ...(redact ? { previewHidden: true as const } : {}),
           status: r.status,
           lastMessageAt: toIso(r.lastMessageAt)!,
           intentAtual: r.intentAtual,
@@ -399,155 +411,170 @@ function partitionScopedConversation(
  * Thread completa, decifrada, em ordem cronológica. `null` quando a conversa não
  * existe OU pertence a outra clínica (RLS já não a devolve — o null não
  * distingue os dois casos de propósito).
+ *
+ * S-01b (ADR-074): SEM trilha. As telas abrem a conversa por
+ * `readConversationThread` (`conversation-access.ts`), que registra a abertura
+ * feita pelo suporte. Continua exportada para os scripts de smoke; dentro de
+ * `src/` só o leitor auditado lê a thread (trava em `conversation-access.test.ts`).
  */
 export async function getConversationThread(
   clinicId: string,
   conversationId: string,
 ): Promise<AIConversationThread | null> {
-  return withTenant(clinicId, async (tx) => {
-    // TRÊS queries, não cinco. A fila de handoff e o nome do paciente saíam de
-    // SELECTs próprios, cada um esperando o anterior — e a listagem ao lado já
-    // resolvia os dois por LEFT JOIN. Aqui é o mesmo JOIN, pelo mesmo motivo.
-    const [conv] = await tx
-      .select({
-        id: aiConversations.id,
-        patientId: aiConversations.patientId,
-        patientName: patients.nome,
-        patientPhoneEncrypted: aiConversations.patientPhoneEncrypted,
-        contactNameEncrypted: aiConversations.contactNameEncrypted,
-        status: aiConversations.status,
-        intentAtual: aiConversations.intentAtual,
-        startedAt: aiConversations.startedAt,
-        lastMessageAt: aiConversations.lastMessageAt,
-        assignedToUserId: aiHandoffQueue.assignedTo,
-        handoffPriority: aiHandoffQueue.priority,
-        handoffDueAt: aiHandoffQueue.dueAt,
-      })
-      .from(aiConversations)
-      .leftJoin(
-        aiHandoffQueue,
-        and(
-          eq(aiHandoffQueue.clinicId, clinicId),
-          eq(aiHandoffQueue.conversationId, aiConversations.id),
-          isNull(aiHandoffQueue.resolvedAt),
-        ),
-      )
-      .leftJoin(
-        patients,
-        and(eq(patients.id, aiConversations.patientId), eq(patients.clinicId, clinicId)),
-      )
-      .where(and(eq(aiConversations.id, conversationId), eq(aiConversations.clinicId, clinicId)))
-      .limit(1);
-    if (!conv) return null;
+  return withTenant(clinicId, (tx) => loadConversationThreadTx(tx, clinicId, conversationId));
+}
 
-    const rows = await tx
-      .select({
-        id: aiMessages.id,
-        direction: aiMessages.direction,
-        contentEncrypted: aiMessages.contentEncrypted,
-        intent: aiMessages.intent,
-        toolCalls: aiMessages.toolCalls,
-        model: aiMessages.model,
-        latencyMs: aiMessages.latencyMs,
-        costUsd: aiMessages.costUsd,
-        eventId: aiMessages.eventId,
-        sentByUserId: aiMessages.sentByUserId,
-        sentViaBusinessApp: aiMessages.sentViaBusinessApp,
-        createdAt: aiMessages.createdAt,
-      })
-      .from(aiMessages)
-      .where(partitionScopedConversation(clinicId, conversationId, conv.startedAt))
-      .orderBy(aiMessages.createdAt)
-      .limit(MAX_THREAD_MESSAGES);
+/**
+ * A mesma leitura dentro de uma tx já aberta pelo chamador — é o que deixa o
+ * leitor auditado gravar a trilha NA MESMA transação da leitura (fail-closed).
+ */
+export async function loadConversationThreadTx(
+  tx: Tx,
+  clinicId: string,
+  conversationId: string,
+): Promise<AIConversationThread | null> {
+  // TRÊS queries, não cinco. A fila de handoff e o nome do paciente saíam de
+  // SELECTs próprios, cada um esperando o anterior — e a listagem ao lado já
+  // resolvia os dois por LEFT JOIN. Aqui é o mesmo JOIN, pelo mesmo motivo.
+  const [conv] = await tx
+    .select({
+      id: aiConversations.id,
+      patientId: aiConversations.patientId,
+      patientName: patients.nome,
+      patientPhoneEncrypted: aiConversations.patientPhoneEncrypted,
+      contactNameEncrypted: aiConversations.contactNameEncrypted,
+      status: aiConversations.status,
+      intentAtual: aiConversations.intentAtual,
+      startedAt: aiConversations.startedAt,
+      lastMessageAt: aiConversations.lastMessageAt,
+      assignedToUserId: aiHandoffQueue.assignedTo,
+      handoffPriority: aiHandoffQueue.priority,
+      handoffDueAt: aiHandoffQueue.dueAt,
+    })
+    .from(aiConversations)
+    .leftJoin(
+      aiHandoffQueue,
+      and(
+        eq(aiHandoffQueue.clinicId, clinicId),
+        eq(aiHandoffQueue.conversationId, aiConversations.id),
+        isNull(aiHandoffQueue.resolvedAt),
+      ),
+    )
+    .leftJoin(
+      patients,
+      and(eq(patients.id, aiConversations.patientId), eq(patients.clinicId, clinicId)),
+    )
+    .where(and(eq(aiConversations.id, conversationId), eq(aiConversations.clinicId, clinicId)))
+    .limit(1);
+  if (!conv) return null;
 
-    // Mesma condição de antes, agora sobre o que o JOIN trouxe: só conversa em
-    // `handoff` expõe a fila, e a linha precisa existir — o LEFT JOIN devolve
-    // nulos quando ela já foi resolvida.
-    const handoffRow =
-      conv.status === 'handoff' && conv.handoffDueAt && conv.handoffPriority
-        ? {
-            assignedToUserId: conv.assignedToUserId,
-            priority: conv.handoffPriority,
-            dueAt: conv.handoffDueAt,
-          }
-        : null;
+  const rows = await tx
+    .select({
+      id: aiMessages.id,
+      direction: aiMessages.direction,
+      contentEncrypted: aiMessages.contentEncrypted,
+      intent: aiMessages.intent,
+      toolCalls: aiMessages.toolCalls,
+      model: aiMessages.model,
+      latencyMs: aiMessages.latencyMs,
+      costUsd: aiMessages.costUsd,
+      eventId: aiMessages.eventId,
+      sentByUserId: aiMessages.sentByUserId,
+      sentViaBusinessApp: aiMessages.sentViaBusinessApp,
+      createdAt: aiMessages.createdAt,
+    })
+    .from(aiMessages)
+    .where(partitionScopedConversation(clinicId, conversationId, conv.startedAt))
+    .orderBy(aiMessages.createdAt)
+    .limit(MAX_THREAD_MESSAGES);
 
-    // Estado de entrega só das mensagens humanas — as do agente já foram
-    // enviadas de forma síncrona no próprio turno.
-    const manualKeys = rows.filter((r) => r.sentByUserId && r.eventId).map((r) => r.eventId!);
-    const delivery = await messagingApiV1.getOutboundStatuses(tx, clinicId, manualKeys);
+  // Mesma condição de antes, agora sobre o que o JOIN trouxe: só conversa em
+  // `handoff` expõe a fila, e a linha precisa existir — o LEFT JOIN devolve
+  // nulos quando ela já foi resolvida.
+  const handoffRow =
+    conv.status === 'handoff' && conv.handoffDueAt && conv.handoffPriority
+      ? {
+          assignedToUserId: conv.assignedToUserId,
+          priority: conv.handoffPriority,
+          dueAt: conv.handoffDueAt,
+        }
+      : null;
 
-    const messages = await Promise.all(
-      rows.map(async (r): Promise<AIThreadMessage> => {
-        // Sem o `sentViaBusinessApp`, a resposta da recepção pelo celular
-        // cairia no último ramo e apareceria assinada pela IA.
-        const author: AIMessageAuthor =
-          r.direction === 'in'
-            ? 'patient'
-            : r.sentByUserId
-              ? 'human'
-              : r.sentViaBusinessApp
-                ? 'business_app'
-                : 'agent';
-        return {
-          id: r.id,
-          direction: r.direction,
-          author,
-          text: await decryptForTenant(clinicId, r.contentEncrypted),
-          createdAt: toIso(r.createdAt)!,
-          meta:
-            author === 'agent'
-              ? {
-                  intent: r.intent,
-                  toolCalls: r.toolCalls,
-                  model: r.model,
-                  latencyMs: r.latencyMs,
-                  costUsd: r.costUsd === null ? null : Number(r.costUsd),
-                }
-              : null,
-          delivery: author === 'human' ? toDelivery(delivery.get(r.eventId!)) : null,
-        };
-      }),
-    );
+  // Estado de entrega só das mensagens humanas — as do agente já foram
+  // enviadas de forma síncrona no próprio turno.
+  const manualKeys = rows.filter((r) => r.sentByUserId && r.eventId).map((r) => r.eventId!);
+  const delivery = await messagingApiV1.getOutboundStatuses(tx, clinicId, manualKeys);
 
-    const lastInboundAt = [...rows].reverse().find((r) => r.direction === 'in')?.createdAt ?? null;
-    const now = new Date();
-    const nome = conv.patientName ?? null;
-    const contactPhone = await decryptForTenant(clinicId, conv.patientPhoneEncrypted);
+  const messages = await Promise.all(
+    rows.map(async (r): Promise<AIThreadMessage> => {
+      // Sem o `sentViaBusinessApp`, a resposta da recepção pelo celular
+      // cairia no último ramo e apareceria assinada pela IA.
+      const author: AIMessageAuthor =
+        r.direction === 'in'
+          ? 'patient'
+          : r.sentByUserId
+            ? 'human'
+            : r.sentViaBusinessApp
+              ? 'business_app'
+              : 'agent';
+      return {
+        id: r.id,
+        direction: r.direction,
+        author,
+        text: await decryptForTenant(clinicId, r.contentEncrypted),
+        createdAt: toIso(r.createdAt)!,
+        meta:
+          author === 'agent'
+            ? {
+                intent: r.intent,
+                toolCalls: r.toolCalls,
+                model: r.model,
+                latencyMs: r.latencyMs,
+                costUsd: r.costUsd === null ? null : Number(r.costUsd),
+              }
+            : null,
+        delivery: author === 'human' ? toDelivery(delivery.get(r.eventId!)) : null,
+      };
+    }),
+  );
 
-    metrics.emit('ai_agent.conversation.opened', {
-      clinicId,
-      conversationId,
-      status: conv.status,
-      messageCount: messages.length,
-    });
+  const lastInboundAt = [...rows].reverse().find((r) => r.direction === 'in')?.createdAt ?? null;
+  const now = new Date();
+  const nome = conv.patientName ?? null;
+  const contactPhone = await decryptForTenant(clinicId, conv.patientPhoneEncrypted);
 
-    return {
-      id: conv.id,
-      patientDisplayName: nome,
-      maskedPhone: maskPhone(contactPhone),
-      contactPhone: contactPhone || null,
-      contactName: await contactNameOf(clinicId, conv.contactNameEncrypted),
-      status: conv.status,
-      intentAtual: conv.intentAtual,
-      startedAt: toIso(conv.startedAt)!,
-      lastMessageAt: toIso(conv.lastMessageAt)!,
-      messages,
-      handoff: handoffRow
-        ? {
-            assignedToUserId: handoffRow.assignedToUserId ?? null,
-            priority: handoffRow.priority,
-            dueAt: toIso(handoffRow.dueAt)!,
-            overdue: handoffRow.dueAt.getTime() < now.getTime(),
-          }
-        : null,
-      window: {
-        open: isWindowOpen(lastInboundAt, now),
-        lastInboundAt: toIso(lastInboundAt),
-        closesAt: toIso(windowClosesAt(lastInboundAt, now)),
-      },
-    };
+  metrics.emit('ai_agent.conversation.opened', {
+    clinicId,
+    conversationId,
+    status: conv.status,
+    messageCount: messages.length,
   });
+
+  return {
+    id: conv.id,
+    patientDisplayName: nome,
+    maskedPhone: maskPhone(contactPhone),
+    contactPhone: contactPhone || null,
+    contactName: await contactNameOf(clinicId, conv.contactNameEncrypted),
+    status: conv.status,
+    intentAtual: conv.intentAtual,
+    startedAt: toIso(conv.startedAt)!,
+    lastMessageAt: toIso(conv.lastMessageAt)!,
+    messages,
+    handoff: handoffRow
+      ? {
+          assignedToUserId: handoffRow.assignedToUserId ?? null,
+          priority: handoffRow.priority,
+          dueAt: toIso(handoffRow.dueAt)!,
+          overdue: handoffRow.dueAt.getTime() < now.getTime(),
+        }
+      : null,
+    window: {
+      open: isWindowOpen(lastInboundAt, now),
+      lastInboundAt: toIso(lastInboundAt),
+      closesAt: toIso(windowClosesAt(lastInboundAt, now)),
+    },
+  };
 }
 
 /**
