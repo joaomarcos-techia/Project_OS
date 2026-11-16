@@ -44,3 +44,30 @@ export const SESSION_ENDED_MESSAGE = 'Sua sessão terminou. Entre de novo para c
 /** Ação que falhou sem resposta com a sessão de pé: nunca afirmar sucesso nem fracasso. */
 export const UNCONFIRMED_MESSAGE =
   'Não foi possível confirmar com o servidor se a operação foi registrada. Atualize a página para ver a situação mais recente antes de tentar de novo.';
+
+/** P7.5: canal do pedido de cancelamento à operadora. */
+export const CANCELLATION_CHANNEL_LABELS: Record<string, string> = {
+  portal: 'Portal da operadora',
+  webservice: 'Serviço eletrônico',
+  email: 'E-mail',
+  phone: 'Telefone',
+  other: 'Outro canal',
+};
+
+/** P7.5: situação do pedido de cancelamento (a partir do recibo da operadora). */
+export const CANCELLATION_STATUS_LABELS: Record<string, string> = {
+  awaiting_receipt: 'Aguardando a operadora',
+  confirmed: 'Cancelada pela operadora',
+  refused: 'Não cancelada pela operadora',
+  divergent: 'Divergência com a operadora',
+};
+
+/** Tabela 46 da TUSS (dm_statusCancelamento), versão 202609. */
+export const TABLE_46_LABELS: Record<string, string> = {
+  '1': '1 · Cancelado com sucesso',
+  '2': '2 · Não cancelado',
+  '3': '3 · Guia inexistente',
+  '4': '4 · Em processamento',
+  '5': '5 · Lote inexistente',
+  '6': '6 · Protocolo inexistente',
+};

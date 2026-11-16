@@ -10,6 +10,7 @@ const m = vi.hoisted(() => ({
   conveniosAccess: vi.fn(),
   getInsuranceOverview: vi.fn(),
   getGuideDetail: vi.fn(),
+  getGuideSubstitution: vi.fn<typeof QueriesModule.getGuideSubstitution>(async () => ({ cancellations: [], substitute: null, replaces: null })),
   listConsultaFieldOptions: vi.fn(),
 }));
 
@@ -29,7 +30,7 @@ vi.mock('./_lib/access', async (orig) => {
 });
 vi.mock('@/contexts/health-insurance/queries', async (orig) => {
   const real = await orig<typeof QueriesModule>();
-  return { ...real, getInsuranceOverview: m.getInsuranceOverview, getGuideDetail: m.getGuideDetail, listConsultaFieldOptions: m.listConsultaFieldOptions };
+  return { ...real, getInsuranceOverview: m.getInsuranceOverview, getGuideDetail: m.getGuideDetail, getGuideSubstitution: m.getGuideSubstitution, listConsultaFieldOptions: m.listConsultaFieldOptions };
 });
 vi.mock('@/lib/db/tenant', () => ({ withTenant: vi.fn() }));
 
@@ -133,6 +134,34 @@ describe('interface de Convênios', () => {
     render(await GuiaPage({ params: Promise.resolve({ guideId: GUIDE }) }));
     expect(screen.getByRole('button', { name: 'Aprovar e emitir' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Cancelar guia' })).toBeTruthy();
+  });
+
+  it('P7.5: guia em análise — o faturamento pede o cancelamento; com o pedido aguardando, registra o recibo e baixa o XML; confirmado, cria a substituta', async () => {
+    m.listConsultaFieldOptions.mockResolvedValue(null);
+    m.getGuideDetail.mockResolvedValue({ ...guide, status: 'under_review', issues: [], consultaOverrides: null });
+    m.conveniosAccess.mockResolvedValue(accessFor(PROFILES.financeiro));
+    render(await GuiaPage({ params: Promise.resolve({ guideId: GUIDE }) }));
+    expect(screen.getByRole('button', { name: 'Pedir o cancelamento à operadora' })).toBeTruthy();
+    cleanup();
+    const base = { id: 'c1', purpose: 'substitution', channel: 'portal', requestedOn: '2026-11-12', reason: 'Tipo de consulta errado na guia', hasXml: true, xmlSha256: 'a'.repeat(64), createdAt: '2026-11-12T10:00:00Z' };
+    m.getGuideSubstitution.mockResolvedValueOnce({ cancellations: [{ ...base, status: 'awaiting_receipt' as const, statusCode: '4' as const, receipts: [{ statusCode: '4' as const, receivedOn: '2026-11-13', operatorProtocol: '123', operatorMessage: null, createdAt: '2026-11-13T10:00:00Z' }] }], substitute: null, replaces: null });
+    render(await GuiaPage({ params: Promise.resolve({ guideId: GUIDE }) }));
+    const region = screen.getByRole('region', { name: 'Cancelamento na operadora e substituição' });
+    expect(region.textContent).toContain('Aguardando a operadora');
+    expect(region.textContent).toContain('4 · Em processamento');
+    expect(screen.getByRole('button', { name: 'Registrar o recibo da operadora' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Baixar o XML do pedido' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Pedir o cancelamento à operadora' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Criar a guia substituta' })).toBeNull();
+    cleanup();
+    m.getGuideSubstitution.mockResolvedValueOnce({ cancellations: [{ ...base, status: 'confirmed' as const, statusCode: '1' as const, receipts: [] }], substitute: null, replaces: null });
+    render(await GuiaPage({ params: Promise.resolve({ guideId: GUIDE }) }));
+    expect(screen.getByRole('button', { name: 'Criar a guia substituta' })).toBeTruthy();
+    cleanup();
+    // A recepção (sem visão de faturamento) não vê o painel.
+    m.conveniosAccess.mockResolvedValue(accessFor(PROFILES.recepcao));
+    render(await GuiaPage({ params: Promise.resolve({ guideId: GUIDE }) }));
+    expect(screen.queryByRole('region', { name: 'Cancelamento na operadora e substituição' })).toBeNull();
   });
 
   it('D-4: a médica abre só a própria guia (consulta por posse), sem valores e sem nenhuma ação', async () => {

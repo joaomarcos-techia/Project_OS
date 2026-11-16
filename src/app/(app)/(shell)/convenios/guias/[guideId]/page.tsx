@@ -22,6 +22,7 @@ import {
 } from '@/contexts/health-insurance/actions';
 import {
   getGuideDetail,
+  getGuideSubstitution,
   guideEventLabel,
   ISSUE_OWNER_LABELS,
   listConsultaFieldOptions,
@@ -32,6 +33,13 @@ import { ActionButton, Actions, AnswerAppealForm, AppealForm, FileAppealForm, Te
 import { ConsultaFieldsPanel } from '../../_lib/consulta-fields-ui';
 import { GlossStatusBadge, GuideStatusBadge } from '../../_lib/status';
 import { guideLabel } from '../../_lib/guide-label';
+import { CANCELLATION_CHANNEL_LABELS, CANCELLATION_STATUS_LABELS, TABLE_46_LABELS } from '../../_lib/constants';
+import {
+  CancellationReceiptForm,
+  CancellationRequestForm,
+  CancellationXmlButton,
+  CreateSubstituteButton,
+} from '../../_lib/substitution-ui';
 
 export const metadata: Metadata = { title: 'Guia de convênio' };
 
@@ -42,6 +50,8 @@ export const maxDuration = 60;
 const OPEN_GLOSS = ['informed', 'under_analysis', 'contested'];
 /** Etapas em que o conteúdo da guia ainda se edita (0147/0161). */
 const EDITABLE = ['pending_data', 'ready_for_review'];
+/** P7.5: só a guia já enviada à operadora se cancela lá (antes, reabre; depois do resultado, recurso). */
+const AT_OPERATOR = ['exported', 'sent', 'under_review'];
 const ISSUED = ['approved', 'in_batch', 'exported', 'sent', 'under_review', 'paid', 'partially_paid', 'partially_glossed', 'fully_glossed', 'closed', 'replaced'];
 
 export default async function GuiaPage({ params }: { params: Promise<{ guideId: string }> }) {
@@ -68,6 +78,12 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
     g.guideType === 'consulta' && g.terminologyVersion
       ? await listConsultaFieldOptions(access.clinicId, g.terminologyVersion, g.items[0]?.executedOn ?? null)
       : null;
+  // P7.5 (0165): pedido, recibo da operadora e substituta — faturamento (o servidor confere de novo).
+  const substitution = access.rights.seeValues ? await getGuideSubstitution(access.clinicId, g.id) : null;
+  const activeCancellation = substitution?.cancellations.find((c) => c.status === 'awaiting_receipt' || c.status === 'confirmed') ?? null;
+  const showSubstitution =
+    substitution !== null &&
+    (AT_OPERATOR.includes(g.status) || g.status === 'replaced' || substitution.replaces !== null || substitution.cancellations.length > 0);
   const openGlosses = g.glosses.filter((x) => OPEN_GLOSS.includes(x.status) && !g.appeals.some((a) => ['draft', 'filed'].includes(a.status) && a.glossIds.includes(x.id)));
 
   return (
@@ -309,6 +325,71 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
               ))}
             </ul>
           )}
+        </PanelCard>
+      ) : null}
+
+      {showSubstitution && substitution ? (
+        <PanelCard title="Cancelamento na operadora e substituição" regionLabel="Cancelamento na operadora e substituição" className="mt-(--sp-4)">
+          {substitution.replaces ? (
+            <p className="mb-(--sp-2) text-(length:--fs-sm)">
+              Esta guia substitui a{' '}
+              <Link href={`/convenios/guias/${substitution.replaces.id}`} className="underline">
+                guia nº {substitution.replaces.number}
+              </Link>
+              . A aprovação só passa com o cancelamento da original confirmado pela operadora (Tabela 46 = 1).
+            </p>
+          ) : null}
+          {substitution.cancellations.length === 0 && !substitution.replaces ? (
+            <p className="mb-(--sp-2) text-(length:--fs-sm) text-fg-muted">
+              Para substituir uma guia já enviada, peça o cancelamento à operadora e registre o recibo. O Qoro gera o XML
+              do pedido, mas não o transmite.
+            </p>
+          ) : null}
+          {substitution.cancellations.length > 0 ? (
+            <ul className="mb-(--sp-3) flex flex-col gap-(--sp-2) text-(length:--fs-sm)">
+              {substitution.cancellations.map((c) => (
+                <li key={c.id} className="rounded-(--r-md) border border-border p-(--sp-2)">
+                  <div className="flex flex-wrap items-center gap-(--sp-2)">
+                    <Badge tone={c.status === 'confirmed' ? 'green' : c.status === 'awaiting_receipt' ? 'amber' : 'red'}>
+                      {CANCELLATION_STATUS_LABELS[c.status] ?? c.status}
+                    </Badge>
+                    <span>
+                      pedido em {shortDate(c.requestedOn)} · {CANCELLATION_CHANNEL_LABELS[c.channel] ?? c.channel}
+                    </span>
+                  </div>
+                  <p className="mt-(--sp-1) text-fg-muted">{c.reason}</p>
+                  {c.receipts.length > 0 ? (
+                    <ul className="mt-(--sp-1)">
+                      {c.receipts.map((r, i) => (
+                        <li key={`${c.id}-${i}`}>
+                          Recibo de {shortDate(r.receivedOn)}: {TABLE_46_LABELS[r.statusCode] ?? r.statusCode}
+                          {r.operatorProtocol ? ` · protocolo ${r.operatorProtocol}` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {bill ? (
+                    <div className="mt-(--sp-2) flex flex-wrap gap-(--sp-2)">
+                      {c.hasXml ? <CancellationXmlButton cancellationId={c.id} /> : null}
+                      {c.status === 'awaiting_receipt' ? <CancellationReceiptForm cancellationId={c.id} /> : null}
+                    </div>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {bill && AT_OPERATOR.includes(g.status) && !activeCancellation ? <CancellationRequestForm guideId={g.id} /> : null}
+          {substitution.substitute ? (
+            <p className="text-(length:--fs-sm)">
+              Substituta:{' '}
+              <Link href={`/convenios/guias/${substitution.substitute.id}`} className="underline">
+                guia nº {substitution.substitute.number}
+              </Link>{' '}
+              <GuideStatusBadge status={substitution.substitute.status} />
+            </p>
+          ) : bill && !access.commercial && AT_OPERATOR.includes(g.status) && activeCancellation?.status === 'confirmed' ? (
+            <CreateSubstituteButton originalGuideId={g.id} />
+          ) : null}
         </PanelCard>
       ) : null}
 

@@ -19,6 +19,7 @@ import { listCopayChargesTx } from './internal/copay-charge-service';
 import { insurerRules } from './internal/insurer-rules';
 import { listInsurancePayoutPositionsTx, type InsurancePayoutPosition } from './internal/insurance-payout-service';
 import { listPayoutReviewsTx, type PayoutReviewRow } from './internal/payout-review-service';
+import { listGuideCancellationsTx, type GuideCancellationRow } from './internal/guide-cancellation-service';
 import { GUIDE_STATUS_LABELS } from './guide-status-labels';
 import {
   CONSULTA_CODE_FIELD_KEYS,
@@ -1390,5 +1391,29 @@ export async function getAuthorization(
         createdAt: iso(x.created_at),
       })),
     };
+  });
+}
+
+// ── Substituição de guia já enviada (P7.5; 0165) ─────────────────────────
+
+export interface GuideSubstitutionView {
+  cancellations: GuideCancellationRow[];
+  /** A substituta desta guia (se houver), em qualquer estado. */
+  substitute: { id: string; number: string; status: string } | null;
+  /** A guia que esta substitui (se for uma substituta). */
+  replaces: { id: string; number: string; status: string } | null;
+}
+
+export async function getGuideSubstitution(clinicId: string, guideId: string): Promise<GuideSubstitutionView> {
+  return withTenant(clinicId, async (tx) => {
+    const cancellations = await listGuideCancellationsTx(tx, clinicId, guideId);
+    const [sub] = (await tx.execute(sql`SELECT id, number, status FROM public.hi_guides
+        WHERE clinic_id = ${clinicId}::uuid AND replaces_guide_id = ${guideId}::uuid AND status <> 'cancelled'
+        ORDER BY created_at DESC LIMIT 1`)) as unknown as Row[];
+    const [orig] = (await tx.execute(sql`SELECT o.id, o.number, o.status FROM public.hi_guides g
+        JOIN public.hi_guides o ON o.clinic_id = g.clinic_id AND o.id = g.replaces_guide_id
+        WHERE g.clinic_id = ${clinicId}::uuid AND g.id = ${guideId}::uuid`)) as unknown as Row[];
+    const pick = (r: Row | undefined) => (r ? { id: String(r.id), number: String(r.number), status: String(r.status) } : null);
+    return { cancellations, substitute: pick(sub), replaces: pick(orig) };
   });
 }
