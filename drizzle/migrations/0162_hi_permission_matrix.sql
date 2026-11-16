@@ -1,12 +1,11 @@
 -- =====================================================================
--- 0162 (CANDIDATA) — Convênios: permissões próprias da matriz I.2 (P1.12)
+-- 0162 — Convênios: permissões próprias da matriz I.2 (P1.12)
 --
--- SITUAÇÃO: preparada em 15/11/2026 (noite). NÃO está em drizzle/migrations nem no
--- journal. NÃO foi aplicada no DEV nem em produção. Aplicar em banco persistente exige
--- autorização específica do fundador, depois da revisão da matriz
--- (docs/convenios/matriz-permissoes-i2.md) e das provas em Postgres descartável
--- (scripts/security/health-insurance-permission-matrix-db.ts). Pedido no §20 de
--- docs/convenios/coordenacao-migrations.md.
+-- Autorizada para o DEV pelo fundador em 16/11/2026 (decisões D-1 a D-8 da matriz,
+-- docs/convenios/matriz-permissoes-i2.md §10; D-8 = aplicar no DEV sob os controles do
+-- pedido). NÃO autorizada em produção. Prova em Postgres descartável:
+-- scripts/security/health-insurance-permission-matrix-db.ts (12 provas, job
+-- convenios-synthetic-db.yml). Aplicação e pós-voo: docs/convenios/coordenacao-migrations.md §23.
 --
 -- O QUE FAZ (só inserções; nenhuma DDL, nenhuma visão, função, gatilho ou GRANT muda):
 --   1. cinco códigos novos no catálogo `permissions`;

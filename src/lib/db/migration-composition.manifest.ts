@@ -243,5 +243,15 @@ export const MIGRATION_COMPOSITION_MANIFEST: CompositionManifest = {
       requires: ['0160_patient_external_refunds'],
       sentinel: 'function:public.hi_guide_guard_consulta_overrides()',
     },
+    {
+      // P1.12 (matriz I.2: 5 códigos, pacotes por papel, overrides R1–R4). Só inserções, sem DDL,
+      // por isso sem sentinela de objeto. Autorizada para o DEV em 16/11 (coordenacao-migrations §23).
+      tag: '0162_hi_permission_matrix',
+      idx: 162,
+      when: 1795296173857,
+      sha256: 'eed2d0dee2b9d59be3b8f707d1c4963541d0b03e3597a73157be8766d481ec68',
+      owner: 'PR #55 (convênios)',
+      requires: ['0161_hi_guide_consulta_overrides'],
+    },
   ],
 };

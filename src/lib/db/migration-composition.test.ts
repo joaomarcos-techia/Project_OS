@@ -239,6 +239,7 @@ describe('journal REAL desta branch', () => {
       '0158_hi_copay_charge',
       '0160_patient_external_refunds',
       '0161_hi_guide_consulta_overrides',
+      '0162_hi_permission_matrix',
     ]) {
       expect(journal.find((x) => x.tag === tag)?.sha256, tag).toBe(pinned(tag).sha256);
     }

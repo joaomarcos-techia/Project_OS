@@ -2,8 +2,9 @@
  * Convênios (P1.12, matriz I.2): prova da candidata 0162 em Postgres DESCARTÁVEL, sobre a cadeia
  * do DEV (readDevOrderChain, a mesma das demais provas do TISS). Nada aqui toca DEV ou produção.
  *
- * A candidata vive fora do journal (docs/convenios/migrations/0162_hi_permission_matrix.candidate.sql)
- * até a autorização específica do fundador. Esta prova confere:
+ * Desde 16/11 a migration está no journal (drizzle/migrations/0162_hi_permission_matrix.sql,
+ * autorizada para o DEV). A prova monta a cadeia do DEV SEM a 0162 e aplica o arquivo final por
+ * cima, para medir o antes e o depois. Esta prova confere:
  *   1. catálogo: os cinco códigos novos, com descrição;
  *   2. pacotes: cada papel recebe exatamente os códigos da matriz; nada sai dos pacotes de hoje;
  *   3. permissões efetivas: ninguém perde código nenhum; cada papel ganha só o que a matriz dá;
@@ -31,10 +32,8 @@ import { readDevOrderChain } from './dev-order-chain';
 import { grantPaidSubscription, startScratchSchema } from './scratch-schema';
 
 const PORT = Number(process.env.PORT ?? 55549);
-const CANDIDATE = path.join(
-  process.cwd(),
-  'docs/convenios/migrations/0162_hi_permission_matrix.candidate.sql',
-);
+const MIGRATION_FILE = '0162_hi_permission_matrix.sql';
+const CANDIDATE = path.join(process.cwd(), 'drizzle/migrations', MIGRATION_FILE);
 const NEW = [
   'view:convenios',
   'manage:convenios',
@@ -66,7 +65,9 @@ const rollback = [
 ];
 const newCodes = [...NEW] as string[];
 
-const chain = await readDevOrderChain();
+// A cadeia do DEV até a 0161: a 0162 entra por cima, pelo applyCandidate, para medir antes e depois.
+const chain = (await readDevOrderChain()).filter((m) => m.file < MIGRATION_FILE);
+assert.ok(chain.length > 0 && chain[chain.length - 1]!.file.startsWith('0161_'), 'cadeia termina na 0161');
 const cluster = await startScratchSchema({ port: PORT, maxConnections: 4, migrations: chain });
 const { sql } = cluster;
 if (!new RegExp(`@(?:127\\.0\\.0\\.1|localhost):${PORT}/`, 'u').test(cluster.url))

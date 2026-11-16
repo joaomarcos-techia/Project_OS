@@ -67,7 +67,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: 0162 candidata — matriz de permissões I.2 (12 provas)
+      - name: 0162 — matriz de permissões I.2, arquivo final do journal (12 provas)
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55549 \
             pnpm exec tsx scripts/security/health-insurance-permission-matrix-db.ts

@@ -893,7 +893,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/health-insurance-payout-db.ts:28`                          | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                                         |
 | `scripts/security/health-insurance-payout-db.ts:29`                          | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
 | `scripts/security/health-insurance-payout-db.ts:30`                          | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
-| `scripts/security/health-insurance-permission-matrix-db.ts:33`               | `PORT`                                 | `process.env.PORT`                                                          |
+| `scripts/security/health-insurance-permission-matrix-db.ts:34`               | `PORT`                                 | `process.env.PORT`                                                          |
 | `scripts/security/health-insurance-premium-gate-db.ts:23`                    | `PORT`                                 | `process.env.PORT`                                                          |
 | `scripts/security/health-insurance-premium-gate-db.ts:26`                    | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/health-insurance-premium-gate-db.ts:27`                    | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
