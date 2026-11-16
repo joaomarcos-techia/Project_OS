@@ -8,7 +8,7 @@ import { leaf, node, serializeDocument, toLatin1Bytes, type XmlElement } from '.
 
 import type { BuiltTissMessage, LoteGuiasHeader } from './lote-guias';
 
-export type PrestadorTransaction = 'SOLICITACAO_PROCEDIMENTOS' | 'RECURSO_GLOSA';
+export type PrestadorTransaction = 'SOLICITACAO_PROCEDIMENTOS' | 'RECURSO_GLOSA' | 'CANCELA_GUIA';
 
 export type PrestadorMessageHeader = Omit<LoteGuiasHeader, 'numeroLote'>;
 

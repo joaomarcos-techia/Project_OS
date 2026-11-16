@@ -36,6 +36,7 @@ process.env.CRYPTO_LOOKUP_SALT = Buffer.alloc(32, 9).toString('base64');
 const acct = await import('../../src/contexts/health-insurance/internal/insurance-account-service');
 const pay = await import('../../src/contexts/health-insurance/internal/insurance-payout-service');
 const review = await import('../../src/contexts/health-insurance/internal/payout-review-service');
+const cancellationSvc = await import('../../src/contexts/health-insurance/internal/guide-cancellation-service');
 const { issueConsultaGuide } = await import('../../src/contexts/health-insurance/internal/guide-issuance');
 const { withTenant } = await import('../../src/lib/db/tenant');
 await import('../../src/app/api/cron/outbox/handlers');
@@ -548,6 +549,15 @@ try {
     return String(s!.id);
   });
   assert.deepEqual(await reviewsOf(pW), [], 'substituta em rascunho: nada muda');
+  // 0165 (P7.5): a substituta só é aprovada com o cancelamento da original confirmado pela operadora.
+  const cw = await fx.asUser(C, (tx) => cancellationSvc.requestGuideCancellationTx(tx, { validateXsd: null }, {
+    clinicId: C.clinicId, guideId: gW, purpose: 'substitution', channel: 'portal', requestedOn: '2026-11-12',
+    reason: 'Reenvio corrigido da guia em análise', idempotencyKey: key('can'), generateXml: false,
+  }));
+  await fx.asUser(C, (tx) => cancellationSvc.recordGuideCancellationReceiptTx(tx, {
+    clinicId: C.clinicId, cancellationId: cw.cancellationId, statusCode: '1', receivedOn: '2026-11-13',
+    operatorProtocol: '1234567890', idempotencyKey: key('rec'),
+  }));
   const [orig] = (await sql`select total_value_cents::int t, membership_id::text m from public.hi_guides where id = ${gW}::uuid`) as unknown as Array<{ t: number; m: string }>;
   await fx.asUser(C, (tx) => tx.execute(fx.sqlTag`update public.hi_guides set status = 'ready_for_review', total_value_cents = ${orig!.t},
       issues = '[]', terminology_version = '202609' where id = ${subId}::uuid`));

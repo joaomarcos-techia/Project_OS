@@ -79,6 +79,13 @@ jobs:
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55553 NODE_OPTIONS=--conditions=react-server \
             pnpm exec tsx scripts/security/health-insurance-guide-scope-db.ts
 
+      # P7.5 (0165): cancelamento na operadora e substituição só com recibo; cancelaGuia no XSD oficial.
+      - name: 0165 — cancelamento na operadora e substituição só com recibo (P7.5)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55554 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/health-insurance-guide-cancellation-db.ts
+
       # Cada prova roda mesmo se a anterior falhar (evidência independente); o job falha se qualquer uma falhar.
       - name: SP/SADT — solicitação, automação e indicação clínica × D24
         if: ${{ !cancelled() }}

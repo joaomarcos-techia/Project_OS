@@ -57,6 +57,7 @@ import { approveConsultaGuide } from './internal/guide-issuance';
 import * as acct from './internal/insurance-account-service';
 import * as payouts from './internal/insurance-payout-service';
 import * as review from './internal/payout-review-service';
+import * as cancellation from './internal/guide-cancellation-service';
 import * as sadt from './internal/sadt-request-service';
 import {
   importOperatorStatement,
@@ -139,6 +140,7 @@ function messageOf(error: unknown): string {
     error instanceof CoverageInputError ||
     error instanceof payouts.InsurancePayoutError ||
     error instanceof review.PayoutReviewError ||
+    error instanceof cancellation.GuideCancellationError ||
     error instanceof CopayChargeError
   ) {
     return error.message.charAt(0).toUpperCase() + error.message.slice(1);
@@ -1423,6 +1425,116 @@ export async function adjustInsurancePayoutAction(input: {
         }),
     );
     return null;
+  });
+}
+
+// ── Substituição de guia já enviada (P7.5; 0165): pedido, recibo da operadora e substituta ──
+
+const CancellationRequest = z.object({
+  guideId: uuid,
+  purpose: z.enum(['substitution', 'cancellation']),
+  channel: z.enum(['portal', 'webservice', 'email', 'phone', 'other']),
+  requestedOn: day,
+  reason,
+  operatorGuideNumber: z.string().trim().min(1).max(20).nullable().optional(),
+  idempotencyKey: key,
+  generateXml: z.boolean().default(true),
+});
+
+/**
+ * Pedido de cancelamento da guia à operadora (preservação: fato sobre guia já enviada). Por padrão
+ * gera o `cancelaGuia` validado no XSD oficial; o Qoro NÃO transmite (a clínica envia pelo canal).
+ */
+export async function requestGuideCancellationAction(
+  input: z.input<typeof CancellationRequest>,
+): Promise<ActionResult<{ cancellationId: string; xmlSha256: string | null }>> {
+  return run(async () => {
+    const d = CancellationRequest.parse(input);
+    let out: { cancellationId: string; xmlSha256: string | null } = { cancellationId: '', xmlSha256: null };
+    await write('health_insurance.guide.substitution_cancellation_requested', { type: 'hi_guide', id: d.guideId }, async (tx, ctx) => {
+      const r = await cancellation.requestGuideCancellationTx(tx, { validateXsd: d.generateXml ? loadXmllintValidator() : null }, {
+        clinicId: ctx.clinicId,
+        guideId: d.guideId,
+        purpose: d.purpose,
+        channel: d.channel,
+        requestedOn: d.requestedOn,
+        reason: d.reason,
+        operatorGuideNumber: d.operatorGuideNumber ?? null,
+        idempotencyKey: d.idempotencyKey,
+        generateXml: d.generateXml,
+      });
+      out = { cancellationId: r.cancellationId, xmlSha256: r.xmlSha256 };
+      return r.cancellationId;
+    });
+    return out;
+  });
+}
+
+const CancellationReceipt = z.object({
+  cancellationId: uuid,
+  statusCode: z.enum(['1', '2', '3', '4', '5', '6']),
+  receivedOn: day,
+  operatorProtocol: z.string().trim().min(1).max(12).nullable().optional(),
+  operatorMessage: z.string().trim().max(500).nullable().optional(),
+  evidenceSha256: z.string().regex(/^[0-9a-f]{64}$/u, 'SHA-256 inválido (64 caracteres hexadecimais).').nullable().optional(),
+  idempotencyKey: key,
+});
+
+/** Recibo da operadora (Tabela 46): fato registrado por uma pessoa, com evidência. */
+export async function recordGuideCancellationReceiptAction(
+  input: z.input<typeof CancellationReceipt>,
+): Promise<ActionResult<string>> {
+  return run(async () => {
+    const d = CancellationReceipt.parse(input);
+    let status = '';
+    await write('health_insurance.guide.substitution_receipt_recorded', { type: 'hi_guide_cancellation', id: d.cancellationId }, async (tx, ctx) => {
+      const r = await cancellation.recordGuideCancellationReceiptTx(tx, {
+        clinicId: ctx.clinicId,
+        cancellationId: d.cancellationId,
+        statusCode: d.statusCode,
+        receivedOn: d.receivedOn,
+        operatorProtocol: d.operatorProtocol ?? null,
+        operatorMessage: d.operatorMessage ?? null,
+        evidenceSha256: d.evidenceSha256 ?? null,
+        idempotencyKey: d.idempotencyKey,
+      });
+      status = r.status;
+      return `codigo=${d.statusCode};situacao=${r.status}`;
+    });
+    return status;
+  });
+}
+
+/** Rascunho da substituta (classe A: o banco recusa com o módulo desligado ou a assinatura parada). */
+export async function createSubstituteGuideAction(input: {
+  originalGuideId: string;
+  idempotencyKey: string;
+}): Promise<ActionResult<string>> {
+  return run(async () => {
+    const d = z.object({ originalGuideId: uuid, idempotencyKey: key }).parse(input);
+    return write('health_insurance.guide.substitution_created', { type: 'hi_guide', id: d.originalGuideId }, async (tx, ctx) => {
+      await assertConveniosOperableTx(tx, ctx.clinicId);
+      const r = await cancellation.createSubstituteGuideTx(tx, {
+        clinicId: ctx.clinicId,
+        originalGuideId: d.originalGuideId,
+        idempotencyKey: d.idempotencyKey,
+        actorUserId: ctx.userId,
+      });
+      return r.guideId;
+    });
+  });
+}
+
+/** XML do pedido de cancelamento, para baixar e enviar pelo canal da operadora (sem dado de paciente). */
+export async function readGuideCancellationXmlAction(input: {
+  cancellationId: string;
+}): Promise<ActionResult<{ xml: string; fileName: string; sha256: string }>> {
+  return run(async () => {
+    const { cancellationId } = z.object({ cancellationId: uuid }).parse(input);
+    const ctx = await gate('bill');
+    const r = await withTenant(ctx.clinicId, (tx) => cancellation.readCancellationXmlTx(tx, ctx.clinicId, cancellationId), ctx.userId);
+    if (!r) throw new cancellation.GuideCancellationError('Pedido sem XML nesta clínica.', 'not_found');
+    return { xml: r.xml, fileName: `cancela-guia-${r.guideNumber}.xml`, sha256: r.sha256 };
   });
 }
 
