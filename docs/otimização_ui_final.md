@@ -12,6 +12,18 @@
 
 ## ESTADO ATUAL DA EXECUÇÃO
 
+- **P-21 CORRIGIDO (16/11/2026, manhã) — CI AINDA SEM EVIDÊNCIA.**
+  - Das duas falhas da CI do #56:
+    - o **título da Ajuda** era asserção desatualizada pelo UX-008. O teste agora espera
+      "Agendar, remarcar e cancelar · Ajuda"; o modelo do layout raiz acrescenta "· Qoro";
+    - o **PIN do WhatsApp** era um **defeito real de acessibilidade**: o campo apontava para a ajuda
+      duas vezes (`…-pin-help`, dentro do hint `…-pin-hint` que o `Field` liga), e o leitor de tela
+      repetia a frase. Corrigido em `whatsapp-connect.tsx`: a ajuda é o hint do `Field`, com uma
+      referência só. O teste passou a exigir exatamente `…-pin-hint` e o texto.
+  - **Local:** 62/62 (WhatsApp 46, `Field` 9, Ajuda 4, contrato de títulos 3); ESLint 0; `tsc` 0.
+  - **CI: não rodou.** O GitHub recusa iniciar jobs ("recent account payments have failed or your
+    spending limit needs to be increased", P-22), a partir do `63caefd1`. A primeira suíte completa
+    depois da correção depende de o fundador regularizar a cobrança.
 - **FECHAMENTO DO CICLO 3 (16/11/2026, ~03h) — LEIA PRIMEIRO.** O prompt de retomada está em
   `docs/ui-final-prompt-continuidade.md`.
   - **Código:** igual ao `5462c209`; os commits seguintes são só documento. Última mudança de lógica:
@@ -1908,6 +1920,7 @@ sondas da UI de hoje: 0 ocorrência. Isso não encerra a causa histórica.
 | 15/11/2026 15h39 | P1.1 | PR draft #56 para a CI oficial (base `main`, sem merge); automações conferidas antes: CI com valores falsos, ADR (aviso), Vercel Preview, Snyk, Semgrep; nenhuma com efeito em Production | CI em andamento ao abrir | PR #56 |
 | 15/11/2026 15h45–15h56 | Sonda do ciclo 3, P1.7, inventário | Sonda de 1 login no `05e4378c` (25.10): Dashboard e Financeiro validados no Preview; "Criar conta" com 23 px → 24 px; descrição de Documentos coerente com o botão; inventário de segurança regenerado (P-15); A-02 registrado | Documentos e componentes compartilhados 74/74; contrato de alvos 4/4; `tsc` 0; ESLint 0; `inventory.ts --check` OK | `464aa0ba`, `5462c209` |
 | 16/11/2026 ~03h | Fechamento do ciclo 3 | CI do #56 lida (vermelha por 2 asserções desatualizadas; diagnóstico e dono em P-21); frentes S-01 (#57, #58) e trilha (#59) registradas; ordem de integração revista; prompt de retomada em `docs/ui-final-prompt-continuidade.md` | nenhum teste rodado nesta etapa (máquina reservada) | este commit |
+| 16/11/2026 manhã | P-21 | Título da Ajuda: teste atualizado ao contrato UX-008. PIN do WhatsApp: descrição anunciada em dobro, corrigida em `whatsapp-connect.tsx` (a ajuda é o hint do `Field`), com teste mais estrito | 62/62 (WhatsApp, Field, Ajuda, contrato de títulos); ESLint 0; `tsc` 0; CI bloqueada pela cobrança (P-22) | este commit |
 
 ## 28. Pendências e bloqueios
 
@@ -1934,6 +1947,8 @@ sondas da UI de hoje: 0 ocorrência. Isso não encerra a causa histórica.
 | P-19 | Corrida residual do Caixa depois de recarregar a página com a 1ª requisição ainda no servidor; proposta `valorPagoEsperado` em `confirmPayment` (25.9) | contrato financeiro | domínio financeiro |
 | P-20 | Latência de Server Action no Preview, de 11,4 s (seção 33): precisa dos logs da Vercel/Supabase | observabilidade | plataforma |
 | P-21 | **CI do #56 vermelha por 2 asserções desatualizadas por esta frente** (bloco de estado): título da Ajuda ('· Ajuda', UX-008) e `aria-describedby` do PIN com o hint (UX-001). Antes de alterar: confirmar que o título sem 'Qoro' segue o contrato de `src/app/page-titles.test.ts` e que hint e ajuda do PIN têm textos diferentes (sem anúncio duplicado). Depois, atualizar só as duas expectativas, sem enfraquecer, e deixar a CI rodar inteira (inventário, isolamento, build e e2e público ainda sem evidência) | teste | esta frente |
+| P-21 (status 16/11) | **Corrigido localmente:** título da Ajuda (teste atualizado ao UX-008) e PIN do WhatsApp (defeito real de descrição duplicada, corrigido no componente; teste mais estrito). Falta a CI inteira, que depende da P-22 | teste/a11y | esta frente |
+| P-22 | **GitHub Actions bloqueado por cobrança da conta** desde o `63caefd1` (16/11): jobs nem iniciam ("recent account payments have failed or your spending limit needs to be increased"). Afeta os PRs #56–#59. Nenhum agente mexe em pagamento | conta GitHub | fundador (Settings → Billing & plans) |
 
 ## 29. Estado de execução
 

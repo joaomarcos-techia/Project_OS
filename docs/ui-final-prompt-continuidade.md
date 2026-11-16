@@ -67,7 +67,8 @@ código ficam como estão. O fundador é quem decide política, merge e Producti
   login, Documentos, Equipe e LGPD.
 - **Bloqueados:** os 6 specs `production-*`, por política (Production NO-GO; só `--list`), e o
   `mutation-flows`, pela RAM local (< 1 GB livre).
-- **CI oficial do #56: VERMELHA** (P-21).
+- **P-21 corrigido localmente em 16/11** (ver o bloco de estado do documento): título da Ajuda atualizado ao UX-008 e descrição duplicada do PIN do WhatsApp corrigida na tela. Local: 62/62, ESLint 0, `tsc` 0. **A CI não roda desde o `63caefd1`**: o GitHub recusa iniciar jobs por cobrança da conta (P-22); só o fundador resolve.
+- **Último resultado real da CI do #56, antes da correção: VERMELHA** (P-21).
   - Passaram auditoria, typecheck, lint, arquitetura, migrations, observabilidade e registry.
   - Falharam 2 de 6742 testes. São asserções desatualizadas por mudanças intencionais desta frente
     em 14/11:
@@ -92,7 +93,7 @@ código ficam como estão. O fundador é quem decide política, merge e Producti
    - Memória livre da máquina.
    - Pergunte ao fundador se há janela de máquina reservada a outro agente (ele já reservou para o
      AbacatePay); nessa janela, nada pesado.
-2. **P-21:**
+2. **P-21: já corrigido; falta a evidência da CI.** Quando a P-22 for resolvida, confirme que a CI do #56 rodou inteira e registre o resultado por SHA. Se ainda houver falha, o roteiro original vale:
    - Confirme a intenção:
      - o título sem "Qoro" segue `src/app/page-titles.test.ts`;
      - hint e ajuda do PIN têm textos diferentes; se forem iguais, o certo é corrigir o componente,
