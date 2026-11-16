@@ -10,8 +10,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const request = JSON.parse(readFileSync('e2e/preview-run.json', 'utf8'));
-if (!Array.isArray(request.specs) || request.specs.length === 0) throw new Error('pedido sem specs');
-for (const s of request.specs) {
+// `groups` (lista de listas) ou `specs` (um grupo só); o runner executa o grupo `PREVIEW_E2E_GROUP`.
+const groups = request.groups ?? [request.specs];
+const specs = groups[Number(process.env.PREVIEW_E2E_GROUP ?? 0)];
+if (!Array.isArray(specs) || specs.length === 0) throw new Error('pedido sem specs');
+for (const s of specs) {
   if (!/^e2e\/convenios-[a-z0-9-]+\.spec\.ts$/u.test(s)) throw new Error(`spec fora do escopo de Convênios: ${s}`);
 }
 const raw = process.env.PREVIEW_E2E_BUNDLE;
@@ -44,7 +47,7 @@ for (const [key, file] of Object.entries(request.env ?? {})) {
   env[key] = /\.json$/u.test(String(file)) ? join(dir, String(file)) : String(file);
 }
 
-const args = ['exec', 'playwright', 'test', ...request.specs, '--project=chromium', '--reporter=list', '--workers=1', '--retries=0'];
+const args = ['exec', 'playwright', 'test', ...specs, '--project=chromium', '--reporter=list', '--workers=1', '--retries=0'];
 if (request.grep) args.push('-g', String(request.grep));
 const r = spawnSync('pnpm', args, { env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 let out = `${r.stdout ?? ''}\n${r.stderr ?? ''}`;

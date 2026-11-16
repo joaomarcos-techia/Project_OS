@@ -1,8 +1,13 @@
 {
   "note": "Pedido de E2E no Preview (navegador remoto). Mudar este arquivo dispara convenios-preview-e2e.yml.",
-  "run": "I2A-2",
-  "specs": [
-    "e2e/convenios-i2-preview.spec.ts"
+  "run": "I2A-3",
+  "groups": [
+    [
+      "e2e/convenios-i2-preview.spec.ts"
+    ],
+    [
+      "e2e/convenios-i2-overrides-preview.spec.ts"
+    ]
   ],
   "env": {
     "E2E_HI_ACCOUNTS": "e2e-hi-accounts.json",

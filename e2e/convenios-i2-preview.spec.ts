@@ -13,14 +13,15 @@
  *   - D-3: a médica registra a cobertura só no próprio atendimento; no de outra profissional, com
  *     id adulterado ou de outra clínica, a action responde "não encontrado" (sem confirmar existência);
  *   - D-4: a médica só encontra as próprias guias (lista, busca, detalhe, PDF e arquivos);
- *   - exceções individuais pela tela da Equipe (dona): concessão, revogação e negativa valem para a
- *     sessão que já estava aberta; nada atravessa clínicas;
+ *   - as exceções individuais (Equipe) têm spec próprio: `convenios-i2-overrides-preview.spec.ts`;
  *   - sem permissão, desativada e outra clínica não chegam a dado nenhum.
  *
  * Nenhuma cobrança, nenhum arquivo emitido, nenhuma operadora real.
  */
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
@@ -58,23 +59,45 @@ const NO_PERMISSION = /Seu perfil não tem permissão para esta (?:operação|co
 const APPOINTMENT_NOT_FOUND = 'Atendimento não encontrado nesta clínica.';
 const INTERNAL = /(?:\bat\s+\S+\s+\(|node_modules|drizzle|postgres|SQLSTATE|stack)/iu;
 
+const SPEC_KEY = 'matriz';
+
 type Session = { context: BrowserContext; page: Page; errors: string[] };
 const sessions = new Map<string, Session>();
+
+/**
+ * Estado da execução fora do repositório: a sessão de cada conta (para um reinício do worker depois
+ * de uma falha NÃO refazer login: o limite é de 10 logins por IP em 15 minutos) e as server actions
+ * capturadas. Nada disso é publicado como artefato.
+ */
+const RUN_DIR = join(tmpdir(), `hi-i2-${fx?.run ?? 'x'}-${SPEC_KEY}`);
+mkdirSync(RUN_DIR, { recursive: true });
+const stateFile = (key: string) => join(RUN_DIR, `session-${key}.json`);
 
 async function session(browser: Browser, key: string): Promise<Session> {
   const open = sessions.get(key);
   if (open) return open;
   const account = accounts[key];
   if (!account) throw new Error(`conta ${key} ausente na fixture`);
-  const context = await browser.newContext({ baseURL: BASE!, extraHTTPHeaders: vercelBypassHeaders() });
+  const saved = existsSync(stateFile(key));
+  const context = await browser.newContext({
+    baseURL: BASE!,
+    extraHTTPHeaders: vercelBypassHeaders(),
+    ...(saved ? { storageState: stateFile(key) } : {}),
+  });
   const page = await context.newPage();
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(`${e.message} @ ${new URL(page.url()).pathname}`));
-  await page.goto('/login', { waitUntil: 'load' });
-  await page.fill('#email', account.email);
-  await page.fill('#password', account.password);
-  await page.getByRole('button', { name: 'Entrar', exact: true }).click();
-  await page.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: 60_000 });
+  if (saved) {
+    await page.goto('/convenios', { waitUntil: 'load' });
+  }
+  if (!saved || new URL(page.url()).pathname.startsWith('/login')) {
+    await page.goto('/login', { waitUntil: 'load' });
+    await page.fill('#email', account.email);
+    await page.fill('#password', account.password);
+    await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+    await page.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: 60_000 });
+  }
+  await context.storageState({ path: stateFile(key) });
   const s = { context, page, errors };
   sessions.set(key, s);
   return s;
@@ -142,15 +165,26 @@ function expectRefused(res: { text: string }, message: string | RegExp) {
 
 const guide = (which: 'own' | 'other') => `/convenios/guias/${fx!.guides[which].id}`;
 const insurerPage = () => `/convenios/configuracao/operadoras/${fx!.insurerId}`;
-let priceAction: Captured | null = null;
-let policyAction: Captured | null = null;
-let coverageAction: Captured | null = null;
+const ACTIONS_FILE = join(RUN_DIR, 'actions.json');
+const savedActions = existsSync(ACTIONS_FILE)
+  ? (JSON.parse(readFileSync(ACTIONS_FILE, 'utf8')) as Record<'price' | 'policy' | 'coverage', Captured | null>)
+  : { price: null, policy: null, coverage: null };
+let priceAction: Captured | null = savedActions.price;
+let policyAction: Captured | null = savedActions.policy;
+let coverageAction: Captured | null = savedActions.coverage;
 
 test.beforeAll(async () => {
   await assertPreviewRuntimeIsDev(BASE!);
 });
+test.afterEach(() => {
+  writeFileSync(ACTIONS_FILE, JSON.stringify({ price: priceAction, policy: policyAction, coverage: coverageAction }));
+});
 test.afterAll(async () => {
-  for (const s of sessions.values()) await s.context.close();
+  for (const [key, s] of sessions) {
+    await s.context.storageState({ path: stateFile(key) }).catch(() => undefined);
+    await s.context.close();
+  }
+  sessions.clear();
 });
 
 test('gestora: vê valores e administra; as actions de política (D-2) e de preço (D-1) são capturadas', async ({ browser }) => {
@@ -312,52 +346,6 @@ test('médica (D-3): registra a cobertura no PRÓPRIO atendimento; no de outra p
   await rec.page.goto('/convenios/atendimentos');
   await expect(rec.page.getByTestId('insurance-appointment').filter({ hasText: 'Paciente Sintético Matriz Dois' }).first()).toHaveAttribute('data-coverage', 'none');
   expect(s.errors).toEqual([]);
-});
-
-test('exceções individuais pela Equipe: concessão e revogação valem para a sessão já aberta; a negativa vence o papel', async ({ browser }) => {
-  test.setTimeout(300_000);
-  const owner = await session(browser, 'i2-owner');
-  const medica2 = await session(browser, 'i2-medica2');
-  const recepcao = await session(browser, 'i2-recepcao');
-  // Antes: a médica 2 vê a própria guia sem valores.
-  const before = await server(medica2, guide('other'));
-  expect(before.status).toBe(200);
-  expect(before.body).not.toContain(fx!.value);
-
-  const setOverride = async (member: string, label: string, choice: 'default' | 'grant' | 'deny') => {
-    await owner.page.goto('/equipe');
-    await owner.page.getByRole('button', { name: `Ações de ${member}` }).click();
-    await owner.page.getByRole('menuitem', { name: 'Permissões individuais' }).click();
-    const dialog = owner.page.getByRole('dialog');
-    await dialog.getByLabel(label, { exact: true }).selectOption(choice);
-    await dialog.getByRole('button', { name: /Salvar permissões/u }).click();
-    await expect(dialog).toBeHidden({ timeout: 30_000 });
-  };
-
-  // Concessão individual de ver faturamento (D-4): a sessão antiga passa a receber o valor.
-  await setOverride('Dra. Matriz Dois E2E', 'Ver faturamento de convênios', 'grant');
-  await expect.poll(async () => (await server(medica2, guide('other'))).body.includes(fx!.value), { timeout: 90_000 }).toBe(true);
-  // A concessão é só de leitura de faturamento: configurar continua recusado.
-  await medica2.page.goto('/convenios');
-  expectRefused(await replay(medica2.page, policyAction!), NO_PERMISSION);
-  // Revogação: volta ao padrão do papel.
-  await setOverride('Dra. Matriz Dois E2E', 'Ver faturamento de convênios', 'default');
-  await expect.poll(async () => (await server(medica2, guide('other'))).body.includes(fx!.value), { timeout: 90_000 }).toBe(false);
-
-  // Negativa explícita vence o pacote do papel: a recepção perde o operar (tela e action).
-  await setOverride('Recepção Matriz E2E', 'Operar convênios (recepção)', 'deny');
-  await expect
-    .poll(async () => (await server(recepcao, '/convenios/autorizacoes')).body.includes('Sem acesso'), { timeout: 90_000 })
-    .toBe(true);
-  await recepcao.page.goto('/convenios/atendimentos');
-  const res = await replay(recepcao.page, coverageAction!, coverageAction!.body);
-  expect(res.text).toContain('"ok":false');
-  expect(res.text).not.toContain('"ok":true');
-  await setOverride('Recepção Matriz E2E', 'Operar convênios (recepção)', 'default');
-  await expect
-    .poll(async () => (await server(recepcao, '/convenios/autorizacoes')).body.includes('Sem acesso'), { timeout: 90_000 })
-    .toBe(false);
-  expect(owner.errors).toEqual([]);
 });
 
 test('sem permissão (negativa de view:convenios): nenhuma tela, nenhum arquivo, nenhuma action', async ({ browser }) => {

@@ -32,10 +32,29 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # O pedido pode ter vários grupos de specs: cada grupo roda num runner próprio (outro IP, por causa
+  # do limite de logins por IP), um de cada vez (os grupos compartilham as contas sintéticas).
+  plan:
+    name: Convênios — grupos do pedido
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      groups: ${{ steps.groups.outputs.groups }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: groups
+        run: node -e "const r=require('./e2e/preview-run.json');const n=(r.groups??[r.specs]).length;console.log('groups='+JSON.stringify([...Array(n).keys()]))" >> "$GITHUB_OUTPUT"
+
   preview-e2e:
-    name: Convênios — Playwright no Preview (DEV)
+    name: Convênios — Playwright no Preview (DEV), grupo ${{ matrix.group }}
+    needs: plan
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        group: ${{ fromJSON(needs.plan.outputs.groups) }}
     steps:
       - uses: actions/checkout@v4
 
@@ -74,13 +93,14 @@ jobs:
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.PREVIEW_E2E_BYPASS }}
           MAGIC_TOKEN_SECRET_DEV: ${{ secrets.PREVIEW_E2E_MAGIC }}
           CI: '1'
+          PREVIEW_E2E_GROUP: ${{ matrix.group }}
         run: node e2e/preview-run.mjs
 
       - name: Saída do Playwright (texto, sem conta nem cookie)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: convenios-preview-e2e-${{ github.sha }}
+          name: convenios-preview-e2e-${{ github.sha }}-grupo-${{ matrix.group }}
           path: preview-e2e-output/
           if-no-files-found: ignore
           retention-days: 14
