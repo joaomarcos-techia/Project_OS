@@ -179,6 +179,16 @@ quando é suporte impersonando. Se o audit falhar, a leitura falha junto: o SOAP
 não sai da função. A superfície também encolheu — `getProntuarioByAppointment`
 foi removido e `getProntuarioById` deixou de ser exportado.
 
+### S-01 — Texto das conversas da IA no console, sem sessão de suporte nem trilha
+
+`/admin/conversas-ia` decifrava o texto de qualquer conversa de qualquer clínica
+para qualquer super_admin com AAL2, sem sessão de suporte e sem registro. Agora
+(ADR-073) o console mostra só metadado; o texto só sai numa sessão de suporte da
+**mesma clínica**, por `openConversationForAdmin`, que grava
+`ai_conversation.content_viewed` em `super_admin_actions` **na mesma transação da
+leitura** (`superAdminAuditedRead`). Se a trilha falhar, o texto não sai. Trava
+estática: dentro do `(admin)`, decifrar só nesse leitor e no CNPJ da clínica.
+
 ### Peso 3 — CSP não bloqueava nada
 
 O achado não era "está em Report-Only": era `connect-src 'self' https: wss:`, que

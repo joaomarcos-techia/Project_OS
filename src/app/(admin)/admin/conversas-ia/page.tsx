@@ -1,10 +1,23 @@
 import Link from 'next/link';
+import { z } from 'zod';
 
+import { Alert } from '@/components/ui/alert';
 import { buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DateField } from '@/components/ui/date-field';
 import { PageHeader } from '@/components/ui/page-header';
 
+import {
+  openConversationForAdmin,
+  type ConversationOpenResult,
+  type MetadataOnlyReason,
+} from '../_lib/conversation-content';
+import type {
+  AiMessageAuthorDTO,
+  AiMessageMetaDTO,
+  ConversationContentDTO,
+  ConversationMetadataDTO,
+} from '../_lib/dto';
 import { guardAdminAccess } from '../_lib/guard';
 import { formatDateTime } from '../_lib/format';
 import { clinicRepository } from '../_lib/repositories/clinics.repo';
@@ -38,6 +51,29 @@ const INTENTS: readonly { value: string; label: string }[] = [
   { value: 'lgpd_delete_request', label: 'LGPD: excluir dados' },
 ];
 
+/** Autoria por mensagem: a equipe da clínica não aparece como "IA" (ADR-047). */
+const AUTHOR_LABEL: Record<AiMessageAuthorDTO, string> = {
+  patient: 'Paciente',
+  agent: 'IA',
+  human: 'Equipe da clínica',
+  business_app: 'Equipe (WhatsApp Business)',
+};
+
+const METADATA_NOTICE: Record<MetadataOnlyReason, string> = {
+  no_support_session:
+    'O texto das mensagens só aparece numa sessão de suporte desta clínica. Cada abertura fica registrada na auditoria da plataforma.',
+  other_clinic_session:
+    'Sua sessão de suporte é de outra clínica. Para ler esta conversa, encerre-a e abra uma sessão para esta clínica. Cada abertura fica registrada na auditoria da plataforma.',
+};
+
+const Uuid = z.string().uuid();
+
+/** UUID ou nada: valor malformado (ou repetido na URL) nunca chega ao SQL. */
+function uuidOrUndefined(value: unknown): string | undefined {
+  const parsed = Uuid.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
+
 function qstring(sp: SP, extra: Partial<SP>): string {
   const p = new URLSearchParams();
   for (const [k, v] of Object.entries({ ...sp, ...extra })) if (v) p.set(k, String(v));
@@ -45,20 +81,147 @@ function qstring(sp: SP, extra: Partial<SP>): string {
   return s ? `?${s}` : '';
 }
 
+/** Metadado do turno do agente: ajuda a depurar sem mostrar texto. */
+function agentDetails(m: AiMessageMetaDTO): string | null {
+  if (m.author !== 'agent') return null;
+  const parts = [
+    m.intent,
+    m.toolNames.length > 0 ? `tools: ${m.toolNames.join(', ')}` : null,
+    m.model,
+    m.latencyMs !== null ? `${m.latencyMs} ms` : null,
+  ].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
+function ThreadHead({
+  conversation,
+}: {
+  conversation: { clinicNome: string; messages: unknown[] };
+}) {
+  return (
+    <div className="iad-th-head">
+      <b>{conversation.clinicNome}</b>
+      <span className="font-mono text-[11px] text-fg-subtle">
+        {conversation.messages.length} mensagem(ns)
+      </span>
+    </div>
+  );
+}
+
+/** Fora de sessão de suporte da clínica: só metadado, nenhum texto. */
+function MetadataThread({
+  conversation,
+  reason,
+}: {
+  conversation: ConversationMetadataDTO;
+  reason: MetadataOnlyReason;
+}) {
+  return (
+    <>
+      <ThreadHead conversation={conversation} />
+      <div className="iad-body">
+        <Alert role="status" variant="info" title="Só metadados">
+          <p>{METADATA_NOTICE[reason]}</p>
+          <Link
+            prefetch={false}
+            href={`/admin/clinicas/${conversation.clinicId}`}
+            className={`${buttonVariants({ variant: 'secondary', size: 'sm' })} mt-2`}
+          >
+            Abrir sessão de suporte
+          </Link>
+        </Alert>
+        {conversation.messages.length === 0 ? (
+          <span className="iad-sys">Sem mensagens.</span>
+        ) : (
+          conversation.messages.map((m) => {
+            const details = agentDetails(m);
+            return (
+              <div
+                key={m.id}
+                className={`iad-msg ${m.direction === 'out' ? 'ai' : 'them'}`}
+                data-message-meta=""
+              >
+                <span className="iad-mm">
+                  {AUTHOR_LABEL[m.author]} · {formatDateTime(m.createdAt)}
+                  {details ? ` · ${details}` : ''}
+                </span>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </>
+  );
+}
+
+/** Com sessão de suporte da clínica: texto, e a abertura já está registrada. */
+function ContentThread({ conversation }: { conversation: ConversationContentDTO }) {
+  return (
+    <>
+      <ThreadHead conversation={conversation} />
+      <div className="iad-body">
+        <Alert role="status" variant="warning" title="Sessão de suporte ativa">
+          Esta abertura foi registrada na auditoria da plataforma.
+        </Alert>
+        {conversation.messages.length === 0 ? (
+          <span className="iad-sys">Sem mensagens.</span>
+        ) : (
+          conversation.messages.map((m) => (
+            <div key={m.id} className={`iad-msg ${m.direction === 'out' ? 'ai' : 'them'}`}>
+              <div className="iad-bubble whitespace-pre-wrap break-words">{m.text}</div>
+              <span className="iad-mm">
+                {AUTHOR_LABEL[m.author]} · {formatDateTime(m.createdAt)}
+              </span>
+            </div>
+          ))
+        )}
+      </div>
+    </>
+  );
+}
+
+function ConversationPanel({ opened }: { opened: ConversationOpenResult | null }) {
+  if (!opened) {
+    return (
+      <div className="iad-body items-center justify-center">
+        <span className="iad-sys">Selecione uma conversa para ver as mensagens</span>
+      </div>
+    );
+  }
+  if (opened.kind === 'not_found') {
+    return (
+      <div className="iad-body items-center justify-center">
+        <span className="iad-sys">Conversa não encontrada.</span>
+      </div>
+    );
+  }
+  if (opened.kind === 'metadata') {
+    return <MetadataThread conversation={opened.conversation} reason={opened.reason} />;
+  }
+  return <ContentThread conversation={opened.conversation} />;
+}
+
 export default async function ConversasIaPage({ searchParams }: { searchParams: Promise<SP> }) {
   await guardAdminAccess();
   const sp = await searchParams;
 
-  const [clinicOptions, conversations, detail] = await Promise.all([
+  const clinicId = uuidOrUndefined(sp.clinic);
+  const conversationId = uuidOrUndefined(sp.c);
+  // Pediu uma conversa com id malformado: "não encontrada", sem tocar no banco.
+  const asked = sp.c !== undefined;
+
+  const [clinicOptions, conversations, opened] = await Promise.all([
     clinicRepository.listOptions(),
     conversationsRepository.list({
-      clinicId: sp.clinic,
+      clinicId,
       from: sp.from ? `${sp.from}T00:00:00.000Z` : undefined,
       to: sp.to ? `${sp.to}T23:59:59.999Z` : undefined,
       search: sp.q,
       pageSize: 50,
     }),
-    sp.c && sp.clinic ? conversationsRepository.getDetail(sp.clinic, sp.c) : Promise.resolve(null),
+    clinicId && conversationId
+      ? openConversationForAdmin(clinicId, conversationId)
+      : Promise.resolve<ConversationOpenResult | null>(asked ? { kind: 'not_found' } : null),
   ]);
 
   return (
@@ -66,7 +229,7 @@ export default async function ConversasIaPage({ searchParams }: { searchParams: 
       <PageHeader
         crumbs={[{ label: 'Operação' }, { label: 'Conversas IA' }]}
         title="Conversas IA"
-        description="Mensagens descriptografadas server-side (o navegador nunca recebe ciphertext)."
+        description="Metadados das conversas de todas as clínicas. O texto só aparece numa sessão de suporte da clínica, e cada abertura fica registrada."
       />
 
       <form className="mb-6 flex flex-wrap items-end gap-3">
@@ -117,10 +280,13 @@ export default async function ConversasIaPage({ searchParams }: { searchParams: 
               <p className="p-4 text-sm text-fg-subtle">Nenhuma conversa.</p>
             ) : (
               conversations.map((conv) => {
-                const active = sp.c === conv.id;
+                const active = conversationId === conv.id;
                 return (
+                  // prefetch desligado: abrir conversa é ato explícito, nunca
+                  // efeito de o link entrar na tela (ADR-073).
                   <Link
                     key={conv.id}
+                    prefetch={false}
                     href={`/admin/conversas-ia${qstring(sp, { c: conv.id, clinic: conv.clinicId })}`}
                     className={`iad-item${active ? ' active' : ''}`}
                   >
@@ -142,34 +308,7 @@ export default async function ConversasIaPage({ searchParams }: { searchParams: 
 
         {/* coluna — thread */}
         <div className="iad-thread">
-          {!detail ? (
-            <div className="iad-body items-center justify-center">
-              <span className="iad-sys">Selecione uma conversa para ver as mensagens</span>
-            </div>
-          ) : (
-            <>
-              <div className="iad-th-head">
-                <b>{detail.clinicNome}</b>
-                <span className="font-mono text-[11px] text-fg-subtle">
-                  {detail.messages.length} mensagem(ns)
-                </span>
-              </div>
-              <div className="iad-body">
-                {detail.messages.length === 0 ? (
-                  <span className="iad-sys">Sem mensagens.</span>
-                ) : (
-                  detail.messages.map((m) => (
-                    <div key={m.id} className={`iad-msg ${m.direction === 'out' ? 'ai' : 'them'}`}>
-                      <div className="iad-bubble whitespace-pre-wrap break-words">{m.text}</div>
-                      <span className="iad-mm">
-                        {m.direction === 'out' ? 'IA' : 'Paciente'} · {formatDateTime(m.createdAt)}
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </>
-          )}
+          <ConversationPanel opened={opened} />
         </div>
       </div>
     </div>
