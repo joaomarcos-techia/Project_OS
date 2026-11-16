@@ -27959,5 +27959,159 @@
       "cause": "Source line references changed in release operator and build harness; counts/guards unchanged",
       "correction": "Refresh documented source locations; do not disable or bypass inventory gate"
     }
+  },
+  "gateBProductionWindow20261116": {
+    "status": "DEPLOYED_ACQUISITION_CLOSED_AUTHENTICATED_UI_AWAITING_FOUNDER",
+    "authorization": {
+      "attachment": "9cf59f2e-8b7d-4d67-be46-503717c8c5dd",
+      "gates": [
+        "B2-B",
+        "B3"
+      ],
+      "operationalHead": "35c6ebc84401e8dbc674feeac7a62a9ca5c48db7",
+      "windowStartedAt": "2026-11-16T12:31:12Z",
+      "windowDeadline": "2026-11-16T13:31:12Z",
+      "operationalAndIncidents": "Fundador Qoro",
+      "technicalDatabaseDeploymentAndRollback": "Esta sessão Codex",
+      "windowClosedAt": "2026-11-16T13:28:51Z",
+      "durationSeconds": 3459,
+      "productionMutationsAfterClosureAuthorized": false
+    },
+    "release": {
+      "applicationRevision": "44323990b3f1fb9282418fec44a3182b02148c66",
+      "archiveSha256": "6038df0da3a6afaee68528c2f38c08743356ef6bdf6ece7ca808fd41672d0e64",
+      "archiveBytes": 234700800,
+      "files": 2787,
+      "sqlEntries": 160,
+      "excludedMigrations": [
+        "0160",
+        "0161",
+        "0162"
+      ],
+      "buildEvidenceRun": 43804391473,
+      "operationalCiRun": 43831334234,
+      "merge": false,
+      "financialCodeChangedDuringWindow": false
+    },
+    "backup": {
+      "scope": "Administrative metadata only; no backup content downloaded",
+      "project": "qoro-prod",
+      "ref": "shlcbxawrxuaebazuiue",
+      "observedAt": "2026-11-16T12:32:28.782Z",
+      "visiblePhysicalCompleted": 8,
+      "latestId": "2283489483",
+      "latestCreatedAt": "2026-11-16T09:14:14.452Z",
+      "pitr": false,
+      "contractualRetention": "NOT_VERIFIED",
+      "b1b": "DEFERRED_RISK_ACCEPTED_NOT_VERIFIED",
+      "backupSha256": null,
+      "legacyWorkflow": "ACTIVE_UNCHANGED_NOT_TRIGGERED_BY_THIS_WINDOW"
+    },
+    "b2a": {
+      "status": "PASS",
+      "beforeApplied": 136,
+      "afterApplied": 160,
+      "pending": 0,
+      "tls": "verify-full",
+      "waitingLocks": 0,
+      "longTransactions": 0
+    },
+    "b2b": {
+      "status": "PASS",
+      "ruleId": "rule_qoro_gate_b_aquisicao_temporariamente_fechada_5B0OEL",
+      "firewallVersion": 5,
+      "first": true,
+      "preDeploymentCorrelatedRequests": 6,
+      "negativeOtherRuleMatches": 0,
+      "postDeploymentCorrelatedRequests": 2,
+      "projectFlags": {
+        "SIGNUP_ENABLED": "false",
+        "SAAS_SIGNUP_PROVIDER": "asaas",
+        "ABACATEPAY_NEW_CHECKOUTS_ENABLED": "false",
+        "ABACATEPAY_CHECKOUT_CLINIC_IDS": "",
+        "ABACATEPAY_ENVIRONMENT": null
+      },
+      "deploymentEnvironmentRuntimePresent": false,
+      "closedSignupPageObserved": true
+    },
+    "b3": {
+      "migrations": "PASS",
+      "range": "0136-0159",
+      "commitAcknowledged": true,
+      "operatorStartedAt": "2026-11-16T12:50:29.515Z",
+      "operatorFinishedAt": "2026-11-16T12:53:55.959Z",
+      "operatorDurationMs": 206444,
+      "ddlDurationSeparatelyMeasured": false,
+      "executionPlatform": "Windows native psql 17.5",
+      "backupReviewMode": "APPROVED_FOR_B3_WITH_DEFERRED_RESTORE",
+      "deploy": "PASS",
+      "deploymentId": "dpl_8uzoX6ngA66EgYcmMwcJn831UiBp",
+      "url": "https://app.qoro.dev",
+      "immutableUrl": "https://project-6hdz9aut0-clinic-os-v2-s-projects.vercel.app",
+      "readyState": "READY",
+      "publicAliasConfirmed": true,
+      "rollbackDeployment": "dpl_2gHasgxKuWkFY8ct1w56VLeHDhQP",
+      "automaticDownAllowed": false
+    },
+    "integrity": {
+      "legacyOriginalFinancialFieldHashesPreserved": true,
+      "existingSubscriptionsProviderCounts": {
+        "asaas": 5
+      },
+      "financialFingerprints": {
+        "plans": "480cb03f2eb064e37ee5e75da5fb052c",
+        "prices": "a370d49a7ce7bde05e7083b9c745befb",
+        "invoices": "8f1d213258f3d1afd1fb0dc6d29b37ca",
+        "subscriptions": "00e9df32cfa379360d4a8a185d733b7d"
+      },
+      "gatewayAccounts": 0,
+      "gatewayBindings": 0,
+      "gatewayOperations": 0,
+      "gatewayInbox": 0,
+      "gatewayRecurringObservations": 0,
+      "invalidIndexes": 0,
+      "unvalidatedForeignKeys": 0,
+      "cronDefinitionsPreserved": 21,
+      "cronProof": "PASS_LEGACY_CRON_DEFINITIONS_PRESERVED"
+    },
+    "smoke": {
+      "publicBoundaries": "PASS",
+      "healthAuthHook": "PASS_HTTP_200_SELFTEST_OK",
+      "healthGeneral": "PASS_HTTP_200_SHALLOW_CHECKS_OK",
+      "authenticatedClinicUi": "AWAITING_FOUNDER",
+      "realSubscriptionCancelled": false,
+      "financialProviderCallsByProbes": 0,
+      "realCheckoutsCreated": 0,
+      "newSubscriptionsCreated": 0,
+      "nonProbe5xxSinceNewDeployment": 0,
+      "expectedAbacatepayWebhookStatus": 503
+    },
+    "incident": {
+      "path": "/api/health/auth-hook",
+      "requestId": "5n7c5-1794833497734-9f56c62461cb",
+      "requestAt": "2026-11-16T12:51:37.734Z",
+      "errorLoggedAt": "2026-11-16T12:53:37.933Z",
+      "httpStatus": 500,
+      "confirmedEvidence": "health.auth_hook.error: Failed query SELECT public.auth_hook_selftest()",
+      "wafAction": "allow",
+      "rootCause": "NOT_CONFIRMED; DDL-related contention is a hypothesis, not a captured blocking chain",
+      "recovered": "Subsequent multi-region HTTP 200; direct authenticated selftest 1ms; founder confirmed resolution"
+    },
+    "operations": {
+      "firstArchiveAttemptInterruptedOwnedProcessOnly": true,
+      "secondArchiveAttemptInterruptedOwnedProcessOnly": true,
+      "remoteReadbacksConfirmedNoDeploymentBeforeRetry": true,
+      "successfulTransport": "Official Vercel CLI 60.1.3 standard file upload; source package unchanged",
+      "nativeCliNetworkFailure": "FETCH_FAILED; no TLS bypass",
+      "cliGeneratedLocalEnvironment": "Encrypted DPAPI CurrentUser/owner-SYSTEM ACL outside release, removed from upload source; artifact gitignore restored",
+      "otherWorktreesTouched": false,
+      "originalEnvironmentChanged": false
+    },
+    "nextGates": {
+      "C": "NOT_AUTHORIZED",
+      "D": "NOT_AUTHORIZED",
+      "E": "NOT_AUTHORIZED"
+    },
+    "finalObservedAt": "2026-11-16T13:28:31.394Z"
   }
 }
