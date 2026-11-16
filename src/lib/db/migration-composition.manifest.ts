@@ -253,5 +253,25 @@ export const MIGRATION_COMPOSITION_MANIFEST: CompositionManifest = {
       owner: 'PR #55 (convênios)',
       requires: ['0161_hi_guide_consulta_overrides'],
     },
+    {
+      // Revisão humana do repasse (contrato aprovado em 16/11). Fixada ao ser aplicada no DEV (16/11).
+      tag: '0163_hi_payout_reviews',
+      idx: 163,
+      when: 1795382573857,
+      sha256: 'd94b652d1a602167ea0444740f717fce72afada940c703444965a4b7087ce9be',
+      owner: 'PR #55 (convênios)',
+      requires: ['0162_hi_permission_matrix'],
+      sentinel: 'relation:public.hi_payout_reviews',
+    },
+    {
+      // Interruptor do módulo nos gatilhos do banco. Fixada ao ser aplicada no DEV (16/11).
+      tag: '0164_hi_module_switch_guard',
+      idx: 164,
+      when: 1795468973857,
+      sha256: 'da5f8b90fd45b0afe3b307be689f326a25b7719ddcc664f81a714f99341e6ec1',
+      owner: 'PR #55 (convênios)',
+      requires: ['0163_hi_payout_reviews'],
+      sentinel: 'function:public.hi_module_guard()',
+    },
   ],
 };

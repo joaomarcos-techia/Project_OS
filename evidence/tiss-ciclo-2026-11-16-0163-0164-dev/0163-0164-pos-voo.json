@@ -1,0 +1,149 @@
+{
+ "mode": "post",
+ "at": "2026-11-16T07:24:34.164Z",
+ "code": {
+  "pr55": "06b03c076adb0ef2b795196499f95acb2a993b0e"
+ },
+ "sha": {
+  "0162": "eed2d0dee2b9d59be3b8f707d1c4963541d0b03e3597a73157be8766d481ec68",
+  "0163": "d94b652d1a602167ea0444740f717fce72afada940c703444965a4b7087ce9be",
+  "0164": "da5f8b90fd45b0afe3b307be689f326a25b7719ddcc664f81a714f99341e6ec1"
+ },
+ "checks": [
+  {
+   "name": "ledger com 165 linhas e última = 0164 (when 1795468973857)",
+   "ok": true
+  },
+  {
+   "name": "as duas últimas linhas têm o sha256 dos arquivos 0164 e 0163; a anterior é a 0162",
+   "ok": true
+  },
+  {
+   "name": "objetos da 0163 presentes (tabela, funções, gatilho, colunas, visão, versão)",
+   "ok": true
+  },
+  {
+   "name": "hi_payout_reviews: RLS ligada e forçada, 1 política por clínica, authenticated só SELECT; vazia (sem backfill na migration)",
+   "ok": true
+  },
+  {
+   "name": "gatilho da revisão é de constraint, DEFERRABLE INITIALLY DEFERRED, ligado",
+   "ok": true
+  },
+  {
+   "name": "decisão executável por authenticated (não por anon); abertura não executável pelo runtime",
+   "ok": true
+  },
+  {
+   "name": "guarda dos movimentos agora checa a revisão aberta",
+   "ok": true
+  },
+  {
+   "name": "hi_payout_positions: open_review_id é a ÚLTIMA coluna; as de antes na mesma ordem",
+   "ok": true
+  },
+  {
+   "name": "colunas novas com o padrão (segregação desligada e sem limite em todas as clínicas)",
+   "ok": true
+  },
+  {
+   "name": "0164: 8 gatilhos hi_ab_module_* ligados e a função do interruptor (SECURITY DEFINER); versão registrada",
+   "ok": true
+  },
+  {
+   "name": "os demais gatilhos das tabelas afetadas iguais ao pré-voo",
+   "ok": true
+  },
+  {
+   "name": "dados intocados: guias, repasses, movimentos e configurações da clínica (mesmas linhas)",
+   "ok": true
+  }
+ ],
+ "resumo": {
+  "ledger": {
+   "n": 165,
+   "last": "1795468973857"
+  },
+  "objetos": {
+   "has_table": true,
+   "has_decide": true,
+   "has_open": true,
+   "has_module_fn": true,
+   "has_review_trg": true,
+   "module_trgs": 8,
+   "has_seg_col": true,
+   "has_view_col": true,
+   "has_v163": true,
+   "has_v164": true,
+   "has_v162": true
+  },
+  "guias": 14,
+  "repasses": 9,
+  "movimentos": 14,
+  "clinicas": 19,
+  "moduloDesligado": 16,
+  "inventarioBackfill": [],
+  "transacoesLongas": 0,
+  "locksFortes": 0,
+  "pos": {
+   "t": {
+    "rls": true,
+    "force": true,
+    "policies": [
+     "hi_payout_reviews_tenant_access"
+    ],
+    "auth_grants": [
+     "SELECT"
+    ],
+    "reviews": 0
+   },
+   "trg": {
+    "tgdeferrable": true,
+    "tginitdeferred": true,
+    "is_constraint": true,
+    "en": "O"
+   },
+   "ex": {
+    "decide_auth": true,
+    "open_auth": false,
+    "decide_anon": false,
+    "module_definer": true,
+    "guard_checks_review": true
+   },
+   "viewCols": [
+    "payout_id",
+    "clinic_id",
+    "appointment_id",
+    "professional_id",
+    "procedure_id",
+    "rule_kind",
+    "rule_percentage",
+    "rule_fixed_cents",
+    "eligibility",
+    "status",
+    "created_at",
+    "guide_id",
+    "guide_status",
+    "item_value_cents",
+    "net_due_cents",
+    "received_cents",
+    "gloss_definitive_cents",
+    "gloss_open_cents",
+    "base_cents",
+    "forecast_cents",
+    "eligible_cents",
+    "decision",
+    "authorized_cents",
+    "adjustments_cents",
+    "settled_cents",
+    "due_cents",
+    "pending_authorization_cents",
+    "open_review_id"
+   ],
+   "cols": {
+    "seg_on": 0,
+    "with_limit": 0
+   }
+  }
+ }
+}
