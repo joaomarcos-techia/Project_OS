@@ -28127,5 +28127,789 @@
       "E": "NOT_AUTHORIZED"
     },
     "finalObservedAt": "2026-11-16T13:28:31.394Z"
+  },
+  "gateC0Homologation20261116": {
+    "recordedAt": "2026-11-16T15:32:01.992Z",
+    "authorization": "a51a97b8-a2f2-4f7b-a049-d02bcf75a9c4",
+    "baseline": "e5c84f3a08551d6a274762231cb76192fce55a80",
+    "scope": "C0, non-heavy synthetic tests and non-invasive read-only Production verification; not live activation",
+    "freeze": {
+      "application": "44323990b3f1fb9282418fec44a3182b02148c66",
+      "runtimeChangedSinceApplication": false,
+      "onlySourceTestDifferences": [
+        "src/app/api/webhooks/asaas/route.test.ts",
+        "src/lib/payments/saas/gate-b-containment.test.ts",
+        "src/lib/payments/saas/release-apply.test.ts"
+      ],
+      "sourceChangesThisCycle": [],
+      "sqlChanged": false,
+      "dependenciesChanged": false,
+      "deploymentChanged": false,
+      "otherWorktreesChanged": false
+    },
+    "github": {
+      "status": "BLOCKED_BEFORE_RUNNER",
+      "declaredBudgetUsd": 10,
+      "declaredBy": "FOUNDER",
+      "budgetScopeOrRemainingSpendVerifiedByApi": false,
+      "account": "joaomarcos-techia",
+      "repositoryOwnerType": "User",
+      "actionsEnabled": true,
+      "workflowsActive": true,
+      "billingRead": "404; current credential lacks user billing scope",
+      "browserRead": "UNAVAILABLE",
+      "budgetChanged": false,
+      "paymentMethodChanged": false,
+      "newPaidInfrastructure": false,
+      "runs": [
+        {
+          "run": 43882384504,
+          "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43882384504",
+          "attempt": 2,
+          "head": "e5c84f3a08551d6a274762231cb76192fce55a80",
+          "status": "completed",
+          "conclusion": "failure",
+          "timing": {
+            "billable": {
+              "UBUNTU": {
+                "total_ms": 0,
+                "jobs": 2,
+                "job_runs": [
+                  {
+                    "job_id": 133351389486,
+                    "duration_ms": 0
+                  },
+                  {
+                    "job_id": 133392286152,
+                    "duration_ms": 0
+                  }
+                ]
+              }
+            },
+            "run_duration_ms": 5000
+          },
+          "jobs": [
+            {
+              "id": 133392286152,
+              "runner": "",
+              "stepCount": 0,
+              "annotations": [
+                "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings"
+              ]
+            }
+          ]
+        },
+        {
+          "run": 43882384626,
+          "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43882384626",
+          "attempt": 2,
+          "head": "e5c84f3a08551d6a274762231cb76192fce55a80",
+          "status": "completed",
+          "conclusion": "failure",
+          "timing": {
+            "billable": {
+              "UBUNTU": {
+                "total_ms": 0,
+                "jobs": 2,
+                "job_runs": [
+                  {
+                    "job_id": 133351389999,
+                    "duration_ms": 0
+                  },
+                  {
+                    "job_id": 133392308720,
+                    "duration_ms": 0
+                  }
+                ]
+              }
+            },
+            "run_duration_ms": 5000
+          },
+          "jobs": [
+            {
+              "id": 133392308720,
+              "runner": "",
+              "stepCount": 0,
+              "annotations": [
+                "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings"
+              ]
+            }
+          ]
+        }
+      ],
+      "finalHeadCi": "Read exact final HEAD in PR53 after documentation commit; never transfer previous GREEN",
+      "priorValidatedRuntimeCi": {
+        "run": 43831334234,
+        "head": "35c6ebc84401e8dbc674feeac7a62a9ca5c48db7",
+        "tests": 7329,
+        "files": 647,
+        "e2e": 27,
+        "skips": 0,
+        "reusedNotReexecuted": true
+      }
+    },
+    "newDirectedTests": {
+      "passed": 368,
+      "failed": 0,
+      "skipped": 0,
+      "files": 20,
+      "groups": [
+        {
+          "file": "directed-tests.json",
+          "sha256": "80224730240f1933744c46baf8fb9d9575a3b6e8f9cdfcaaffe2fc642c0c1810",
+          "passed": 216,
+          "failed": 0,
+          "skipped": 0,
+          "startTime": "2026-11-16T15:22:46.913Z",
+          "files": [
+            {
+              "path": "src/lib/entitlements/policy.test.ts",
+              "passed": 19,
+              "status": "passed"
+            },
+            {
+              "path": "src/contexts/billing/internal/abacatepay-period.test.ts",
+              "passed": 13,
+              "status": "passed"
+            },
+            {
+              "path": "src/contexts/billing/internal/abacatepay-renewal-period.test.ts",
+              "passed": 24,
+              "status": "passed"
+            },
+            {
+              "path": "src/contexts/billing/internal/cancellation-charges.test.ts",
+              "passed": 12,
+              "status": "passed"
+            },
+            {
+              "path": "src/lib/payments/abacatepay/initial-payment.test.ts",
+              "passed": 31,
+              "status": "passed"
+            },
+            {
+              "path": "src/lib/payments/abacatepay/negative-payment.test.ts",
+              "passed": 22,
+              "status": "passed"
+            },
+            {
+              "path": "src/lib/payments/abacatepay/renewal-payment.test.ts",
+              "passed": 59,
+              "status": "passed"
+            },
+            {
+              "path": "src/lib/payments/abacatepay/webhook.test.ts",
+              "passed": 19,
+              "status": "passed"
+            },
+            {
+              "path": "src/lib/payments/saas/acquisition-env.test.ts",
+              "passed": 3,
+              "status": "passed"
+            },
+            {
+              "path": "src/lib/payments/saas/command-operation.test.ts",
+              "passed": 14,
+              "status": "passed"
+            }
+          ],
+          "resultSource": "Completed Vitest JSON report, independently parsed/asserted",
+          "launcher": "Python stdout encoding failed after Vitest completed; JSON and final test log verified without repeating tests"
+        },
+        {
+          "file": "journey-unit-tests.json",
+          "sha256": "aeea6e255edb2591a0f095031e8fdd1ed289f02aac259e35781a99304273c96e",
+          "passed": 152,
+          "failed": 0,
+          "skipped": 0,
+          "startTime": "2026-11-16T15:23:38.661Z",
+          "files": [
+            {
+              "path": "src/contexts/billing/proposed-offer.test.ts",
+              "passed": 33,
+              "status": "passed"
+            },
+            {
+              "path": "src/lib/trial-access/index.test.ts",
+              "passed": 8,
+              "status": "passed"
+            },
+            {
+              "path": "src/lib/trial-access/policy.test.ts",
+              "passed": 15,
+              "status": "passed"
+            },
+            {
+              "path": "src/contexts/billing/internal/abacatepay-processing.test.ts",
+              "passed": 28,
+              "status": "passed"
+            },
+            {
+              "path": "src/contexts/onboarding/internal/signup-free-trial.test.ts",
+              "passed": 11,
+              "status": "passed"
+            },
+            {
+              "path": "src/app/api/billing/cancellation/route.test.ts",
+              "passed": 16,
+              "status": "passed"
+            },
+            {
+              "path": "src/app/api/billing/checkout/route.test.ts",
+              "passed": 17,
+              "status": "passed"
+            },
+            {
+              "path": "src/app/api/webhooks/abacatepay/route.test.ts",
+              "passed": 9,
+              "status": "passed"
+            },
+            {
+              "path": "src/app/api/cron/outbox/route.test.ts",
+              "passed": 9,
+              "status": "passed"
+            },
+            {
+              "path": "src/contexts/ai-agent/internal/handlers/operational-access.test.ts",
+              "passed": 6,
+              "status": "passed"
+            }
+          ],
+          "resultSource": "Completed Vitest JSON report, independently parsed/asserted",
+          "launcher": "Process exit 0"
+        }
+      ],
+      "heapLimitMiB": 128,
+      "sequential": true,
+      "inheritedSecrets": false,
+      "realDatabaseOrGateway": false,
+      "newBrowserOrPostgres": false,
+      "notAFullCiOrBrowserOrDatabaseRehearsal": true
+    },
+    "production": {
+      "startedAt": "2026-11-16T15:18:52.721Z",
+      "authorization": "a51a97b8-a2f2-4f7b-a049-d02bcf75a9c4",
+      "checks": {
+        "deploymentAndConfiguration": {
+          "status": "PASS",
+          "deploymentId": "dpl_8uzoX6ngA66EgYcmMwcJn831UiBp",
+          "applicationRevision": "44323990b3f1fb9282418fec44a3182b02148c66",
+          "tarSha256": "6038df0da3a6afaee68528c2f38c08743356ef6bdf6ece7ca808fd41672d0e64",
+          "readyState": "READY",
+          "flags": {
+            "SIGNUP_ENABLED": "false",
+            "SAAS_SIGNUP_PROVIDER": "asaas",
+            "ABACATEPAY_NEW_CHECKOUTS_ENABLED": "false",
+            "ABACATEPAY_CHECKOUT_CLINIC_IDS": "",
+            "ABACATEPAY_ENVIRONMENT": null
+          },
+          "abacatepayRuntimeInDeployment": false,
+          "productionAbacatepayVariableNames": [
+            "ABACATEPAY_API_KEY",
+            "ABACATEPAY_CHECKOUT_CLINIC_IDS",
+            "ABACATEPAY_NEW_CHECKOUTS_ENABLED",
+            "ABACATEPAY_PLAN_PRODUCTS",
+            "ABACATEPAY_STORE_ID",
+            "ABACATEPAY_WEBHOOK_SECRET"
+          ],
+          "secretValuesReadFromVercel": false,
+          "firewallVersion": 5,
+          "closureRuleId": "rule_qoro_gate_b_aquisicao_temporariamente_fechada_5B0OEL",
+          "priorRuleVersion": 5,
+          "legacyCronDefinitions": 21
+        },
+        "publicGetBoundariesAndHealth": {
+          "status": "PASS",
+          "requests": [
+            {
+              "path": "/login",
+              "status": 200
+            },
+            {
+              "path": "/cadastro",
+              "status": 200,
+              "acquisitionClosed": true
+            },
+            {
+              "path": "/dashboard",
+              "status": 307
+            },
+            {
+              "path": "/configuracoes/assinatura",
+              "status": 307
+            },
+            {
+              "path": "/api/health/auth-hook",
+              "status": 200,
+              "body": {
+                "ok": true,
+                "payload": {
+                  "ok": true,
+                  "elapsed_ms": 1,
+                  "claims_keys": []
+                }
+              },
+              "limitation": "Read-only selftest or shallow configuration checks; not external financial homologation"
+            },
+            {
+              "path": "/api/health",
+              "status": 200,
+              "body": {
+                "status": "ok",
+                "checks": {
+                  "db": "ok",
+                  "gemini": "ok",
+                  "meta": "ok",
+                  "asaas": "ok",
+                  "redis": "ok",
+                  "outbox": "ok",
+                  "signup": "ok"
+                },
+                "ts": "2026-11-16T15:18:58.186Z"
+              },
+              "limitation": "Read-only selftest or shallow configuration checks; not external financial homologation"
+            }
+          ],
+          "writeRequests": 0,
+          "manualAuthenticatedUi": "Reused founder PASS, not repeated or automated in C0"
+        },
+        "databaseHistoryCatalogsAndLegacy": {
+          "status": "PASS",
+          "preflight": {
+            "status": "PASS_READ_ONLY_PREFLIGHT",
+            "financial": "94f6da4aeb32b1ae7da856dc9afa105120ce6dd9",
+            "phase": "after",
+            "targetFingerprint": "49e1c98a71abbbfe1e55cb4204a4ef814956e5c3e7f4925daddd727c30a6efe3",
+            "history": {
+              "applied": 160,
+              "pending": [],
+              "fingerprint": "ed71cb844bc67939f7f667d311e42e8b67f2d54beb77b1f531d4074b0b3d9ddf"
+            },
+            "schema": {
+              "requiredSecuredRelations": 22,
+              "scope": "Critical release objects only; not a full schema equivalence certification"
+            },
+            "transaction": "REPEATABLE READ READ ONLY",
+            "databaseWrites": 0,
+            "tls": "verify-full",
+            "operational": {
+              "ssl": true,
+              "statementTimeout": "10s",
+              "lockTimeout": "2s",
+              "longTransactions": 0,
+              "waitingLocks": 0
+            },
+            "productionWrites": 0,
+            "providerCalls": 0,
+            "authorizationToApply": false
+          },
+          "catalog": [
+            {
+              "section": "identity",
+              "count": null,
+              "sha256": "d6d498978572fb6d274ab8eff4357cf01bbd7b71cb5547507e2c503a0f162727"
+            },
+            {
+              "section": "relations",
+              "count": 206,
+              "sha256": "38d0499f3c399edee3953a9807943117ba8b9027dda4e8e8ad1544552ca8cf1b"
+            },
+            {
+              "section": "functions",
+              "count": 352,
+              "sha256": "e6ba15f0efc22c48bf8407324299256b8737bdc04288a4379b85b2d5c5822fbd"
+            },
+            {
+              "section": "triggers",
+              "count": 178,
+              "sha256": "ef44d5dc324fcd5e40fde40682cb62d35f11161a24cd4b70479be52ab93af869"
+            },
+            {
+              "section": "policies",
+              "count": 191,
+              "sha256": "92fc6728346537906f386185fa1b574d411ebde38d92d38968351e29d5be7ba8"
+            },
+            {
+              "section": "indexes",
+              "count": 710,
+              "sha256": "55733d2d90c0bb62fb961fef3c01d5da2dddd9fc5e8bd32f26ae1a208f3a3952"
+            },
+            {
+              "section": "constraints",
+              "count": 1315,
+              "sha256": "30e18f256b3ccfc91ce5222ba7b41a09989c595d83977f65f69eb253863a53ac"
+            },
+            {
+              "section": "dependencies",
+              "count": 2440,
+              "sha256": "0cb9367f4a59420b3f08b190419fa50f47aa1560e1ba8b097dff510595695b73"
+            },
+            {
+              "section": "locks",
+              "count": null,
+              "sha256": "01944e1f8eae780f4739591d3662d2556641eea5fbc167d358120b31343f7caf"
+            }
+          ],
+          "legacy": {
+            "accounts": 0,
+            "bindings": 0,
+            "readOnly": "on",
+            "eventInbox": 0,
+            "operations": 0,
+            "providerCounts": {
+              "asaas": 5
+            },
+            "financialFingerprints": [
+              {
+                "table": "invoices",
+                "fingerprint": "8f1d213258f3d1afd1fb0dc6d29b37ca"
+              },
+              {
+                "table": "plans",
+                "fingerprint": "480cb03f2eb064e37ee5e75da5fb052c"
+              },
+              {
+                "table": "prices",
+                "fingerprint": "a370d49a7ce7bde05e7083b9c745befb"
+              },
+              {
+                "table": "subscriptions",
+                "fingerprint": "00e9df32cfa379360d4a8a185d733b7d"
+              }
+            ],
+            "recurringObservations": 0
+          },
+          "catalogLocks": {
+            "section": "locks",
+            "waitingLocks": 0,
+            "longTransactions": 0
+          },
+          "originalFinancialFieldsUnchangedSinceGateB": true,
+          "productionWrites": 0,
+          "clinicalRowsRead": 0,
+          "financialRowsExported": 0,
+          "tls": "verify-full"
+        },
+        "sentryApiAccess": {
+          "status": "ADMIN_ACCESS_NOT_AVAILABLE",
+          "http": 401,
+          "newProbeSent": false,
+          "existingAlertEvidence": "Founder-confirmed ed622a74 Production and 414eb196 Preview, historical not repeated"
+        }
+      },
+      "productionWrites": 0,
+      "providerMutations": 0,
+      "heavyLocalWorkloads": 0,
+      "finishedAt": "2026-11-16T15:20:35.067Z"
+    },
+    "catalog": {
+      "observedAt": "2026-11-16T15:19:40.728Z",
+      "status": "PASS",
+      "scope": "authenticated GET only; catalog not activation readiness",
+      "storeSha256": "57c4bd55fe2644b1beee88005e1bc1af2792c91281c0f80d41c037d88dddbf3d",
+      "products": [
+        {
+          "id": "prod_SsBGWnFA5Qk1dED3DLRkzSDT",
+          "amountMinor": 19700,
+          "cycle": "MONTHLY",
+          "devMode": false,
+          "nativeTrial": false
+        },
+        {
+          "id": "prod_4sn4YU2Q3P3jbXs3a6UXMgzd",
+          "amountMinor": 39700,
+          "cycle": "MONTHLY",
+          "devMode": false,
+          "nativeTrial": false
+        },
+        {
+          "id": "prod_CXMmb0y0FJHRDFDsy0Lj4MAW",
+          "amountMinor": 54400,
+          "cycle": "MONTHLY",
+          "devMode": false,
+          "nativeTrial": false
+        },
+        {
+          "id": "prod_pNectEHBe356SAystDzmMJbD",
+          "amountMinor": 69100,
+          "cycle": "MONTHLY",
+          "devMode": false,
+          "nativeTrial": false
+        },
+        {
+          "id": "prod_YtHhRgEbMxLZasE5KsqS4s3c",
+          "amountMinor": 83800,
+          "cycle": "MONTHLY",
+          "devMode": false,
+          "nativeTrial": false
+        }
+      ],
+      "webhookReadHttp": 200,
+      "webhookCount": 0,
+      "deliveryTargets": [],
+      "providerMutations": 0,
+      "productionWrites": 0
+    },
+    "operations": {
+      "observedAt": "2026-11-16T15:25:32.397Z",
+      "productionWrites": 0,
+      "manualWorkerInvocations": 0,
+      "patientDataRead": false,
+      "database": {
+        "outbox": {
+          "failed": 0,
+          "pending": 0,
+          "processing": 0,
+          "oldestPendingSeconds": null
+        },
+        "readOnly": "on",
+        "heartbeats": [
+          {
+            "job": "audit-partitions",
+            "lastRunAt": "2026-11-01T04:00:15.274357+00:00",
+            "ageSeconds": 1337119,
+            "lastStatus": "success"
+          },
+          {
+            "job": "billing-dunning",
+            "lastRunAt": "2026-11-16T08:00:04.812804+00:00",
+            "ageSeconds": 26729,
+            "lastStatus": "success"
+          },
+          {
+            "job": "billing-reconcile",
+            "lastRunAt": "2026-11-16T09:00:26.90615+00:00",
+            "ageSeconds": 23107,
+            "lastStatus": "success"
+          },
+          {
+            "job": "cash-flow-rollup",
+            "lastRunAt": "2026-11-16T03:30:37.272345+00:00",
+            "ageSeconds": 42897,
+            "lastStatus": "success"
+          },
+          {
+            "job": "data-retention",
+            "lastRunAt": "2026-11-01T05:00:24.714354+00:00",
+            "ageSeconds": 1333509,
+            "lastStatus": "success"
+          },
+          {
+            "job": "financial-reconcile",
+            "lastRunAt": "2026-11-16T15:15:07.592317+00:00",
+            "ageSeconds": 626,
+            "lastStatus": "success"
+          },
+          {
+            "job": "invites-cleanup",
+            "lastRunAt": "2026-11-16T06:00:23.356492+00:00",
+            "ageSeconds": 33910,
+            "lastStatus": "success"
+          },
+          {
+            "job": "metrics-rollup",
+            "lastRunAt": "2026-11-16T05:00:43.475961+00:00",
+            "ageSeconds": 37490,
+            "lastStatus": "success"
+          },
+          {
+            "job": "outbox",
+            "lastRunAt": "2026-11-16T15:25:28.236506+00:00",
+            "ageSeconds": 6,
+            "lastStatus": "success"
+          },
+          {
+            "job": "patient-hard-delete",
+            "lastRunAt": "2026-11-16T03:00:10.537792+00:00",
+            "ageSeconds": 44723,
+            "lastStatus": "success"
+          },
+          {
+            "job": "payments-account-closure",
+            "lastRunAt": "2026-11-16T10:00:36.602456+00:00",
+            "ageSeconds": 19497,
+            "lastStatus": "success"
+          },
+          {
+            "job": "payments-deposit",
+            "lastRunAt": "2026-11-16T15:15:18.566903+00:00",
+            "ageSeconds": 615,
+            "lastStatus": "success"
+          },
+          {
+            "job": "proactive-deposit-link",
+            "lastRunAt": "2026-11-16T15:15:03.306818+00:00",
+            "ageSeconds": 630,
+            "lastStatus": "success"
+          },
+          {
+            "job": "proactive-dunning",
+            "lastRunAt": "2026-11-16T15:15:12.583045+00:00",
+            "ageSeconds": 621,
+            "lastStatus": "success"
+          },
+          {
+            "job": "proactive-followup",
+            "lastRunAt": "2026-11-16T15:15:32.421958+00:00",
+            "ageSeconds": 601,
+            "lastStatus": "success"
+          },
+          {
+            "job": "proactive-remainder-link",
+            "lastRunAt": "2026-11-16T15:15:46.415883+00:00",
+            "ageSeconds": 587,
+            "lastStatus": "success"
+          },
+          {
+            "job": "proactive-reminders",
+            "lastRunAt": "2026-11-16T15:15:10.592819+00:00",
+            "ageSeconds": 623,
+            "lastStatus": "success"
+          },
+          {
+            "job": "proactive-waitlist",
+            "lastRunAt": "2026-11-16T15:15:17.582007+00:00",
+            "ageSeconds": 616,
+            "lastStatus": "success"
+          },
+          {
+            "job": "signup-sessions-cleanup",
+            "lastRunAt": "2026-11-16T15:20:19.520705+00:00",
+            "ageSeconds": 314,
+            "lastStatus": "success"
+          },
+          {
+            "job": "whatsapp-health",
+            "lastRunAt": "2026-11-16T12:00:35.022174+00:00",
+            "ageSeconds": 12299,
+            "lastStatus": "success"
+          },
+          {
+            "job": "whatsapp-messaging-health",
+            "lastRunAt": "2026-11-16T10:30:16.157431+00:00",
+            "ageSeconds": 17718,
+            "lastStatus": "success"
+          }
+        ],
+        "abacatepayInbox": 0,
+        "abacatepayOperations": 0
+      },
+      "requestRecords": {
+        "status": "READ_ONLY_BOUNDED_SAMPLE",
+        "since": "2026-11-16T15:17:00Z",
+        "limit": 100,
+        "records": 8,
+        "potentiallyTruncated": false,
+        "outboxSuccesses": 8,
+        "http5xx": 0,
+        "statuses": {
+          "200": 8
+        },
+        "rawRequestsPersisted": false,
+        "clientIdentifiersPersisted": false
+      }
+    },
+    "schemaCatalogParitySinceGateB": [
+      {
+        "section": "relations",
+        "unchanged": true
+      },
+      {
+        "section": "functions",
+        "unchanged": true
+      },
+      {
+        "section": "triggers",
+        "unchanged": true
+      },
+      {
+        "section": "policies",
+        "unchanged": true
+      },
+      {
+        "section": "indexes",
+        "unchanged": true
+      },
+      {
+        "section": "constraints",
+        "unchanged": true
+      },
+      {
+        "section": "dependencies",
+        "unchanged": true
+      }
+    ],
+    "reusedEvidence": {
+      "exactTarBuildAndCancellation": {
+        "run": 43804391473,
+        "exactBuild": "PASS",
+        "postgresCancellationChecks": 27,
+        "applicationJourneyChecks": 52,
+        "syntheticBackupChecks": 7,
+        "reexecuted": false
+      },
+      "fiveInitialSandboxPayments": {
+        "file": "checkouts-lote-20261111.json",
+        "historicalTwoDoctorsFile": "checkout-pago-20261110.json",
+        "newCheckouts": 0,
+        "newPayments": 0
+      },
+      "postgresRedisLoopbackHttpAndCapacity": [
+        "trialEntitlementsFollowup",
+        "scalabilityFollowup",
+        "incrementalScannerFollowup",
+        "saasTissSeparation20261114"
+      ],
+      "manualAuthenticatedUi": {
+        "source": "gateBProductionWindow20261116.smoke.authenticatedClinicUiEvidence",
+        "status": "PASS_FOUNDER_CONFIRMED",
+        "reexecutedOrAutomated": false
+      },
+      "alertDelivery": {
+        "production": "ed622a74",
+        "preview": "414eb196",
+        "founderConfirmed": true,
+        "newProbeSent": false,
+        "currentAdministrativeSentryApi": 401
+      }
+    },
+    "officialContractReview": {
+      "sources": [
+        "https://docs.abacatepay.com/pages/webhooks/create",
+        "https://docs.abacatepay.com/pages/webhooks/events/subscriptions",
+        "https://docs.abacatepay.com/pages/notificacoes/seguranca",
+        "https://docs.abacatepay.com/pages/cobrar/assinaturas"
+      ],
+      "createEnumVsLifecycleEvents": "payment_failed and plan_changed documented in lifecycle but omitted from create enum; verify actual API acceptance in authorized C1, never silently omit required events",
+      "checkoutAndCycleIdentity": "Current guide describes single customer and original bill on renewals; forwarded support10Nov described reusable link and cycle bill. Existing reader handles cycle bill and original bill with sufficient evidence; otherwise review. Do not waive R1 or fabricate payment/period",
+      "liveCreateOrDeliveryAttempted": false
+    },
+    "gateC": {
+      "C0": "PARTIAL_FINAL_CI_EXTERNALLY_BLOCKED; code/runtime unchanged and directed/read-only checks PASS",
+      "C1": "PREPARED_NOT_AUTHORIZED; registration only, API event acceptance and readback required",
+      "C2": "PREPARED_NOT_AUTHORIZED; new configuration/deployment jointly arms receiver and four consumers; acquisition remains closed",
+      "C3": "NOT_AUTHORIZED; consented preprovisioned clinic/UUID/plan/amount/window required",
+      "C4": "NOT_AUTHORIZED; separate1to3to10 approvals",
+      "coupling": "Receiver also reconciles accepted events; no independent receiver-only flag",
+      "responsibleAndWindow": "Previous Gate B window closed; must reconfirm founder/on-call and new date/time",
+      "requestExecutionNow": false
+    },
+    "risks": {
+      "B1B": "DEFERRED_RISK_ACCEPTED_NOT_VERIFIED; no new host/cofre/PITR request",
+      "R1": "PARTIAL_PENDING_LIVE_CLOSURE",
+      "R2": "PARTIAL_NATURAL_RENEWAL_2026_12_13_NOT_YET_OBSERVED",
+      "R3": "PARTIAL_SYNTHETIC_PASS_EXTERNAL_NEGATIVES_NOT_OBSERVED",
+      "R4": "PARTIAL_SYNTHETIC_CAPACITY_PASS_NOT_PRODUCTION_SLA",
+      "acceptance": "Preserve previously recorded limited assisted-pilot residual acceptance; no new acceptance or expansion inferred"
+    },
+    "conclusion": "PREPARATION_COMPLETE_WITH_EXTERNAL_CI_BLOCK; NOT_READY_TO_REQUEST_EXECUTION_WITHOUT_FINAL_GREEN_AND_STAGE_GO",
+    "productionWrites": 0,
+    "newProviderMutations": 0,
+    "newCheckouts": 0,
+    "payments": 0,
+    "migrationsApplied": 0,
+    "deploys": 0,
+    "merges": 0,
+    "backupLegacyChanged": false
   }
 }

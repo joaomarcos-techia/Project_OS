@@ -1,5 +1,45 @@
 # AbacatePay SaaS — decisão final de release e piloto
 
+## Checkpoint prevalente — homologação C0, 16/11/2026
+
+Escopo autorizado `a51a97b8-a2f2-4f7b-a049-d02bcf75a9c4`, baseline `e5c84f3a08551d6a274762231cb76192fce55a80`. **Sem correção financeira nova necessária no alcance testado; runtime igual à aplicação publicada44323990, SQL/dependências intactos.** Novas evidências e procedimento foram consolidados, sem repetir pagamentos ou ensaios pesados aprovados. Este checkpoint prevalece sobre os estados antigos abaixo.
+
+**GITHUB ACTIONS: BLOQUEADO.** Reexecução2 da CI43882384504 e ADR43882384626: zero steps/runner vazio; aviso de pagamentos recentes falhos ou limite. Owner da conta/repositório correto, workflows ativos e Actions permitido. OrçamentoUS$10 declarado pelo fundador; escopo/limite/saldo/pagamento não puderam ser confirmados pela API de cobrança sem permissão e navegador indisponível. Timing dos dois runs0ms billable, não gasto mensal. Não ampliar orçamento nem repetir jobs cegamente. **CI final deve ser lida no SHA exato do PR; GREEN43831334234/35c6 (7.329/647/27E2E/zero SKIP) é evidência anterior.**
+
+| Área                         | Situação e evidência                                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Actions / CI final           | BLOCKED externo no snapshot; conferir HEAD final/Actions após commit, sem transferir GREEN                                |
+| Cadastro                     | PASS nas provas anteriores PG/E2E;11 regressões unitárias de trial/provisionamento novas                                  |
+| Trial                        | PASS anterior PG/limites/14 dias desde Auth e regressão nova; Asaas de pacientes/IA/TISS não operam no trial              |
+| Planos/preços                | PASS33 testes novos e GET live dos5produtos:197/397/544/691/838, até3 administrativos                                     |
+| Checkout/pagamento sintético | PASS anterior na transação PostgreSQL/HTTP e novas regressões de rota/reader; cinco compras Sandbox preservadas           |
+| Webhooks                     | PASS sintético: secret/HMAC/ambiente/dedup/erros; live sem registro ou entrega observada                                  |
+| Inbox/outbox/consumidores    | PASS anterior PG/Redis/HTTP/leases/recuperação;28 testes novos de processamento e9 de composição do cron                  |
+| Idempotência                 | PASS sintético anterior e novos testes de comando/duplicidade; não é prova externa live                                   |
+| Renovação simulada           | PASS sintético anterior;59 testes novos de reader e24 de calendário. Natural13/12 permanece futura                        |
+| Cancelamento Asaas           | PASS anterior27 checks PG entre três combinações código/schema;12 testes novos do helper com resposta perdida             |
+| Cancelamento AbacatePay      | PASS Sandbox anterior e regressões novas da rota; não foi cancelado contrato real                                         |
+| Contratos legados            | PASS atual em leitura:5Asaas e hashes originais de contratos/preços/invoices iguais ao Gate B                             |
+| Entitlements                 | PASS PG anterior e19 testes novos de política; intenção de pagamento não libera premium                                   |
+| RLS/tenant/segurança         | PASS nas provas anteriores; leitura atual22 relações críticas e catálogo sem drift; testes novos de rotas/ambiente        |
+| Migrations/schema            | PASS atual:160 entradas/hashes, zero pendentes, sete fingerprints de catálogo iguais, índices/constraints válidos         |
+| Integridade Gate B           | PASS no alcance administrativo observado: mesmo alias/deployment/aplicação/TAR/flags/WAF/crons                            |
+| Aquisição fechada            | PASS atual da configuração/cadastro; POST/WAF/backend comprovados no Gate B e código inalterado, sem novo POST Production |
+| Observabilidade              | PASS no recorte: heartbeat recente,outbox0,8ticks naturais200/zero5xx; Sentry401, entregas históricas preservadas         |
+| UI                           | PASS27E2E anteriores e confirmação manual Dashboard/Assinatura; sem nova afirmação de navegação autenticada               |
+| Ativação                     | Procedimento C1–C4 preparado; prontidão executiva condicionada à CI final, GO e pré-voo da nova janela                    |
+| Gate C live                  | NOT AUTHORIZED; nenhuma ativação, assinatura ou cobrança real                                                             |
+
+**Executado agora:**368 testes/20 arquivos/zero SKIP, sequenciais/heap128MiB/segredos não herdados; GET administrativo/live e SQL READ ONLY/TLSverify-full. **Reutilizado:** CI35c6, build exato43804391473,27 checks de cancelamento e52 da jornada, PostgreSQL/Redis/HTTP/capacidade e cinco contratações Sandbox com proveniência no registro. Nenhum novo E2E, carga, build, migration DEV/Production ou pagamento externo. Não somar testes antigos aos novos como uma única execução.
+
+Production15:18–15:25UTC: `dpl_8uzoX6ngA66EgYcmMwcJn831UiBp`, revisão44323990, TAR6038df0d…; cinco Asaas preservados; gateway accounts/bindings/operations/inbox/observations0.21 crons com host/rota/agenda corretos, outbox pending/processing/failed0, heartbeat success há6s,8execuções naturais200/zero5xx na amostra consultada. Health200 é raso; autenticação/administração Sentry401 não invalida nem renova os alertas históricos confirmados. Nenhuma nova chamada financeira de teste.
+
+**Conclusão executiva:** (1) implementação mantém a baseline validada e368 regressões novas PASS; **não afirmar CI integral do HEAD final enquanto bloqueada**. (2) Asaas preservado no alcance verificado. (3) contratação ponta a ponta PASS nos testes anteriores e cinco compras Sandbox, sem repetição. (4) cancelamentos PASS nos níveis registrados, não novo cancelamento real. (5) receiver/consumidores têm provas sintéticas e procedimento, mas sua ativação live ainda não foi homologada. (6) nenhum defeito financeiro novo reproduzido; há bloqueio externo Actions e ambiguidades documentais do contrato a confirmar em C1/piloto. (7) **NÃO APTO para solicitar execução do Gate C enquanto faltar CI final**; preparação técnica concluída no alcance das provas, sem declarar AbacatePay ativa.
+
+[Procedimento único C0–C4 e formulário](../../runbooks/abacatepay-operacao.md#checkpoint-prevalente--c0-pós-gate-b-16112026): C1 registro do webhook; C2 configuração+novo deployment+receiver/consumidores mantendo aquisição fechada; C3 clínica consentida/contratação separada; C4 expansão própria. Receiver e consumidores compartilham runtime; não prometer habilitação independente. Janela/responsáveis de Gate B não se transferem automaticamente. Sem novo GO solicitado neste snapshot. B1-B continua DEFERRED/RISK ACCEPTED/NOT VERIFIED; R1–R4 PARTIAL, aceite residual limitado ao piloto já registrado, sem dispensar evidência futura ou aceitar defeito reproduzível.
+
+Evidência sanitizada: `gateC0Homologation20261116` em [recuperacao-financeira-20261111.json](evidencias/recuperacao-financeira-20261111.json). PR53 permanece draft, sem merge; Production permanece com aquisição fechada e AbacatePay desarmada.
+
 ## Checkpoint prevalente — B2-B/B3 executados em Production, 16/11/2026
 
 Autorização expressa do fundador no anexo 9cf59f2e-8b7d-4d67-be46-503717c8c5dd. Janela iniciada **12:31:12 UTC / 09:31:12 Brasília**, limite **13:31:12 UTC / 10:31:12 Brasília**. Fundador acompanha operação/incidentes; esta sessão executa banco, deployment e eventual rollback. **Janela encerrada13:28:51UTC/10:28:51Brasília,57min39s; nenhuma nova mutação Production autorizada após o encerramento.** Os checkpoints anteriores permanecem históricos quando divergirem deste.

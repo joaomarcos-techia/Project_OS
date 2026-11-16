@@ -1,5 +1,15 @@
 # Gate B — proposta de deploy técnico com aquisição fechada
 
+## Checkpoint prevalente — C0 de ativação, 16/11/2026
+
+Gate B concluído e preservado. Autorização `a51a97b8-a2f2-4f7b-a049-d02bcf75a9c4` cobre testes/C0 e Production somente leitura, não C1–C4. **Aquisição fechada, runtime/consumidores AbacatePay desarmados, PR53 draft/sem merge.** Sem novo deploy, migration, WAF/flag, webhook ou efeito monetário.
+
+Readback15:18–15:25UTC: mesmo deployment/aplicação/TAR;160 migrations por ordem/hash, zero pendentes,22 relações críticas protegidas; sete fingerprints de catálogo iguais ao pós-Gate B, índices/constraints válidos, zero locks/transações longas. Cinco contratos Asaas/hashes financeiros originais preservados.21 crons com rota/agenda/host corretos; outbox sem pendências/falhas, heartbeat recente e8 execuções naturais200/zero5xx no recorte. Cadastro fechado, PASS manual de Dashboard/Assinatura preservado. Catálogo live5produtos corretos; webhooks0. Health200 é selftest/configuração rasa, não homologação financeira.
+
+**368 testes dirigidos PASS/20 arquivos/zero SKIP**, sem dados reais, banco compartilhado, browser/Docker/build pesado. Sem defeito financeiro novo reproduzido; runtime/SQL/dependências intactos. Provas anteriores de PostgreSQL/Redis/HTTP/E2E/cinco compras Sandbox explicitamente reutilizadas. **Actions BLOCKED no e5c84f3a/reexecução2**, CI43882384504/ADR43882384626 sem runner/steps por pagamento/limite;0ms billable nesses runs. OrçamentoUS$10 informado, escopo/saldo não acessíveis à CLI e navegador indisponível. Sem ampliar orçamento ou usar backup real para testar. Conferir CI do HEAD final no PR, sem transferir GREEN35c6.
+
+Sequência C0–C4, acoplamento receiver/consumidores, divergências documentais do provedor, pontos de parada e formulário no [checkpoint operacional C0](../../runbooks/abacatepay-operacao.md#checkpoint-prevalente--c0-pós-gate-b-16112026). C1 registra apenas; C2 requer GO para configuração+deployment+consumidores; C3 exige clínica/valor/consentimento e GO independente. **Não solicitar execução enquanto faltar CI final.** B1-B permanece adiado/risco aceito/não verificado. Checkpoints seguintes são históricos quando divergirem deste.
+
 ## Checkpoint prevalente — B2-B/B3 executados em Production, 16/11/2026
 
 Autorização expressa do fundador no anexo 9cf59f2e-8b7d-4d67-be46-503717c8c5dd. Janela iniciada **12:31:12 UTC / 09:31:12 Brasília**, limite **13:31:12 UTC / 10:31:12 Brasília**. Fundador acompanha operação/incidentes; esta sessão executa banco, deployment e eventual rollback. **Janela encerrada13:28:51UTC/10:28:51Brasília,57min39s; nenhuma nova mutação Production autorizada após o encerramento.** Os checkpoints anteriores permanecem históricos quando divergirem deste.
