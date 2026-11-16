@@ -24,6 +24,7 @@ const copied = [
   'scripts/abacatepay-preflight-catalog.sql',
   'scripts/abacatepay-release-validation.ts',
   'scripts/abacatepay-release-apply.ts',
+  'scripts/gate-b-containment.ts',
   'scripts/abacatepay-checkout-session.ts',
   'scripts/recovery-scheduled-backup.ts',
   'scripts/recovery-backup-alert.ts',

@@ -1,5 +1,23 @@
 # AbacatePay SaaS — decisão final de release e piloto
 
+## Checkpoint prevalente — contenção e preparação final, 16/11/2026
+
+**B1-B REAL: DEFERRED / RISK ACCEPTED / NOT VERIFIED**, por decisão explícita do fundador. Não solicitar AWS/Linux/cofre/restore B1-B. Esse adiamento não comprova restauração, não permite desativar backups e não autoriza B2-B/B3/C/D. Os checkpoints anteriores divergentes são históricos.
+
+Baseline de entrada2d72adef/CI43806706110 GREEN,7.315 testes/646 arquivos/27 E2E/zeroSKIP. Novo código somente de operadores/testes, sem mudança financeira/SQL/TAR: a CI final do novo SHA será confirmada no PR53. Aplicação44323990 e TAR6038df0da3a6afaee68528c2f38c08743356ef6bdf6ece7ca808fd41672d0e64 preservados,160SQL/0136–0159,sem0160–0162/TISS funcional/UI alheia. Build exato e27PG+52Abacate+7backup anteriores continuam aceitos, sem repetição.
+
+**Executado nesta rodada:** B2-A READ ONLY atual07:48:23–07:48:56UTC,136journal/24pendentes/TLSverify-full/CA/RLS/locks PASS;0051/0093/0124, hashes financeiros e inventário de9seções08:01:21UTC conferidos.139relações/269funções/83triggers/146policies/489índices/635constraints/1844dependências; nenhum índice inválido ou constraint não validada. Nenhum dado clínico/linha financeira exportado. Zero checkoutIDs armazenados/creation_unknown; isso não invalida link externo desconhecido.
+
+**Contenção preparada:** proposta WAF reproduzível e verificador estrito de ambiente/método/rota/ordem/flags do deployment,11regressões novas.131testes dirigidos únicos/7arquivos PASS, incluindo os guards reais do cadastro/checkout/consumers e33testes webhook Asaas sob aquisição fechada. Snapshot WAF privado DPAPI+ACL capturado/conferido07:58:31UTC; ativo v3,2rate_limit/0custombypass, nenhuma regra de fechamento aplicada. Captura é reversão de configuração local, não cofre/backup clínico. B2-B PREPARADO E TESTADO; **PASS LIVE não obtido**.
+
+**Backups:**7físicosCOMPLETED09–15/11,último15/11 09:14UTC/PITRoff; workflowlegadoativo,últimosucesso15/11 13:32UTC,30artifacts/30dias,semdownload/trigger/desativação. Continuidade SQL por metadados, **BACKUP OPERACIONAL ATUAL NÃO COMPROVADO para recuperação integral**; Storage/Authgerenciado/retencãocontratual/RTO ainda semprova atual. Modo explícito do aplicador permite revisão de backupgerenciadoconcluído e aceite do B1-B sem fingir restore/checksum; exige metadata≤30min,backup≤26h e GO B3 separado. Caminho anterior de restoreestrito preservado. Falha/staleness/drift continua bloqueando.
+
+**GateC:**GETautenticado08:02:16UTC confirmou5preços197/397/544/691/838,MONTHLY/devModefalse/semtrialnativo,webhooksHTTP200/0. Nenhum endpoint/consumer live ativado ou checkout criado. R1–R4PARTIAL em evidência, aceite residual apenas para eventual piloto assistido1clínica;13/12futuro.
+
+**Pronto para B3: PARTIAL**, condicionado à CI final, responsáveis/janela e executorLinuxverificável. O aplicador continua Linux-only; só docker-desktop parado foi encontrado, sem iniciarDocker/medirRAM/pedirhostparaB1-B. Ausência de executor não é falha financeira nem prova de restore. Não apresentar GO B3 executável antes de resolver esse item. **Production fechada NÃO IMPLANTADA; comercial NÃO ATIVADA; PR53DRAFT; mutaçõesProduction0.**
+
+O [checklist operacional único vigente](GATE-B-DEPLOY-CONTROLADO.md#checkpoint-prevalente--reta-final-e-contenção-16112026) contém os20passos, pontosdeparada, propostaB2-B e condiçõesB3; os procedimentos antigos não o substituem. Asaas:ambas correções essenciais preservadas,cancelamento/paidperiod/RLS/idempotênciaPASS no candidato conforme provas anteriores. Sem cancelamento real/reembolso/pagamento novo. Composição futuraUI/TISS depende de regressão própria, sem alterarworktrees/PRs deles.
+
 ## Checkpoint prevalente — 16/11, cancelamento e execução somente leitura
 
 Prevalece o [checkpoint de execução](GATE-B-DEPLOY-CONTROLADO.md#checkpoint-prevalente--autorização-e-execução-de-16112026). B2-A foi autorizado e executado em Production **somente leitura**:136 migrations reconhecidas/24 pendentes0136–0159, verify-full/CA oficial/SSL efetivo, sem waits/transações longas,0051/0093/0124 semanticamente compatíveis, zero índices inválidos/FKs não validadas. Nenhuma linha clínica/financeira consultada. Novo readback exigido antes de futura DDL. Source publicado/main5620a098 confirmado por metadados Vercel; sem alteração Production.

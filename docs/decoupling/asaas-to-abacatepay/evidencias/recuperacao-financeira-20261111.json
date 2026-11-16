@@ -27196,5 +27196,737 @@
       "containmentApplied": false,
       "acquisitionClosureRuleObserved": false
     }
+  },
+  "finalContainmentPreparation20261116": {
+    "observedAt": "2026-11-16T08:10:40.180Z",
+    "authorization": "Attachment99e92650 preparation/read-only only; no live mutations",
+    "baseline": {
+      "head": "2d72adef2f1420ad433b55e2b790ebfa3380da86",
+      "CI": 43806706110,
+      "status": "GREEN",
+      "tests": 7315,
+      "E2E": 27,
+      "skips": 0
+    },
+    "recovery": {
+      "B1B": "DEFERRED / RISK ACCEPTED / NOT VERIFIED",
+      "acceptedBy": "founder",
+      "hostOrVaultRequestReopened": false,
+      "realRestoreExecuted": false
+    },
+    "preflight": {
+      "startedAt": "2026-11-16T07:48:23.262Z",
+      "finishedAt": "2026-11-16T07:48:56.871Z",
+      "operator": "2d72adef2f1420ad433b55e2b790ebfa3380da86",
+      "transportSourceSha256": "9b7a5e5660419fb0efd50f95189e1299b4db234a92b34e5fee0a874f0d511be6",
+      "workingRevision": "validated transport from exact operational HEAD",
+      "endpoint": "approved project direct connection",
+      "project": "shlcbxawrxuaebazuiue",
+      "CA": "official Supabase CA; provenance recorded separately",
+      "exitCode": 0,
+      "proof": {
+        "status": "PASS_READ_ONLY_PREFLIGHT",
+        "financial": "94f6da4aeb32b1ae7da856dc9afa105120ce6dd9",
+        "phase": "before",
+        "targetFingerprint": "49e1c98a71abbbfe1e55cb4204a4ef814956e5c3e7f4925daddd727c30a6efe3",
+        "history": {
+          "applied": 136,
+          "pending": [
+            {
+              "idx": 136,
+              "tag": "0136_trial_resource_limits",
+              "when": 1794096000000,
+              "hash": "43bb658055c581eae20788c6df87d50fc16ec00e472a73da52500d4a22e2fe10"
+            },
+            {
+              "idx": 137,
+              "tag": "0137_trial_service_role_privileges",
+              "when": 1794168300000,
+              "hash": "e1515b18deebdfd1dac558d9f02d5024655e81ad3ea196ad38ed12e3f3e9aaa7"
+            },
+            {
+              "idx": 138,
+              "tag": "0138_saas_gateway_bindings",
+              "when": 1794171600000,
+              "hash": "22e4c7f622ee269d17b51b97238489d77d6cde5c385a765df8c613278219a69f"
+            },
+            {
+              "idx": 139,
+              "tag": "0139_saas_gateway_recontracts",
+              "when": 1794189600000,
+              "hash": "aa935cd0cadcf6156636f9c7c98fe6201bdba5c1384f556ff026ebb4eb95d4be"
+            },
+            {
+              "idx": 140,
+              "tag": "0140_saas_recurring_payment_observations",
+              "when": 1794199882765,
+              "hash": "98269c83b754785a7e9ecf0b2b4b142ff121cc22b56b8f3055575299ba8ca330"
+            },
+            {
+              "idx": 141,
+              "tag": "0141_saas_scheduled_plan_changes",
+              "when": 1794222981810,
+              "hash": "a13faef1aa291981c3e4c337cbde868225d9d1433bdeed8dd320fd7a74fdf5fd"
+            },
+            {
+              "idx": 142,
+              "tag": "0142_saas_review_replays",
+              "when": 1794326400000,
+              "hash": "410c61834e2a1eb1bf11331b71f7660205fa426b76d1a9fa566e6b13d7d3fb3d"
+            },
+            {
+              "idx": 143,
+              "tag": "0143_tiss_catalog",
+              "when": 1794330000000,
+              "hash": "9f9b483aaeff60a9ca4f5b182c3b071408a7d3eec9ecea7cfe8f98bcf602e807"
+            },
+            {
+              "idx": 144,
+              "tag": "0144_hi_clinic_setup",
+              "when": 1794367436665,
+              "hash": "b9ac6c7a0b335582f3bf69385a3b004cf9d0784955f27d7c3cd22776a4590589"
+            },
+            {
+              "idx": 145,
+              "tag": "0145_hi_memberships",
+              "when": 1794391493822,
+              "hash": "98425850e4c2dae613734aa337ce588df641e5c3b67476c055147cb9c82632c4"
+            },
+            {
+              "idx": 146,
+              "tag": "0146_hi_authorizations",
+              "when": 1794395869610,
+              "hash": "15cbf34c1439cc1d7a0ca4be40267729b44c1cdea1760d5090deb10288493cb6"
+            },
+            {
+              "idx": 147,
+              "tag": "0147_hi_guides",
+              "when": 1794399173366,
+              "hash": "a344a7e86074d90a4b13b007ef6f9e3357ac23e3b8bc43743158d131ca45238a"
+            },
+            {
+              "idx": 148,
+              "tag": "0148_hi_coverage_copay",
+              "when": 1794405160338,
+              "hash": "45f0b90b9307c5888e8e0ac61fab9685561f89a62cdf54ea60d2bd3becfdcb0b"
+            },
+            {
+              "idx": 149,
+              "tag": "0149_hi_billing_gaps",
+              "when": 1794416643149,
+              "hash": "56c0d5f29a409b65e0fe4fc1ac7512bbd8c979150c2252e375a375b85139d183"
+            },
+            {
+              "idx": 150,
+              "tag": "0150_hi_batches",
+              "when": 1794418524711,
+              "hash": "e7dc279a073501a4f2e03dd95ff9773564cbc690ea2591a3e94a03f9a273c992"
+            },
+            {
+              "idx": 151,
+              "tag": "0151_hi_premium_gate",
+              "when": 1794432173857,
+              "hash": "a0e446dbce4121c538c4a3e206a406e0977d5d1729ed14b03417a3937b71ae0b"
+            },
+            {
+              "idx": 152,
+              "tag": "0152_hi_glosses_payments",
+              "when": 1794518573857,
+              "hash": "f16efcaabf8ed205b102005883c8627d3f1037edbcd91908f1d700123720766a"
+            },
+            {
+              "idx": 153,
+              "tag": "0153_hi_ledger_bridge",
+              "when": 1794604973857,
+              "hash": "ebb976532db49b2d36947cd5c37724a6b6b9c85713e2f92818fcefc992b23378"
+            },
+            {
+              "idx": 154,
+              "tag": "0154_hi_premium_period_evidence",
+              "when": 1794691373857,
+              "hash": "3e493911867aa5cf1157ee083a451a9bd1f86a084f371d36da5312d08676925a"
+            },
+            {
+              "idx": 155,
+              "tag": "0155_ledger_payment_sum_by_clinic",
+              "when": 1794777773857,
+              "hash": "aecc5c2d0b7cf36a3dbdcf7331d4247077acf8c7466cbc853e2d40dc905e1d33"
+            },
+            {
+              "idx": 156,
+              "tag": "0156_hi_sadt_requests",
+              "when": 1794864173857,
+              "hash": "cdf3004b15a8a09d6e8f2065bf42be39a05b979eb4d12cd8a5ac1d32b492f860"
+            },
+            {
+              "idx": 157,
+              "tag": "0157_hi_professional_payouts",
+              "when": 1794950573857,
+              "hash": "f39a58d0401b3d221b03cbe0b41c9f4b530947d0f03b4b3564929e11349b5f15"
+            },
+            {
+              "idx": 158,
+              "tag": "0158_hi_copay_charge",
+              "when": 1795036973857,
+              "hash": "40cc90493b5abf980c209485c83451f33c4cfc5931b87f3af7653f2091af63a2"
+            },
+            {
+              "idx": 159,
+              "tag": "0159_saas_period_snapshot",
+              "when": 1795036973858,
+              "hash": "eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74"
+            }
+          ],
+          "fingerprint": "1f2a641215d3e5328999acaf7028c46ab4782c7d596134d979bc31f9c50f91fc"
+        },
+        "schema": {
+          "requiredSecuredRelations": 4,
+          "scope": "Critical release objects only; not a full schema equivalence certification"
+        },
+        "transaction": "REPEATABLE READ READ ONLY",
+        "databaseWrites": 0,
+        "tls": "verify-full",
+        "operational": {
+          "ssl": true,
+          "statementTimeout": "10s",
+          "lockTimeout": "2s",
+          "longTransactions": 0,
+          "waitingLocks": 0
+        },
+        "productionWrites": 0,
+        "providerCalls": 0,
+        "authorizationToApply": false
+      },
+      "productionWrites": 0,
+      "patientOrContractRowsRead": 0
+    },
+    "semanticAndFinancialHashes": {
+      "at": "2026-11-16T07:52:49.747Z",
+      "project": "shlcbxawrxuaebazuiue",
+      "scope": "semantic catalogs, financial hashes and hosted-checkout counts only",
+      "catalog": {
+        "ssl": true,
+        "columns": [
+          {
+            "type": "_text",
+            "table": "ai_clinic_config",
+            "column": "convenios",
+            "default": "ARRAY[]::text[]",
+            "nullable": "NO"
+          },
+          {
+            "type": "uuid",
+            "table": "ai_messages",
+            "column": "sent_by_user_id",
+            "default": null,
+            "nullable": "YES"
+          },
+          {
+            "type": "bool",
+            "table": "subscriptions",
+            "column": "enforce_trial_deadline",
+            "default": "false",
+            "nullable": "NO"
+          }
+        ],
+        "authorFK": [
+          {
+            "name": "ai_messages_sent_by_user_id_profiles_id_fk",
+            "validated": true,
+            "definition": "FOREIGN KEY (sent_by_user_id) REFERENCES profiles(id) ON DELETE RESTRICT"
+          }
+        ],
+        "readOnly": "on",
+        "trialVersion": 1,
+        "invalidIndexes": 0,
+        "unvalidatedFKs": 0,
+        "permissionRoles": [
+          [
+            "gestor",
+            "manage:conversations"
+          ],
+          [
+            "gestor",
+            "view:conversations"
+          ],
+          [
+            "doctor",
+            "view:conversations"
+          ],
+          [
+            "attendant",
+            "manage:conversations"
+          ],
+          [
+            "attendant",
+            "view:conversations"
+          ],
+          [
+            "owner",
+            "manage:conversations"
+          ],
+          [
+            "owner",
+            "view:conversations"
+          ]
+        ],
+        "catalogInventory": {
+          "policies": 146,
+          "functions": 269,
+          "activeTriggers": 83
+        },
+        "permissionCatalog": [
+          "manage:conversations",
+          "view:conversations"
+        ],
+        "financialFingerprints": {
+          "plans": "480cb03f2eb064e37ee5e75da5fb052c",
+          "prices": "a370d49a7ce7bde05e7083b9c745befb",
+          "invoices": "8f1d213258f3d1afd1fb0dc6d29b37ca",
+          "subscriptions": "00e9df32cfa379360d4a8a185d733b7d"
+        },
+        "hostedCheckoutInventory": {
+          "unknownCreations": 0,
+          "storedCheckoutIds": 0,
+          "withoutSubscription": 0
+        }
+      },
+      "productionWrites": 0,
+      "clinicalRowsRead": 0,
+      "financialRowsExported": 0
+    },
+    "fullCatalog": {
+      "at": "2026-11-16T08:01:21.363Z",
+      "project": "shlcbxawrxuaebazuiue",
+      "operator": "2d72adef2f1420ad433b55e2b790ebfa3380da86",
+      "scope": "full catalog inventory, no clinical rows or definitions in output",
+      "sections": [
+        {
+          "section": "identity",
+          "count": null,
+          "sha256": "d6d498978572fb6d274ab8eff4357cf01bbd7b71cb5547507e2c503a0f162727"
+        },
+        {
+          "section": "relations",
+          "count": 139,
+          "sha256": "bb4c49cdf1a524922fddaa01214e946c9b639b502a8cb716aaa12e591d8bf307"
+        },
+        {
+          "section": "functions",
+          "count": 269,
+          "sha256": "768e69ec9d13e2ed8983d1cccb4b49d15b95e50d68e09f11eac329fe572a780a"
+        },
+        {
+          "section": "triggers",
+          "count": 83,
+          "sha256": "8d0ac060a81e53f3375319610c9fb23ded20d4aec54fe5b341f92bf97be257d4"
+        },
+        {
+          "section": "policies",
+          "count": 146,
+          "sha256": "a4e58d1effb611db4f3a1aeb692d39c6488bc0e1cf4078562628365104a425fc"
+        },
+        {
+          "section": "indexes",
+          "count": 489,
+          "sha256": "85d8dd010c43114f47eacce29f0d9960a9470a8ba42caf24ff2dde4f6fc3e3dc"
+        },
+        {
+          "section": "constraints",
+          "count": 635,
+          "sha256": "88f49c061050dcef4a70e172395f845df0bada25eb804773b60cc9318b232049"
+        },
+        {
+          "section": "dependencies",
+          "count": 1844,
+          "sha256": "81b62e029a75260161d25a96ecf0e84447da07aff5c578f8473ad8056bfd1b14"
+        },
+        {
+          "section": "locks",
+          "count": null,
+          "sha256": "01944e1f8eae780f4739591d3662d2556641eea5fbc167d358120b31343f7caf"
+        }
+      ],
+      "locks": {
+        "section": "locks",
+        "waitingLocks": 0,
+        "longTransactions": 0
+      },
+      "productionWrites": 0,
+      "clinicalRowsRead": 0
+    },
+    "managedBackupMetadata": {
+      "observedAt": "2026-11-16T07:48:23.077Z",
+      "project": {
+        "ref": "shlcbxawrxuaebazuiue",
+        "name": "qoro-prod",
+        "organizationId": "srbucltkichbsehsirun",
+        "region": "us-east-1",
+        "platformStatus": "ACTIVE_HEALTHY",
+        "postgresVersion": "17.6.1.127"
+      },
+      "scope": "B1-A administrative metadata only",
+      "operations": [
+        {
+          "command": "supabase backups list --project-ref <confirmed prod> --output json",
+          "status": "PASS"
+        },
+        {
+          "command": "supabase orgs list --output json; filtered matching organization only",
+          "status": "PASS"
+        }
+      ],
+      "productionDatabaseQueries": 0,
+      "productionMutations": 0,
+      "backupDownloads": 0,
+      "backupMetadata": {
+        "responseKeys": [
+          "backups",
+          "physical_backup_data",
+          "pitr_enabled",
+          "region",
+          "walg_enabled"
+        ],
+        "region": "us-east-1",
+        "walg_enabled": true,
+        "pitr_enabled": false,
+        "physical_backup_data": {},
+        "backups": [
+          {
+            "id": 2273462739,
+            "is_physical_backup": true,
+            "status": "COMPLETED",
+            "inserted_at": "2026-11-15T09:14:14.727Z"
+          },
+          {
+            "id": 2263471358,
+            "is_physical_backup": true,
+            "status": "COMPLETED",
+            "inserted_at": "2026-11-14T09:14:17.252Z"
+          },
+          {
+            "id": 2253434588,
+            "is_physical_backup": true,
+            "status": "COMPLETED",
+            "inserted_at": "2026-11-13T09:12:06.709Z"
+          },
+          {
+            "id": 2243466820,
+            "is_physical_backup": true,
+            "status": "COMPLETED",
+            "inserted_at": "2026-11-12T09:13:54.706Z"
+          },
+          {
+            "id": 2233470439,
+            "is_physical_backup": true,
+            "status": "COMPLETED",
+            "inserted_at": "2026-11-11T09:13:56.444Z"
+          },
+          {
+            "id": 2223489941,
+            "is_physical_backup": true,
+            "status": "COMPLETED",
+            "inserted_at": "2026-11-10T09:10:02.506Z"
+          },
+          {
+            "id": 2213587328,
+            "is_physical_backup": true,
+            "status": "COMPLETED",
+            "inserted_at": "2026-11-09T09:11:34.153Z"
+          }
+        ]
+      },
+      "organization": {
+        "id": "srbucltkichbsehsirun",
+        "slug": "srbucltkichbsehsirun",
+        "name": "joaomarcos-techia's Org"
+      },
+      "organizationResponseKeys": [
+        "id",
+        "name",
+        "slug"
+      ]
+    },
+    "legacyBackup": {
+      "at": "2026-11-16T07:48:29.545Z",
+      "workflow": {
+        "id": 305661908,
+        "state": "active",
+        "path": ".github/workflows/db-backup.yml",
+        "updatedAt": "2026-07-01T21:10:31.000-03:00"
+      },
+      "definition": {
+        "blobSha": "5750ffcd476cbae7163f2631455dfa7eda215bff",
+        "sourceSha256": "cede181f4afed34e090b1c127109379fa4ac88cd38a945e572fe2b3faa3c200b",
+        "productionSecretNames": [
+          "DATABASE_URL_PROD",
+          "BACKUP_PASSPHRASE"
+        ],
+        "excludedSchemas": [
+          "storage",
+          "realtime",
+          "extensions",
+          "graphql",
+          "graphql_public",
+          "vault",
+          "supabase_functions",
+          "_realtime",
+          "_analytics",
+          "pgsodium",
+          "pgsodium_masks",
+          "pgbouncer"
+        ],
+        "authExplicitlyExcluded": false,
+        "pgDump": true,
+        "encryptionAES256": true,
+        "plaintextSQLFile": false,
+        "artifactDestination": true,
+        "retentionDays": "30",
+        "schedulesUTC": [
+          "0 6 * * *"
+        ],
+        "manualDispatch": true,
+        "declaresTokenPermissions": false,
+        "databaseURLPassedInArgv": true
+      },
+      "recentRuns": [
+        {
+          "id": 43719455568,
+          "event": "schedule",
+          "branch": "main",
+          "headSha": "5620a0987ec53db7d7358728eb7d457d9d373df3",
+          "status": "completed",
+          "conclusion": "success",
+          "createdAt": "2026-11-15T13:31:40Z",
+          "updatedAt": "2026-11-15T13:32:27Z",
+          "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43719455568"
+        },
+        {
+          "id": 43597806257,
+          "event": "schedule",
+          "branch": "main",
+          "headSha": "5620a0987ec53db7d7358728eb7d457d9d373df3",
+          "status": "completed",
+          "conclusion": "failure",
+          "createdAt": "2026-11-14T13:03:14Z",
+          "updatedAt": "2026-11-14T13:03:16Z",
+          "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43597806257"
+        },
+        {
+          "id": 43438745083,
+          "event": "schedule",
+          "branch": "main",
+          "headSha": "5620a0987ec53db7d7358728eb7d457d9d373df3",
+          "status": "completed",
+          "conclusion": "success",
+          "createdAt": "2026-11-13T14:00:58Z",
+          "updatedAt": "2026-11-13T14:02:27Z",
+          "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43438745083"
+        },
+        {
+          "id": 43240228158,
+          "event": "schedule",
+          "branch": "main",
+          "headSha": "5620a0987ec53db7d7358728eb7d457d9d373df3",
+          "status": "completed",
+          "conclusion": "success",
+          "createdAt": "2026-11-12T14:43:54Z",
+          "updatedAt": "2026-11-12T14:44:54Z",
+          "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43240228158"
+        },
+        {
+          "id": 43031230265,
+          "event": "schedule",
+          "branch": "main",
+          "headSha": "5620a0987ec53db7d7358728eb7d457d9d373df3",
+          "status": "completed",
+          "conclusion": "success",
+          "createdAt": "2026-11-11T13:40:19Z",
+          "updatedAt": "2026-11-11T13:41:24Z",
+          "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43031230265"
+        },
+        {
+          "id": 42834147198,
+          "event": "schedule",
+          "branch": "main",
+          "headSha": "5620a0987ec53db7d7358728eb7d457d9d373df3",
+          "status": "completed",
+          "conclusion": "success",
+          "createdAt": "2026-11-10T14:26:45Z",
+          "updatedAt": "2026-11-10T14:27:08Z",
+          "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/42834147198"
+        },
+        {
+          "id": 42644288279,
+          "event": "schedule",
+          "branch": "main",
+          "headSha": "534995b0a41d3b856fa0310e9e4359245a44589a",
+          "status": "completed",
+          "conclusion": "success",
+          "createdAt": "2026-11-09T15:24:07Z",
+          "updatedAt": "2026-11-09T15:24:50Z",
+          "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/42644288279"
+        },
+        {
+          "id": 42482193465,
+          "event": "schedule",
+          "branch": "main",
+          "headSha": "534995b0a41d3b856fa0310e9e4359245a44589a",
+          "status": "completed",
+          "conclusion": "success",
+          "createdAt": "2026-11-08T12:51:33Z",
+          "updatedAt": "2026-11-08T12:52:37Z",
+          "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/42482193465"
+        }
+      ],
+      "latestArtifactMetadata": {
+        "id": 14163123648,
+        "name": "db-backup",
+        "bytes": 921422,
+        "expired": false,
+        "createdAt": "2026-11-15T13:32:24Z",
+        "expiresAt": "2026-12-15T13:32:23Z",
+        "run": 43719455568
+      },
+      "totalArtifactCount": 30,
+      "downloads": 0,
+      "triggered": false,
+      "disabled": false
+    },
+    "backupServiceRecoverability": "NOT PROVEN for full service; DB continuity observed by metadata; no current restore proof",
+    "firewall": {
+      "at": "2026-11-16T07:58:31.104Z",
+      "projectId": "prj_GYB0Y9e02ka9jurpJvF6m0feH3eZ",
+      "teamId": "team_ml9fFeF262JqUMwFB6Vy61Cj",
+      "firewallEnabled": true,
+      "version": 3,
+      "privateSnapshot": {
+        "cipherRoundtrip": true,
+        "sha256": "bf9c577165280de64b9388e877b18f2ea328e1a3676fef35258c607c7f1c0e09",
+        "aclPrivate": true,
+        "file": "Qoro/Operations/gate-b-waf-2f36dd1accef45f7b68e071fe8255e6b/firewall-config.dpapi",
+        "protection": "Windows DPAPI CurrentUser"
+      },
+      "rules": [
+        {
+          "index": 0,
+          "id": "rule_rate_limit_login_CSaHZ7",
+          "active": true,
+          "action": "rate_limit"
+        },
+        {
+          "index": 1,
+          "id": "rule_rate_limit_webhook_meta_NIuAge",
+          "active": true,
+          "action": "rate_limit"
+        }
+      ],
+      "activeCustomBypassCount": 0,
+      "productionWrites": 0
+    },
+    "containment": {
+      "status": "PREPARED_AND_SYNTHETICALLY_TESTED_NOT_LIVE_PASS",
+      "routes": [
+        "POST /api/signup/sessions",
+        "POST /api/signup/checkout"
+      ],
+      "priority": "first custom rule",
+      "liveWrites": 0,
+      "configurationValidatorTests": 11
+    },
+    "catalog": {
+      "observedAt": "2026-11-16T08:02:16.565Z",
+      "status": "PASS",
+      "scope": "authenticated GET only; catalog not activation readiness",
+      "storeSha256": "57c4bd55fe2644b1beee88005e1bc1af2792c91281c0f80d41c037d88dddbf3d",
+      "products": [
+        {
+          "id": "prod_SsBGWnFA5Qk1dED3DLRkzSDT",
+          "amountMinor": 19700,
+          "cycle": "MONTHLY",
+          "devMode": false,
+          "nativeTrial": false
+        },
+        {
+          "id": "prod_4sn4YU2Q3P3jbXs3a6UXMgzd",
+          "amountMinor": 39700,
+          "cycle": "MONTHLY",
+          "devMode": false,
+          "nativeTrial": false
+        },
+        {
+          "id": "prod_CXMmb0y0FJHRDFDsy0Lj4MAW",
+          "amountMinor": 54400,
+          "cycle": "MONTHLY",
+          "devMode": false,
+          "nativeTrial": false
+        },
+        {
+          "id": "prod_pNectEHBe356SAystDzmMJbD",
+          "amountMinor": 69100,
+          "cycle": "MONTHLY",
+          "devMode": false,
+          "nativeTrial": false
+        },
+        {
+          "id": "prod_YtHhRgEbMxLZasE5KsqS4s3c",
+          "amountMinor": 83800,
+          "cycle": "MONTHLY",
+          "devMode": false,
+          "nativeTrial": false
+        }
+      ],
+      "webhookReadHttp": 200,
+      "webhookCount": 0,
+      "deliveryTargets": [],
+      "providerMutations": 0,
+      "productionWrites": 0
+    },
+    "operator": {
+      "changes": "Explicit deferred restore risk and verified current managed backup review, without bypassing healthy-backup/identity/journal/TLS/authorization guards",
+      "managedBackupMaxAgeHours": 26,
+      "metadataMaxAgeMinutes": 30,
+      "realRestoreModePreserved": true,
+      "LinuxOnly": true,
+      "availableLinuxExecutorVerified": false
+    },
+    "directedTests": {
+      "unique": 131,
+      "files": 7,
+      "status": "PASS",
+      "heavyLocalProcessesStarted": 0
+    },
+    "artifact": {
+      "unchanged": true,
+      "application": "44323990b3f1fb9282418fec44a3182b02148c66",
+      "tarSHA256": "6038df0da3a6afaee68528c2f38c08743356ef6bdf6ece7ca808fd41672d0e64",
+      "SQLHashes": 160,
+      "pending": "0136–0159",
+      "excluded": [
+        "0160",
+        "0161",
+        "0162"
+      ]
+    },
+    "finalCI": {
+      "status": "PENDING_NEW_HEAD_AT_COMMIT",
+      "sourceOfFinalReadback": "PR53 / Actions exact final HEAD, recorded after commit; previous GREEN not transferred"
+    },
+    "readiness": {
+      "technical": "PASS previous application baseline; new ops CI pending",
+      "readyForB3": "PARTIAL: final CI, owners/window and verified Linux execution",
+      "closedProduction": "NOT DEPLOYED",
+      "commercial": "NOT ACTIVATED"
+    },
+    "productionMutations": 0,
+    "providerMutations": 0,
+    "otherWorktreeChanges": 0,
+    "merge": false,
+    "PR": "OPEN DRAFT",
+    "cleanup": {
+      "privateCipherSnapshotPreserved": true,
+      "emptyFailedSnapshotDirectory": "preserved after automatic policy rejection; no data or credentials",
+      "unknownProcessesKilled": false
+    }
   }
 }

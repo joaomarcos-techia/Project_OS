@@ -7,6 +7,8 @@ import {
   applyAtomicReleaseSql,
   buildAtomicReleaseSql,
   validateBackupReview,
+  validateDeferredBackupReview,
+  validateManagedBackupEvidence,
 } from '../../../../scripts/abacatepay-release-apply';
 import type { ReleasePlan } from '../../../../scripts/abacatepay-release-validation';
 const bodies = Array.from(
@@ -95,6 +97,68 @@ describe('future B3 operator, not authorization to execute', () => {
     PGSSLROOTCERT: '/synthetic/ca.pem',
     PGPASSWORD: 'never-in-argv',
   };
+  it('requires an explicit risk decision and separate current managed-backup evidence when restore is deferred', () => {
+    const deferred = {
+      decision: 'APPROVED_FOR_B3_WITH_DEFERRED_RESTORE',
+      project: review.project,
+      reviewedBy: 'synthetic-operator',
+      backupEvidenceFile: path.resolve('metadata.json'),
+      backupEvidenceSha256: 'b'.repeat(64),
+      recovery: {
+        status: 'DEFERRED_RISK_ACCEPTED_NOT_VERIFIED',
+        acceptedBy: 'synthetic-owner',
+        acceptedAt: '2026-11-15T10:00:00Z',
+        decisionReference: 'synthetic-decision-001',
+      },
+    };
+    expect(validateDeferredBackupReview(deferred, review.project, now).recovery.status).toBe(
+      'DEFERRED_RISK_ACCEPTED_NOT_VERIFIED',
+    );
+    expect(() => validateBackupReview(deferred, review.project, now)).toThrow();
+    expect(() =>
+      validateDeferredBackupReview(
+        { ...deferred, recovery: { ...deferred.recovery, status: 'PASS' } },
+        review.project,
+        now,
+      ),
+    ).toThrow();
+    expect(() => validateDeferredBackupReview(deferred, 'z'.repeat(20), now)).toThrow();
+    expect(() =>
+      validateDeferredBackupReview(
+        { ...deferred, recovery: { ...deferred.recovery, acceptedAt: '2026-11-16T10:00:00Z' } },
+        review.project,
+        now,
+      ),
+    ).toThrow();
+    const evidence = {
+      status: 'MANAGED_BACKUP_METADATA_VERIFIED',
+      source: 'AUTHENTICATED_SUPABASE_ADMIN_METADATA',
+      project: review.project,
+      observedAt: '2026-11-15T11:50:00Z',
+      latestBackupStatus: 'COMPLETED',
+      backup: {
+        id: 'synthetic-backup-1',
+        type: 'physical',
+        status: 'COMPLETED',
+        createdAt: '2026-11-14T12:00:00Z',
+      },
+      downloads: 0,
+      restoreVerified: false,
+    };
+    expect(validateManagedBackupEvidence(evidence, review.project, now).restoreVerified).toBe(
+      false,
+    );
+    for (const changed of [
+      { ...evidence, project: 'z'.repeat(20) },
+      { ...evidence, observedAt: '2026-11-15T11:00:00Z' },
+      { ...evidence, observedAt: '2026-11-15T13:00:00Z' },
+      { ...evidence, latestBackupStatus: 'FAILED' },
+      { ...evidence, backup: { ...evidence.backup, status: 'FAILED' } },
+      { ...evidence, backup: { ...evidence.backup, createdAt: '2026-11-14T09:00:00Z' } },
+      { ...evidence, restoreVerified: true },
+    ])
+      expect(() => validateManagedBackupEvidence(changed, review.project, now)).toThrow();
+  });
   it('requires zero exit and the final commit acknowledgement, without logging SQL or credentials', () => {
     mocks.spawnSync.mockReturnValue({
       status: 0,

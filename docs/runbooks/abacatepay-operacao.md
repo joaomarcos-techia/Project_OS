@@ -1,5 +1,11 @@
 # Operação e recuperação AbacatePay
 
+## Estado operacional prevalente — 16/11/2026, reta final
+
+Catálogo live reconferido08:02:16UTC por GET:5produtos,R$197/397/544/691/838,MONTHLY,devModefalse,semtrialnativo;webhooksHTTP200/0. Isso não habilita consumidor nem comprova processamento. GateC continua sem ativação e exige GO específico. Preservar matriz existente de eventos/inbox/idempotência/leases/scanner/outbox/alertas e12provas; nenhum novo pagamento/cancelamento/reembolso real.
+
+R1–R4PARTIAL,aceite residual limitado ao eventual piloto assistido1clínica;renovação13/12futura,expansão1→3→10 nãoautomática. B1-BDEFERRED/RISKACCEPTED/NOTVERIFIED não será reaberto neste ciclo. Responsáveis/janela e executorB3 ainda devem ser confirmados; Production semmutações. Procedimento único de preparação/autorizaçõesB2-B/B3 no [GateB vigente](../decoupling/asaas-to-abacatepay/GATE-B-DEPLOY-CONTROLADO.md#checkpoint-prevalente--reta-final-e-contenção-16112026); checkpoints anteriores divergentes são históricos.
+
 ## Checkpoint operacional prevalente — 16/11/2026
 
 Ver [execução e gate de cancelamento](../decoupling/asaas-to-abacatepay/GATE-B-DEPLOY-CONTROLADO.md#checkpoint-prevalente--autorização-e-execução-de-16112026). B2-A passou em leitura de catálogos/histórico Production, com TLS verificado; não houve DDL ou ativação. R1–R4 permanecem PARTIAL com aceite residual limitado ao futuro piloto assistido de uma clínica, sem autorizar seleção/contratação. B1-B real continua bloqueado por host/cofre/roles; B2-B/B3 e consumidores live não executados.

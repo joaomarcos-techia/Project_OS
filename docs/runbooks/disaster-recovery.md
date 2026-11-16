@@ -1,5 +1,15 @@
 # Recuperação de banco — Qoro
 
+## Decisão vigente — B1-B adiado com risco aceito, 16/11/2026
+
+Classificação obrigatória: **DEFERRED / RISK ACCEPTED / NOT VERIFIED**. Não reabrir pedido de AWS/Linux/cofre para B1-B; não processar dados reais nem executar restore. O aceite não autoriza desativar a rotina atual, perder históricos ou ocultar falha atual de backup.
+
+Revisão administrativa07:48UTC:7físicosCOMPLETED09–15/11,último2273462739 em15/11 09:14:14.727UTC;PITRoff,plano/retenção contratual não retornados. db-backup.yml ativo,agenda06UTC,último run43719455568 SUCCESS/artifact15/11 13:32:24UTC;30artifacts/retencão30dias,sete sucessos/uma falha entre8runs. Somente metadados: nenhum conteúdo/log/artifact aberto ou backup disparado. Agenda não garante horário efetivo nem RPO; houve atraso/falha de scheduler já documentados.
+
+**BACKUP OPERACIONAL ATUAL: NÃO COMPROVADO para recuperação integral.** Continuidade do banco por metadados confirmada, com risco residual; SQL inclui public/auth, não bináriosStorage nem configAuthgerenciada. A prova sintética e a presença de backups não comprovam recuperação real/RTO. Substituto cifrado/alerta/retencão preparado, não ativado. Menor mitigação disponível agora: preservar cobertura existente, conferir status/freshness antes de DDL e interromper em falha atual; Storage/Auth exigem continuidade operacional própria, não coberta por este aceite de adiamento.
+
+A proposta B3 pode usar revisão explícita de metadata gerenciada e do aceite, sem alegar restore/checksum de conteúdo. Exige observação≤30min,último físicoCOMPLETED≤26h,margem operacional nãoRPOcontratado,arquivo privado/hash e GO B3 separado. A via de backupcifrado/restoreestrito continua preservada. Procedimento de implantação/rollback somente no [checklist único de Gate B](../decoupling/asaas-to-abacatepay/GATE-B-DEPLOY-CONTROLADO.md#checkpoint-prevalente--reta-final-e-contenção-16112026).
+
 ## Continuidade prevalente — 16/11/2026
 
 A anotação administrativa do check132455944005 esclareceu a falha43597806257: o GitHub não iniciou o job por pagamento recente da conta ou limite de gastos. Não distingue qual das duas causas; nenhum step de dump executou. Não foram baixados logs/artifacts reais. O workflow antigo continua ativo e inalterado: a nova orientação não permite removê-lo antes de comprovar/aprovar a continuidade substituta.

@@ -1,5 +1,85 @@
 # Gate B — proposta de deploy técnico com aquisição fechada
 
+## Checkpoint prevalente — reta final e contenção, 16/11/2026
+
+**B1-B REAL — DEFERRED / RISK ACCEPTED / NOT VERIFIED.** O fundador adiou expressamente a prova real. Não solicitar AWS/Linux/cofre para B1-B, não iniciar Docker, restaurar/copiar dados reais ou repetir ensaios aprovados. Esse aceite substitui a exigência de restore real como pré-condição desta proposta B3, mas não autoriza B3, perda de backups ou ignorar falhas atuais. Os checkpoints anteriores permanecem históricos quando divergirem deste.
+
+Baseline de entrada: `2d72adef2f1420ad433b55e2b790ebfa3380da86`, CI [43806706110](https://github.com/joaomarcos-techia/Project_OS/actions/runs/43806706110) GREEN, 7.315 testes/646 arquivos/27 E2E/zero SKIP. Nesta rodada mudou somente tooling/testes/documentação; **a CI do novo HEAD deve ser lida no PR #53, sem transferir o GREEN anterior**. Aplicação revisada `44323990b3f1fb9282418fec44a3182b02148c66`, TAR **6038df0da3a6afaee68528c2f38c08743356ef6bdf6ece7ca808fd41672d0e64**, 2.787 arquivos/160 SQL, build exato anteriormente PASS e preservado. SQL/ref94f6da4a e pacote0136–0159 intactos;0160/0161/0162 e código funcional TISS fora. Nenhuma nova revisão financeira ou TAR foi criada.
+
+### Evidências novas, sem mutação live
+
+- **B2-A PASS ATUAL** em16/11 07:48:23–07:48:56UTC: projeto `shlcbxawrxuaebazuiue`, endpoint direto, CA oficial e TLS verify-full, READ ONLY;136 entradas por ordem/hash,24 pendentes, zero waits/transações longas, RLS crítico íntegro. Transporte idêntico ao HEAD de entrada validado.
+- Complemento07:52:49UTC:0051/0093/0124 compatíveis, nenhum índice inválido/FK não validada. Apenas hashes financeiros de subscriptions/plans/prices/invoices e contagens agregadas; nenhuma linha financeira/clínica exportada. **Zero IDs de checkout de cadastro armazenados, zero sem assinatura e zero creation_unknown**. Isso não comprova invalidação de link externo desconhecido; qualquer novo link/estado ambíguo no preflight da janela exige parada.
+- Inventário08:01:21UTC:139 relações,269 funções,83 triggers,146 policies,489 índices,635 constraints e1.844 dependências. Nove seções com hashes, índices/constraints validados, zero waits/transações longas. Inventário não é equivalência completa de schema; hipóteses históricas foram conferidas separadamente. Repetir o preflight imediatamente antes de DDL, pois outro agente pode alterar o estado.
+- Backups gerenciados07:48:23UTC: **sete físicos COMPLETED,09–15/11**, último ID2273462739,15/11 09:14:14.727UTC; PITRoff. Plano/retenção contratual não retornados pela API; sete visíveis não estabelecem retenção. Sem download/restore.
+- Rotina legada07:48:29UTC: workflow305661908 ativo, secrets por nome presentes, agenda06:00UTC, último sucesso43719455568 em15/11/artifact13:32:24UTC;30 artifacts com retenção30dias. Sete sucessos/uma falha entre oito runs; falha histórica de agendamento por cobrança/limite GitHub, não dump comprovadamente falho. Não disparar, baixar artifacts ou desabilitar. Public/auth cobertos pelo desenho lógico, Storage/binários e configurações gerenciadas excluídos.
+- **BACKUP OPERACIONAL ATUAL: NÃO COMPROVADO para recuperação integral do serviço.** Continuidade do banco confirmada por metadados, com risco residual de recuperação aceito; conteúdo restaurável/retencão contratual/RTO integral e cobertura recorrente de Storage/Auth continuam sem prova atual. Substituto cifrado/health/alerta permanece preparado, não instalado; workflow antigo preservado até transição aprovada. Não cobrar infraestrutura para B1-B nesta etapa.
+- WAF07:58:31UTC: ativo, versão3, duas regras rate_limit, **zero bypass custom ativo e nenhuma regra de contenção**. Snapshot integral somente de configuração guardado com DPAPI CurrentUser e ACL privada em `%LOCALAPPDATA%\Qoro\Operations\gate-b-waf-2f36dd1accef45f7b68e071fe8255e6b\firewall-config.dpapi`; roundtrip/hash PASS. SHA256 `bf9c577165280de64b9388e877b18f2ea328e1a3676fef35258c607c7f1c0e09`. Não é backup clínico/cofre independente; depende do perfil Windows e deve ser renovado na janela. Pasta vazia da tentativa anterior preservada após remoção bloqueada pela política, sem arquivo de configuração em claro.
+- Catálogo live08:02:16UTC, GET somente: R$197/397/544/691/838,MONTHLY,devModefalse,sem trial nativo; loja esperada. Listagem de webhooks HTTP200/zero registros. Nada cadastrado ou ativado. A primeira tentativa não alcançou a API; a leitura passou usando a CA do sistema, sem desativar TLS.
+
+### B2-B preparado e testado — não é PASS LIVE
+
+`scripts/gate-b-containment.ts` gera a proposta PATCH `rules.insert`, conforme SDK oficial Vercel source35df178c629776dfd204660b562c983c6969ccc9. Corpo contém duas conditionGroup OR; cada uma tem três condições AND: **environment eq production**, **method eq POST**, **route eq /api/signup/sessions** ou **route eq /api/signup/checkout**. Action mitigate deny; sem bloqueio persistente por IP. Não usar header x-matched-path/Origin/Host fornecido pelo cliente como substituto de route/environment. Fonte oficial: [API](https://vercel.com/docs/rest-api/security/update-firewall-configuration), [parâmetros](https://vercel.com/docs/vercel-firewall/vercel-waf/rule-configuration), [ordem e ações](https://vercel.com/docs/vercel-firewall/vercel-waf/custom-rules).
+
+**Alvo:** projeto `prj_GYB0Y9e02ka9jurpJvF6m0feH3eZ`, time `team_ml9fFeF262JqUMwFB6Vy61Cj`, Production. Após GO B2-B, inserir regra e colocá-la primeiro na ordem; preservar as duas regras existentes e os demais controles. Registrar ID atribuído e versão. Se não houver permissão/capacidade sem custo adicional ou houver bypass anterior, parar. Nenhuma mutação WAF/flag foi feita nesta rodada.
+
+Flags do **novo deployment fechado**, não de um deployment antigo: SIGNUP_ENABLED=false; SAAS_SIGNUP_PROVIDER=asaas; ABACATEPAY_NEW_CHECKOUTS_ENABLED=false; ABACATEPAY_CHECKOUT_CLINIC_IDS vazio; ABACATEPAY_ENVIRONMENT ausente. Não remover segredos/flags do Asaas/pagamentos/cron/login. Alterar project settings não muda o deployment já construído; a barreira WAF deve conter a transição antes de B3. O verificador exige leitura do deployment exato, regra na primeira posição e condições/flags exatas; retorna CONFIGURATION_MATCHES_CLOSED_GATE_B_REQUIRES_LIVE_PROBES, **nunca PASS LIVE por configuração apenas**.
+
+| Superfície | Prova reutilizada/nova e comportamento fechado | Verificação na janela |
+| --- | --- | --- |
+| POST signup/sessions | Flag fecha antes do serviço/cookie/escrita, inclusive corpo inválido | Deny com ID/versão/evento WAF, rota resolvida e request ID |
+| POST signup/checkout | Flag fecha sessões antigas e ambos os ramos antes de autenticar/provisionar/criar obrigação | Deny WAF e ausência de criação; status pago permanece separado |
+| POST billing/checkout | Guard real de runtime/coorte recusa inclusive chamada autenticada/repetida/tenant forjado, sem banco/rede | Runtime desarmado no deployment; não usar sessão pronta para contratar como probe |
+| Recontratação/plano/chamada interna | Guards reais recusam antes de gateway/estado persistido | Sem fallback de origem; nenhuma nova obrigação |
+| Server Actions/callbacks | Aquisição de cadastro entra nas APIs acima; Actions de Asaas legado mantêm obrigações existentes; callbacks/status conciliam sem iniciar nova contratação | Confirmar build/rotas e não bloquear callbacks/status por WAF genérico |
+| Links antigos | Inventário local atual0IDs/0unknown; proteção API não invalida link hospedado externo | Novo ID/unknown: parar e tratar especificamente, sem cancelar obrigação real automaticamente |
+| Consumidores AbacatePay | Runtime ausente mantém quatro entradas cron e recuperação inicial inertes, sem banco/rede | Não confundir checkout kill switch com runtime guard |
+| Webhook AbacatePay |503 antes de inbox com runtime desarmado; catálogo live sem registro | Não registrar webhook nem ativar consumidor no Gate B |
+| Asaas legado/pacientes |33 testes do webhook Asaas passam com SIGNUPfalse/runtime AbacatePay off; cancelamento/paid period/RLS já comprovados | GET/login/status/clínico preservados; sem cancelamento real de teste |
+
+**131 testes dirigidos únicos/7 arquivos PASS**, incluindo11 da nova conferência WAF e a revisão do aceite/backup gerenciado. Fixtures testam o contrato de configuração e os handlers reais com dependências sintéticas; não executam o motor WAF Vercel. Testes de normalização/query/barra final/headers Next-Action/x-matched-path, GET/HEAD e preservação de webhooks/login exigem observação live após o GO. Só HTTP403 não prova contenção: registrar evento com regra/rota/deployment; divergência bloqueia B3.
+
+### Checklist operacional único — B2-B/B3 e pontos de parada
+
+Este é o checklist vigente. As tabelas de execução anteriores são históricas; não executar o TAR3902f200 como candidato corrigido. **B2-B e B3 exigem GO explícitos e separados no mesmo pedido consolidado. Nenhum GO foi dado neste ciclo.**
+
+| Ordem | Ação / evidência exigida | Parada / recuperação |
+| --- | --- | --- |
+| 1 Alvo | qoro-prod/refshlcbxawrxuaebazuiue; projeto/time Vercel acima | Identidade diferente: não conectar/aplicar |
+| 2 Responsáveis | Executor técnico desta sessão; operacional/incidentes/rollback e disponibilidade a confirmar pelo fundador | Não inventar responsáveis ou presença |
+| 3 Janela | Proposta até60min após GO, com início/fuso registrados; não há reserva de horário confirmada | Tempo excedido: preservar contenção/obrigações e encerrar sem próximo gate |
+| 4 OPS_ROOT | HEAD final verde do PR53, SHA e CI exatos no readback do PR | Commit posterior: checks próprios antes da janela |
+| 5 RELEASE_ROOT | Aplicação44323990…, TAR6038df0d…/234700800bytes/2787files; SQLref94f6da4a,160hashes,manifesto;0136–0159 somente | Hash/manifesto diferente: parar, não regerar/mesclar TISS/UI |
+| 6 Backup ativo | Nova leitura administrativa, último físico COMPLETED, sem falha atual ocultada; workflow legado ativo/caracterizado | Backup ausente/stale/falha atual: parar; aceite B1-B não dispensa continuidade |
+| 7 Recuperação | Registro DEFERRED_RISK_ACCEPTED_NOT_VERIFIED com autor/data/referência; sem simular checksum/restore | Não pedir restore/host B1-B nem registrar PASS |
+| 8 Executor B3 | `abacatepay-release-apply.ts` permanece Linux-only; verificar ambiente nativo/psql/CA/credenciais de processo, sem backup clínico/Actions | Nesta máquina só há docker-desktop parado. Não iniciar Docker ou alegar executor Linux disponível. Ambiente de execução B3 ainda NÃO COMPROVADO |
+| 9 B2-A fresco | Operador validado READ ONLY, prefixo136/24hashes/schema/RLS/locks/timeouts; fingerprints financeiros e inventário | Drift/concorrrência: parar, nunca editar journal |
+| 10 Snapshot B2-B | Captura privada integral WAF e flags não secretas, IDs de deployment/versão/hash; renovada imediatamente antes da alteração | Alteração concorrente: comparar/preservar; snapshot histórico não é rollback atual |
+| 11 GO B2-B | Aplicar só regra exata/ordem/flags aprovadas; manter status/webhooks/login/Asaas | Sem GO, sem escrita; negar caminhos excessivos exige reversão só da própria mudança |
+| 12 B2-B live | Probes sintéticos não monetários; evento WAF com ID, rota e versão; controles de normalização/bypass; serviços legítimos intactos | Sem correlação inequívoca: B3 não inicia |
+| 13 GO B3 | Aprovação específica do pacote/SQL/deploy fechado + revisão do backup/risco | Aceite B1-B ou GO B2-B não libera SQL/deploy |
+| 14 SQL | Mesmo psql/TLSverify-full; lock4242, transaçãoSERIALIZABLE, prefixo/hashes;24SQL+journal;60sstatement/2slock/15minprocesso | Erro/timeout/commit ambíguo: readback; sem retry cego/DOWN |
+| 15 Pós-voo | Journal160/ordem/hash, policies/funções/triggers/índices/FKs; fingerprints legados preservados e schema futuro correto | Inconsistência: preservar evidência; sem apagar histórico/recebíveis |
+| 16 Deploy | Publicar/promover somente o artefato aprovado com flags fechadas e novo deployment; sem merge automático | Rollback de código usa deployment anterior identificado, mantendo WAF/obrigações e avaliando schema compatível |
+| 17 Smoke | Login/MFA/áreas clínicas/assinatura/cancelamento disponível sem cancelar; cadastro/checkout fechados; runtime/consumers off | Indisponibilidade clínica/financeira: parar e reverter código/configuração autorizada |
+| 18 Monitoramento | Sentry/latência5xx/inbox/outbox/leases; Asaas e pagamentos de pacientes continuam operacionais | Nunca desligar cron compartilhado ou obrigações antigas por fechar aquisição |
+| 19 Evidências | SHA/TAR/journal/snapshots/IDs/tempos/probes/resultado; sem dados sensíveis | Evidência ausente impede alegar PASS |
+| 20 Encerramento | Deployment identificado, aquisição fechada comprovada, nenhum consumidor live novo; relatar C/D ainda não executados | Sem abertura automática, sem piloto/expansão automática |
+
+### Operador B3 e revisão explícita do risco
+
+O modo anterior com cópia cifrada/restauração continua disponível e estrito. O novo modo de **preparação** aceita revisão `APPROVED_FOR_B3_WITH_DEFERRED_RESTORE`: projeto exato; reviewer; referência de aceite/autor/data; arquivo privado de metadados administrativos e seu SHA256. A evidência deve declarar MANAGED_BACKUP_METADATA_VERIFIED/AUTHENTICATED_SUPABASE_ADMIN_METADATA, observedAt, latestBackupStatus COMPLETED, backup.id/type physical/status COMPLETED/createdAt, downloads0 e restoreVerifiedfalse.
+
+Exige consulta de metadados com no máximo30min e último backup diário com no máximo26h (margem operacional26h, não RPO/SLA contratado). Backup futuro, falho, metadata stale, projeto/hash divergente ou um restore falsamente alegado são recusados. Audit registra backupId, checksum real nulo, recuperação DEFERRED, autor/data/referência, além do GO B3 próprio. **Não há flag genérica que simplesmente pule backup; não foi executada aplicação real.** A validação de prefixo/hash/TLS/lock/transação/commit/readback foi preservada e as nove provas PostgreSQL continuam no gate CI. A CI do novo SHA é obrigatória.
+
+### Gate C / piloto e decisão remanescente
+
+Catálogo live atual PASS por GET; webhook live **não registrado**, runtime/consumers **não ativados**. Gate C exige GO próprio para endpoint, autenticidade/inbox/dedup, consumidores/cron/scanner/leases/alertas e reconciliação. HTTP200 não equivale a invoice/entitlement aplicados. Usar a matriz de12 provas do [runbook operacional](../../runbooks/abacatepay-operacao.md), sem criar outra documentação concorrente.
+
+R1–R4 continuam PARTIAL em evidência, aceite residual limitado ao eventual piloto assistido1clínica; renovação13/12/2026 futura. D exige clínica/plano/preço/consentimento/responsáveis e GO financeiro específicos; expansão1→3→10 exige decisão por etapa. Checkout/cancelamento/entitlements/renovação sintética anteriores preservados; nenhum novo pagamento ou cancelamento externo de teste.
+
+**Quatro estados:** candidato técnico PASS na baseline; novo HEAD aguarda seus checks. Pronto para B3 PARTIAL até CI final, confirmação de responsáveis/janela e executor Linux verificável (não falta de restore B1-B). Production com aquisição fechada NÃO IMPLANTADA. AbacatePay comercialmente ativa NÃO. O formulário consolidado B2-B/B3 só pode ser submetido como executável após esses itens; GO de uma etapa não libera a outra. Nenhuma AWS/VM/cofre B1-B será solicitada neste ciclo.
+
 ## Checkpoint prevalente — autorização e execução de 16/11/2026
 
 O novo prompt mestre autoriza desenvolvimento/ensaios sintéticos e **B2-A somente leitura**. R1–R4 continuam PARTIAL em evidência, agora com aceite residual **limitado ao eventual piloto assistido de UMA clínica**. Não autoriza selecionar clínica, cobrar, abrir aquisição ou saltar gates. Renovação natural prevista para13/12/2026. Os checkpoints anteriores são históricos quando divergirem desta autorização.

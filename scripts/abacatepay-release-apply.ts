@@ -21,6 +21,9 @@ import {
 const FINANCIAL_REF = '94f6da4aeb32b1ae7da856dc9afa105120ce6dd9';
 const MIGRATION_LOCK_KEY = 4242; // Same key as the legacy Production operator.
 const MAX_BACKUP_AGE_MS = 4 * 60 * 60 * 1000;
+// Daily managed backups: bounded operational tolerance, not a guaranteed RPO.
+const MAX_MANAGED_BACKUP_AGE_MS = 26 * 60 * 60 * 1000;
+const MAX_BACKUP_METADATA_AGE_MS = 30 * 60 * 1000;
 const APPLY_PROCESS_TIMEOUT_MS = 15 * 60 * 1000;
 const COMMIT_MARKER = 'QORO_GATE_B_APPLIED_160';
 const checksum = z.string().regex(/^[a-f0-9]{64}$/u);
@@ -33,6 +36,64 @@ const reviewedBackup = z.object({
   restoreEvidenceFile: z.string().min(1),
   reviewedBy: z.string().min(1).max(120),
 });
+const deferredBackupReview = z
+  .object({
+    decision: z.literal('APPROVED_FOR_B3_WITH_DEFERRED_RESTORE'),
+    project: z.string().regex(/^[a-z]{20}$/u),
+    reviewedBy: z.string().min(1).max(120),
+    backupEvidenceFile: z.string().min(1),
+    backupEvidenceSha256: checksum,
+    recovery: z
+      .object({
+        status: z.literal('DEFERRED_RISK_ACCEPTED_NOT_VERIFIED'),
+        acceptedBy: z.string().min(1).max(120),
+        acceptedAt: z.iso.datetime({ offset: true }),
+        decisionReference: z.string().min(8).max(500),
+      })
+      .strict(),
+  })
+  .strict();
+
+export function validateDeferredBackupReview(input: unknown, project: string, now: number) {
+  const review = deferredBackupReview.parse(input);
+  assert.equal(review.project, project, 'Backup project differs');
+  assert.ok(Number.isFinite(now) && Date.parse(review.recovery.acceptedAt) <= now);
+  assert.ok(path.isAbsolute(review.backupEvidenceFile));
+  return review;
+}
+
+export function validateManagedBackupEvidence(input: unknown, project: string, now: number) {
+  const proof = z
+    .object({
+      status: z.literal('MANAGED_BACKUP_METADATA_VERIFIED'),
+      source: z.literal('AUTHENTICATED_SUPABASE_ADMIN_METADATA'),
+      project: z.string(),
+      observedAt: z.iso.datetime({ offset: true }),
+      latestBackupStatus: z.literal('COMPLETED'),
+      backup: z
+        .object({
+          id: z.string().min(1),
+          type: z.literal('physical'),
+          status: z.literal('COMPLETED'),
+          createdAt: z.iso.datetime({ offset: true }),
+        })
+        .strict(),
+      downloads: z.literal(0),
+      restoreVerified: z.literal(false),
+    })
+    .strict()
+    .parse(input);
+  assert.equal(proof.project, project, 'Backup evidence project differs');
+  for (const [date, maxAge] of [
+    [proof.observedAt, MAX_BACKUP_METADATA_AGE_MS],
+    [proof.backup.createdAt, MAX_MANAGED_BACKUP_AGE_MS],
+  ] as const) {
+    const age = now - Date.parse(date);
+    assert.ok(Number.isFinite(age) && age >= 0 && age <= maxAge, 'Current healthy backup required');
+  }
+  assert.ok(Date.parse(proof.backup.createdAt) <= Date.parse(proof.observedAt));
+  return proof;
+}
 
 export function validateBackupReview(input: unknown, project: string, now: number) {
   const proof = reviewedBackup.parse(input);
@@ -159,33 +220,70 @@ async function main(parent: NodeJS.ProcessEnv) {
     path.join(path.resolve(z.string().min(1).parse(values.release)), 'drizzle/migrations'),
     FINANCIAL_REF,
   );
-  const proof = validateBackupReview(
-    JSON.parse(await readFile(z.string().min(1).parse(values['backup-review']), 'utf8')),
-    project,
-    Date.now(),
+  const reviewInput: unknown = JSON.parse(
+    await readFile(z.string().min(1).parse(values['backup-review']), 'utf8'),
   );
-  const restore = z
-    .object({
-      status: z.literal('LOCAL_RESTORE_COMPLETE_REQUIRES_MANIFEST_REVIEW'),
-      backupSha256: checksum,
-      sourceRef: z.literal(FINANCIAL_REF),
-      exitCodes: z.object({ gpg: z.literal(0), psql: z.literal(0) }),
-      history: z.object({ applied: z.literal(136), pending: z.array(z.unknown()).length(24) }),
-      integrity: z.object({ invalidIndexes: z.literal(0), unvalidatedConstraints: z.literal(0) }),
-    })
-    .parse(JSON.parse(await readFile(proof.restoreEvidenceFile, 'utf8')));
-  assert.equal(restore.backupSha256, proof.backupSha256);
-  const file = await lstat(proof.backupFile);
-  assert.ok(
-    file.isFile() && !file.isSymbolicLink() && (file.mode & 0o077) === 0,
-    'Private encrypted copy required',
-  );
-  const digest = createHash('sha256');
-  for await (const bytes of createReadStream(proof.backupFile)) {
-    assert.ok(Buffer.isBuffer(bytes));
-    digest.update(bytes);
+  const decision = z.object({ decision: z.string() }).parse(reviewInput).decision;
+  let backupIdentity: {
+    backupSha256: string | null;
+    backupId: string | null;
+    backupReviewPerformedBy: string;
+    recoveryStatus: string;
+    riskDecisionReference?: string;
+    riskAcceptedBy?: string;
+    riskAcceptedAt?: string;
+  };
+  if (decision === 'APPROVED_FOR_B3_WITH_DEFERRED_RESTORE') {
+    const review = validateDeferredBackupReview(reviewInput, project, Date.now());
+    const file = await lstat(review.backupEvidenceFile);
+    assert.ok(file.isFile() && !file.isSymbolicLink() && (file.mode & 0o077) === 0);
+    const metadata = await readFile(review.backupEvidenceFile);
+    assert.equal(createHash('sha256').update(metadata).digest('hex'), review.backupEvidenceSha256);
+    const managed = validateManagedBackupEvidence(
+      JSON.parse(metadata.toString('utf8')),
+      project,
+      Date.now(),
+    );
+    backupIdentity = {
+      backupSha256: null, // Metadata is not a downloaded or verified backup checksum.
+      backupId: managed.backup.id,
+      backupReviewPerformedBy: review.reviewedBy,
+      recoveryStatus: review.recovery.status,
+      riskDecisionReference: review.recovery.decisionReference,
+      riskAcceptedBy: review.recovery.acceptedBy,
+      riskAcceptedAt: review.recovery.acceptedAt,
+    };
+  } else {
+    const proof = validateBackupReview(reviewInput, project, Date.now());
+    const restore = z
+      .object({
+        status: z.literal('LOCAL_RESTORE_COMPLETE_REQUIRES_MANIFEST_REVIEW'),
+        backupSha256: checksum,
+        sourceRef: z.literal(FINANCIAL_REF),
+        exitCodes: z.object({ gpg: z.literal(0), psql: z.literal(0) }),
+        history: z.object({ applied: z.literal(136), pending: z.array(z.unknown()).length(24) }),
+        integrity: z.object({ invalidIndexes: z.literal(0), unvalidatedConstraints: z.literal(0) }),
+      })
+      .parse(JSON.parse(await readFile(proof.restoreEvidenceFile, 'utf8')));
+    assert.equal(restore.backupSha256, proof.backupSha256);
+    const file = await lstat(proof.backupFile);
+    assert.ok(
+      file.isFile() && !file.isSymbolicLink() && (file.mode & 0o077) === 0,
+      'Private encrypted copy required',
+    );
+    const digest = createHash('sha256');
+    for await (const bytes of createReadStream(proof.backupFile)) {
+      assert.ok(Buffer.isBuffer(bytes));
+      digest.update(bytes);
+    }
+    assert.equal(digest.digest('hex'), proof.backupSha256);
+    backupIdentity = {
+      backupSha256: proof.backupSha256,
+      backupId: null,
+      backupReviewPerformedBy: proof.reviewedBy,
+      recoveryStatus: 'RESTORE_EVIDENCE_REVIEWED',
+    };
   }
-  assert.equal(digest.digest('hex'), proof.backupSha256);
   const evidencePath = path.resolve(z.string().min(1).parse(values.evidence));
   const evidence = await open(evidencePath, 'wx', 0o600); // Existing/partial attempts block replay.
   const startedAt = new Date().toISOString();
@@ -223,8 +321,7 @@ async function main(parent: NodeJS.ProcessEnv) {
       financial: FINANCIAL_REF,
       startedAt,
       finishedAt: new Date().toISOString(),
-      backupSha256: proof.backupSha256,
-      backupReviewPerformedBy: proof.reviewedBy,
+      ...backupIdentity,
       applyAttempted: attempted,
       commitAcknowledged: committed,
       productionWritesPossible: attempted,
