@@ -1,6 +1,6 @@
 /**
  * Trilha da plataforma append-only: PROVA da candidata
- * docs/security/migrations/0163_super_admin_actions_append_only.candidate.sql (fora do journal),
+ * docs/security/migrations/0165_super_admin_actions_append_only.candidate.sql (fora do journal),
  * em Postgres DESCARTÁVEL com dados sintéticos. Nunca no DEV compartilhado nem em produção.
  *
  * Simula o que o Supabase tem e as migrations não criam:
@@ -20,8 +20,8 @@
  *      gatilho em ENABLE comum, o modo replica apagaria (por isso ALWAYS);
  *   6. service_role, authenticated com claim de super_admin, qoro_runtime e anon: 42501 em tudo;
  *   7. as linhas ficam idênticas depois de todas as tentativas (digest);
- *   8. o reset de pré-lançamento (scripts/reset-prod-data.ts) aborta inteiro com a trilha na lista
- *      e passa sem ela;
+ *   8. o reset de pré-lançamento (scripts/reset-prod-data.ts) passa com a lista atual, que preserva
+ *      a trilha; com a lista antiga (trilha incluída), abortaria inteiro;
  *   9. a reversão do cabeçalho volta ao estado das migrations 0010/0028 e a candidata reaplica.
  *
  *   SECURITY_PG_BIN=... npx tsx scripts/security/super-admin-actions-append-only-db.ts [porta]
@@ -35,7 +35,7 @@ import { readFile } from 'node:fs/promises';
 
 import { startScratchSchema } from './scratch-schema';
 
-const CANDIDATE = 'docs/security/migrations/0163_super_admin_actions_append_only.candidate.sql';
+const CANDIDATE = 'docs/security/migrations/0165_super_admin_actions_append_only.candidate.sql';
 const PORT = Number(process.argv[2] ?? 55561);
 const TABLE = 'public.super_admin_actions';
 const FN = 'public.super_admin_actions_append_only()';
@@ -44,13 +44,13 @@ const API_ROLES = ['anon', 'authenticated', 'service_role', 'qoro_runtime'] as c
 const PRIVILEGES = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'];
 const REVERSAL = /^--\s*reversão:\s*/u;
 
-// Cópia da lista de scripts/reset-prod-data.ts (TRANSIENT_TABLES), na mesma ordem. O harness não
-// importa de scripts/: o security:build só copia scripts/security e src.
+// Cópia de TRANSIENT_TABLES de scripts/reset-prod-data.ts, na mesma ordem. O harness não importa
+// de scripts/: o security:build só copia scripts/security e src. A trilha saiu da lista no mesmo
+// PR da candidata (ADR-075); a lista antiga só existe aqui, para provar por quê.
 const RESET_TABLES = [
   'audit_events',
   'outbox',
   'idempotency_keys',
-  'super_admin_actions',
   'impersonation_sessions',
   'cron_heartbeats',
   'system_metrics_daily',
@@ -402,7 +402,12 @@ try {
     ]);
     if (row?.ok) existing.push(table);
   }
-  assert.ok(existing.includes('super_admin_actions'));
+  assert.ok(!existing.includes('super_admin_actions'), 'a lista atual preserva a trilha');
+  // A lista de antes do ADR-075: a trilha logo depois de idempotency_keys.
+  const listBefore075 = existing.flatMap((table) =>
+    table === 'idempotency_keys' ? [table, 'super_admin_actions'] : [table],
+  );
+  assert.ok(listBefore075.includes('super_admin_actions'));
   if (existing.length !== RESET_TABLES.length) {
     console.log(
       `  (reset: ${RESET_TABLES.length - existing.length} tabela(s) da lista não existem nesta branch)`,
@@ -421,14 +426,11 @@ try {
     }
     return 'erro:sem-rollback';
   };
-  assert.equal(await resetLike(existing), 'gatilho');
-  assert.equal(
-    await resetLike(existing.filter((table) => table !== 'super_admin_actions')),
-    'aceitou:0',
-  );
+  assert.equal(await resetLike(existing), 'aceitou:0');
+  assert.equal(await resetLike(listBefore075), 'gatilho');
   assert.deepEqual(await digest(), before);
   pass(
-    'reset:prod com a trilha na lista aborta inteiro (nada apagado); sem ela na lista, passa — a numeração tira a tabela de TRANSIENT_TABLES',
+    'reset:prod com a lista atual passa e preserva a trilha; com a lista antiga (trilha incluída) abortaria inteiro, sem apagar nada',
   );
 
   // ── 9. Reversão do cabeçalho e reaplicação ──

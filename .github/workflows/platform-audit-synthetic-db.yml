@@ -1,6 +1,6 @@
 name: Trilha da plataforma — prova sintética de banco
 
-# Prova da candidata docs/security/migrations/0163_super_admin_actions_append_only.candidate.sql
+# Prova da candidata docs/security/migrations/0165_super_admin_actions_append_only.candidate.sql
 # (super_admin_actions append-only) em PostgreSQL DESCARTÁVEL criado dentro do próprio runner
 # (initdb no diretório temporário; some com a máquina). Existe porque o notebook de
 # desenvolvimento não roda Postgres (decisão do fundador de 15/11/2026). Mesmo modelo de
@@ -54,7 +54,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # tsx direto (não `pnpm <script>`): a porta vai no argv, sem variável de ambiente nova.
-      - name: Candidata 0163 — trilha append-only (10 provas)
+      - name: Candidata 0165 — trilha append-only (10 provas)
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" \
             ./node_modules/.bin/tsx scripts/security/super-admin-actions-append-only-db.ts 55561

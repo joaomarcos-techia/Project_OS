@@ -123,12 +123,12 @@ describe('scanSql — TRUNCATE como evento de gatilho', () => {
     const raw = readFileSync(
       resolve(
         process.cwd(),
-        'docs/security/migrations/0163_super_admin_actions_append_only.candidate.sql',
+        'docs/security/migrations/0165_super_admin_actions_append_only.candidate.sql',
       ),
       'utf8',
     );
     expect(raw).not.toMatch(/migration:destructive-approved/i);
-    expect(scanSql('0163_super_admin_actions_append_only.candidate.sql', raw)).toEqual([]);
+    expect(scanSql('0165_super_admin_actions_append_only.candidate.sql', raw)).toEqual([]);
   });
 });
 

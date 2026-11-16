@@ -4,7 +4,8 @@
  * Destructive PostgreSQL-only reset for the pre-go-live environment. It removes
  * every tenant and transient platform record while preserving exactly one named
  * super-admin profile plus immutable/runtime configuration (schema migrations,
- * plans, prices, permissions, role permissions and platform settings).
+ * plans, prices, permissions, role permissions and platform settings) and the
+ * platform forensic trail (`super_admin_actions`, append-only — ADR-075).
  *
  * It deliberately does not access Supabase Auth, Storage, Asaas or Meta. Those
  * systems require their own explicit reconciliation and are outside a database
@@ -25,11 +26,15 @@ const BACKUPS_DIR = resolve(process.cwd(), 'backups');
 
 // This is an allowlist, not discovery by information_schema. New tables are
 // therefore never silently deleted just because someone added a migration.
-const TRANSIENT_TABLES = [
+//
+// `super_admin_actions` stays OUT (ADR-075): it is the platform forensic trail,
+// and the reset itself is an act that trail must outlive. With the append-only
+// barrier applied (candidate 0165), deleting it here would abort the whole reset
+// transaction. Guarded by src/lib/operations/reset-prod-data.test.ts.
+export const TRANSIENT_TABLES = [
   'audit_events',
   'outbox',
   'idempotency_keys',
-  'super_admin_actions',
   'impersonation_sessions',
   'cron_heartbeats',
   'system_metrics_daily',
@@ -73,6 +78,7 @@ Uso:
 O modo padrão é simulação e não escreve no banco.
 
 O reset atua somente no PostgreSQL: preserva Auth, Storage, Asaas e Meta.
+A trilha da plataforma (super_admin_actions) também é preservada (ADR-075).
 Antes de --apply, exporte apenas na sessão atual:
   $env:SUPABASE_PROJECT_ENV = 'prod'
   $env:DATABASE_URL_PROD = 'postgresql://...?sslmode=require'

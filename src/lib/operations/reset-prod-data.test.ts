@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   RESET_CONFIRMATION,
+  TRANSIENT_TABLES,
   assertApplyArgs,
   isPreservedSuperAdmin,
   parseResetArgs,
@@ -33,6 +34,12 @@ describe('reset-prod-data guards', () => {
     ]);
 
     expect(() => assertApplyArgs(args)).not.toThrow();
+  });
+
+  it('keeps the platform trail: super_admin_actions is never in the delete list (ADR-075)', () => {
+    // With the append-only barrier applied, deleting it would abort the whole reset; without
+    // the barrier, it would erase the record of what support did, including this reset.
+    expect(TRANSIENT_TABLES).not.toContain('super_admin_actions');
   });
 
   it('refuses any profile that is not an active platform super-admin', () => {

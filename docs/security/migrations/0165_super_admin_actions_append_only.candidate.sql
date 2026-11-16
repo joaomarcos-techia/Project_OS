@@ -1,8 +1,8 @@
 -- =====================================================================
--- CANDIDATA 0163 — super_admin_actions append-only no banco.
--- Fora de drizzle/migrations e do journal (mesmo modelo da 0159 do #53 e da 0162 do #55).
+-- CANDIDATA 0165 — super_admin_actions append-only no banco (ADR-075).
+-- Fora de drizzle/migrations e do journal (mesmo modelo da 0159 do #53 e das candidatas do #55).
 -- NÃO APLICADA em nenhum banco persistente. Prova: scripts/security/super-admin-actions-append-only-db.ts
--- (Postgres descartável, dados sintéticos).
+-- (Postgres descartável, dados sintéticos). Decisão do fundador: 16/11/2026.
 --
 -- ── O problema (diagnóstico de 15/11/2026) ───────────────────────────
 -- `super_admin_actions` é a trilha forense da plataforma: sessão de suporte, exports e, desde o
@@ -33,7 +33,7 @@
 --
 -- ── O que continua possível (fora do alcance de qualquer gatilho) ────
 --   • DDL do dono: desligar/apagar o gatilho, trocar o corpo da função, ALTER COLUMN ... USING.
---     Detecção proposta: checagem do catálogo no /api/health (Fase 2). Ancoragem externa (hash
+--     Detecção: checagem do catálogo no /api/health (ADR-075, parte 2). Ancoragem externa (hash
 --     encadeado ou cópia WORM) é o risco `auditoria-sem-hash-chain` do registro de riscos;
 --   • INSERT pelo dono com `created_at` retroativo (o app não faz; forçar `now()` num gatilho
 --     quebraria a restauração por COPY);
@@ -41,20 +41,21 @@
 --
 -- ── Quem é afetado ───────────────────────────────────────────────────
 --   • Escritores do app: nenhum (só INSERT pelo dono).
---   • `scripts/reset-prod-data.ts` (reset de pré-lançamento) faz `DELETE FROM super_admin_actions`
---     dentro da transação: com esta candidata o reset ABORTA INTEIRO (nada é apagado). A mesma
---     mudança que numerar esta candidata tira a tabela de TRANSIENT_TABLES.
+--   • `scripts/reset-prod-data.ts` (reset de pré-lançamento) apagava a trilha dentro da transação:
+--     com esta candidata o reset ABORTARIA INTEIRO (nada apagado). Por isso a tabela saiu de
+--     TRANSIENT_TABLES no mesmo PR: a trilha sobrevive ao reset.
 --   • Backup e restauração: `pg_dump --clean` recria por DROP + COPY (INSERT); o gatilho e o
 --     ENABLE ALWAYS vão no dump de schema, inclusive com `--no-acl`.
 --
 -- ── Número, `when` e composição ──────────────────────────────────────
--- 0163 é o próximo número livre em 15/11/2026 em todas as branches remotas: main 0135; #53
--- 0136–0142 + 0159 candidata (aplicada no DEV); #55 0143–0158, 0160, 0161 + 0162 candidata;
--- candidatas sem número do #55 ainda disputam a próxima posição. Número e `when` definitivos são
--- fixados NA AUTORIZAÇÃO (regra de docs/convenios/coordenacao-migrations.md §22): `when` maior que
--- o da última migration aplicada no DEV (0161 = 1795209773857) e maior que o da 0162 se ela entrar
--- antes. Em produção, entra DEPOIS da cauda #53 → #55 (o migrador do Drizzle pula em silêncio uma
--- entrada com `when` menor que a última aplicada).
+-- 0165 é o próximo número livre em 16/11/2026 em todas as branches remotas: main 0135; #53
+-- 0136–0142 + 0159 candidata (aplicada no DEV); #55 0143–0158 e 0160–0164 no journal (0162 aplicada
+-- no DEV em 16/11; 0163 e 0164 ainda não). O número desta candidata já foi 0163, até o #55 ocupar
+-- 0162–0164. Número e `when` definitivos são fixados NA AUTORIZAÇÃO (regra de
+-- docs/convenios/coordenacao-migrations.md §22, no #55): `when` maior que o da 0164
+-- (1795468973857). No DEV, só depois da 0163 e da 0164: o migrador do Drizzle compara com o
+-- `created_at` da ÚLTIMA linha aplicada e pula em silêncio uma entrada com `when` menor. Em produção,
+-- entra DEPOIS da cauda #53 → #55, pelo mesmo motivo.
 -- Lock: CREATE TRIGGER e ENABLE ALWAYS pegam SHARE ROW EXCLUSIVE na trilha até o COMMIT do
 -- migrador, e o INSERT da trilha espera. Aplicar como última entrada da publicação, com lock_timeout.
 --
