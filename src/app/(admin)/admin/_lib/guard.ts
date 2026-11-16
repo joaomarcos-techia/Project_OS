@@ -10,9 +10,13 @@
  * (D22: layouts não protegem route handlers; toda entrada revalida).
  *
  * Read-only: o painel não tem Server Actions de mutação de dados de clínica.
- * As ÚNICAS escritas vivem em `admin/actions/{impersonation,exports}.ts`. Isso é
- * garantido estruturalmente + por arch test (admin-read-only.test) — não por um
- * check de runtime frágil (review #11).
+ * As escritas são só de nível de plataforma, sempre com linha em
+ * `super_admin_actions` (lista no README do `(admin)`). Isso é garantido
+ * estruturalmente + por arch test (admin-read-only.test) — não por um check de
+ * runtime frágil (review #11).
+ *
+ * Este guard NÃO libera o texto das conversas da IA: isso exige sessão de
+ * suporte da própria clínica (`_lib/conversation-content.ts`, ADR-073).
  *
  * Server-only.
  */

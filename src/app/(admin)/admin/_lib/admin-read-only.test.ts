@@ -54,4 +54,19 @@ describe('Platform Admin é read-only sobre dados de clínica (C15)', () => {
       ).toEqual([]);
     });
   }
+
+  // S-01b (15/11/2026): a ÚNICA escrita do painel na trilha da CLÍNICA
+  // (`audit_events`) é a abertura de conversa pelo suporte, gravada pelo leitor
+  // auditado na mesma transação da leitura. Nenhum outro arquivo de (admin)
+  // escreve ali.
+  it('só o leitor auditado de conversa escreve na trilha da clínica', () => {
+    const writers = files
+      .filter((f) =>
+        /from\s+['"]@\/lib\/audit\/(log|support-conversation-view)['"]/.test(
+          readFileSync(f, 'utf8'),
+        ),
+      )
+      .map((f) => relative(process.cwd(), f).split(sep).join('/'));
+    expect(writers).toEqual(['src/app/(admin)/admin/_lib/conversation-content.ts']);
+  });
 });

@@ -114,7 +114,10 @@ export interface BillingOverviewDTO {
   refunds: { clinicId: string; nome: string; amountCents: number; at: string }[];
 }
 
-// --- Conversas IA (/admin/conversas-ia) — JÁ DESCRIPTOGRAFADO ---
+// --- Conversas IA (/admin/conversas-ia) — S-01 / ADR-073 ---
+// Metadado e texto são tipos DIFERENTES de propósito: o modo sem sessão de
+// suporte recebe `AiMessageMetaDTO`, que não tem campo de texto — a página não
+// consegue mostrar o que não recebeu.
 export interface ConversationListItemDTO {
   id: string;
   clinicId: string;
@@ -124,20 +127,38 @@ export interface ConversationListItemDTO {
   messageCount: number;
 }
 
-export interface AiMessageDTO {
+/** Quem escreveu: paciente, agente, equipe pelo painel ou equipe pelo app WhatsApp Business. */
+export type AiMessageAuthorDTO = 'patient' | 'agent' | 'human' | 'business_app';
+
+/** Metadado de uma mensagem. NUNCA o texto. */
+export interface AiMessageMetaDTO {
   id: string;
   direction: 'in' | 'out';
-  /** plaintext resolvido SERVER-SIDE; jamais ciphertext. */
-  text: string;
+  author: AiMessageAuthorDTO;
+  intent: string | null;
+  /** Só os nomes das tools (catálogo do agente) — nunca os argumentos. */
+  toolNames: string[];
   model: string | null;
+  latencyMs: number | null;
   createdAt: string; // ISO
 }
 
-export interface ConversationDetailDTO {
+/** Mensagem com texto — só sai de `openConversationForAdmin` com sessão de suporte. */
+export interface AiMessageContentDTO extends AiMessageMetaDTO {
+  /** plaintext resolvido SERVER-SIDE; jamais ciphertext. */
+  text: string;
+}
+
+export interface ConversationMetadataDTO {
   id: string;
+  clinicId: string;
   clinicNome: string;
   status: string;
-  messages: AiMessageDTO[];
+  messages: AiMessageMetaDTO[];
+}
+
+export interface ConversationContentDTO extends Omit<ConversationMetadataDTO, 'messages'> {
+  messages: AiMessageContentDTO[];
 }
 
 // --- Audit (/admin/audit + export) ---
