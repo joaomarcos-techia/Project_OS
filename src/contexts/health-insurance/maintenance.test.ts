@@ -124,10 +124,15 @@ describe('manutenção de Convênios (P6.6/P12.6)', () => {
 
   it('falha nos avisos NÃO desfaz o vencimento nem derruba a clínica: só a métrica com o tipo do erro', async () => {
     m.expire.mockResolvedValueOnce([{ id: 'a1' }]);
-    m.sync.mockRejectedValueOnce(Object.assign(new Error('relation "hi_authorization_alerts" does not exist'), { name: 'DrizzleQueryError' }));
+    m.sync.mockRejectedValueOnce(
+      Object.assign(new Error('relation "hi_authorization_alerts" does not exist'), {
+        name: 'DrizzleQueryError',
+        cause: { code: '42P01', message: 'relation "hi_authorization_alerts" does not exist' },
+      }),
+    );
     const r = await runInsuranceMaintenance({ deadlineAt: Date.now() + 10_000, now: new Date('2026-11-16T15:05:00Z'), clinics: ['c1'] });
     expect([r.processed, r.failed, r.expired, r.alertsCreated]).toEqual([1, 0, 1, 0]);
-    expect(m.emit).toHaveBeenCalledWith('insurance.alerts.sync_failed', { error: 'DrizzleQueryError' });
+    expect(m.emit).toHaveBeenCalledWith('insurance.alerts.sync_failed', { error: 'DrizzleQueryError', code: '42P01', constraint: null });
     expect(JSON.stringify(m.emit.mock.calls)).not.toContain('hi_authorization_alerts');
   });
 });

@@ -123,7 +123,21 @@ try {
   const now = new Date();
   now.setUTCMinutes(5);
   const r1 = await maint.runInsuranceMaintenance({ deadlineAt: Date.now() + 60_000, now, clinics: [A.clinicId], store });
-  const a1 = await alertRows(A.clinicId);
+  let a1 = await alertRows(A.clinicId);
+  if (a1.length === 0) {
+    // Diagnóstico (só dados sintéticos): a manutenção engole a falha dos avisos de propósito; aqui a
+    // mesma sincronização roda direto para a causa aparecer no log do job.
+    try {
+      await fx.asSystem(A, (tx) => alerts.syncAuthorizationAlertsTx(tx, A.clinicId));
+      a1 = await alertRows(A.clinicId);
+      console.log(`diagnóstico: a sincronização direta passou e criou ${a1.length} aviso(s)`);
+    } catch (e) {
+      const c = (e as { cause?: { code?: string; message?: string; constraint_name?: string } }).cause;
+      const first = (e as Error).message.split(/\r?\n/u)[0];
+      console.log(`diagnóstico: ${(e as Error).name}: ${first} | causa ${c?.code ?? '-'} ${c?.constraint_name ?? '-'} ${c?.message ?? '-'}`);
+    }
+    throw new Error('a manutenção não criou os avisos (ver o diagnóstico acima)');
+  }
   assert.deepEqual(a1.map((r) => r.kind).sort(), ['operator_overdue', 'password_expired', 'password_expiring']);
   assert.equal(a1.find((r) => r.kind === 'password_expired')!.authorization_id, expiredA);
   assert.equal(a1.find((r) => r.kind === 'password_expiring')!.authorization_id, expiringA);

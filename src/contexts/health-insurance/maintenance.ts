@@ -154,7 +154,13 @@ export async function runInsuranceMaintenance(opts: {
           try {
             alerts = await tx.transaction((sp) => syncAuthorizationAlertsTx(sp, clinicId));
           } catch (error) {
-            metrics.emit('insurance.alerts.sync_failed', { error: error instanceof Error ? error.name : 'unknown' });
+            // Só o tipo, o SQLSTATE e o nome da restrição: nenhum texto do banco (pode citar dado).
+            const cause = (error as { cause?: { code?: unknown; constraint_name?: unknown } } | null)?.cause;
+            metrics.emit('insurance.alerts.sync_failed', {
+              error: error instanceof Error ? error.name : 'unknown',
+              code: typeof cause?.code === 'string' ? cause.code : null,
+              constraint: typeof cause?.constraint_name === 'string' ? cause.constraint_name : null,
+            });
           }
         }
         const counts = daily ? await insuranceDailyCountsTx(tx, clinicId) : null;
