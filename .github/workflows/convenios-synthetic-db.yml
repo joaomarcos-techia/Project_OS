@@ -100,6 +100,12 @@ jobs:
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55556 NODE_OPTIONS=--conditions=react-server \
             pnpm exec tsx scripts/security/health-insurance-receipt-upload-db.ts
 
+      - name: Avisos de autorização entregues à clínica (P6.6, 0166)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55557 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/health-insurance-authorization-alerts-db.ts
+
       # Cada prova roda mesmo se a anterior falhar (evidência independente); o job falha se qualquer uma falhar.
       - name: SP/SADT — solicitação, automação e indicação clínica × D24
         if: ${{ !cancelled() }}

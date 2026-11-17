@@ -56,7 +56,7 @@ beforeEach(() => {
   execute.mockResolvedValue([]);
   listBillingGapCandidates.mockResolvedValue([]);
   listCopaySyncCandidates.mockResolvedValue([]);
-  runInsuranceMaintenance.mockResolvedValue({ clinics: 0, processed: 0, expired: 0, failed: 0, deferred: 0, daily: null });
+  runInsuranceMaintenance.mockResolvedValue({ clinics: 0, processed: 0, expired: 0, failed: 0, deferred: 0, uploadsSwept: 0, alertsCreated: 0, alertsCancelled: 0, alertsQueued: 0, daily: null });
   reconcileCopayCharges.mockResolvedValue({
     candidates: 0,
     changed: 0,

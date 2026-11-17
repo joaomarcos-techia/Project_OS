@@ -1,10 +1,7 @@
 {
   "note": "Pedido de E2E no Preview (navegador remoto). Mudar este arquivo dispara convenios-preview-e2e.yml.",
-  "run": "I2A-4",
+  "run": "R1117C",
   "groups": [
-    [
-      "e2e/convenios-i2-preview.spec.ts"
-    ],
     [
       "e2e/convenios-authorizations-preview.spec.ts"
     ]

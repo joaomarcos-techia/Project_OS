@@ -14,6 +14,10 @@
  *      abandonadas há mais de 2 horas (P6.3). A entrega é pela observabilidade que já existe
  *      (métricas → buscas salvas do runbook de logs); nenhum destinatário externo recebe nada.
  *
+ *   3. uma vez por hora, e sempre que algo vence: os AVISOS À CLÍNICA (P6.6, migration 0166) — um
+ *      registro por fato, o obsoleto é encerrado, e a entrega (e-mail a quem opera Convênios, só com
+ *      contagens) é pedida pelo outbox. Só para clínica que opera (módulo ligado e assinatura ativa).
+ *
  * Cada clínica roda isolada (`withTenant`): a falha de uma não para as outras nem o cron. Sem
  * escrita financeira: não toca recebível, livro, cobrança Asaas/AbacatePay nem Caixa.
  */
@@ -24,13 +28,14 @@ import { metrics } from '@/lib/observability/metrics';
 import { supabaseTissObjectStore, type TissObjectStore } from '@/lib/storage/tiss-files';
 
 import { listInsuranceMaintenanceClinics } from './billing-gap-candidates';
+import { AWAITING_OPERATOR_ALERT_DAYS, syncAuthorizationAlertsTx } from './internal/authorization-alert-service';
 import { authorizationAlerts, type AuthorizationAlertInput } from './internal/authorization-alerts';
 import type { AuthorizationStatus } from './internal/authorization-rules';
 import { expireAuthorizationsTx } from './internal/authorizations';
 import { sweepStaleReceiptUploads } from './internal/receipt-upload';
 
-/** Pedido de autorização aguardando a operadora há mais que isto vira alerta no resumo. */
-export const AWAITING_OPERATOR_ALERT_DAYS = 3;
+/** Pedido de autorização aguardando a operadora há mais que isto vira alerta (resumo e aviso à clínica). */
+export { AWAITING_OPERATOR_ALERT_DAYS };
 
 export interface InsuranceDailySummary {
   passwordExpiring: number;
@@ -49,12 +54,24 @@ export interface InsuranceMaintenanceSummary {
   deferred: number;
   /** Partes de envio de comprovante abandonadas (P6.3) removidas no resumo diário. */
   uploadsSwept: number;
+  /** P6.6: avisos à clínica criados, encerrados (obsoletos) e postos em lote de entrega nesta execução. */
+  alertsCreated: number;
+  alertsCancelled: number;
+  alertsQueued: number;
   daily: InsuranceDailySummary | null;
 }
 
 /** Uma execução por dia: a do cron que cai entre 09:00 e 09:14 UTC. */
 export function isDailySummaryWindow(now: Date): boolean {
   return now.getUTCHours() === 9 && now.getUTCMinutes() < 15;
+}
+
+/**
+ * Avisos à clínica (P6.6): sincronizados uma vez por hora (a execução do cron que cai nos primeiros
+ * 15 minutos) e sempre que uma autorização vence nesta execução.
+ */
+export function isAlertSyncWindow(now: Date): boolean {
+  return now.getUTCMinutes() < 15;
 }
 
 type Tx = Parameters<Parameters<typeof withTenant>[1]>[0];
@@ -109,7 +126,11 @@ export async function runInsuranceMaintenance(opts: {
   const now = opts.now ?? new Date();
   const daily = opts.forceDaily === true || isDailySummaryWindow(now);
   const clinics = opts.clinics ?? (await listInsuranceMaintenanceClinics());
-  const summary: InsuranceMaintenanceSummary = { clinics: clinics.length, processed: 0, expired: 0, failed: 0, deferred: 0, uploadsSwept: 0, daily: null };
+  const alertsDue = daily || isAlertSyncWindow(now);
+  const summary: InsuranceMaintenanceSummary = {
+    clinics: clinics.length, processed: 0, expired: 0, failed: 0, deferred: 0, uploadsSwept: 0,
+    alertsCreated: 0, alertsCancelled: 0, alertsQueued: 0, daily: null,
+  };
   const totals: InsuranceDailySummary = {
     passwordExpiring: 0,
     sessionsEnding: 0,
@@ -126,11 +147,26 @@ export async function runInsuranceMaintenance(opts: {
     try {
       const result = await withTenant(clinicId, async (tx) => {
         const expired = await expireAuthorizationsTx(tx, clinicId);
+        // P6.6: os avisos rodam num ponto de salvamento. Se falharem (ex.: banco ainda sem a 0166),
+        // o vencimento e o resto da clínica continuam valendo; o aviso é refeito na próxima hora.
+        let alerts: Awaited<ReturnType<typeof syncAuthorizationAlertsTx>> | null = null;
+        if (alertsDue || expired.length > 0) {
+          try {
+            alerts = await tx.transaction((sp) => syncAuthorizationAlertsTx(sp, clinicId));
+          } catch (error) {
+            metrics.emit('insurance.alerts.sync_failed', { error: error instanceof Error ? error.name : 'unknown' });
+          }
+        }
         const counts = daily ? await insuranceDailyCountsTx(tx, clinicId) : null;
-        return { expired: expired.length, counts };
+        return { expired: expired.length, counts, alerts };
       });
       summary.processed += 1;
       summary.expired += result.expired;
+      if (result.alerts) {
+        summary.alertsCreated += result.alerts.created;
+        summary.alertsCancelled += result.alerts.cancelled;
+        summary.alertsQueued += result.alerts.deliveryRequested;
+      }
       // Fora da transação da clínica: o armazenamento não é transacional. Só no resumo diário.
       if (daily) summary.uploadsSwept += await sweepStaleReceiptUploads(opts.store ?? supabaseTissObjectStore(), clinicId);
       if (result.counts) {
@@ -159,6 +195,9 @@ export async function runInsuranceMaintenance(opts: {
     failed: summary.failed,
     deferred: summary.deferred,
     uploadsSwept: summary.uploadsSwept,
+    alertsCreated: summary.alertsCreated,
+    alertsCancelled: summary.alertsCancelled,
+    alertsQueued: summary.alertsQueued,
     daily,
   });
   return summary;

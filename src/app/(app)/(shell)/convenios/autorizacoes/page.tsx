@@ -4,10 +4,13 @@ import Link from 'next/link';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PanelCard } from '@/components/ui/panel-card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableWrap } from '@/components/ui/table';
+import { listOpenAuthorizationAlerts, type AuthorizationAlertView } from '@/contexts/health-insurance/alerts';
+import { markAuthorizationAlertReadAction } from '@/contexts/health-insurance/actions';
 import { listAuthorizations, type AuthorizationRow } from '@/contexts/health-insurance/queries';
 
 import { ConveniosHeader, conveniosAccess, shortDate } from '../_lib/access';
-import { authorizationAlertText } from '../_lib/constants';
+import { ActionButton } from '../_lib/action-ui';
+import { authorizationAlertText, sentAlertText } from '../_lib/constants';
 import { AuthorizationStatusBadge } from '../_lib/status';
 
 export const metadata: Metadata = { title: 'Autorizações da operadora' };
@@ -28,13 +31,18 @@ function AuthLink({ r }: { r: AuthorizationRow }) {
 }
 
 /**
- * P6.3 — fila das autorizações da operadora: o que vence ou acaba (alertas da P6.6, calculados na
- * leitura até o cron da P12.6 existir), o que aguarda a operadora, o que está em uso e o que encerrou.
+ * P6.3 — fila das autorizações da operadora: os avisos já enviados à clínica (P6.6, 0166), o que vence
+ * ou acaba (calculado na leitura), o que aguarda a operadora, o que está em uso e o que encerrou.
  */
 export default async function AutorizacoesPage() {
   const access = await conveniosAccess('Autorizações da operadora', 'broad');
   if (!access.ok) return access.view;
-  const { rows, alerts } = await listAuthorizations(access.clinicId);
+  const [{ rows, alerts }, sent] = await Promise.all([
+    listAuthorizations(access.clinicId),
+    // P6.6: avisos que a manutenção já mandou à clínica e ninguém marcou como vistos. Sem a 0166 no
+    // banco, a fila continua funcionando sem o painel.
+    listOpenAuthorizationAlerts(access.clinicId).catch((): AuthorizationAlertView[] => []),
+  ]);
   const byId = new Map(rows.map((r) => [r.id, r]));
   const waiting = rows.filter((r) => WAITING.includes(r.shownState));
   const granted = rows.filter((r) => GRANTED.includes(r.shownState));
@@ -48,6 +56,33 @@ export default async function AutorizacoesPage() {
         description="Pedidos aguardando a operadora, senhas perto do vencimento e sessões autorizadas acabando."
         crumbs={[{ label: 'Autorizações' }]}
       />
+
+      {sent.length > 0 ? (
+        <PanelCard title="Avisos enviados à clínica" regionLabel="Avisos de autorização enviados" className="mb-(--sp-4)">
+          <p className="mb-(--sp-2) text-(length:--fs-sm) text-fg-muted">
+            Também enviados por e-mail a quem opera Convênios (sem dados de pacientes). Marque como visto depois de resolver.
+          </p>
+          <ul className="flex flex-col divide-y divide-border" data-testid="sent-authorization-alerts">
+            {sent.map((a) => {
+              const r = byId.get(a.authorizationId);
+              return (
+                <li key={a.id} className="flex flex-wrap items-center justify-between gap-(--sp-2) py-(--sp-2)" data-kind={a.kind} data-delivered={a.deliveredAt ? 'yes' : 'no'}>
+                  <span className="flex flex-col">
+                    <span className="text-warning-700">{sentAlertText(a)}</span>
+                    <span className="text-(length:--fs-sm) text-fg-muted">
+                      {r ? <AuthLink r={r} /> : 'Autorização'}
+                      {a.deliveredAt ? ' · enviado por e-mail' : ' · envio por e-mail pendente'}
+                    </span>
+                  </span>
+                  {access.rights.operate ? (
+                    <ActionButton label="Marcar como visto" success="Aviso marcado como visto" action={markAuthorizationAlertReadAction.bind(null, { alertId: a.id })} />
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </PanelCard>
+      ) : null}
 
       {rows.length === 0 ? (
         <EmptyState

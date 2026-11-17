@@ -20,6 +20,11 @@ export const HEALTH_INSURANCE_EVENTS = {
    * execução). Uma chave por lote e versão: o mesmo pedido nunca vira dois arquivos.
    */
   BATCH_EXPORT_REQUESTED: 'health_insurance.batch.export_requested',
+  /**
+   * P6.6 — entrega dos avisos de autorização à clínica (e-mail a quem opera Convênios). Só o lote e
+   * a contagem: o handler lê os avisos do lote na hora e não manda dado de paciente.
+   */
+  AUTHORIZATION_ALERTS_DELIVERY_REQUESTED: 'health_insurance.authorization_alerts.delivery_requested',
 } as const;
 
 const uuid = z.string().uuid();
@@ -49,3 +54,13 @@ export const BatchExportRequestedSchema = z.object({
 export type BatchExportRequestedPayload = z.infer<typeof BatchExportRequestedSchema>;
 
 registerEventSchema(HEALTH_INSURANCE_EVENTS.BATCH_EXPORT_REQUESTED, BatchExportRequestedSchema);
+
+export const AuthorizationAlertsDeliverySchema = z.object({
+  clinicId: uuid,
+  /** Lote de avisos (hash dos ids); a chave do evento é o lote. */
+  batch: z.string().regex(/^[0-9a-f]{32}$/u),
+  count: z.number().int().positive(),
+});
+export type AuthorizationAlertsDeliveryPayload = z.infer<typeof AuthorizationAlertsDeliverySchema>;
+
+registerEventSchema(HEALTH_INSURANCE_EVENTS.AUTHORIZATION_ALERTS_DELIVERY_REQUESTED, AuthorizationAlertsDeliverySchema);

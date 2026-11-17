@@ -53,6 +53,13 @@ export const CONVENIOS_RULES = {
 
 export type ConveniosRule = keyof typeof CONVENIOS_RULES;
 
+/**
+ * Papéis que recebem `operate:convenios` no pacote da 0162 (dona, gestão e recepção). Usado para
+ * escolher quem recebe os avisos de autorização (P6.6): a negativa individual tira a pessoa e a
+ * concessão individual a inclui (conferido no banco). O teste confere esta lista contra a 0162.
+ */
+export const OPERATE_CONVENIOS_ROLES = ['owner', 'gestor', 'attendant'] as const;
+
 export function allows(permissions: readonly string[], rule: ConveniosRule): boolean {
   return CONVENIOS_RULES[rule].some((p) => permissions.includes(p));
 }

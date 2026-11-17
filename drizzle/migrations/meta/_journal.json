@@ -1107,6 +1107,13 @@
       "when": 1795555373857,
       "tag": "0165_hi_guide_cancellations",
       "breakpoints": true
+    },
+    {
+      "idx": 166,
+      "version": "7",
+      "when": 1795641773857,
+      "tag": "0166_hi_authorization_alerts",
+      "breakpoints": true
     }
   ]
 }

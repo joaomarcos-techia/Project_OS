@@ -14,6 +14,8 @@ const m = vi.hoisted(() => ({
   conveniosAccess: vi.fn(),
   listAuthorizations: vi.fn(),
   getAuthorization: vi.fn(),
+  listOpenAuthorizationAlerts: vi.fn(),
+  markRead: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -30,7 +32,9 @@ vi.mock('@/contexts/health-insurance/actions', () => ({
   uploadAuthorizationReceiptChunkAction: vi.fn(),
   finishAuthorizationReceiptUploadAction: vi.fn(),
   abortAuthorizationReceiptUploadAction: vi.fn(),
+  markAuthorizationAlertReadAction: m.markRead,
 }));
+vi.mock('@/contexts/health-insurance/alerts', () => ({ listOpenAuthorizationAlerts: m.listOpenAuthorizationAlerts }));
 vi.mock('../_lib/access', async (orig) => {
   const real = await orig<typeof AccessModule>();
   return { ...real, conveniosAccess: m.conveniosAccess };
@@ -90,6 +94,7 @@ beforeEach(() => {
     rows,
     alerts: [{ kind: 'password_expiring', authorizationId: A1, validUntil: '2026-11-17', daysLeft: 1 }],
   });
+  m.listOpenAuthorizationAlerts.mockResolvedValue([]);
 });
 
 describe('fila das autorizações', () => {
@@ -113,6 +118,32 @@ describe('fila das autorizações', () => {
     m.listAuthorizations.mockResolvedValueOnce({ today: '2026-11-16', rows: [], alerts: [] });
     render(await AutorizacoesPage());
     expect(screen.getByText('Nenhuma autorização')).toBeTruthy();
+  });
+
+  it('P6.6: avisos já enviados à clínica, com o estado do envio; quem opera marca como visto; quem não opera só lê', async () => {
+    m.listOpenAuthorizationAlerts.mockResolvedValue([
+      { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', authorizationId: A1, kind: 'password_expired', status: 'open', detail: { validUntil: '2026-11-15' }, createdAt: '2026-11-16T09:00:00Z', deliveredAt: '2026-11-16T09:01:00Z' },
+      { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', authorizationId: A2, kind: 'operator_overdue', status: 'open', detail: { requestedOn: '2026-11-10', days: 6 }, createdAt: '2026-11-16T09:00:00Z', deliveredAt: null },
+    ]);
+    render(await AutorizacoesPage());
+    const panel = screen.getByRole('region', { name: 'Avisos de autorização enviados' });
+    expect(panel.textContent).toContain('Senha vencida em 15/11/2026');
+    expect(panel.textContent).toContain('enviado por e-mail');
+    expect(panel.textContent).toContain('Pedido parado na operadora há 6 dias (pedido em 10/11/2026)');
+    expect(panel.textContent).toContain('envio por e-mail pendente');
+    expect(screen.getAllByRole('button', { name: 'Marcar como visto' })).toHaveLength(2);
+    cleanup();
+    m.conveniosAccess.mockResolvedValueOnce(accessFor(PROFILES.financeiro, { commercial: null }));
+    render(await AutorizacoesPage());
+    expect(screen.getByRole('region', { name: 'Avisos de autorização enviados' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Marcar como visto' })).toBeNull();
+  });
+
+  it('P6.6: banco sem a tabela dos avisos (0166 ainda não aplicada): a fila abre sem o painel', async () => {
+    m.listOpenAuthorizationAlerts.mockRejectedValueOnce(new Error('relation does not exist'));
+    render(await AutorizacoesPage());
+    expect(screen.queryByRole('region', { name: 'Avisos de autorização enviados' })).toBeNull();
+    expect(screen.getByRole('region', { name: 'Autorizações vencendo ou acabando' })).toBeTruthy();
   });
 
   it('sem acesso: a tela de acesso e nenhuma consulta', async () => {

@@ -37,6 +37,7 @@ import {
   attachAuthorizationReceipt,
   recordManualAuthorizationResponseTx,
 } from './internal/authorizations';
+import * as alertService from './internal/authorization-alert-service';
 import * as receiptUpload from './internal/receipt-upload';
 // eslint-disable-next-line boundaries/element-types -- paymentsApiV1 é a API pública do Pagamentos (M14): o único caminho Asaas do convênio é o da coparticipação.
 import { paymentsApiV1 } from '@/contexts/payments/api';
@@ -146,6 +147,7 @@ function messageOf(error: unknown): string {
     error instanceof payouts.InsurancePayoutError ||
     error instanceof review.PayoutReviewError ||
     error instanceof receiptUpload.ReceiptUploadError ||
+    error instanceof alertService.AuthorizationAlertError ||
     error instanceof cancellation.GuideCancellationError ||
     error instanceof CopayChargeError
   ) {
@@ -1187,6 +1189,20 @@ export async function recordConsultaAuthorizationResponseAction(
           )
         ).status,
     );
+  });
+}
+
+/**
+ * P6.6: marca um aviso de autorização como visto. Quem viu é a pessoa da SESSÃO (gravada pelo
+ * banco); aviso de outra clínica, inexistente ou já visto recebe a mesma resposta.
+ */
+export async function markAuthorizationAlertReadAction(input: { alertId: string }): Promise<ActionResult<string>> {
+  return run(async () => {
+    const d = z.object({ alertId: z.uuid() }).parse(input);
+    return write('health_insurance.authorization.alert_read', { type: 'hi_authorization_alert', id: d.alertId }, async (tx, ctx) => {
+      const out = await alertService.markAuthorizationAlertReadTx(tx, ctx.clinicId, d.alertId);
+      return out.kind;
+    });
   });
 }
 

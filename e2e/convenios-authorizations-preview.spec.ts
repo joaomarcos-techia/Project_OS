@@ -192,18 +192,23 @@ test('gestora: anexa comprovante pequeno e de 10 MB (em partes), baixa e confere
     expect(gotBig!.body.length).toBe(big.length);
     expect(sha256(gotBig!.body)).toBe(sha256(big));
 
-    // 3) O mesmo arquivo de novo (já registrado): não vira um segundo comprovante.
+    // 3) O mesmo arquivo de novo (já registrado): o servidor confirma pelo SHA-256 e não cria outro.
+    //    Página recarregada antes de cada passo: a mensagem do passo anterior não conta como resposta
+    //    (depois do envio o formulário limpa o arquivo e o botão fica desabilitado por desenho).
+    await s.page.reload();
     await attach(s.page, 'comprovante-pequeno.pdf', 'application/pdf', small);
-    await expect(uploadForm(s.page).getByRole('button', { name: 'Anexar comprovante' })).toBeEnabled({ timeout: 90_000 });
+    await expect(uploadForm(s.page).getByText('Comprovante anexado e conferido.')).toBeVisible({ timeout: 90_000 });
     await s.page.reload();
     await expect(receiptLinks(s.page)).toHaveCount(before + 2);
 
     // 4) Acima do limite: recusado antes de enviar, com a mensagem do limite.
+    await s.page.reload();
     await attach(s.page, 'comprovante-grande.pdf', 'application/pdf', syntheticPdf(10 * 1024 * 1024 + 1, 'excesso'));
     await expect(uploadForm(s.page).getByRole('alert')).toContainText('passa de 10 MB');
 
     // 5) Tipo falso (declarado PDF, conteúdo executável): o servidor confere pelo conteúdo e recusa.
     const fake = Buffer.concat([Buffer.from('MZ\x90\x00\x03\x00\x00\x00'), syntheticPdf(2_048, 'falso').subarray(64)]);
+    await s.page.reload();
     await attach(s.page, 'comprovante-falso.pdf', 'application/pdf', fake);
     await expect(uploadForm(s.page).getByRole('alert')).toBeVisible({ timeout: 90_000 });
     await s.page.reload();

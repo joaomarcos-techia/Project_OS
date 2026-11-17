@@ -51,6 +51,8 @@ import '@/contexts/health-insurance/internal/handlers/appointment-rescheduled';
 import '@/contexts/financial/internal/handlers/copay-confirmed';
 // R45: XML do lote em segundo plano, com a leitura delegada das guias do lote.
 import '@/contexts/health-insurance/internal/handlers/batch-export-requested';
+// P6.6: entrega dos avisos de autorização à clínica (e-mail a quem opera Convênios, só contagens).
+import './insurance-alerts-delivery-handler';
 
 // C11 — AI Agent: messaging.inbound.received → turno de conversa (saga
 // multi-fase, LLM fora de TX — ADR-022). Idempotente via eventId checkpoints.

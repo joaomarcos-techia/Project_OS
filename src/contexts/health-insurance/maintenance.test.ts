@@ -5,17 +5,20 @@ const m = vi.hoisted(() => ({
   emit: vi.fn(),
   expire: vi.fn(),
   execute: vi.fn(),
+  sync: vi.fn(),
 }));
 
 vi.mock('@/lib/db', () => ({ dbAdmin: { transaction: vi.fn() } }));
 vi.mock('@/lib/db/tenant', () => ({ withTenant: m.withTenant }));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: m.emit } }));
 vi.mock('./internal/authorizations', () => ({ expireAuthorizationsTx: m.expire }));
+vi.mock('./internal/authorization-alert-service', () => ({ AWAITING_OPERATOR_ALERT_DAYS: 3, syncAuthorizationAlertsTx: m.sync }));
 vi.mock('@/lib/storage/tiss-files', () => ({ supabaseTissObjectStore: () => { throw new Error('sem armazenamento real no teste'); } }));
 
-import { isDailySummaryWindow, runInsuranceMaintenance } from './maintenance';
+import { isAlertSyncWindow, isDailySummaryWindow, runInsuranceMaintenance } from './maintenance';
 
-const tx = { execute: m.execute };
+// O ponto de salvamento dos avisos roda a função com a própria transação.
+const tx = { execute: m.execute, transaction: async (fn: (sp: unknown) => unknown) => fn(tx) };
 /** Armazenamento em memória: uma parte abandonada há 3 h e outra recente, da clínica c1. */
 const removed: string[] = [];
 const store = {
@@ -35,6 +38,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   m.withTenant.mockImplementation(async (_clinic: string, fn: (t: typeof tx) => unknown) => fn(tx));
   m.expire.mockResolvedValue([]);
+  m.sync.mockResolvedValue({ operable: true, created: 0, cancelled: 0, deliveryRequested: 0 });
   removed.length = 0;
 });
 
@@ -56,11 +60,13 @@ describe('manutenção de Convênios (P6.6/P12.6)', () => {
 
   it('fora da janela: só vence autorizações (sem resumo), clínica por clínica', async () => {
     m.expire.mockResolvedValueOnce([{ id: 'a1' }]).mockResolvedValueOnce([]);
-    const r = await runInsuranceMaintenance({ deadlineAt: Date.now() + 10_000, now: new Date('2026-11-16T15:00:00Z'), clinics: ['c1', 'c2'] });
-    expect(r).toEqual({ clinics: 2, processed: 2, expired: 1, failed: 0, deferred: 0, uploadsSwept: 0, daily: null });
+    const r = await runInsuranceMaintenance({ deadlineAt: Date.now() + 10_000, now: new Date('2026-11-16T15:20:00Z'), clinics: ['c1', 'c2'] });
+    expect(r).toEqual({ clinics: 2, processed: 2, expired: 1, failed: 0, deferred: 0, uploadsSwept: 0, alertsCreated: 0, alertsCancelled: 0, alertsQueued: 0, daily: null });
+    // Fora da janela da hora, os avisos só rodam na clínica em que algo venceu (c1).
+    expect(m.sync.mock.calls.map((c) => c[1])).toEqual(['c1']);
     expect(m.withTenant.mock.calls.map((c) => c[0])).toEqual(['c1', 'c2']);
     expect(m.execute).not.toHaveBeenCalled();
-    expect(m.emit).toHaveBeenCalledWith('insurance.maintenance.run', { clinics: 2, processed: 2, expired: 1, failed: 0, deferred: 0, uploadsSwept: 0, daily: false });
+    expect(m.emit).toHaveBeenCalledWith('insurance.maintenance.run', { clinics: 2, processed: 2, expired: 1, failed: 0, deferred: 0, uploadsSwept: 0, alertsCreated: 0, alertsCancelled: 0, alertsQueued: 0, daily: false });
     expect(m.emit).not.toHaveBeenCalledWith('insurance.maintenance.daily_summary', expect.anything());
   });
 
@@ -102,5 +108,26 @@ describe('manutenção de Convênios (P6.6/P12.6)', () => {
     const r = await runInsuranceMaintenance({ deadlineAt: Date.now() - 1, now: new Date('2026-11-16T15:00:00Z'), clinics: ['c1', 'c2', 'c3'] });
     expect([r.processed, r.deferred]).toEqual([0, 3]);
     expect(m.withTenant).not.toHaveBeenCalled();
+  });
+
+  it('avisos à clínica (P6.6): na janela da hora sincroniza todas; as contagens entram no resumo da execução', async () => {
+    m.sync
+      .mockResolvedValueOnce({ operable: true, created: 2, cancelled: 1, deliveryRequested: 2 })
+      .mockResolvedValueOnce({ operable: false, created: 0, cancelled: 0, deliveryRequested: 0 });
+    const r = await runInsuranceMaintenance({ deadlineAt: Date.now() + 10_000, now: new Date('2026-11-16T15:05:00Z'), clinics: ['c1', 'c2'] });
+    expect(isAlertSyncWindow(new Date('2026-11-16T15:05:00Z'))).toBe(true);
+    expect(isAlertSyncWindow(new Date('2026-11-16T15:15:00Z'))).toBe(false);
+    expect(m.sync.mock.calls.map((c) => c[1])).toEqual(['c1', 'c2']);
+    expect([r.alertsCreated, r.alertsCancelled, r.alertsQueued]).toEqual([2, 1, 2]);
+    expect(JSON.stringify(m.emit.mock.calls)).not.toMatch(/c1|c2/u);
+  });
+
+  it('falha nos avisos NÃO desfaz o vencimento nem derruba a clínica: só a métrica com o tipo do erro', async () => {
+    m.expire.mockResolvedValueOnce([{ id: 'a1' }]);
+    m.sync.mockRejectedValueOnce(Object.assign(new Error('relation "hi_authorization_alerts" does not exist'), { name: 'DrizzleQueryError' }));
+    const r = await runInsuranceMaintenance({ deadlineAt: Date.now() + 10_000, now: new Date('2026-11-16T15:05:00Z'), clinics: ['c1'] });
+    expect([r.processed, r.failed, r.expired, r.alertsCreated]).toEqual([1, 0, 1, 0]);
+    expect(m.emit).toHaveBeenCalledWith('insurance.alerts.sync_failed', { error: 'DrizzleQueryError' });
+    expect(JSON.stringify(m.emit.mock.calls)).not.toContain('hi_authorization_alerts');
   });
 });

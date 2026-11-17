@@ -71,3 +71,23 @@ export const TABLE_46_LABELS: Record<string, string> = {
   '5': '5 · Lote inexistente',
   '6': '6 · Protocolo inexistente',
 };
+
+/** P6.6: texto do aviso enviado à clínica (só datas e contagens; nenhum dado de paciente). */
+export function sentAlertText(a: { kind: string; detail: Record<string, string | number> }): string {
+  const br = (iso: unknown) => {
+    const [y, m, d] = String(iso ?? '').split('-');
+    return y && m && d ? `${d}/${m}/${y}` : 'data não informada';
+  };
+  switch (a.kind) {
+    case 'password_expiring':
+      return authorizationAlertText({ kind: 'password_expiring', daysLeft: Number(a.detail.daysLeft ?? 0), validUntil: String(a.detail.validUntil ?? '') });
+    case 'sessions_ending':
+      return authorizationAlertText({ kind: 'sessions_ending', remaining: Number(a.detail.remaining ?? 0), authorized: Number(a.detail.authorized ?? 0) });
+    case 'password_expired':
+      return `Senha vencida em ${br(a.detail.validUntil)}`;
+    case 'operator_overdue':
+      return `Pedido parado na operadora há ${Number(a.detail.days ?? 0)} dias (pedido em ${br(a.detail.requestedOn)})`;
+    default:
+      return 'Aviso de autorização';
+  }
+}
