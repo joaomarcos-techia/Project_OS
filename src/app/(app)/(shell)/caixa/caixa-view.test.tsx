@@ -31,6 +31,7 @@ import {
   reviewProfessionalPayoutAction,
 } from './actions';
 import { CaixaView, type FailedChargeItem, type ManualRefundItem } from './caixa-view';
+import { PENDING_KEYS_STORAGE_KEY, resumoDoPedido } from './pending-keys';
 
 const METHODS = [{ code: 'pix', label: 'PIX' }];
 const PAYMENT: PaymentTransactionSummary = {
@@ -113,6 +114,8 @@ const base = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // P-19: as chaves em aberto vivem na aba; cada teste começa com a aba limpa.
+  sessionStorage.clear();
   vi.mocked(cancelLancamentoAction).mockResolvedValue({ ok: true, data: item() });
 });
 
@@ -447,6 +450,115 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
       await painelFechado();
       const [daPrimeira, daSegunda] = chavesDe(confirmPaymentAction);
       expect(daSegunda).not.toBe(daPrimeira);
+    });
+
+    it('P-19: recarregar a página com o registro sem resposta mantém a chave e não duplica', async () => {
+      const servidor = servidorIdempotente();
+      vi.mocked(confirmPaymentAction)
+        .mockReset()
+        .mockImplementationOnce(async (input, chave) => {
+          await servidor.registrar(input, chave);
+          throw new Error('Failed to fetch');
+        })
+        .mockImplementation((input, chave) => servidor.registrar(input, chave));
+      const { unmount } = render(<CaixaView {...base} pendentes={[item()]} />);
+      await abrir('Registrar recebimento');
+      fireEvent.change(screen.getByLabelText('Valor recebido'), { target: { value: '80,00' } });
+      await registrar(/Registrar R\$\s*80,00/);
+      expect(await screen.findByText(AMBIGUO)).toBeTruthy();
+
+      // Recarregar = a página monta de novo na mesma aba; a memória do componente some.
+      unmount();
+      render(<CaixaView {...base} pendentes={[item()]} />);
+      await abrir('Registrar recebimento');
+      fireEvent.change(screen.getByLabelText('Valor recebido'), { target: { value: '80,00' } });
+      await registrar(/Registrar R\$\s*80,00/);
+      await painelFechado();
+
+      const [antes, depoisDeRecarregar] = chavesDe(confirmPaymentAction);
+      expect(depoisDeRecarregar).toBe(antes);
+      expect(servidor.gravados).toHaveLength(1);
+    });
+
+    it('P-19: a aba guarda só resumo e chave, e esquece a operação depois do sucesso', async () => {
+      vi.mocked(confirmPaymentAction)
+        .mockReset()
+        .mockRejectedValueOnce(new Error('Failed to fetch'))
+        .mockResolvedValueOnce({ ok: true, data: item({ status: 'pago', valorPago: 200 }) });
+      render(<CaixaView {...base} pendentes={[item()]} />);
+      await abrir('Registrar recebimento');
+      await registrar(/Registrar R\$\s*200,00/);
+      expect(await screen.findByText(AMBIGUO)).toBeTruthy();
+
+      const guardado = sessionStorage.getItem(PENDING_KEYS_STORAGE_KEY) ?? '';
+      expect(guardado).not.toBe('');
+      expect(guardado).not.toMatch(/l1|200|pix|comprovante/u);
+
+      await registrar(/Registrar R\$\s*200,00/);
+      await painelFechado();
+      expect(sessionStorage.getItem(PENDING_KEYS_STORAGE_KEY)).toBeNull();
+    });
+
+    it('P-19: chave guardada há mais de 30 min não é reaproveitada', async () => {
+      vi.mocked(confirmPaymentAction)
+        .mockReset()
+        .mockResolvedValue({ ok: true, data: item({ status: 'pago', valorPago: 200 }) });
+      const pedido = `confirm:c1:${JSON.stringify({ lancamentoId: 'l1', paymentMethod: 'pix', valorPago: 200, comprovante: null })}`;
+      sessionStorage.setItem(
+        PENDING_KEYS_STORAGE_KEY,
+        JSON.stringify({
+          [resumoDoPedido(pedido)]: { chave: 'chave-vencida', ate: Date.now() - 1 },
+        }),
+      );
+      render(<CaixaView {...base} pendentes={[item()]} />);
+      await abrir('Registrar recebimento');
+      await registrar(/Registrar R\$\s*200,00/);
+      await painelFechado();
+      expect(chavesDe(confirmPaymentAction)[0]).not.toBe('chave-vencida');
+    });
+
+    it('P-19: a mesma operação guardada e ainda no prazo é reaproveitada', async () => {
+      vi.mocked(confirmPaymentAction)
+        .mockReset()
+        .mockResolvedValue({ ok: true, data: item({ status: 'pago', valorPago: 200 }) });
+      const pedido = `confirm:c1:${JSON.stringify({ lancamentoId: 'l1', paymentMethod: 'pix', valorPago: 200, comprovante: null })}`;
+      sessionStorage.setItem(
+        PENDING_KEYS_STORAGE_KEY,
+        JSON.stringify({
+          [resumoDoPedido(pedido)]: { chave: 'chave-em-aberto', ate: Date.now() + 60_000 },
+        }),
+      );
+      render(<CaixaView {...base} pendentes={[item()]} />);
+      await abrir('Registrar recebimento');
+      await registrar(/Registrar R\$\s*200,00/);
+      await painelFechado();
+      expect(chavesDe(confirmPaymentAction)[0]).toBe('chave-em-aberto');
+    });
+
+    it('P-19: armazenamento da aba bloqueado não impede registrar (fica na memória)', async () => {
+      const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+        throw new Error('SecurityError');
+      });
+      const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new Error('QuotaExceededError');
+      });
+      try {
+        vi.mocked(confirmPaymentAction)
+          .mockReset()
+          .mockRejectedValueOnce(new Error('Failed to fetch'))
+          .mockResolvedValueOnce({ ok: true, data: item({ status: 'pago', valorPago: 200 }) });
+        render(<CaixaView {...base} pendentes={[item()]} />);
+        await abrir('Registrar recebimento');
+        await registrar(/Registrar R\$\s*200,00/);
+        expect(await screen.findByText(AMBIGUO)).toBeTruthy();
+        await registrar(/Registrar R\$\s*200,00/);
+        await painelFechado();
+        const [primeira, segunda] = chavesDe(confirmPaymentAction);
+        expect(segunda).toBe(primeira);
+      } finally {
+        getItem.mockRestore();
+        setItem.mockRestore();
+      }
     });
 
     it('cancelar cobrança segue a mesma regra: queda de rede mantém a chave do cancelamento', async () => {

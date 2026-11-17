@@ -37,6 +37,13 @@ import { uuidv4 } from '@/lib/ui/uuid';
 
 import { cancelLancamentoAction, confirmPaymentAction, createEstornoAction } from './actions';
 import { outstandingBalance } from './caixa-money';
+import {
+  gravarChavesEmAberto,
+  lerChavesEmAberto,
+  PENDING_KEY_TTL_MS,
+  resumoDoPedido,
+  type PendingKey,
+} from './pending-keys';
 import { CashQueue, type CashPanelMode } from './cash-queue';
 import type { ActionResult } from './caixa-types';
 import { LocalPager, paginateLocally } from './local-pagination';
@@ -132,16 +139,26 @@ export function CaixaView({
     Por isso só o sucesso encerra a operação, e o mesmo pedido depois dele é um
     registro novo, com chave nova. O mapa guarda uma chave por pedido: fechar o
     painel ou registrar outro lançamento no meio não perde a chave do que ficou
-    sem confirmação. Ele vive só na memória da página, nada vai para o
-    navegador; ao recarregar, a tela mostra o que o servidor de fato gravou.
+    sem confirmação.
+
+    P-19 (16/11/2026): o mapa também sobrevive ao recarregamento DA ABA
+    (`pending-keys.ts`, só resumo do pedido + chave, com prazo de 30 min). O
+    pedido inclui a clínica do lançamento, para nenhuma chave atravessar de uma
+    clínica para outra.
   */
-  const chavesEmAberto = useRef(new Map<string, string>());
+  const chavesEmAberto = useRef<Map<string, PendingKey> | null>(null);
 
   const run = (pedido: string, fn: (chave: string) => Promise<ActionResult<unknown>>) => {
     setError(null);
+    // Só no cliente (run nasce de um clique): lê a aba na primeira operação.
+    chavesEmAberto.current ??= lerChavesEmAberto();
     const emAberto = chavesEmAberto.current;
-    const chave = emAberto.get(pedido) ?? uuidv4();
-    emAberto.set(pedido, chave);
+    const resumo = resumoDoPedido(pedido);
+    const agora = Date.now();
+    const atual = emAberto.get(resumo);
+    const chave = atual && atual.ate > agora ? atual.chave : uuidv4();
+    emAberto.set(resumo, { chave, ate: agora + PENDING_KEY_TTL_MS });
+    gravarChavesEmAberto(emAberto);
     startTransition(async () => {
       let result: ActionResult<unknown>;
       try {
@@ -154,7 +171,8 @@ export function CaixaView({
         setError(result.code === 'error' ? RESULTADO_DESCONHECIDO : result.message);
         return;
       }
-      emAberto.delete(pedido);
+      emAberto.delete(resumo);
+      gravarChavesEmAberto(emAberto);
       setPanel(null);
       router.refresh();
     });
@@ -169,18 +187,24 @@ export function CaixaView({
         ? { type: 'comprovante' as const, fileStoragePath: comprovante.trim() }
         : null,
     };
-    run(`confirm:${JSON.stringify(input)}`, (chave) => confirmPaymentAction(input, chave));
+    run(`confirm:${item.clinicId}:${JSON.stringify(input)}`, (chave) =>
+      confirmPaymentAction(input, chave),
+    );
   };
 
   const onCancel = (item: CaixaItem) =>
-    run(`cancel:${item.id}`, (chave) => cancelLancamentoAction({ lancamentoId: item.id }, chave));
+    run(`cancel:${item.clinicId}:${item.id}`, (chave) =>
+      cancelLancamentoAction({ lancamentoId: item.id }, chave),
+    );
 
   const onEstorno = (
     item: CaixaItem,
     input: Omit<Parameters<typeof createEstornoAction>[0], 'lancamentoId'>,
   ) => {
     const pedido = { lancamentoId: item.id, ...input };
-    run(`estorno:${JSON.stringify(pedido)}`, (chave) => createEstornoAction(pedido, chave));
+    run(`estorno:${item.clinicId}:${JSON.stringify(pedido)}`, (chave) =>
+      createEstornoAction(pedido, chave),
+    );
   };
 
   const openPanel = (id: string, mode: CashPanelMode) =>
