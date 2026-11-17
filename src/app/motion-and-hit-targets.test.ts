@@ -76,4 +76,16 @@ describe('fundação de movimento e alvos de interação', () => {
     expect(topo).toContain('min-height: 24px');
     expect(topo).toContain('display: inline-flex');
   });
+
+  // UX-021: no celular as ações ficam na linha do nome da tela, antes da busca (ordem 1).
+  it('põe as ações do cabeçalho na linha do nome da tela abaixo de 720 px', () => {
+    // O bloco de 720 px que reorganiza o cabeçalho (há outros blocos de 720 px no arquivo).
+    const inicio = css.lastIndexOf('@media (max-width: 720px)', css.indexOf('UX-021 (17/11/2026)'));
+    expect(inicio).toBeGreaterThan(-1);
+    const bloco = css.slice(inicio);
+    const regra = bloco.match(/\[data-slot='page-header-actions'\] \{[^}]*\}/u)?.[0] ?? '';
+    expect(regra).toContain('order: 1;');
+    const busca = bloco.match(/\[data-slot='page-header-search'\] \{[^}]*\}/u)?.[0] ?? '';
+    expect(busca).toContain('order: 2;');
+  });
 });

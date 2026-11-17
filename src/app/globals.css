@@ -2095,8 +2095,12 @@ body:has([data-qoro-shell='tenant']) [data-slot='empty-state'] > p {
     margin-left: 0;
     padding-block: 0 10px;
   }
+  /* UX-021 (17/11/2026): as ações sobem para a linha do nome da tela. Com `order: 2` elas
+     vinham depois da busca, que ocupa a linha inteira, e ganhavam uma linha só delas
+     (Conversas e Documentos chegavam a 342–406 px de cabeçalho a 320–375 px). Se não
+     couberem ao lado do nome, quebram para a linha seguinte, ainda antes da busca. */
   [data-qoro-shell='tenant'] [data-slot='page-header-actions'] {
-    order: 2;
+    order: 1;
     max-width: 100%;
   }
   [data-qoro-shell='tenant'] [data-slot='page-header-copy'] {

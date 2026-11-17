@@ -34,7 +34,10 @@ describe('NewClinicalDocumentDrawer', () => {
     expect(screen.getByRole('link', { name: /Documento m/u }).getAttribute('href')).toBe(
       '/pacientes/patient-a?novo=documento',
     );
-    expect(document.body.textContent).toContain('não cria uma consulta artificial');
+    // P1.7: o texto diz o caminho real (a emissão segue na ficha) e mantém a garantia de não
+    // criar consulta só para emitir.
+    expect(document.body.textContent).toContain('A emissão continua na ficha do paciente');
+    expect(document.body.textContent).toContain('nenhuma consulta');
   });
 
   it('não oferece tipo sem permissão correspondente', async () => {
