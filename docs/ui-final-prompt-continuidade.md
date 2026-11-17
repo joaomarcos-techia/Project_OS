@@ -57,7 +57,7 @@ código ficam como estão. O fundador é quem decide política, merge e Producti
    - evidências em `.tmp/ui-audit/evidence/2026-11-1{4,5,7}/`; o log da CI fica em `.tmp/ci/`.
 
 ## 3. Estado exato em que parou
-- **Código:** igual ao `2821e059` (consentimento e alvos de 24 px). Depois dele, só documento.
+- **Código:** igual ao `a2af7bbf` (Repasses quebra linha a 320 px), sobre o `2821e059` (consentimento e alvos de 24 px). Depois dele, só documento.
 - **Commits do ciclo 4** (todos no PR #56; detalhes no bloco de estado e na seção 27):
   - `c9098ad8`: A-02, descrição nas 8 gavetas e diálogos;
   - `8f73258a`: P-19, chave do Caixa sobrevive ao reload da aba;
@@ -66,7 +66,7 @@ código ficam como estão. O fundador é quem decide política, merge e Producti
   - `82f98aab`: S-02, action sem sessão recebe 401 com `x-action-redirect`;
   - `2821e059`: chave do consentimento nasce no envio; migalhas, card do Dashboard, Repasses e
     lista de espera com alvo de 24 px.
-- **CI:** verde no `cc1f1f1c` e no `82f98aab` (run `44114727352`). O resultado do HEAD final fica
+- **CI:** verde no `cc1f1f1c` e no `82f98aab` (run `44114727352`), o último verde completo. Do `abcbef5f` em diante, reprovada no gate de auditoria por advisory externa sem correção (P-25; decisão do fundador). O resultado do HEAD final fica
   registrado no corpo do PR #56; confira com `gh pr checks 56` antes de afirmar qualquer coisa.
 - **Validado no Preview `82f98aab`** (25.11): prova assinada, S-02 ao vivo (401), desempenho sem
   regressão e 0 referência ARIA quebrada, sidebar sem mudança necessária, varredura de 195 medições
@@ -76,6 +76,9 @@ código ficam como estão. O fundador é quem decide política, merge e Producti
   - P-24: "Entrar" do `/cadastro` com 23 px, depois da integração com o #53;
   - P-19, resto: outra aba ou outro aparelho exige `valorPagoEsperado` (domínio financeiro);
   - P-20: latência de Server Action no Preview (logs da Vercel/Supabase).
+  - **P-25: o gate `pnpm audit` da CI reprova em toda branch** (GHSA-fc5q-39xc-vjpf, `picomatch`
+    ≤ 4.0.7, sem versão corrigida em 17/11). Sem exceção nem override sem decisão do fundador;
+    quando sair a correção upstream, aplicar a versão no `pnpm-workspace.yaml` e rodar a CI de novo.
 - **Bloqueados:** os specs `production-*`, por política (Production NO-GO; só `--list`).
 - **Integração** (heads de 17/11): UI × TISS `087380af` = 9 arquivos em conflito; UI × #53
   `bd776c15` = 7. Resolução na 31.R e na 32; a fórmula `l.valor - l.valorPago - l.valorGlosado`

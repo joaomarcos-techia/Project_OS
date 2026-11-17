@@ -58,7 +58,15 @@
   - O Preview do **#55 (TISS)** em `b4365136` falhou na Vercel; o TISS foi avisado. Foi
     transitório: o TISS não repetiu no `8ec0d433`. O #56 não foi afetado (Previews `ed4229f6` e
     `82f98aab` publicados).
-  - **CI do `82f98aab`: verde** (run `44114727352`). Rodada de validação no Preview `82f98aab`:
+  - **CI do HEAD: BLOQUEADA por advisory externa sem correção (P-25).** A CI do `abcbef5f`
+    (run `44168983656`) reprovou no 1º gate, `pnpm audit --prod --audit-level high`: a
+    GHSA-fc5q-39xc-vjpf (`picomatch` ≤ 4.0.7, via `@sentry/nextjs` → `@rollup/plugin-commonjs`) foi
+    atualizada em 17/11 às 15:56 UTC **sem versão corrigida** (`first_patched_version: null`; a última
+    no registro é a 4.0.7). Tipos, lint, testes, inventário, isolamento, build e e2e ficaram
+    **pulados**, então o HEAD não tem evidência de CI para eles. Vale para qualquer branch a partir de
+    agora; o TISS `087380af` passou às 16:16 UTC, antes de a base do audit absorver a mudança.
+    Decisão do fundador (P-25). Sem exceção aplicada aqui: a política V14 do `ci.yml` proíbe.
+  - **CI do `82f98aab`: verde** (run `44114727352`), o último verde completo. Rodada de validação no Preview `82f98aab`:
     seção 25.11. Um #418 (variante HTML) em `/documentos` a 1024 e 768 na varredura **não se
     reproduziu** em 24 cargas dirigidas; vai para o R51, sem supressão (25.11).
 
@@ -1968,6 +1976,19 @@ por renderização, sem hidratação, e não foi alterada.
 | "Dispensar" do toast | 23 × 23 em 5 medições, 24 × 24 em 1 | PASS: `size-6` (24 px); a medida menor é da animação de entrada |
 | `/cadastro`: "Entrar" | 44 × 23 | **Adiado** (P-24): `signup-frame` está entre os 7 conflitos com o #53; corrigir depois da integração |
 
+**Revalidação no Preview `abcbef5f`** (código `2821e059`, 17/11 17h28–17h38, 1 login na varredura e
+5 no e2e):
+- prova assinada PASS;
+- varredura dirigida, 7 rotas × 5 larguras = 35 medições: migalhas, links do Dashboard e mês dos
+  Repasses saíram da lista de alvos pequenos; 0 erro de página (0 #418 em Documentos nas 5
+  larguras); 0 erro de console; 0 controle sem nome. Os que restam são os PASS da triagem (checkbox
+  nativo com rótulo, Switch com área em `before:`, "Dispensar" durante a animação);
+- `payout-review-preview` **13/13**, resíduo 0;
+- **regressão desta frente:** `/relatorios/repasses` a 320 px com rolagem lateral (a linha dos botões
+  novos chegava a 369 px). Corrigida no `a2af7bbf` (`flex-wrap`), com teste na página.
+
+**Validação de depois no Preview `a2af7bbf`** (17/11 17h44, 1 login): prova assinada PASS; `/relatorios` e `/relatorios/repasses` nas 5 larguras = 10 medições, **0 rolagem lateral** (Repasses a 320 px resolvido), 0 erro de página ou de console, 0 controle sem nome; o único alvo listado é o "Dispensar" do toast (23–24 px na animação, PASS). A CI do `a2af7bbf` (run `44171803342`) reprovou no mesmo gate de auditoria (P-25).
+
 ## 26. Riscos e decisões
 
 | ID | Decisão | Motivo | Alternativa descartada |
@@ -2023,6 +2044,7 @@ por renderização, sem hidratação, e não foi alterada.
 | 17/11/2026 | Ciclo 4: A-02, P-19, P-11, UX-021, S-02 | Ver bloco de estado; commits `c9098ad8`, `8f73258a`, `6173fbea`, `046f7fa6`, `82f98aab` | por commit: diálogos 3/3 + lote de 613; Caixa 65/65; middleware 45/45; contratos de CSS; `tsc` 0; ESLint 0; inventário OK | CI `82f98aab` verde (`44114727352`) |
 | 17/11/2026 | Validação do ciclo 4 | Preview `82f98aab`: prova, S-02 ao vivo, desempenho, sidebar, varredura de 195 medições, `payout-review` 13/13; #418 de Documentos repetido, 0 em 24 | — | 25.11 |
 | 17/11/2026 | Consentimento, alvos de 24 px | Chave do consentimento nasce no envio; migalhas, cabeçalho de card, Repasses e lista de espera com 24 px | consentimento 5/5 (a mutação reprova), CSS 6/6, pastas afetadas 233/233; `tsc` 0; ESLint 0; Prettier 0; inventário OK | `2821e059` |
+| 17/11/2026 | Revalidação, Repasses a 320 px, CI | Preview `abcbef5f`: prova, varredura dirigida 35, `payout-review` 13/13; regressão a 320 px em Repasses corrigida (`a2af7bbf`); CI do `abcbef5f` reprovada no gate de auditoria por advisory externa sem correção (P-25) | Repasses 10/10; `tsc` 0; ESLint 0; Prettier 0; inventário OK | 25.11 |
 
 ## 28. Pendências e bloqueios
 
@@ -2053,6 +2075,7 @@ por renderização, sem hidratação, e não foi alterada.
 | P-20 | Latência de Server Action no Preview, de 11,4 s (seção 33): precisa dos logs da Vercel/Supabase | observabilidade | plataforma |
 | P-23 | #418 (HTML) intermitente: 2 em 195 medições da varredura de 17/11 (`/documentos` a 1024 e 768), 0 em 24 repetições dirigidas; sem fonte de divergência no código da rota (25.11). Acompanhar no R51; não suprimir | estabilidade | esta frente / TISS (R51) |
 | P-24 | "Entrar" do `/cadastro` com 23 px de altura: corrigir no `signup-frame` depois da integração com o #53 (conflito em aberto) | a11y | quem integrar #53 → #56 |
+| P-25 | **Gate de auditoria da CI reprova em toda branch:** GHSA-fc5q-39xc-vjpf (`picomatch` ≤ 4.0.7, alta), atualizada em 17/11 15:56 UTC, sem versão corrigida. Caminho: `@sentry/nextjs` → `@rollup/plugin-commonjs` (e `fdir`, `@rollup/pluginutils`). Uso real: só no `config/loaders/wrappingLoader.js` do Sentry, loader de **build** com `ignore()` fixo e sem padrão vindo de usuário, então não há ReDoS alcançável em execução. Opções: (a) esperar a correção upstream e rodar a CI de novo; (b) exceção temporária e datada (`auditConfig.ignoreGhsas` no `pnpm-workspace.yaml`), o que muda a política V14 e exige decisão; (c) override não resolve, porque não há versão boa | CI / segurança | fundador |
 | P-21 | **CI do #56 vermelha por 2 asserções desatualizadas por esta frente** (bloco de estado): título da Ajuda ('· Ajuda', UX-008) e `aria-describedby` do PIN com o hint (UX-001). Antes de alterar: confirmar que o título sem 'Qoro' segue o contrato de `src/app/page-titles.test.ts` e que hint e ajuda do PIN têm textos diferentes (sem anúncio duplicado). Depois, atualizar só as duas expectativas, sem enfraquecer, e deixar a CI rodar inteira (inventário, isolamento, build e e2e público ainda sem evidência) | teste | esta frente |
 | P-21 (status 16/11) | **Corrigido localmente:** título da Ajuda (teste atualizado ao UX-008) e PIN do WhatsApp (defeito real de descrição duplicada, corrigido no componente; teste mais estrito). Falta a CI inteira, que depende da P-22 | teste/a11y | esta frente |
 | P-22 | **GitHub Actions bloqueado por cobrança da conta** desde o `63caefd1` (16/11): jobs nem iniciam ("recent account payments have failed or your spending limit needs to be increased"). Afeta os PRs #56–#59. Nenhum agente mexe em pagamento | conta GitHub | fundador (Settings → Billing & plans) |
