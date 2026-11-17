@@ -2009,6 +2009,17 @@ envia; evidência em `evidence/2026-11-17/a02/`):
   (exige super admin) e o diálogo de segurança (abrir inicia o cadastro do TOTP, que grava);
   cobertos pelo contrato estático e pelos testes.
 
+**Matriz completa no HEAD `21658e90`** (código = `d91c439f`; Preview `project-fondpgi8d-…`, 17/11
+18h04–18h20, 1 login): prova assinada PASS; **195 medições em 39 rotas × 5 larguras**; **0 rolagem
+lateral**, 0 controle sem nome, 0 falha de carga; `/admin` 404 nas 5 (esperado). Alvos pequenos: só
+os da triagem com PASS (checkbox nativo com rótulo, Switch e Checkbox com área em `before:`, rádios
+ocultos com cartão-rótulo, "Dispensar" durante a animação) e o P-24; migalhas, Dashboard e Repasses
+não aparecem mais. Erros de console: os mesmos 3 por desenho ou de terceiro. **1 erro de página: #418
+(HTML) em `/configuracoes/sugestoes` a 768**, outra rota que a de Documentos. Com isso são 3 em 390
+medições nas duas varreduras completas de hoje, em rotas diferentes, o que reforça a leitura do R51
+(não é de uma rota; o histórico já tinha "1–6% em Dashboard, Sugestões e prontuário"). Segue no
+P-23, sem supressão.
+
 ## 26. Riscos e decisões
 
 | ID | Decisão | Motivo | Alternativa descartada |
@@ -2066,6 +2077,7 @@ envia; evidência em `evidence/2026-11-17/a02/`):
 | 17/11/2026 | Consentimento, alvos de 24 px | Chave do consentimento nasce no envio; migalhas, cabeçalho de card, Repasses e lista de espera com 24 px | consentimento 5/5 (a mutação reprova), CSS 6/6, pastas afetadas 233/233; `tsc` 0; ESLint 0; Prettier 0; inventário OK | `2821e059` |
 | 17/11/2026 | Revalidação, Repasses a 320 px, CI | Preview `abcbef5f`: prova, varredura dirigida 35, `payout-review` 13/13; regressão a 320 px em Repasses corrigida (`a2af7bbf`); CI do `abcbef5f` reprovada no gate de auditoria por advisory externa sem correção (P-25) | Repasses 10/10; `tsc` 0; ESLint 0; Prettier 0; inventário OK | 25.11 |
 | 17/11/2026 | A-02 no navegador, foco ao fechar | Sonda com diálogo aberto: 6/6 descrições reais; achado de foco no `body` ao fechar diálogos sem Trigger → corrigido no componente compartilhado e na Equipe; Preview `d91c439f` 7/7 com foco devolvido | foco 4/4 (mutação reprova 3), pastas com diálogos 617/617; `tsc` 0; ESLint 0; Prettier 0; inventário OK; conflitos iguais (9 e 7) | `d91c439f`; 25.11 |
+| 17/11/2026 | Matriz completa no HEAD | Preview `21658e90`: 195 medições, 0 rolagem lateral, 0 sem nome; 1 #418 em Sugestões (P-23) | — | 25.11 |
 
 ## 28. Pendências e bloqueios
 
@@ -2094,7 +2106,7 @@ envia; evidência em `evidence/2026-11-17/a02/`):
 | P-19 | Corrida residual do Caixa depois de recarregar a página com a 1ª requisição ainda no servidor; proposta `valorPagoEsperado` em `confirmPayment` (25.9) | contrato financeiro | domínio financeiro |
 | P-19 (status 17/11) | **Fechado para a mesma aba** (`8f73258a`): chaves de operações sem confirmação no `sessionStorage` (resumo do pedido + chave, 30 min), incluindo a clínica no pedido. Resta outra aba ou outro aparelho, que exige contrato de servidor (`valorPagoEsperado`) com o domínio financeiro | Caixa | domínio financeiro (resto) |
 | P-20 | Latência de Server Action no Preview, de 11,4 s (seção 33): precisa dos logs da Vercel/Supabase | observabilidade | plataforma |
-| P-23 | #418 (HTML) intermitente: 2 em 195 medições da varredura de 17/11 (`/documentos` a 1024 e 768), 0 em 24 repetições dirigidas; sem fonte de divergência no código da rota (25.11). Acompanhar no R51; não suprimir | estabilidade | esta frente / TISS (R51) |
+| P-23 | #418 (HTML) intermitente: 3 em 390 medições das duas varreduras completas de 17/11 (`/documentos` a 1024 e 768 no `82f98aab`; `/configuracoes/sugestoes` a 768 no `21658e90`), 0 em 24 repetições dirigidas; sem fonte de divergência no código de Documentos (25.11). Não é de uma rota. Próximo passo útil: o observador de DOM do plano anterior (§11) numa rodada longa, com e sem a barra da Vercel. Acompanhar no R51; não suprimir | estabilidade | esta frente / TISS (R51) |
 | P-24 | "Entrar" do `/cadastro` com 23 px de altura: corrigir no `signup-frame` depois da integração com o #53 (conflito em aberto) | a11y | quem integrar #53 → #56 |
 | P-25 | **Gate de auditoria da CI reprova em toda branch:** GHSA-fc5q-39xc-vjpf (`picomatch` ≤ 4.0.7, alta), atualizada em 17/11 15:56 UTC, sem versão corrigida. Caminho: `@sentry/nextjs` → `@rollup/plugin-commonjs` (e `fdir`, `@rollup/pluginutils`). Uso real: só no `config/loaders/wrappingLoader.js` do Sentry, loader de **build** com `ignore()` fixo e sem padrão vindo de usuário, então não há ReDoS alcançável em execução. Opções: (a) esperar a correção upstream e rodar a CI de novo; (b) exceção temporária e datada (`auditConfig.ignoreGhsas` no `pnpm-workspace.yaml`), o que muda a política V14 e exige decisão; (c) override não resolve, porque não há versão boa | CI / segurança | fundador |
 | P-21 | **CI do #56 vermelha por 2 asserções desatualizadas por esta frente** (bloco de estado): título da Ajuda ('· Ajuda', UX-008) e `aria-describedby` do PIN com o hint (UX-001). Antes de alterar: confirmar que o título sem 'Qoro' segue o contrato de `src/app/page-titles.test.ts` e que hint e ajuda do PIN têm textos diferentes (sem anúncio duplicado). Depois, atualizar só as duas expectativas, sem enfraquecer, e deixar a CI rodar inteira (inventário, isolamento, build e e2e público ainda sem evidência) | teste | esta frente |
