@@ -1,4 +1,4 @@
-# Prompt de continuidade — Qoro, frente "Otimização UI final" (estado de 16/11/2026, ~03h)
+# Prompt de continuidade — Qoro, frente "Otimização UI final" (estado de 17/11/2026, fim do ciclo 4)
 
 > Cole este texto, inteiro, numa sessão nova de IA com acesso ao repositório e à máquina do
 > fundador. Ele foi escrito para que quem o leia continue exatamente do ponto em que a frente parou.
@@ -23,11 +23,13 @@ código ficam como estão. O fundador é quem decide política, merge e Producti
 
 ## 2. Leia nesta ordem antes de qualquer ação
 1. `docs/otimização_ui_final.md`:
-   - bloco **ESTADO ATUAL DA EXECUÇÃO** (o item "FECHAMENTO DO CICLO 3" primeiro);
+   - bloco **ESTADO ATUAL DA EXECUÇÃO** (o item "CICLO 4 (17/11/2026)" primeiro);
    - seção **00**: 00.1 ordem de leitura, 00.2 onde o trabalho vive, 00.3 ambiente local, 00.4 regras
      invioláveis, 00.5 segurança do ambiente;
-   - seções **25.7, 25.9 e 25.10**: regressão do Caixa, ciclo 3, sondas no Preview;
-   - **26** decisões, **27** registro do que foi feito, **28** pendências (P-15 a P-21);
+   - seções **25.7, 25.9, 25.10 e 25.11**: regressão do Caixa, ciclo 3, sondas no Preview e a
+     rodada de validação do ciclo 4 (varredura, desempenho, #418, triagem de alvos);
+   - **26** decisões, **27** registro do que foi feito, **28** pendências (P-15 a P-24, com as
+     linhas "status 17/11");
    - **31.R** (coordenação e conflitos com o TISS, 8 arquivos), **32** (AbacatePay e ordem de
      integração), **33** (achados de plataforma, segurança e acessibilidade: S-01, S-02, S-03, A-01,
      A-02, P-13, P-20).
@@ -50,34 +52,34 @@ código ficam como estão. O fundador é quem decide política, merge e Producti
    - `runtime-proof.ts`: prova assinada do Preview, sem login;
    - `run-payout-review.sh <url> <rótulo>`: e2e de repasses no Preview, 1 worker, 5 logins;
    - `ciclo3-probe.ts` e `final-probe.ts`: sondas de 1 login;
-   - evidências em `.tmp/ui-audit/evidence/2026-11-1{4,5}/`; o log da CI fica em `.tmp/ci/`.
+   - ciclo 4: `sweep-preview.ts` (39 rotas × 5 larguras), `perf-hydration-probe.ts`,
+     `sidebar-probe.ts`, `doc418-probe.ts`, `doc418-fresh.ts`, `toolbar-check.ts`, `rodada-17nov.sh`;
+   - evidências em `.tmp/ui-audit/evidence/2026-11-1{4,5,7}/`; o log da CI fica em `.tmp/ci/`.
 
 ## 3. Estado exato em que parou
-- **Código:** igual ao `5462c209`. A última mudança de lógica é a do `2761563c`.
-- **Commits desta frente sobre `e47ec2f0`:** veja o bloco de estado e a seção 27. Do ciclo 3:
-  - `f5388ec9`: Caixa, chave por operação;
-  - `f3fd8648`: textos de Equipe e LGPD;
-  - `2761563c`: sessão morta vai para `/login` em 17 páginas;
-  - `05e4378c`: token âmbar ≥ 4,5:1;
-  - `464aa0ba`: inventário de segurança;
-  - `5462c209`: "Criar conta" com 24 px e descrição de Documentos;
-  - depois disso, só documento.
-- **Validado:** `payout-review-preview` **13/13 no `2761563c`**, no Preview com banco DEV e Asaas
-  sandbox. Sondas de navegador no `05e4378c` e no `a1d64d11`: Dashboard, Financeiro em 5 larguras,
-  login, Documentos, Equipe e LGPD.
-- **Bloqueados:** os 6 specs `production-*`, por política (Production NO-GO; só `--list`), e o
-  `mutation-flows`, pela RAM local (< 1 GB livre).
-- **P-21 corrigido localmente em 16/11** (ver o bloco de estado do documento): título da Ajuda atualizado ao UX-008 e descrição duplicada do PIN do WhatsApp corrigida na tela. Local: 62/62, ESLint 0, `tsc` 0. **A CI não roda desde o `63caefd1`**: o GitHub recusa iniciar jobs por cobrança da conta (P-22); só o fundador resolve.
-- **Último resultado real da CI do #56, antes da correção: VERMELHA** (P-21).
-  - Passaram auditoria, typecheck, lint, arquitetura, migrations, observabilidade e registry.
-  - Falharam 2 de 6742 testes. São asserções desatualizadas por mudanças intencionais desta frente
-    em 14/11:
-    1. `src/app/(app)/(shell)/documentação/page.test.tsx:57` espera "… | Ajuda Qoro". A página dá
-       "… · Ajuda" (UX-008, `5d04e48f`).
-    2. `src/app/(app)/(shell)/configuracoes/whatsapp/whatsapp-connect.test.tsx:764` espera o
-       `aria-describedby` do PIN só com `…-pin-help`. O `Field` agora liga também `…-pin-hint`
-       (UX-001, `06af3f84`).
-  - Inventário, isolamento de tenant, build e e2e público ficaram **pulados**, portanto sem evidência.
+- **Código:** igual ao `2821e059` (consentimento e alvos de 24 px). Depois dele, só documento.
+- **Commits do ciclo 4** (todos no PR #56; detalhes no bloco de estado e na seção 27):
+  - `c9098ad8`: A-02, descrição nas 8 gavetas e diálogos;
+  - `8f73258a`: P-19, chave do Caixa sobrevive ao reload da aba;
+  - `6173fbea`: P-11, leituras do shell em paralelo e trial memoizado por requisição;
+  - `046f7fa6`: UX-021, ações do cabeçalho na linha do título no celular, e texto de Documentos;
+  - `82f98aab`: S-02, action sem sessão recebe 401 com `x-action-redirect`;
+  - `2821e059`: chave do consentimento nasce no envio; migalhas, card do Dashboard, Repasses e
+    lista de espera com alvo de 24 px.
+- **CI:** verde no `cc1f1f1c` e no `82f98aab` (run `44114727352`). O resultado do HEAD final fica
+  registrado no corpo do PR #56; confira com `gh pr checks 56` antes de afirmar qualquer coisa.
+- **Validado no Preview `82f98aab`** (25.11): prova assinada, S-02 ao vivo (401), desempenho sem
+  regressão e 0 referência ARIA quebrada, sidebar sem mudança necessária, varredura de 195 medições
+  sem rolagem lateral nem controle sem nome, `payout-review` 13/13.
+- **Em aberto desta frente:**
+  - P-23: #418 intermitente (2 em 195 na varredura, 0 em 24 repetições), no R51; não suprimir;
+  - P-24: "Entrar" do `/cadastro` com 23 px, depois da integração com o #53;
+  - P-19, resto: outra aba ou outro aparelho exige `valorPagoEsperado` (domínio financeiro);
+  - P-20: latência de Server Action no Preview (logs da Vercel/Supabase).
+- **Bloqueados:** os specs `production-*`, por política (Production NO-GO; só `--list`).
+- **Integração** (heads de 17/11): UI × TISS `087380af` = 9 arquivos em conflito; UI × #53
+  `bd776c15` = 7. Resolução na 31.R e na 32; a fórmula `l.valor - l.valorPago - l.valorGlosado`
+  do TISS prevalece em `financeiro/page.tsx`.
 - **Outras frentes, com donos próprios. Não mexa nelas:**
   - #53 (AbacatePay) e #55 (TISS, outro agente ativo);
   - #57 e #58 (S-01, leitura de conversas pelo suporte);
@@ -86,51 +88,25 @@ código ficam como estão. O fundador é quem decide política, merge e Producti
   do #56; o #59, depois de #53 → UI → #55.
 
 ## 4. Próximas ações, nesta ordem
-1. **Conferir o terreno:**
-   - `git -C C:\dev\Qoro_ui_otimizacao_final_20261114 status`, `log -5` e `fetch`; compare com o
-     bloco de estado. Se o documento divergir do código, investigue e registre na seção 27.
-   - CI do #56: `gh pr checks 56 --repo joaomarcos-techia/Project_OS`.
-   - Memória livre da máquina.
-   - Pergunte ao fundador se há janela de máquina reservada a outro agente (ele já reservou para o
-     AbacatePay); nessa janela, nada pesado.
-2. **P-21: já corrigido; falta a evidência da CI.** Quando a P-22 for resolvida, confirme que a CI do #56 rodou inteira e registre o resultado por SHA. Se ainda houver falha, o roteiro original vale:
-   - Confirme a intenção:
-     - o título sem "Qoro" segue `src/app/page-titles.test.ts`;
-     - hint e ajuda do PIN têm textos diferentes; se forem iguais, o certo é corrigir o componente,
-       não o teste.
-   - Atualize **só** as duas expectativas, sem enfraquecer. Rode os dois arquivos com
-     `npx vitest run <arquivos> --minWorkers=1 --maxWorkers=1`. Faça push e deixe a CI rodar inteira.
-   - Registre o resultado **por SHA**, passo a passo, inclusive os passos que só então vão rodar.
-     Se o inventário reprovar: `npx tsx scripts/security/inventory.ts --check`; revise o diff antes
-     do `--write`, e nenhuma superfície pode ficar em `REVIEW_REQUIRED`.
-3. **A-02** (gavetas e diálogos sem descrição, com `aria-describedby` pendurado):
-   - Corrija só nos arquivos que nem o #53 nem o #55 alteram; confira com `git diff` contra os heads
-     deles.
-   - `new-appointment-drawer`, `prescription-drawer` e `fornecedores-view` ficam para depois da
-     integração.
-   - Para cada um: descrição curta e útil, ou `aria-describedby={undefined}`. Teste e confira no
-     navegador.
-4. **Login:** a sonda viu 2 pares de controles sobrepostos. Um é o botão "Mostrar senha", que fica
-   dentro do campo de propósito; identifique o outro.
-5. **Auditoria item a item de gavetas, diálogos e menus** (25.8), no Preview, em janela combinada.
-   Verifique teclado, foco ao abrir e fechar, nome acessível, `Esc` e celular.
-6. **UX-021** (cabeçalho no celular de Conversas e Documentos): prepare a proposta para decisão de
-   design. Não implemente.
-7. **Esperam decisão de outros. Não implemente sem autorização:**
-   - S-02: middleware com 307 no POST de action;
-   - P-19: duplicação de parcial depois de recarregar; contrato `valorPagoEsperado`, do domínio
-     financeiro;
-   - UX-020: coluna `source` nos pagamentos; sem migration e sem inferir o histórico;
-   - P-13: credenciais live no checkout principal; proposta de pôr o bypass do Preview no
-     `.env.local` deste worktree.
-8. **Depois que o #53 entrar:**
+1. **Conferir o terreno:** `git status`, `log -8` e `fetch` no worktree; `gh pr checks 56`;
+   memória livre da máquina. Se o documento divergir do código, investigue e registre na seção 27.
+2. **Se a CI do HEAD não estiver verde:** leia o log do passo que falhou, corrija a causa (sem
+   enfraquecer teste) e registre por SHA.
+3. **P-23 (#418):** só reabrir com ocorrência nova e reproduzível. Se aparecer, rode
+   `doc418-fresh.ts <preview> <rótulo> <rota> <n>` (com `MSYS_NO_PATHCONV=1`) na rota e procure
+   componente de cliente com `window`, data ou acaso no render.
+4. **Depois que o #53 entrar:**
    - rebase da UI, para os 3 commits dele saírem;
+   - P-24 no `signup-frame`;
    - regenerar `docs/security/acoes.md`;
    - rodar os gates e o `payout-review` de novo;
-   - coordenar o rebase do #55 com a resolução da seção 31.R. O único conflito com regra financeira
-     é `financeiro/page.tsx`, onde fica a fórmula com `valorGlosado`.
+   - coordenar o rebase do #55 com a resolução da seção 31.R.
+5. **Esperam decisão de outros. Não implemente sem autorização:** P-19 (resto, contrato de
+   servidor), UX-020 (coluna `source`), P-13 (bypass no `.env.local` deste worktree), política do
+   S-01 (frente própria).
 
-Não reabra o que já está validado (UX-006, modelos de receita, nomes do Caixa) sem regressão comprovada.
+Não reabra o que já está validado (UX-006, modelos de receita, nomes do Caixa, A-02, S-02, sidebar)
+sem regressão comprovada.
 
 ## 5. Regras invioláveis
 - **Production NO-GO.** Escreva só no DEV ou no Preview, com dados sintéticos.
@@ -159,9 +135,9 @@ Não reabra o que já está validado (UX-006, modelos de receita, nomes do Caixa
   - Vitest sempre com `--minWorkers=1 --maxWorkers=1`;
   - `npx`/`node` direto, porque `pnpm <script>` no worktree tenta apagar o `node_modules`
     compartilhado.
-- **Login no Preview e no DEV:** 10 por IP a cada 15 min, dividido com o TISS. Combine a janela por
-  mensagem antes de cada rodada (`ListAgents` mostra a sessão do TISS). Avise quando terminar e
-  espace as rodadas em 15 min. O `payout-review` gasta 5 logins.
+- **Login no Preview e no DEV:** 10 por IP a cada 15 min. Desde o ciclo 4 o TISS roda os e2e nos
+  runners do GitHub, então o limite deste IP não é mais dividido; mesmo assim, espace as rodadas e
+  prefira sondas de 1 login. O `payout-review` gasta 5 logins.
 - **Push no #56 cancela a CI em andamento.** Não publique enquanto uma CI útil estiver rodando.
 - **Commits:** em inglês, curtos, terminando com
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
@@ -175,8 +151,10 @@ Não reabra o que já está validado (UX-006, modelos de receita, nomes do Caixa
   de classificar. Não aumente o timeout sem evidência.
 - Com menu Radix aberto, o resto da página fica `aria-hidden` e o `getByRole` deixa de achar o
   gatilho. Meça antes de abrir. Grave o JSON da sonda mesmo quando uma etapa falhar.
-- Em heredoc e `python -` chamados pela ferramenta, a barra invertida some. Use `os.sep`/`sep` ou o
-  editor.
+- Em heredoc e `python -` chamados pela ferramenta, a barra invertida some, e heredocs longos com
+  aspas podem quebrar no shell. Escreva o script num arquivo (scratchpad) e rode de lá.
+- O Git Bash converte argumentos que começam com `/` em caminho do Windows (`/documentos` vira
+  `C:/Program Files/Git/documentos`). Rode sondas com rota no argumento com `MSYS_NO_PATHCONV=1`.
 - O `/tmp` do Git Bash não é o `/tmp` do Python nativo. Use caminhos relativos ao worktree, como
   `.tmp/...`.
 - O `git` mostra o caminho do documento com escapes (`"docs/otimiza\303\247..."`), por causa dos

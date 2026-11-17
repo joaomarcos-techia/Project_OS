@@ -12,6 +12,56 @@
 
 ## ESTADO ATUAL DA EXECUÇÃO
 
+- **CICLO 4 (17/11/2026) — LEIA PRIMEIRO.** Pedido do fundador: retomar e concluir a
+  repaginação, com autonomia em DEV/Preview. Production segue NO-GO e o PR #56 continua em draft.
+  - **CI oficial:** **verde no `cc1f1f1c`** (16/11, run `43882235578`, tentativa 2). Foi o primeiro
+    verde do #56, com todos os passos: auditoria, tipos, lint, arquitetura, migrations, observabilidade,
+    registry, 6742 testes, inventário, isolamento de tenant, build, bundle e e2e público. Resultado
+    do HEAD do ciclo 4: seção 25.11.
+  - **Corrigido no ciclo 4, com testes:**
+    - **A-02** (`c9098ad8`): descrição real nas 8 gavetas e diálogos; o ConfirmDialog sem descrição
+      não deixa mais referência pendurada; contrato estático.
+    - **P-19** (`8f73258a`): a chave de uma operação do Caixa sem confirmação sobrevive ao reload da
+      aba (`sessionStorage`, só resumo do pedido e chave, 30 min). O pedido inclui a clínica. O teste
+      de reload falha sem isso.
+    - **P-11** (`6173fbea`): o layout do shell lia onboarding e trial em sequência em toda página;
+      agora lê em paralelo, e o trial passa a ser lido uma vez por requisição (`cache`).
+    - **UX-021** (`046f7fa6`): no celular, as ações do cabeçalho sobem para a linha do nome da tela.
+      O lançador de Documentos diz que a emissão continua na ficha.
+    - **S-02** (`82f98aab`): Server Action sem sessão recebe 401 com `x-action-redirect`, que o
+      cliente do Next 15.5 entende, em vez do 307 que virava "Algo deu errado". A action continua
+      recusada no middleware.
+    - **Consentimento LGPD** (`2821e059`): a `idempotencyKey` saía de `uuidv4()` no render (HTML do
+      servidor ≠ navegador na hidratação; cada renderização trocava a chave, então repetir depois de
+      uma resposta perdida podia gravar uma versão a mais). Agora nasce no envio e vale enquanto
+      finalidade e versão forem as mesmas. +3 testes, com checagem de mutação.
+    - **Alvos de 24 px** (`2821e059`): migalhas (21 px) e link do cabeçalho de card do Dashboard
+      (20 px) sem crescer a linha; mês anterior/próximo dos Repasses como botões; rótulo do
+      "Mostrar encerrados" com `--hit-target`. Triagem completa em 25.11.
+  - **Medido no Preview `cc1f1f1c`** (build de produção, 41 cargas em 10 rotas):
+    - carga completa de 1,9 a 2,7 s; Equipe em ~2,0 s;
+    - **0 referência ARIA quebrada** (o efeito do P-10) e 0 erro de console ou página.
+
+    O P-10 não se reproduz em produção; os "11 s" eram a Server Action lenta (P-20) e o modo dev.
+  - **Sidebar validada sem mudança** (`sidebar-probe.ts`): trilho de 44 px, peek por hover e por
+    teclado, itens de 40 px (44 px no toque), contraste de 5,8:1, foco visível, ordem de Tab, e a
+    gaveta móvel como diálogo, com foco preso, Esc, rolagem bloqueada e foco devolvido.
+  - **Integração** (heads de 17/11):
+    - UI × TISS `b4365136`: **9 conflitos**, os 8 de antes mais o `acoes.md`, que é gerado;
+    - UI × #53 `75b41401`: **7 conflitos**, o `acoes.md` mais as telas de plano e de cadastro
+      (`cadastro/plano/*`, `signup-frame.*`, de 5 a 46 linhas cada).
+    - Refeito com `2821e059` contra TISS `087380af` e #53 `bd776c15`: **os mesmos 9 e 7 arquivos**,
+      nenhum novo; no `waitlist-manager.tsx` segue 1 trecho em conflito (imports) e a linha nova do
+      rótulo entra limpa.
+
+    Seções 31.R e 32.
+  - O Preview do **#55 (TISS)** em `b4365136` falhou na Vercel; o TISS foi avisado. Foi
+    transitório: o TISS não repetiu no `8ec0d433`. O #56 não foi afetado (Previews `ed4229f6` e
+    `82f98aab` publicados).
+  - **CI do `82f98aab`: verde** (run `44114727352`). Rodada de validação no Preview `82f98aab`:
+    seção 25.11. Um #418 (variante HTML) em `/documentos` a 1024 e 768 na varredura **não se
+    reproduziu** em 24 cargas dirigidas; vai para o R51, sem supressão (25.11).
+
 - **P-21 CORRIGIDO (16/11/2026, manhã) — CI AINDA SEM EVIDÊNCIA.**
   - Das duas falhas da CI do #56:
     - o **título da Ajuda** era asserção desatualizada pelo UX-008. O teste agora espera
@@ -1869,6 +1919,55 @@ prontuário" contradizia o botão e ocupava 2 das 4 linhas a 320 px; sem o botã
 ativas"). A repetição passou limpa. Sem causa atribuída, e vai para o acompanhamento do R51. Nas
 sondas da UI de hoje: 0 ocorrência. Isso não encerra a causa histórica.
 
+### 25.11 Ciclo 4 — rodada de validação no Preview `82f98aab` (17/11, 1 login por sonda)
+
+Só leitura, conta de UI no DEV, bypass lido no processo e nunca impresso. Evidências em
+`.tmp/ui-audit/evidence/2026-11-17/` (fora do Git): `perf-*`, `sidebar-antes/`, `sweep-82f98aab/`,
+`s02-headers.txt`, `doc418-*`.
+
+| Verificação | Resultado | Leitura |
+| --- | --- | --- |
+| Prova assinada | PASS | mesmo deployment |
+| S-02 ao vivo (POST com `next-action`, sem cookie) | `HTTP/1.1 401`, `X-Action-Redirect: /login;replace`, sem `location` | **PASS** |
+| `payout-review-preview` | **13/13**, resíduo 0 | Caixa e repasses sem regressão depois do P-19 |
+| Desempenho, mediana de carga, `cc1f1f1c` → `82f98aab` | Equipe 1440: 1903 → 1826 ms; Equipe 375: 2015 → 1611; Pacientes 1440: 2045 → 1821; Agenda: 2049 → 1963; Caixa: 2714 → 2633; Dashboard: 2191 → 2291; Financeiro: 1930 → 1968; Conversas: 2509 → 2524; Documentos: 1868 → 1937; Pagamentos: 2740 → 2733 | Equipe e Pacientes mais rápidas (P-11); as outras na variação de ±5%; **0 referência ARIA quebrada** nas duas rodadas; Pagamentos sem timeout |
+| Varredura: 39 rotas × 5 larguras = 195 medições | 0 rolagem lateral; 0 controle sem nome; `/admin` 404 nas 5 (a conta não é super admin: esperado) | PASS |
+| Alvos menores que 24 px | 43 distintos em 95 medições | triagem abaixo |
+| Erros de console | 15: `/admin` 404 (esperado); `/cadastro` 410 de `/api/signup/sessions/me` (por desenho: 410 genérico sem sessão de cadastro; rota do #53); `/configuracoes/whatsapp` CORS do SDK da Meta ao baixar o próprio pacote (terceiro; o Embedded Signup não é testável no Preview) | sem defeito desta frente |
+| Erro de página | 2: **#418 (HTML) em `/documentos` a 1024 e 768**, na mesma rodada; 0 nas outras 193 medições | ver abaixo |
+
+**#418 em `/documentos`.** Repetido com `doc418-probe.ts` (7 cargas na mesma sessão, `networkidle`),
+`doc418-fresh.ts` (15 cargas com contexto novo por carga, `storageState` e `load`, como a varredura)
+e `toolbar-check.ts` (2 cargas, com e sem `x-vercel-skip-toolbar`): **0 ocorrência em 24 cargas
+dirigidas**. O código não tem fonte de divergência: os únicos componentes de cliente da página são o
+lançador (`NewClinicalDocumentDrawer`, sem `window`, data ou acaso no render) e o `Combobox`, que só
+monta com a gaveta aberta; as datas da tabela saem do servidor, no fuso da clínica. Na varredura, as
+duas cargas vieram logo depois das mais lentas do Preview (ficha do paciente, 22 s), o que é
+compatível com a hipótese do streaming sob carga do R51. O script da barra da Vercel
+(`vercel.live/_next-live/feedback/feedback.js`) carrega nesta Preview com e sem o cabeçalho de pular;
+a CSP de Production não libera `vercel.live`. **Resultado: PARTIAL**: intermitente, sem causa
+atribuível nesta rota, sem supressão e sem checagem desligada. Segue no R51 (P-23).
+
+**Achado lateral, corrigido:** a varredura de fontes de divergência encontrou o `ConsentCard` (ficha
+do paciente) gerando a `idempotencyKey` com `uuidv4()` no render de um componente de cliente. É a
+mesma classe do P-19 e uma divergência de atributo na hidratação. Corrigido no `2821e059`. A fila
+LGPD (`lgpd-work-queue.tsx`) usa o mesmo padrão, mas é componente de servidor: a chave nasce uma vez
+por renderização, sem hidratação, e não foi alterada.
+
+**Triagem dos alvos (WCAG 2.5.8, mínimo de 24 × 24 px).**
+
+| Alvo | Medida | Decisão |
+| --- | --- | --- |
+| Migalhas ("Configurações", "Agenda", "Pacientes", "Financeiro"; 13 rotas) | 21 px de altura | **Corrigido** (`2821e059`): `min-h-6` com margem de −2 px, linha igual |
+| Dashboard: "Ver o dia inteiro", "Abrir a agenda", "Abrir o Financeiro" | 20 px, só com mouse (no toque já tinham `--hit-target`) | **Corrigido**: 24 px também com mouse, sem crescer o cabeçalho do card |
+| Repasses: "Mês anterior", "Próximo mês" | 21 px (links soltos) | **Corrigido**: botões `secondary`/`sm` com chevron |
+| Lista de espera: "Mostrar encerrados" | checkbox nativo de 13 px; rótulo baixo | **Corrigido**: o rótulo (que também marca) com `--hit-target` |
+| Consentimento: "Confirmo que o paciente…" | checkbox nativo de 13 px | PASS por equivalência: o rótulo de 2 linhas, que também marca, passa de 24 px |
+| Checkbox e Switch do sistema (18 px; 38 × 22): "Mostrar inativos", "Permitir…", "Com pausa de almoço", "Primeira consulta", "Retorno", "Cobrar sinal ao agendar" | caixa visível | PASS: área de toque em `before:` com `--hit-target` (`checkbox.tsx`, `switch.tsx`); a sonda mede só a caixa |
+| Rádios de 1 px (plano no `/cadastro`, valor bruto/líquido em Pagamentos) | input visualmente oculto | PASS: o alvo é o cartão-rótulo |
+| "Dispensar" do toast | 23 × 23 em 5 medições, 24 × 24 em 1 | PASS: `size-6` (24 px); a medida menor é da animação de entrada |
+| `/cadastro`: "Entrar" | 44 × 23 | **Adiado** (P-24): `signup-frame` está entre os 7 conflitos com o #53; corrigir depois da integração |
+
 ## 26. Riscos e decisões
 
 | ID | Decisão | Motivo | Alternativa descartada |
@@ -1921,6 +2020,9 @@ sondas da UI de hoje: 0 ocorrência. Isso não encerra a causa histórica.
 | 15/11/2026 15h45–15h56 | Sonda do ciclo 3, P1.7, inventário | Sonda de 1 login no `05e4378c` (25.10): Dashboard e Financeiro validados no Preview; "Criar conta" com 23 px → 24 px; descrição de Documentos coerente com o botão; inventário de segurança regenerado (P-15); A-02 registrado | Documentos e componentes compartilhados 74/74; contrato de alvos 4/4; `tsc` 0; ESLint 0; `inventory.ts --check` OK | `464aa0ba`, `5462c209` |
 | 16/11/2026 ~03h | Fechamento do ciclo 3 | CI do #56 lida (vermelha por 2 asserções desatualizadas; diagnóstico e dono em P-21); frentes S-01 (#57, #58) e trilha (#59) registradas; ordem de integração revista; prompt de retomada em `docs/ui-final-prompt-continuidade.md` | nenhum teste rodado nesta etapa (máquina reservada) | este commit |
 | 16/11/2026 manhã | P-21 | Título da Ajuda: teste atualizado ao contrato UX-008. PIN do WhatsApp: descrição anunciada em dobro, corrigida em `whatsapp-connect.tsx` (a ajuda é o hint do `Field`), com teste mais estrito | 62/62 (WhatsApp, Field, Ajuda, contrato de títulos); ESLint 0; `tsc` 0; CI bloqueada pela cobrança (P-22) | este commit |
+| 17/11/2026 | Ciclo 4: A-02, P-19, P-11, UX-021, S-02 | Ver bloco de estado; commits `c9098ad8`, `8f73258a`, `6173fbea`, `046f7fa6`, `82f98aab` | por commit: diálogos 3/3 + lote de 613; Caixa 65/65; middleware 45/45; contratos de CSS; `tsc` 0; ESLint 0; inventário OK | CI `82f98aab` verde (`44114727352`) |
+| 17/11/2026 | Validação do ciclo 4 | Preview `82f98aab`: prova, S-02 ao vivo, desempenho, sidebar, varredura de 195 medições, `payout-review` 13/13; #418 de Documentos repetido, 0 em 24 | — | 25.11 |
+| 17/11/2026 | Consentimento, alvos de 24 px | Chave do consentimento nasce no envio; migalhas, cabeçalho de card, Repasses e lista de espera com 24 px | consentimento 5/5 (a mutação reprova), CSS 6/6, pastas afetadas 233/233; `tsc` 0; ESLint 0; Prettier 0; inventário OK | `2821e059` |
 
 ## 28. Pendências e bloqueios
 
@@ -1936,7 +2038,9 @@ sondas da UI de hoje: 0 ocorrência. Isso não encerra a causa histórica.
 | P-08 | Ler o payload do evento `7590707702` (título, `transaction`, stack) para fechar a causa histórica do INC-01 | acesso ao Sentry | agente com acesso ao Sentry |
 | P-09 | Origem do `fetch('data:,')` bloqueado pela CSP (`connect-src`) visto nas sondas | descoberta | esta frente (Lote 2) |
 | P-10 | Aviso de hidratação do **shell**: divergência de `id` de `useId` acima do `PainelShell` (menu lateral e menus Radix), intermitente — `/equipe` 5× em 30 cargas, `/pacientes` 1× em 10 (19.2). Mecanismo comprovado; causa raiz não. Em produção (Preview `12ab24f6`, 10 cargas, checado pelo agente TISS) o efeito **não** apareceu: rótulo do menu íntegro 10/10, sem aviso. Prioridade baixa; reabrir se aparecer em produção ou em mais telas | investigação (baixa) | esta frente |
+| P-10 (status 17/11) | **Não reproduz em produção:** 41 cargas no Preview `cc1f1f1c` (Equipe 13×, a 1440 e 375) com 0 referência ARIA quebrada e 0 erro; o TISS já tinha medido 10/10 em 15/11. Segue como artefato do modo dev, sem supressão nem desligamento de checagem | estabilidade | — |
 | P-11 | Página sem `load` em 10 min: `/equipe` (1× na tarde, 0× em 30 cargas à noite) e `/conversas` (1ª visita depois do reinício: servidor levou 179 s, `ECONNRESET` ao fechar). Sem erro de banco no log; Turbopack falhando ao baixar as fontes do Google a cada requisição; server actions de 12–23 s. Hipóteses em 19.2 | investigação | esta frente |
+| P-11 (status 17/11) | Equipe carrega em ~2,0 s no Preview. Cascatas removidas: o layout lia onboarding e trial em sequência em toda página, e a Equipe esperava o trial depois de 3 leituras; leitura do trial memoizada por requisição (`6173fbea`). Medição de depois em 25.11 | desempenho | — |
 | P-12 | Massa de teste com fila do dia no Consultório e atendimentos de hoje na Agenda, para auditar esses estados com dados (escrita no DEV, clínica de teste) | aprovação | fundador |
 | P-13 | **Trava do Asaas de produção fora da Production** (00.5, P0.1): proposta pronta; aplicar no `env.ts` exige coordenação com a PR #53 | coordenação | agente do billing/payments |
 | P-14 | Limpeza de disco fora deste worktree (00.5, P0.3): `.next` de ~12 worktrees já na `main` (~16 GB), `dist` de 10,3 GB no worktree do billing, worktrees integrados | decisão | fundador (e agente do billing para o `dist`) |
@@ -1945,7 +2049,10 @@ sondas da UI de hoje: 0 ocorrência. Isso não encerra a causa histórica.
 | P-17 | (EM PR: #57/#58/#59, frente S-01) S-01: leitura de conversas da IA no console da plataforma sem sessão de suporte e sem auditoria de leitura (33) | segurança/privacidade | fundador / plataforma |
 | P-18 | S-02: middleware com 307 no POST de Server Action sem cookie; proposta de não redirecionar `next-action` pede revisão de segurança (33) | plataforma | fundador / plataforma |
 | P-19 | Corrida residual do Caixa depois de recarregar a página com a 1ª requisição ainda no servidor; proposta `valorPagoEsperado` em `confirmPayment` (25.9) | contrato financeiro | domínio financeiro |
+| P-19 (status 17/11) | **Fechado para a mesma aba** (`8f73258a`): chaves de operações sem confirmação no `sessionStorage` (resumo do pedido + chave, 30 min), incluindo a clínica no pedido. Resta outra aba ou outro aparelho, que exige contrato de servidor (`valorPagoEsperado`) com o domínio financeiro | Caixa | domínio financeiro (resto) |
 | P-20 | Latência de Server Action no Preview, de 11,4 s (seção 33): precisa dos logs da Vercel/Supabase | observabilidade | plataforma |
+| P-23 | #418 (HTML) intermitente: 2 em 195 medições da varredura de 17/11 (`/documentos` a 1024 e 768), 0 em 24 repetições dirigidas; sem fonte de divergência no código da rota (25.11). Acompanhar no R51; não suprimir | estabilidade | esta frente / TISS (R51) |
+| P-24 | "Entrar" do `/cadastro` com 23 px de altura: corrigir no `signup-frame` depois da integração com o #53 (conflito em aberto) | a11y | quem integrar #53 → #56 |
 | P-21 | **CI do #56 vermelha por 2 asserções desatualizadas por esta frente** (bloco de estado): título da Ajuda ('· Ajuda', UX-008) e `aria-describedby` do PIN com o hint (UX-001). Antes de alterar: confirmar que o título sem 'Qoro' segue o contrato de `src/app/page-titles.test.ts` e que hint e ajuda do PIN têm textos diferentes (sem anúncio duplicado). Depois, atualizar só as duas expectativas, sem enfraquecer, e deixar a CI rodar inteira (inventário, isolamento, build e e2e público ainda sem evidência) | teste | esta frente |
 | P-21 (status 16/11) | **Corrigido localmente:** título da Ajuda (teste atualizado ao UX-008) e PIN do WhatsApp (defeito real de descrição duplicada, corrigido no componente; teste mais estrito). Falta a CI inteira, que depende da P-22 | teste/a11y | esta frente |
 | P-22 | **GitHub Actions bloqueado por cobrança da conta** desde o `63caefd1` (16/11): jobs nem iniciam ("recent account payments have failed or your spending limit needs to be increased"). Afeta os PRs #56–#59. Nenhum agente mexe em pagamento | conta GitHub | fundador (Settings → Billing & plans) |
@@ -2017,6 +2124,7 @@ Fatos já levantados:
 | Caixa — handoff (15/11, `23d0c648`) | Arquivos: `caixa/cash-action-panels.tsx` (helper `registerActionLabel`, `cashActionLabel`, painel), `cash-item-card.tsx` (rótulo, atalho `ghost` + ícone, import de `Banknote`), `cash-queue.tsx`, `caixa-view.test.tsx` (só nomes), `cash-action-labels.test.ts` (novo), `configuracoes/pagamentos/deposit-policy-form.tsx` (+teste) e 8 specs e2e. Antes → depois: "Confirmar pagamento" → "Registrar recebimento"; "Receber saldo" → "Registrar o restante"; "Pagar" → "Registrar pagamento"; "Pagou em dinheiro" → "Recebido em dinheiro"; "Pagou o restante em dinheiro" → "Restante em dinheiro"; botão final `/Receber R\$/` → `/Registrar R\$/`. Comportamento: mesma `confirmPaymentAction`, mesmos painéis e gates (o TISS conferiu: opção "Convênio" intacta). Resolução combinada: em `cash-item-card.tsx` e `caixa-view.tsx` fica o "hoje" da UI (`ClinicTimeZoneProvider`); preservar do TISS `financeiro/page.tsx` (`valorGlosado`), a fixture de `caixa/page.test.tsx` e o `autoCapitalize` de `fornecedores-view.tsx` |
 | Specs `production-*` | Os 6 que mudaram de seletor exigem `DATABASE_URL_PROD` e travas de produção: **BLOQUEADOS** para os dois agentes até autorização expressa do fundador (Production NO-GO) |
 | **Simulação de merge (ciclo 3, 15/11 15h)** | `git merge-tree --write-tree` entre a UI (`800c6f96`) e o head do TISS (`0206d7d1`), só objetos, nenhum worktree tocado: **8 arquivos em conflito**, não os 5 anteriores (eles eram só os desta frente; a base v5 também conflita). Resolução proposta, enviada ao TISS (ele resolve no rebase; nada foi mexido na branch dele): **(1)** `caixa-view.tsx` e `cash-item-card.tsx` — "hoje" da clínica (`todayYmd(timeZone)`) contra o `todayYmdIn()` do R51: fica o da UI, que já evita o #418 com o fuso da clínica. Sai o `todayYmd()` local do cartão e, se ficarem sem uso, os imports `QORO_DATE_TIME_ZONE`/`todayYmdIn`. **(2)** `financeiro/page.tsx` — o **único conflito com regra financeira**: o saldo parcial fica com a fórmula do TISS, `l.valor - l.valorPago - l.valorGlosado`; da UI só o visual do Badge (`tone="amber" dot`). **(3)** `agenda/lista-espera/waitlist-manager.tsx`, `consultorio/format.ts` e `consultorio/waiting-card.tsx` — o mesmo tema de fuso. Em `waiting-card`, os dois ficam: `timeZone` (UI) e `now: number \| null` (R51 do relógio). **(4)** `agenda/new-appointment-drawer.tsx` — UX-005/006 da UI (`fieldErrors`, `formError`, cadastro rápido) junto com o faturamento de convênio do TISS (`BillingValue`); o `setError` dele vira `setFormError`/`fieldErrors`. **(5)** `drizzle/migrations/meta/_journal.json` — a 0136 do #53 (veio pela base v5) contra as 0143+ do TISS: conflito #53 × #55, não da UI |
+| **Simulação de merge (ciclo 4, 17/11)** | UI `82f98aab` × TISS `b4365136`: **9 arquivos**, os 8 do ciclo 3 mais o `docs/security/acoes.md`, que é gerado: regenerar com `inventory.ts --write` depois da resolução. A resolução proposta é a mesma da linha acima; o TISS foi avisado. Em `new-appointment-drawer.tsx`, o A-02 acrescentou só a linha da `DrawerDescription` |
 | Achados do TISS no ciclo 3 | (a) `requireUser()` no render vira "Algo deu errado" com a sessão morta → corrigido nesta frente em 17 páginas (`2761563c`, seção 33); (b) o middleware responde 307 ao POST de server action sem cookie → registrado na seção 33, sem correção (exige revisão de segurança); (c) contraste do Badge âmbar 4,44:1 → no shell v5 o par é `#7a4a00`/`#fff3d6` = 6,78:1 (escuro 9,17:1), e o `:root` base segue 4,45:1 (seção 33) |
 
 ### 31.I Intervenções UX-TISS (plano, 15/11)
@@ -2092,6 +2200,7 @@ checkout, entitlements, webhooks) não foram alterados.
   #53, sendo 82 fora de `docs/`. Por isso **a UI não pode entrar antes do #53**: levaria junto
   billing e migration ainda não aprovados. Ordem segura: #53 → `main`; a UI rebaseia (os 3 commits
   saem por já estarem na `main`); depois o #55 rebaseia sobre a UI.
+- **Ciclo 4 (17/11): UI `82f98aab` × #53 `75b41401` = 7 conflitos.** São o `acoes.md` (regenerar) e as telas de plano e de cadastro: `cadastro/plano/page.tsx` (18 linhas), `plan-selection-form.tsx` (25), o teste dele (5) e `signup-frame.tsx` (46), `.module.css` (6) e o teste (15). A base v5 e o #53 partiram dos mesmos arquivos e divergiram em detalhe. Regra de resolução: prevalece a lógica do #53 (planos, preços, trial, checkout, textos de estado); da UI fica só o visual que não muda comportamento. Testar no Preview depois.
 - `configuracoes/assinatura/page.tsx` ficou com `requireUser()` no render (o #53 muda a página).
   Quem integrar troca por `requirePageUser()` (`src/lib/auth/page-guard.ts`); o contrato estático
   em `page-guard.test.ts` mantém a exceção nomeada até lá.
@@ -2106,8 +2215,10 @@ middleware ou regra financeira.
 | S-01 | `/admin/conversas-ia` decifra e mostra o conteúdo das conversas da IA de qualquer clínica **fora de sessão de suporte**, e a leitura **não grava auditoria**: `conversations.repo.ts` `getDetail` → `decryptForTenant`; a página só chama `guardAdminAccess()` | código lido (15/11) | Privacidade/LGPD: acesso privilegiado a conteúdo que pode ter dado de saúde, sem trilha. Contraste: o prontuário grava `clinical.prontuario.viewed` na mesma transação | Nenhuma correção. A nota de Equipe não diz que a sessão de suporte é o único acesso | fundador / plataforma |
 | S-01 (atualização 16/11) | Tratado em frente separada, por decisão do fundador: PR draft #57 (console: texto só em sessão de suporte da mesma clínica, com trilha; ADR-073), #58 (app da clínica: leitura pelo suporte só por escolha, com trilha da clínica; ADR-074) e #59 (trilha da plataforma append-only; ADR-075) | memória `s01-conversas-ia-admin`, `trilha-plataforma-append-only` | — | Esta branch não muda nada do S-01; o #58 conflita com o #56 em `conversas/` e rebaseia depois | frente S-01 |
 | S-02 | `src/middleware.ts` responde 307 → `/login` a qualquer requisição sem cookie de sessão, inclusive o POST de Server Action. O cliente do Next lança e a fronteira de erro mostra "Algo deu errado…" (achado do TISS no Preview) | relato do TISS | Qualquer formulário depois de sair em outra aba vira erro aparente e vai para o Sentry | Caixa: a exceção cai no `catch` do `run` (mensagem de resultado desconhecido; repetir é seguro). Proposta, não aplicada: o middleware não redirecionar requisições com `next-action`, já que as actions exigem sessão por conta própria. **Exige revisão de segurança** e vale para todas as actions | fundador / plataforma |
+| S-02 (status 17/11) | **Corrigido** (`82f98aab`): POST com `next-action` e sem cookie de sessão recebe 401, corpo vazio e `x-action-redirect: /login;replace`; o cliente do Next 15.5 (`server-action-reducer.js`) trata isso como redirecionamento, sem lançar. A action continua recusada no middleware, sem chegar à aplicação; destino fixo; páginas e outros POST seguem com 307. O portão `security:http` só inspeciona respostas 200 de action | `middleware.test.ts` 45/45 (3 novos) | — | sem bypass, sem loop, sem redirecionamento aberto | UI (feito) |
 | S-03 | 17 páginas do shell liam o usuário com `requireUser()` no render. Sessão morta + Server Action dava "Algo deu errado" (OBS-001 reaberto) | mecanismo já documentado no Dashboard e no `page-guard`; o TISS reproduziu em Convênios | Erro 500 e Sentry numa revogação normal | **Corrigido (`2761563c`)**: `requirePageUser()` (mesmo `authenticate()`, redireciona) e contrato estático em `page-guard.test.ts`. `configuracoes/assinatura` fica para o #53 (seção 32) | UI (feito) |
 | A-01 | Badge e Alert âmbar: `--warning-700` sobre `--warning-50` no `:root` dava **4,45:1**, abaixo do AA de texto pequeno (4,5:1). O axe do TISS mediu 4,44:1 | cálculo a partir do `globals.css` | AA fora do shell v5 (console da plataforma, telas sem `data-qoro-tokens='app-v5'`) | **Corrigido**: `:root --warning-700` de `oklch(0.56 …)` para `oklch(0.54 0.11 58)` = 4,86:1 sobre o âmbar e 5,26:1 sobre o branco. No shell v5 o par já passava (6,78:1 claro, 9,17:1 escuro). Contrato em `src/app/contrast-tokens.test.ts` | UI (feito) |
 | P-20 | Latência de Server Action no Preview: "Salvar permissões (2)" levou 11,4 s na 2ª gravação (a 1ª, 2,0 s); o ciclo 2 teve a mesma assinatura no consentimento | trace `e2e/traces-f3fd8648/` | Testes de Preview reprovam por tempo sem regressão; a pessoa espera mais de 10 s sem retorno | Registrado; timeout **não** alterado. Precisa dos logs da Vercel/Supabase, não lidos aqui | plataforma |
 | A-02 | 8 das 17 gavetas e diálogos não têm descrição: novo atendimento, novo paciente, novo lançamento, fornecedores, convite da equipe, documento e receita do Consultório, nova clínica (admin). O Radix Dialog 1.1.18 põe `aria-describedby` com o id da descrição no conteúdo **sempre** (`dist/index.mjs`, linha 224), e sem `DialogDescription` a referência aponta para um id que não existe. Todas as 17 têm título | código lido (varredura estática, ciclo 3) | Leitor de tela não anuncia descrição nenhuma; o axe pode acusar a referência pendurada | Não corrigido agora: 3 desses arquivos são alterados pelo #55 ou pelo #53 (`new-appointment-drawer`, `prescription-drawer`, `fornecedores-view`). Correção: descrição curta e útil em cada uma, ou `aria-describedby={undefined}` quando não houver o que dizer. Validar no navegador (atributo e id) | UI, depois da integração |
+| A-02 (status 17/11) | **Corrigido** (`c9098ad8`): descrição real nas 8 (o Financeiro reaproveita a introdução que já existia); `ConfirmDialog` sem descrição remove a referência; contrato em `src/components/ui/dialog-description.test.tsx` | testes 3/3 + lote de 613 | — | Os 3 arquivos dos outros PRs ganharam 1 linha cada; conflito previsto pequeno | UI (feito) |
 | P-13 | O `.env.local` do checkout principal tem credenciais Asaas de Production. Este worktree usa sandbox | ciclo 2 | Teste acidental com chave live | Mantido documentado. O bypass do Preview segue lido de lá, só no processo e sem imprimir. Forma autorizada proposta: o fundador grava `VERCEL_AUTOMATION_BYPASS_SECRET` no `.env.local` deste worktree (fora do Git), e as sondas deixam de ler o checkout principal | fundador |
