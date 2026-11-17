@@ -243,6 +243,7 @@ describe('journal REAL desta branch', () => {
       '0163_hi_payout_reviews',
       '0164_hi_module_switch_guard',
       '0165_hi_guide_cancellations',
+      '0166_hi_authorization_alerts',
     ]) {
       expect(journal.find((x) => x.tag === tag)?.sha256, tag).toBe(pinned(tag).sha256);
     }

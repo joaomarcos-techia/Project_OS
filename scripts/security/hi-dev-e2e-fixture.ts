@@ -55,7 +55,7 @@ const outFile = arg('out');
  *   set-active --account <chave> --active true|false perfil ativo/desativado de uma conta e2e-hi-*
  *   guide-state --guide <id>                         status, versão, ajuste e eventos (só leitura)
  */
-const COMMANDS = ['setup', 'setup-config', 'cleanup', 'setup-states', 'setup-authorizations', 'setup-i2', 'set-state', 'set-active', 'guide-state'];
+const COMMANDS = ['setup', 'setup-config', 'cleanup', 'setup-states', 'setup-authorizations', 'setup-i2', 'deliver-alerts', 'set-state', 'set-active', 'guide-state'];
 if (!COMMANDS.includes(command ?? '') || !expectedRef || !accountsFile || !outFile) {
   throw new Error(`uso: ${COMMANDS.join('|')} --expected-ref <ref> --accounts <arquivo> --out <ids.json>`);
 }
@@ -755,6 +755,164 @@ async function setupI2() {
   console.log(`[hi-dev-e2e-fixture] ok: clínica e2e-hi-i2, ${Object.keys(accounts).length} contas, guias ${out.guides.own.status}/${out.guides.other.status}, marca ${run}`);
 }
 
+/**
+ * P6.6 — prova da ENTREGA dos avisos no DEV, pelo caminho real (17/11). Clínica sintética própria
+ * `e2e-hi-alertas` (módulo ligado, assinatura paga) com três pessoas cujos e-mails são aliases do
+ * inbound CONSENTIDO do Resend de DEV (`E2E_RESEND_INBOX_ADDRESS`): a recepção ativa (opera), uma
+ * recepção desativada e uma médica (não opera). Uma autorização com a senha vencendo amanhã.
+ *
+ *   1. a manutenção (a mesma do fim do financial-reconcile) cria o aviso e põe o pedido no outbox,
+ *      sem ninguém abrir a tela;
+ *   2. o worker do outbox, só para ESTE evento, roda o handler real e envia pelo Resend de DEV;
+ *   3. o Resend confirma `delivered`, e o inbound recebe o e-mail com a contagem e sem dado de
+ *      paciente;
+ *   4. a desativada e a médica não recebem nada;
+ *   5. rodar de novo não cria aviso nem e-mail; marcar como visto grava a pessoa.
+ * Nada é impresso além de contagens e estados (nem endereço, nem corpo).
+ */
+async function deliverAlerts() {
+  const run = arg('run');
+  if (!run || !/^[A-Z0-9]{3,12}$/u.test(run)) throw new Error('--run <marca> obrigatório (A-Z e 0-9)');
+  const inbox = process.env.E2E_RESEND_INBOX_ADDRESS;
+  const apiKey = process.env.RESEND_API_KEY ?? process.env.RESEND_API_KEY_DEV;
+  if (!inbox || !apiKey) throw new Error('E2E_RESEND_INBOX_ADDRESS e a chave Resend de DEV são obrigatórias');
+  const inspector = await import('../../src/lib/email/resend-inspector');
+  const alias = (who: string) => inspector.createResendInboxAlias(inbox, `hi-${run}-${who}`.toLowerCase());
+  const [tv] = await exec<{ version: string }>(sql`SELECT version FROM public.tiss_terminology_versions ORDER BY version DESC LIMIT 1`);
+  if (!tv) throw new Error('terminologia TISS não carregada no DEV');
+
+  const clinicId = await clinic('e2e-hi-alertas', 'Clínica Sintética E2E Avisos');
+  await subscription(clinicId, 'paid');
+  const people: Record<string, string> = {};
+  for (const [key, role, nome] of [
+    ['recepcao', 'attendant', 'Recepção Avisos E2E'],
+    ['desligada', 'attendant', 'Recepção Desligada Avisos E2E'],
+    ['medica', 'doctor', 'Dra. Avisos E2E'],
+  ] as const) {
+    const userId = await ensureUser(alias(key), password());
+    await profile(userId, clinicId, nome, role);
+    people[key] = userId;
+  }
+  await exec(sql`UPDATE public.profiles SET ativo = false, updated_at = now() WHERE id = ${people.desligada!}::uuid AND clinic_id = ${clinicId}::uuid`);
+  await exec(sql`
+    INSERT INTO public.hi_clinic_settings (clinic_id, enabled, enabled_at, enabled_by, provider_kind, cnes_status, contractor_name)
+    VALUES (${clinicId}::uuid, true, now(), ${SYS}::uuid, 'PJ', 'none_declared', 'Clínica Sintética Avisos E2E Ltda')
+    ON CONFLICT (clinic_id) DO UPDATE SET enabled = true`);
+  let [ins] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.hi_insurers WHERE clinic_id = ${clinicId}::uuid AND registro_ans = '999904'`);
+  if (!ins) {
+    [ins] = await exec<{ id: string }>(sql`
+      INSERT INTO public.hi_insurers (clinic_id, name, registro_ans, provider_id_kind, provider_id_value, status, sadt_grouping, created_by)
+      VALUES (${clinicId}::uuid, 'Operadora Sintética Avisos', '999904', 'codigoPrestadorNaOperadora', 'E2E0004', 'active', 'per_request', ${SYS}::uuid)
+      RETURNING id::text AS id`);
+  }
+  const patientName = 'Paciente Sintético Avisos Um';
+  let [p] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.patients WHERE clinic_id = ${clinicId}::uuid AND nome = ${patientName}`);
+  if (!p) {
+    const cpf = cpfOf('662607015');
+    [p] = await exec<{ id: string }>(sql`
+      INSERT INTO public.patients (clinic_id, nome, cpf_encrypted, cpf_hash)
+      VALUES (${clinicId}::uuid, ${patientName}, ${await encryptForTenant(clinicId, cpf)}, ${await hashForLookup(cpf)}) RETURNING id::text AS id`);
+  }
+  const card = '0081234500044441';
+  const hash = await hashForLookup(`${clinicId}:${card}`);
+  let [m] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.hi_memberships WHERE clinic_id = ${clinicId}::uuid AND card_number_hash = ${hash}`);
+  if (!m) {
+    [m] = await exec<{ id: string }>(sql`
+      INSERT INTO public.hi_memberships (clinic_id, patient_id, insurer_id, card_number_encrypted, card_number_hash, card_last4, created_by)
+      VALUES (${clinicId}::uuid, ${p!.id}::uuid, ${ins!.id}::uuid, ${await encryptForTenant(clinicId, card)}, ${hash}, '4441', ${SYS}::uuid)
+      RETURNING id::text AS id`);
+  }
+  const [ctx] = await exec<{ today: string; tomorrow: string }>(sql`
+    SELECT (now() AT TIME ZONE coalesce(c.timezone, 'America/Sao_Paulo'))::date::text AS today,
+           ((now() AT TIME ZONE coalesce(c.timezone, 'America/Sao_Paulo'))::date + 1)::text AS tomorrow
+      FROM public.clinics c WHERE c.id = ${clinicId}::uuid`);
+  // Só os avisos desta execução: os abertos de execuções anteriores são encerrados antes (o banco grava).
+  await withTenant(clinicId, (tx) => tx.execute(sql`
+    UPDATE public.hi_authorization_alerts SET status = 'cancelled', cancel_reason = 'obsolete'
+     WHERE clinic_id = ${clinicId}::uuid AND status = 'open'`));
+  const auths = await import('../../src/contexts/health-insurance/internal/authorizations');
+  const recep = people.recepcao!;
+  const { authorizationId } = await withTenant(clinicId, (tx) => auths.requestManualAuthorizationTx(tx, {
+    clinicId, insurerId: ins!.id, membershipId: m!.id, requestedOn: ctx!.today,
+    items: [{ tableCode: '22', procedureCode: '10101012', quantityRequested: 1 }], actorUserId: recep,
+  }), recep);
+  const [item] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.hi_authorization_items WHERE authorization_id = ${authorizationId}::uuid`);
+  await withTenant(clinicId, (tx) => auths.recordManualAuthorizationResponseTx(tx, {
+    decision: 'authorized', clinicId, authorizationId, version: 1, authorizedOn: ctx!.today,
+    operatorGuideNumber: `AV${run}`, passwordValidUntil: ctx!.tomorrow, items: [{ itemId: item!.id, quantityAuthorized: 1 }], actorUserId: recep,
+  }), recep);
+
+  // 1. A manutenção cria o aviso e pede a entrega.
+  const maint = await import('../../src/contexts/health-insurance/maintenance');
+  const now = new Date();
+  now.setUTCMinutes(5);
+  const startedAt = new Date(Date.now() - 5_000);
+  const r1 = await maint.runInsuranceMaintenance({ deadlineAt: Date.now() + 50_000, now, clinics: [clinicId] });
+  const [ob] = await exec<{ key: string; payload: { count: number } }>(sql`
+    SELECT idempotency_key AS key, payload FROM public.outbox
+     WHERE clinic_id = ${clinicId}::uuid AND event_type = 'health_insurance.authorization_alerts.delivery_requested' AND status = 'pending'
+     ORDER BY created_at DESC LIMIT 1`);
+  if (!ob) throw new Error('a manutenção não pôs o pedido de entrega no outbox');
+
+  // 2. O worker do outbox, só para este evento, com o handler real.
+  await import('../../src/app/api/cron/outbox/insurance-alerts-delivery-handler');
+  const { runOutboxEventsNow } = await import('../../src/lib/outbox/worker');
+  const tick = await runOutboxEventsNow([{ eventType: 'health_insurance.authorization_alerts.delivery_requested', idempotencyKeys: [ob.key] }]);
+
+  // 3. Resend: entregue e recebido no inbound, com a contagem e sem dado de paciente.
+  const subject = `Qoro: ${ob.payload.count === 1 ? '1 aviso de autorização de convênio' : `${ob.payload.count} avisos de autorização de convênio`}`;
+  const sent = await inspector.waitForResendEmail({
+    apiKey, to: alias('recepcao'), subject, sentAfter: startedAt, kind: 'sent', timeoutMs: 90_000,
+    acceptedLastEvents: ['delivered', 'opened', 'clicked'], rejectedLastEvents: ['bounced', 'complained', 'canceled', 'failed'],
+  });
+  const received = await inspector.waitForResendEmail({ apiKey, to: alias('recepcao'), subject, sentAfter: startedAt, kind: 'received', timeoutMs: 90_000 });
+  const body = `${received.text ?? ''} ${received.html ?? ''}`;
+  const content = {
+    countLine: body.includes('autorização com a senha vencendo') || body.includes('autorizações com a senha vencendo'),
+    noPatient: !body.includes(patientName) && !body.includes(card) && !body.includes('4441'),
+    noPassword: !/senha:\s*\S/iu.test(body),
+  };
+
+  // 4. Desativada e médica: nada.
+  const nothingFor = async (who: string) => {
+    try {
+      await inspector.waitForResendEmail({ apiKey, to: alias(who), subject, sentAfter: startedAt, kind: 'sent', timeoutMs: 15_000 });
+      return false;
+    } catch {
+      return true;
+    }
+  };
+  const silent = { desligada: await nothingFor('desligada'), medica: await nothingFor('medica') };
+
+  // 5. Estado no banco; segunda rodada; marcar como visto.
+  const [alert] = await exec<{ id: string; status: string; delivered: boolean; attempts: number }>(sql`
+    SELECT id::text AS id, status, delivered_at IS NOT NULL AS delivered, delivery_attempts AS attempts
+      FROM public.hi_authorization_alerts WHERE clinic_id = ${clinicId}::uuid AND authorization_id = ${authorizationId}::uuid`);
+  const r2 = await maint.runInsuranceMaintenance({ deadlineAt: Date.now() + 50_000, now, clinics: [clinicId] });
+  const svc = await import('../../src/contexts/health-insurance/internal/authorization-alert-service');
+  await withTenant(clinicId, (tx) => svc.markAuthorizationAlertReadTx(tx, clinicId, alert!.id), recep);
+  const [seen] = await exec<{ status: string; reader_ok: boolean }>(sql`
+    SELECT status, read_by = ${recep}::uuid AS reader_ok FROM public.hi_authorization_alerts WHERE id = ${alert!.id}::uuid`);
+
+  const out = {
+    run,
+    maintenance: { created: r1.alertsCreated, queued: r1.alertsQueued },
+    outbox: { processed: tick.processed, failed: tick.failed },
+    resend: { delivered: ['delivered', 'opened', 'clicked'].includes(sent.lastEvent ?? ''), received: true, ...content },
+    silent,
+    alert: { delivered: alert!.delivered, attempts: alert!.attempts },
+    second: { created: r2.alertsCreated, queued: r2.alertsQueued },
+    read: { status: seen!.status, readerIsSession: seen!.reader_ok },
+  };
+  writeFileSync(outFile!, JSON.stringify(out, null, 1));
+  const ok = r1.alertsCreated >= 1 && tick.processed === 1 && out.resend.delivered && content.countLine && content.noPatient && content.noPassword
+    && silent.desligada && silent.medica && alert!.delivered && r2.alertsCreated === 0 && r2.alertsQueued === 0
+    && seen!.status === 'read' && seen!.reader_ok;
+  console.log(`DELIVER_ALERTS ${JSON.stringify(out)}`);
+  if (!ok) throw new Error('a prova da entrega dos avisos não fechou (ver DELIVER_ALERTS)');
+  console.log('[hi-dev-e2e-fixture] ok: aviso criado pela manutenção, entregue pelo Resend de DEV, recebido no inbound, sem dado de paciente');
+}
+
 // Comando desconhecido NÃO cai no cleanup (antes era o ramo padrão: um erro de digitação desativava
 // as contas e clínicas e2e-hi-*). O cleanup só roda pelo nome.
 const main =
@@ -763,6 +921,7 @@ const main =
   : command === 'setup-states' ? setupStates
   : command === 'setup-authorizations' ? setupAuthorizations
   : command === 'setup-i2' ? setupI2
+  : command === 'deliver-alerts' ? deliverAlerts
   : command === 'set-state' ? setState
   : command === 'set-active' ? setActive
   : command === 'guide-state' ? guideState

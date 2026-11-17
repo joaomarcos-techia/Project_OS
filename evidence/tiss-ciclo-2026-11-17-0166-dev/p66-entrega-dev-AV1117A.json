@@ -1,0 +1,34 @@
+{
+ "run": "AV1117A",
+ "maintenance": {
+  "created": 1,
+  "queued": 1
+ },
+ "outbox": {
+  "processed": 1,
+  "failed": 0
+ },
+ "resend": {
+  "delivered": true,
+  "received": true,
+  "countLine": true,
+  "noPatient": true,
+  "noPassword": true
+ },
+ "silent": {
+  "desligada": true,
+  "medica": true
+ },
+ "alert": {
+  "delivered": true,
+  "attempts": 1
+ },
+ "second": {
+  "created": 0,
+  "queued": 0
+ },
+ "read": {
+  "status": "read",
+  "readerIsSession": true
+ }
+}

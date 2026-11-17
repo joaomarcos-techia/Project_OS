@@ -283,5 +283,15 @@ export const MIGRATION_COMPOSITION_MANIFEST: CompositionManifest = {
       requires: ['0164_hi_module_switch_guard'],
       sentinel: 'relation:public.hi_guide_cancellations',
     },
+    {
+      // P6.6: avisos de autorização entregues à clínica. Fixada ao ser aplicada no DEV (17/11).
+      tag: '0166_hi_authorization_alerts',
+      idx: 166,
+      when: 1795641773857,
+      sha256: 'ccf1639b4eccbdd50e5aa5b2f49a0b55d964ff8092dc47c09d77db61487025c6',
+      owner: 'PR #55 (convênios)',
+      requires: ['0165_hi_guide_cancellations'],
+      sentinel: 'relation:public.hi_authorization_alerts',
+    },
   ],
 };
