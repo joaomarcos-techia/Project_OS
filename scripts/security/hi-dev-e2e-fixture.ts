@@ -55,7 +55,7 @@ const outFile = arg('out');
  *   set-active --account <chave> --active true|false perfil ativo/desativado de uma conta e2e-hi-*
  *   guide-state --guide <id>                         status, versão, ajuste e eventos (só leitura)
  */
-const COMMANDS = ['setup', 'setup-config', 'cleanup', 'setup-states', 'setup-authorizations', 'setup-i2', 'deliver-alerts', 'set-state', 'set-active', 'guide-state'];
+const COMMANDS = ['setup', 'setup-config', 'cleanup', 'setup-states', 'setup-authorizations', 'setup-i2', 'deliver-alerts', 'setup-p75', 'set-state', 'set-active', 'guide-state'];
 if (!COMMANDS.includes(command ?? '') || !expectedRef || !accountsFile || !outFile) {
   throw new Error(`uso: ${COMMANDS.join('|')} --expected-ref <ref> --accounts <arquivo> --out <ids.json>`);
 }
@@ -913,6 +913,136 @@ async function deliverAlerts() {
   console.log('[hi-dev-e2e-fixture] ok: aviso criado pela manutenção, entregue pelo Resend de DEV, recebido no inbound, sem dado de paciente');
 }
 
+/**
+ * P7.5 no Preview (17/11): clínica sintética PRÓPRIA `e2e-hi-p75` (para o lote não levar guias das
+ * outras provas) com gestora, recepção e médica, uma operadora e DUAS guias de Consulta novas para
+ * conferir, da marca da execução. O spec confere, aprova, monta o lote, gera o XML, registra o envio
+ * e o protocolo pela tela, e então pede o cancelamento e cria a substituta.
+ */
+async function setupP75() {
+  const run = arg('run');
+  if (!run || !/^[A-Z0-9]{3,12}$/u.test(run)) throw new Error('--run <marca> obrigatório (A-Z e 0-9)');
+  const [tv] = await exec<{ version: string }>(sql`SELECT version FROM public.tiss_terminology_versions ORDER BY version DESC LIMIT 1`);
+  if (!tv) throw new Error('terminologia TISS não carregada no DEV');
+  const c = await clinic('e2e-hi-p75', 'Clínica Sintética E2E Substituição');
+  await subscription(c, 'paid');
+  const accounts: Record<string, { email: string; password: string; userId: string; clinic: string; role: string }> = {};
+  const add = async (key: string, role: string, nome: string) => {
+    const email = `e2e-hi-${key}@example.com`;
+    const pass = password();
+    const userId = await ensureUser(email, pass);
+    await profile(userId, c, nome, role);
+    accounts[key] = { email, password: pass, userId, clinic: 'p75', role };
+    return userId;
+  };
+  const gestor = await add('p75-gestor', 'gestor', 'Gestora Substituição E2E');
+  await add('p75-recepcao', 'attendant', 'Recepção Substituição E2E');
+  const medica = await add('p75-medica', 'doctor', 'Dra. Substituição E2E');
+  await exec(sql`
+    INSERT INTO public.hi_clinic_settings (clinic_id, enabled, enabled_at, enabled_by, provider_kind, cnes_status, contractor_name)
+    VALUES (${c}::uuid, true, now(), ${SYS}::uuid, 'PJ', 'none_declared', 'Clínica Sintética Substituição E2E Ltda')
+    ON CONFLICT (clinic_id) DO UPDATE SET enabled = true, contractor_name = EXCLUDED.contractor_name`);
+  await exec(sql`
+    INSERT INTO public.hi_professional_profiles (clinic_id, professional_id, council, council_number, council_uf, cbo)
+    VALUES (${c}::uuid, ${medica}::uuid, '06', '32345', '35', '225125') ON CONFLICT DO NOTHING`);
+  let [proc] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.procedures WHERE clinic_id = ${c}::uuid AND codigo = 'E2E-CONS'`);
+  if (!proc) {
+    [proc] = await exec<{ id: string }>(sql`
+      INSERT INTO public.procedures (clinic_id, codigo, descricao, valor_padrao, duracao_padrao_min, ativo)
+      VALUES (${c}::uuid, 'E2E-CONS', 'Consulta sintética E2E', 150, 30, true) RETURNING id::text AS id`);
+  }
+  const insurerName = 'Operadora Sintética Substituição';
+  let [ins] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.hi_insurers WHERE clinic_id = ${c}::uuid AND registro_ans = '999905'`);
+  if (!ins) {
+    [ins] = await exec<{ id: string }>(sql`
+      INSERT INTO public.hi_insurers (clinic_id, name, registro_ans, provider_id_kind, provider_id_value, status, sadt_grouping, created_by)
+      VALUES (${c}::uuid, ${insurerName}, '999905', 'codigoPrestadorNaOperadora', 'E2E0005', 'active', 'per_request', ${SYS}::uuid)
+      RETURNING id::text AS id`);
+    await exec(sql`
+      INSERT INTO public.hi_procedure_contracts (clinic_id, insurer_id, guide_type, table_code, procedure_code, description, procedure_id,
+        unit_value_cents, valid_from, requires_authorization, copay_kind, copay_fixed_cents, created_by)
+      VALUES (${c}::uuid, ${ins!.id}::uuid, 'consulta', '22', '10101012', 'Consulta em consultório', ${proc!.id}::uuid, 16000, '2026-01-01', false, 'none', null, ${SYS}::uuid)`);
+  }
+  const insurerId = ins!.id;
+  await exec(sql`
+    INSERT INTO public.hi_credentials (clinic_id, insurer_id, plan_id, professional_id, valid_from, status, created_by)
+    SELECT ${c}::uuid, ${insurerId}::uuid, NULL, x.pro, '2026-01-01', 'active', ${SYS}::uuid
+      FROM (VALUES (NULL::uuid), (${medica}::uuid)) AS x(pro)
+     WHERE NOT EXISTS (SELECT 1 FROM public.hi_credentials k WHERE k.clinic_id = ${c}::uuid AND k.insurer_id = ${insurerId}::uuid
+                         AND k.plan_id IS NULL AND k.professional_id IS NOT DISTINCT FROM x.pro AND k.status = 'active')`);
+  const P75_CPFS = ['602214076', '161803399'].map(cpfOf);
+  const P75_CARDS = ['0081234500055551', '0081234500055552'];
+  const people: Array<{ patient: string; membership: string }> = [];
+  for (const [i, nome] of ['Paciente Sintético Substituição Um', 'Paciente Sintético Substituição Dois'].entries()) {
+    let [p] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.patients WHERE clinic_id = ${c}::uuid AND nome = ${nome}`);
+    if (!p) {
+      [p] = await exec<{ id: string }>(sql`
+        INSERT INTO public.patients (clinic_id, nome, cpf_encrypted, cpf_hash)
+        VALUES (${c}::uuid, ${nome}, ${await encryptForTenant(c, P75_CPFS[i]!)}, ${await hashForLookup(P75_CPFS[i]!)}) RETURNING id::text AS id`);
+    }
+    const hash = await hashForLookup(`${c}:${P75_CARDS[i]!}`);
+    let [m] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.hi_memberships WHERE clinic_id = ${c}::uuid AND card_number_hash = ${hash}`);
+    if (!m) {
+      [m] = await exec<{ id: string }>(sql`
+        INSERT INTO public.hi_memberships (clinic_id, patient_id, insurer_id, card_number_encrypted, card_number_hash, card_last4, created_by)
+        VALUES (${c}::uuid, ${p!.id}::uuid, ${insurerId}::uuid, ${await encryptForTenant(c, P75_CARDS[i]!)}, ${hash}, ${P75_CARDS[i]!.slice(-4)}, ${SYS}::uuid)
+        RETURNING id::text AS id`);
+    }
+    people.push({ patient: p!.id, membership: m!.id });
+  }
+  const coverage = await import('../../src/contexts/health-insurance/internal/coverage-service');
+  const guides = await import('../../src/contexts/health-insurance/internal/consulta-guide-service');
+  const seed = [...run].reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) % 997, 7);
+  const guide = async (key: string, who: { patient: string; membership: string }, hour: string) => {
+    const tag = `e2e-hi:p75-${run}-${key}`;
+    let [ap] = await exec<{ id: string; date: string }>(sql`
+      SELECT id::text AS id, to_char(scheduled_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS date
+        FROM public.appointments WHERE clinic_id = ${c}::uuid AND observacoes = ${tag}`);
+    for (let attempt = 0; !ap && attempt < 40; attempt++) {
+      const date = new Date(Date.UTC(2026, 9, 1 + ((seed + attempt) % 28))).toISOString().slice(0, 10);
+      try {
+        [ap] = await exec<{ id: string; date: string }>(sql`
+          INSERT INTO public.appointments (clinic_id, doctor_id, patient_id, procedure_id, scheduled_at, duration_min, status, valor,
+            snapshot_procedure_name, snapshot_procedure_valor, snapshot_procedure_duracao_min, snapshot_doctor_nome, created_via, observacoes)
+          VALUES (${c}::uuid, ${medica}::uuid, ${who.patient}::uuid, ${proc!.id}::uuid, ${`${date}T${hour}:00:00Z`}::timestamptz, 30,
+            'agendado'::appointment_status, 150, 'Sintético E2E', 150, 30, 'Dra. Substituição E2E', 'attendant', ${tag})
+          RETURNING id::text AS id, ${date}::text AS date`);
+      } catch (e) {
+        if (pgCode(e) !== '23P01') throw e;
+      }
+    }
+    if (!ap) throw new Error(`sem horário livre (${key})`);
+    const [st] = await exec<{ status: string }>(sql`SELECT status::text AS status FROM public.appointments WHERE id = ${ap.id}::uuid`);
+    if (st?.status === 'agendado') {
+      await withTenant(c, (tx) => coverage.recordAppointmentCoverage(tx, {
+        clinicId: c, appointmentId: ap!.id, patientId: who.patient, procedureId: proc!.id, appointmentDate: ap!.date, guideType: 'consulta',
+        insurerId, planId: null, membershipId: who.membership, authorizationId: null, actor: { kind: 'user', userId: gestor },
+      }), gestor);
+      await exec(sql`UPDATE public.appointments SET status = 'atendido' WHERE id = ${ap.id}::uuid`);
+    }
+    const out = await withTenant(c, (tx) => guides.createConsultaGuideForAppointment(tx, {
+      clinicId: c,
+      appointment: { id: ap!.id, patientId: who.patient, professionalId: medica, procedureId: proc!.id, date: ap!.date, billingMode: 'convenio' },
+      coverage: { insurerId, planId: null, membershipId: who.membership },
+      terminologyVersion: tv.version,
+      actor: { kind: 'automation' },
+    }), gestor);
+    const guideId = (out as { guideId?: string }).guideId;
+    if (!guideId) throw new Error(`guia não criada (${key})`);
+    const [g] = await exec<{ status: string }>(sql`SELECT status FROM public.hi_guides WHERE id = ${guideId}::uuid`);
+    return { id: guideId, status: g!.status };
+  };
+  const out = {
+    clinicId: c,
+    run,
+    insurerName,
+    guides: { a: await guide('a', people[0]!, '14'), b: await guide('b', people[1]!, '15') },
+  };
+  writeFileSync(accountsFile!, JSON.stringify(accounts, null, 1));
+  writeFileSync(outFile!, JSON.stringify(out, null, 1));
+  console.log(`[hi-dev-e2e-fixture] ok: clínica e2e-hi-p75, ${Object.keys(accounts).length} contas, guias ${out.guides.a.status}/${out.guides.b.status}, marca ${run}`);
+}
+
 // Comando desconhecido NÃO cai no cleanup (antes era o ramo padrão: um erro de digitação desativava
 // as contas e clínicas e2e-hi-*). O cleanup só roda pelo nome.
 const main =
@@ -922,6 +1052,7 @@ const main =
   : command === 'setup-authorizations' ? setupAuthorizations
   : command === 'setup-i2' ? setupI2
   : command === 'deliver-alerts' ? deliverAlerts
+  : command === 'setup-p75' ? setupP75
   : command === 'set-state' ? setState
   : command === 'set-active' ? setActive
   : command === 'guide-state' ? guideState
