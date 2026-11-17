@@ -154,6 +154,101 @@ describe('checkout operator environment and immutable preparation', () => {
       ),
     ).toThrow();
   });
+  it('recognizes the reviewed shared DEV extensions without changing the frozen SaaS list', async () => {
+    const reviewed = await readReviewedCheckoutMigrations();
+    const frozen = reviewed.map((entry) => ({ hash: entry.hash, created_at: String(entry.when) }));
+    const extensions = [
+      {
+        hash: '718190feffe57a0f0b7ceaf7c28686793209f0c0cb9f4b7bfd6480d4ac1ef306',
+        created_at: '1795123373857',
+      },
+      {
+        hash: 'acd23a73e25109c14c1514f6995fbcd81182a51f7338c1bd6c63127f8d0265c5',
+        created_at: '1795209773857',
+      },
+      {
+        hash: 'eed2d0dee2b9d59be3b8f707d1c4963541d0b03e3597a73157be8766d481ec68',
+        created_at: '1795296173857',
+      },
+      {
+        hash: 'd94b652d1a602167ea0444740f717fce72afada940c703444965a4b7087ce9be',
+        created_at: '1795382573857',
+      },
+      {
+        hash: 'da5f8b90fd45b0afe3b307be689f326a25b7719ddcc664f81a714f99341e6ec1',
+        created_at: '1795468973857',
+      },
+      {
+        hash: 'a3af4a973f14cc3fb3720423d4c03f71f32330024f028d07191f40f4077c64cb',
+        created_at: '1795555373857',
+      },
+    ];
+    for (let prefix = 1; prefix <= extensions.length; prefix++) {
+      const applied = [...appliedMigrations, ...frozen, ...extensions.slice(0, prefix)];
+      expect(
+        assertCheckoutDevHistory(160 + prefix, applied, requiredMigrations, reviewed).migrations,
+      ).toBe(160 + prefix);
+      // The legacy checker cannot use these extensions to skip the frozen release review.
+      expect(() => assertCheckoutDevHistory(160 + prefix, applied, requiredMigrations)).toThrow();
+    }
+    const full = [...appliedMigrations, ...frozen, ...extensions];
+    expect(
+      assertCheckoutDevHistory(166, full, requiredMigrations, reviewed).parallelMigrations.at(-1),
+    ).toBe('0165_hi_guide_cancellations');
+    for (const extension of extensions) {
+      expect(() =>
+        assertCheckoutDevHistory(
+          166,
+          full.map((row) => (row === extension ? { ...row, hash: 'f'.repeat(64) } : row)),
+          requiredMigrations,
+          reviewed,
+        ),
+      ).toThrow();
+      expect(() =>
+        assertCheckoutDevHistory(
+          166,
+          full.filter((row) => row !== extension),
+          requiredMigrations,
+          reviewed,
+        ),
+      ).toThrow();
+    }
+    // An older contiguous prefix is valid; a hole before a later entry is not.
+    for (const extension of extensions.slice(0, -1)) {
+      expect(() =>
+        assertCheckoutDevHistory(
+          165,
+          full.filter((row) => row !== extension),
+          requiredMigrations,
+          reviewed,
+        ),
+      ).toThrow();
+    }
+    expect(() =>
+      assertCheckoutDevHistory(
+        167,
+        [
+          ...full,
+          {
+            hash: 'f'.repeat(64),
+            created_at: '1795641773857',
+          },
+        ],
+        requiredMigrations,
+        reviewed,
+      ),
+    ).toThrow();
+    expect(() =>
+      assertCheckoutDevHistory(
+        166,
+        [{ ...appliedMigrations[0], hash: 'f'.repeat(64) }, ...full.slice(1)],
+        requiredMigrations,
+        reviewed,
+      ),
+    ).toThrow();
+    expect(await readReviewedCheckoutMigrations()).toEqual(reviewed);
+    expect(reviewed).toHaveLength(17);
+  });
   it('preserves old expired-trial manifests and pins early-payment scenarios', () => {
     expect(checkoutScenario(sessionSchema.parse(sample))).toBe('expired_trial');
     const staged = sessionSchema.parse({

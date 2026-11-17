@@ -18,6 +18,42 @@ const REVIEWED_PARALLEL_DEV_MIGRATION = {
   when: 1794330000000,
   hash: '9f9b483aaeff60a9ca4f5b182c3b071408a7d3eec9ecea7cfe8f98bcf602e807',
 } as const;
+// Shared DEV only: SQL/source hashes reviewed against TISS commit
+// 4aaff5446f251d23e709360bcc84ef9bceed37ff and read back with TLS/READ ONLY
+// on 2026-11-17. These entries are NOT part of the frozen SaaS release journal.
+// Recognize only a contiguous applied prefix; never apply or copy this SQL.
+const REVIEWED_DEV_EXTENSIONS = [
+  {
+    tag: '0160_patient_external_refunds',
+    when: 1795123373857,
+    hash: '718190feffe57a0f0b7ceaf7c28686793209f0c0cb9f4b7bfd6480d4ac1ef306',
+  },
+  {
+    tag: '0161_hi_guide_consulta_overrides',
+    when: 1795209773857,
+    hash: 'acd23a73e25109c14c1514f6995fbcd81182a51f7338c1bd6c63127f8d0265c5',
+  },
+  {
+    tag: '0162_hi_permission_matrix',
+    when: 1795296173857,
+    hash: 'eed2d0dee2b9d59be3b8f707d1c4963541d0b03e3597a73157be8766d481ec68',
+  },
+  {
+    tag: '0163_hi_payout_reviews',
+    when: 1795382573857,
+    hash: 'd94b652d1a602167ea0444740f717fce72afada940c703444965a4b7087ce9be',
+  },
+  {
+    tag: '0164_hi_module_switch_guard',
+    when: 1795468973857,
+    hash: 'da5f8b90fd45b0afe3b307be689f326a25b7719ddcc664f81a714f99341e6ec1',
+  },
+  {
+    tag: '0165_hi_guide_cancellations',
+    when: 1795555373857,
+    hash: 'a3af4a973f14cc3fb3720423d4c03f71f32330024f028d07191f40f4077c64cb',
+  },
+] as const;
 const migrationHash = z.string().regex(/^[a-f0-9]{64}$/);
 const migrationEntry = z.object({
   tag: z.string().regex(/^\d{4}_[a-z0-9_]+$/),
@@ -186,10 +222,16 @@ export function assertCheckoutDevHistory(
     if (actual?.hash !== entry.hash) throw new Error('Required checkout migration differs');
   }
   const extras = applied.filter((row) => !requiredTimes.has(row.created_at));
-  const reviewed =
+  const frozenReviewed =
     reviewedInput === undefined
       ? [REVIEWED_PARALLEL_DEV_MIGRATION]
       : z.array(migrationEntry).length(17).parse(reviewedInput);
+  const extensionCount =
+    reviewedInput === undefined
+      ? 0
+      : extras.filter((row) => BigInt(row.created_at) >= BigInt(REVIEWED_DEV_EXTENSIONS[0].when))
+          .length;
+  const reviewed = [...frozenReviewed, ...REVIEWED_DEV_EXTENSIONS.slice(0, extensionCount)];
   if (reviewedInput !== undefined && extras.length !== reviewed.length)
     throw new Error('Incomplete reviewed DEV release');
   if (

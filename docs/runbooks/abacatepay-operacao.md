@@ -1,5 +1,26 @@
 # Operação e recuperação AbacatePay
 
+## Escopo prevalente — ensaio somente Sandbox, 17/11/2026
+
+**O fundador escolheu usar a candidata do PR #53 exclusivamente no Sandbox. Não criar clínica, checkout ou cobrança em Production.** A indicação anterior de “nova clínica” passa a se referir a uma fixture sintética no DEV; não solicitar dados de um titular real para este ensaio. C3/C4 reais continuam não autorizados. O procedimento de C3 abaixo foi preparado, mas não é uma ordem vigente de execução.
+
+A cópia da main permanece isolada e sem alterações: branch local `test/abacatepay-main-sandbox-20261117`, worktree `C:/dev/Qoro_main_abacatepay_sandbox_20261117`, HEAD `5620a0987ec53db7d7358728eb7d457d9d373df3`. A main não contém AbacatePay; não incorporar o PR #53 nessa cópia. Usar a branch `feat/billing-abacatepay-20261107` e seu Preview, nunca `app.qoro.dev`. O Preview `project-z8imt6mg4-clinic-os-v2-s-projects.vercel.app`/`75b41401` estava READY no primeiro preflight; a CI desse SHA passou com 7.338 testes e 27 E2E. Checks e Preview de qualquer commit posterior precisam ser conferidos separadamente.
+
+### Compatibilidade do operador com o DEV compartilhado
+
+O preflight somente leitura de **17/11 às 15:26:13 UTC**, com TLS `verify-full`/CA, confirmou o projeto DEV `pqhkirrszzpwezdaqrai` e **166 entradas** no histórico. O operador antigo reconhecia até160 e interrompeu antes de criar Auth, clínica ou checkout. Os hashes/horários das seis entradas `0160–0165` coincidem exatamente com o source TISS `4aaff5446f251d23e709360bcc84ef9bceed37ff`; revisão encontrou extensões de reembolso de pacientes e tabelas/permissões/gatilhos HI, sem DDL sobre contratos/invoices SaaS. Não tratar contagem isolada como aprovação.
+
+Correção restrita a `scripts/abacatepay-checkout-session.ts`: reconhecer um prefixo contíguo dessas seis entradas já aplicadas por timestamp e SHA256, somente após conferir o release financeiro congelado. Hash alterado, lacuna, nova entrada desconhecida, financeiro divergente ou contagem sem explicação continuam bloqueando. O manifesto/journal SaaS de160 entradas e o SQL não mudaram; nenhuma migration foi copiada ou aplicada, e nenhum worktree TISS/UI foi modificado. **53 testes do operador PASS**, sem SKIP; lint/formatação PASS. CI do novo SHA deve ser ligada no PR, sem atribuir a ela a CI75b41401.
+
+### Executar o ensaio após os guards
+
+1. Conferir Preview READY e SHA da candidata; runtime assinado deve apontar Auth e banco ao DEV. Validar loja, probe e cinco produtos com `devMode=true`, catálogo/valores, webhook Sandbox apontando à mesma release e rejeição de segredo inválido. A credencial central de Production não é usada. O primeiro preflight passou essas etapas; houve uma falha transitória de leitura da loja, recuperada pela retentativa de GET, sem POST financeiro.
+2. Usar o operador existente em `prepare` e depois `stage`, cenário `early_payment`, para criar somente fixture sintética, trial e perfil pelo fluxo real do Preview. Senha em DPAPI/ACL privada, sem envio a pessoa real e sem criação de checkout em `stage`. Não reaproveitar fixtures já pagas nem mover relógio de conta provisionada. O plano da fixture é dado de teste, não contratação real.
+3. Conferir UI, persistência, clínica/assinatura/binding/política/claim e ausência de invoice paga/liberação antecipada. Para teste manual, usar apenas o Preview conferido e a credencial da fixture sob custódia protegida. Registrar o resultado real no PR; não antecipar PASS enquanto o navegador/banco não concluírem.
+4. Se for solicitado um checkout, executar somente depois de novo preflight Sandbox e correlação da mesma obrigação. O usuário fará o pagamento de teste; não pagar, simular pagamento como real ou criar contratação live. Não repetir as cinco compras Sandbox já homologadas apenas para reproduzir evidência.
+
+Uma nova migration de outro agente depois deste inventário deve voltar a bloquear o operador até revisão exata; não remover essa proteção para acelerar o ensaio. Preservar fixtures e manifests em timeout/estado desconhecido, sem recriar identidades ou obrigações cegamente. Nenhum build pesado local ou alteração de configuração Production é necessário para esta correção do operador.
+
 ## Gate C3 — procedimento assistido preparado em 17/11/2026
 
 **PREPARAÇÃO; EXECUÇÃO NÃO AUTORIZADA.** C2 homologado nas quatro horas existentes. Production continua no C2 `25d01b17` com aquisição fechada. CI/Snyk da baseline documental `90817b13` passaram; a correção posterior de ambiente na troca de plano exige CI própria e composição identificada antes do deployment autorizado. [Evidências, defeito e pré-requisito do piloto](../decoupling/asaas-to-abacatepay/ABACATEPAY-SaaS-GO-NO-GO-FINAL.md#preparação-c3--17112026-após-08h00-utc). Este checkpoint prevalece; os formulários antigos abaixo são históricos.

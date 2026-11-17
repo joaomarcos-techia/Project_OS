@@ -1,5 +1,13 @@
 # AbacatePay SaaS — decisão final de release e piloto
 
+## Direção atual — teste exclusivo no Sandbox, 17/11/2026
+
+**O fundador determinou testar a candidata do PR #53 no Sandbox e preservar a cópia exata da main. Não criar a nova clínica em Production. C3/C4 reais NÃO AUTORIZADOS.** A ficha do piloto real abaixo fica suspensa; a fixture do ensaio não comprova contratação real nem ratifica R1–R4. C2 permanece homologado no recorte observado e inalterado.
+
+Main remota `5620a0987ec53db7d7358728eb7d457d9d373df3`, cópia local limpa na branch `test/abacatepay-main-sandbox-20261117`/worktree `C:/dev/Qoro_main_abacatepay_sandbox_20261117`, árvores Git iguais. Sem AbacatePay nessa main; o ensaio usa a candidata75b41401 e seus sucessores validados. Preview75b41401 READY, CI44044645444/Snyk/Semgrep aprovados: 7.338 testes e27E2E. Nenhuma credencial foi copiada para o novo worktree e nenhuma alteração de código/deploy Production foi feita.
+
+O operador interrompeu antes de criar fixture porque o DEV compartilhado avançou para166 migrations. Leitura TLS/READ ONLY às15:26:13UTC e comparação com source TISS4aaff544 identificaram exatamente0160–0165. A correção do operador reconhece somente seus hashes/horários e prefixo contíguo, preservando o release SaaS160 e recusando drift desconhecido; **53 testes dirigidos PASS, lint/formatação PASS**. Sem SQL aplicado/copiado ou código financeiro de runtime alterado. O SHA novo exige seus próprios checks; resultado da execução real de fixture/Preview será publicado no PR, sem commit recursivo apenas para anotar sua própria CI. [Procedimento prevalente de Sandbox](../../runbooks/abacatepay-operacao.md#escopo-prevalente--ensaio-somente-sandbox-17112026).
+
 ## Preparação C3 — 17/11/2026, após 08h00 UTC
 
 **C2 permanece HOMOLOGADO no recorte já apresentado. C3/C4 NÃO AUTORIZADOS.** Esta preparação não repetiu as quatro horas, não publicou código e não alterou Production. O pedido de GO precisa incluir a correção localizada descrita abaixo e o provisionamento elegível do piloto; somente liberar um UUID não resolve esse pré-requisito.
