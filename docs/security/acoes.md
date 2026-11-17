@@ -292,7 +292,7 @@ O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase
 | --------------------------------------------------------------------------------- | ------------ | ---------------------------------------------------------------------------------------------- |
 | `src/app/(app)/(shell)/account/security/unenroll-form.tsx:9`                      | `action`     | `src/app/(app)/(shell)/account/security/actions.ts#unenrollAction`                             |
 | `src/app/(app)/(shell)/agenda/lista-espera/waitlist-manager.tsx:168`              | `onSearch`   | `src/app/(app)/(shell)/agenda/actions.ts#buscarPacientes`                                      |
-| `src/app/(app)/(shell)/agenda/new-appointment-drawer.tsx:284`                     | `onSearch`   | `src/app/(app)/(shell)/agenda/actions.ts#buscarPacientes`                                      |
+| `src/app/(app)/(shell)/agenda/new-appointment-drawer.tsx:288`                     | `onSearch`   | `src/app/(app)/(shell)/agenda/actions.ts#buscarPacientes`                                      |
 | `src/app/(app)/(shell)/configuracoes/horarios/horarios-manager.tsx:187`           | `onClick`    | `src/contexts/scheduling/config-actions.ts#removeDoctorAvailability`                           |
 | `src/app/(app)/(shell)/configuracoes/horarios/horarios-manager.tsx:300`           | `onClick`    | `src/contexts/scheduling/config-actions.ts#removeHoliday`                                      |
 | `src/app/(app)/(shell)/configuracoes/lgpd/lgpd-work-queue.tsx:192`                | `action`     | `src/app/(app)/(shell)/configuracoes/lgpd/actions.ts#assignLgpdRequestForm`                    |
@@ -304,11 +304,11 @@ O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase
 | `src/app/(app)/(shell)/configuracoes/procedimentos/procedures-manager.tsx:287`    | `action`     | `src/contexts/scheduling/catalog-actions.ts#deactivateProcedure`                               |
 | `src/app/(app)/(shell)/dashboard/_components/checklist-dismiss.tsx:27`            | `onClick`    | `src/app/(app)/(shell)/_painel/onboarding-actions.ts#submitOnboardingAction`                   |
 | `src/app/(app)/(shell)/documentacao/restart-tour.tsx:40`                          | `onClick`    | `src/app/(app)/(shell)/_painel/onboarding-actions.ts#submitOnboardingAction`                   |
-| `src/app/(app)/(shell)/documentos/new-clinical-document-drawer.tsx:90`            | `onSearch`   | `src/app/(app)/(shell)/documentos/actions.ts#buscarPacientesParaDocumento`                     |
-| `src/app/(app)/(shell)/layout.tsx:104`                                            | `stopAction` | `src/app/(admin)/admin/actions/impersonation.ts#stopImpersonationAction`                       |
+| `src/app/(app)/(shell)/documentos/new-clinical-document-drawer.tsx:91`            | `onSearch`   | `src/app/(app)/(shell)/documentos/actions.ts#buscarPacientesParaDocumento`                     |
+| `src/app/(app)/(shell)/layout.tsx:107`                                            | `stopAction` | `src/app/(admin)/admin/actions/impersonation.ts#stopImpersonationAction`                       |
 | `src/app/(app)/(shell)/modelos-receita/templates-manager.tsx:400`                 | `action`     | `src/contexts/clinical/actions-templates.ts#deletePrescriptionTemplate`                        |
 | `src/app/(app)/(shell)/pacientes/[id]/patient-profile-card.tsx:170`               | `action`     | `src/app/(app)/(shell)/pacientes/actions.ts#updatePatientForm`                                 |
-| `src/app/(app)/(shell)/pacientes/new-patient-drawer.tsx:60`                       | `action`     | `src/app/(app)/(shell)/pacientes/actions.ts#createPatientForm`                                 |
+| `src/app/(app)/(shell)/pacientes/new-patient-drawer.tsx:62`                       | `action`     | `src/app/(app)/(shell)/pacientes/actions.ts#createPatientForm`                                 |
 
 ## Registro NEXT_PUBLIC
 
