@@ -1,5 +1,550 @@
 {
   "observedAt": "2026-11-11T13:51:12.859Z",
+  "gateC2FourHourObservation20261117": {
+    "authorization": "04666a33-7b20-4c7c-930d-1240cb51642c",
+    "documentaryBaseline": "b598f2d175c52a666da1df9bbbea79e47ba37f58",
+    "documentaryBaselineCi": {
+      "runId": 44009958884,
+      "status": "success",
+      "unitTests": 7335,
+      "e2e": 27,
+      "reexecuted": false
+    },
+    "runtimeSha": "25d01b17e9ee950c5760124445e4d1b2d9c0291e",
+    "deploymentId": "dpl_J5FPbdLDxBwcoBuRMgrkcwJrVbHL",
+    "domain": "app.qoro.dev",
+    "startUtc": "2026-11-17T03:15:27Z",
+    "endUtc": "2026-11-17T07:15:27Z",
+    "observedAt": "2026-11-17T07:16:44.7497566+00:00",
+    "elapsedMinimumMet": true,
+    "sourceCompleteness": {
+      "runtime": {
+        "recordsReturned": 1443,
+        "hasMore": false,
+        "excludedIntervals": [],
+        "timeRange": {
+          "start": "2026-11-17T03:15:27.000Z",
+          "end": "2026-11-17T07:15:27.000Z"
+        }
+      },
+      "requests": {
+        "recordsReturned": 1187,
+        "hasMore": false,
+        "excludedIntervals": [],
+        "timeRange": {
+          "start": "2026-11-17T03:15:27.000Z",
+          "end": "2026-11-17T07:15:27.000Z"
+        }
+      }
+    },
+    "requests": {
+      "total": 1187,
+      "http5xx": 0,
+      "http429": 0,
+      "unknownStatus": 0,
+      "cancelledHttp499": 0,
+      "cronTotal": 300,
+      "outboxTotal": 240,
+      "outboxHttp200": 240,
+      "outboxHttp5xx": 0,
+      "firstTick": "2026-11-17T03:15:27.232Z",
+      "lastTick": "2026-11-17T07:14:27.143Z",
+      "gapsOver90s": [],
+      "cronRoutes": [
+        {
+          "route": "/api/cron/cash-flow-rollup",
+          "count": 1,
+          "statusCounts": [
+            {
+              "status": "200",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "route": "/api/cron/financial-reconcile",
+          "count": 16,
+          "statusCounts": [
+            {
+              "status": "200",
+              "count": 16
+            }
+          ]
+        },
+        {
+          "route": "/api/cron/invites-cleanup",
+          "count": 1,
+          "statusCounts": [
+            {
+              "status": "200",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "route": "/api/cron/metrics-rollup",
+          "count": 1,
+          "statusCounts": [
+            {
+              "status": "200",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "route": "/api/cron/outbox",
+          "count": 240,
+          "statusCounts": [
+            {
+              "status": "200",
+              "count": 240
+            }
+          ]
+        },
+        {
+          "route": "/api/cron/payments-deposit",
+          "count": 16,
+          "statusCounts": [
+            {
+              "status": "200",
+              "count": 16
+            }
+          ]
+        },
+        {
+          "route": "/api/cron/signup-sessions-cleanup",
+          "count": 24,
+          "statusCounts": [
+            {
+              "status": "200",
+              "count": 24
+            }
+          ]
+        },
+        {
+          "route": "/api/cron/whatsapp-health",
+          "count": 1,
+          "statusCounts": [
+            {
+              "status": "200",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    "runtime": {
+      "lines": 1443,
+      "nonJsonLines": 0,
+      "levels": [
+        {
+          "level": "info",
+          "count": 1443
+        }
+      ],
+      "workerTicks": 240,
+      "workerJobFailures": 0,
+      "workerErrors": 0,
+      "gatewayReadAttemptFailures": 0,
+      "gatewayTransportFailures": 0,
+      "coordinationFailures": 0,
+      "workerBodyDurationMs": {
+        "scope": "outbox worker body, not entire HTTP execution",
+        "minimum": 564,
+        "maximum": 1000
+      },
+      "abacateJobs": [
+        {
+          "event": "billing.abacatepay.inbox_tick",
+          "count": 240
+        },
+        {
+          "event": "billing.abacatepay.recovery_batch",
+          "count": 240
+        },
+        {
+          "event": "billing.abacatepay.renewal_watch",
+          "count": 240
+        },
+        {
+          "event": "billing.abacatepay.statement_scan",
+          "count": 240
+        }
+      ],
+      "failureSignals": [
+        {
+          "timestamp": "2026-11-17T03:18:06.950Z",
+          "event": "billing.abacatepay.webhook_failed",
+          "job": null,
+          "code": null,
+          "httpStatus": null,
+          "operation": null,
+          "attempt": null,
+          "durationMs": null,
+          "failureKind": null,
+          "willRetry": null,
+          "requestId": "9cqxg-1794885486796-226d2bdc495c"
+        }
+      ]
+    },
+    "database": {
+      "tls": true,
+      "inbox": 0,
+      "scans": 0,
+      "bindings": 0,
+      "readOnly": "on",
+      "heartbeats": [
+        {
+          "at": "2026-11-01T04:00:15.274357+00:00",
+          "job": "audit-partitions",
+          "status": "success"
+        },
+        {
+          "at": "2026-11-16T08:00:04.812804+00:00",
+          "job": "billing-dunning",
+          "status": "success"
+        },
+        {
+          "at": "2026-11-16T09:00:26.90615+00:00",
+          "job": "billing-reconcile",
+          "status": "success"
+        },
+        {
+          "at": "2026-11-17T03:30:37.669339+00:00",
+          "job": "cash-flow-rollup",
+          "status": "success"
+        },
+        {
+          "at": "2026-11-01T05:00:24.714354+00:00",
+          "job": "data-retention",
+          "status": "success"
+        },
+        {
+          "at": "2026-11-17T07:15:07.384162+00:00",
+          "job": "financial-reconcile",
+          "status": "success"
+        },
+        {
+          "at": "2026-11-17T06:00:23.446508+00:00",
+          "job": "invites-cleanup",
+          "status": "success"
+        },
+        {
+          "at": "2026-11-17T05:00:43.55291+00:00",
+          "job": "metrics-rollup",
+          "status": "success"
+        },
+        {
+          "at": "2026-11-17T07:16:28.432803+00:00",
+          "job": "outbox",
+          "status": "success"
+        },
+        {
+          "at": "2026-11-17T03:00:10.582087+00:00",
+          "job": "patient-hard-delete",
+          "status": "success"
+        },
+        {
+          "at": "2026-11-16T10:00:36.602456+00:00",
+          "job": "payments-account-closure",
+          "status": "success"
+        },
+        {
+          "at": "2026-11-17T07:15:18.669626+00:00",
+          "job": "payments-deposit",
+          "status": "success"
+        },
+        {
+          "at": "2026-11-16T23:45:03.209533+00:00",
+          "job": "proactive-deposit-link",
+          "status": "success"
+        },
+        {
+          "at": "2026-11-16T23:45:12.373383+00:00",
+          "job": "proactive-dunning",
+          "status": "success"
+        },
+        {
+          "at": "2026-11-16T23:45:32.146678+00:00",
+          "job": "proactive-followup",
+          "status": "success"
+        },
+        {
+          "at": "2026-11-16T23:45:46.256262+00:00",
+          "job": "proactive-remainder-link",
+          "status": "success"
+        },
+        {
+          "at": "2026-11-16T23:45:10.642549+00:00",
+          "job": "proactive-reminders",
+          "status": "success"
+        },
+        {
+          "at": "2026-11-16T23:45:17.257286+00:00",
+          "job": "proactive-waitlist",
+          "status": "success"
+        },
+        {
+          "at": "2026-11-17T07:10:19.314695+00:00",
+          "job": "signup-sessions-cleanup",
+          "status": "success"
+        },
+        {
+          "at": "2026-11-17T06:00:34.54513+00:00",
+          "job": "whatsapp-health",
+          "status": "success"
+        },
+        {
+          "at": "2026-11-16T10:30:16.157431+00:00",
+          "job": "whatsapp-messaging-health",
+          "status": "success"
+        }
+      ],
+      "observedAt": "2026-11-17T07:17:22.633354+00:00",
+      "operations": 0,
+      "leasesActive": 0,
+      "outboxStates": {
+        "skipped": 36,
+        "processed": 691
+      },
+      "leasesExpired": 0,
+      "abacateInvoices": 0,
+      "inboxMaxAttempts": 0,
+      "outboxMaxAttempts": 1,
+      "technicalAccounts": 1,
+      "asaasSubscriptions": 5,
+      "crossTenantInvoices": 0,
+      "duplicateOutboxKeys": 0,
+      "abacatePaidCheckouts": 0,
+      "abacateSubscriptions": 0,
+      "outboxOldestActiveAt": null,
+      "duplicateAsaasPayments": 0,
+      "abacateRecurringPeriods": 0,
+      "originalFinancialFields": [
+        {
+          "table": "plans",
+          "unchanged": true
+        },
+        {
+          "table": "prices",
+          "unchanged": true
+        },
+        {
+          "table": "invoices",
+          "unchanged": false
+        },
+        {
+          "table": "subscriptions",
+          "unchanged": false
+        }
+      ],
+      "baselineAt": "2026-11-16T18:17:30.431Z"
+    },
+    "financialHashDifferences": {
+      "plansAndPrices": "UNCHANGED",
+      "invoicesAndSubscriptions": "CHANGED_BY_OBSERVED_LEGACY_WEBHOOKS",
+      "unexplainedChangesIdentified": 0
+    },
+    "naturalAsaasWebhooks": [
+      {
+        "at": "2026-11-17T04:00:55.796123Z",
+        "type": "PAYMENT_RECEIVED",
+        "authoritativeProviderStatus": "RECEIVED",
+        "status": "processed",
+        "invoiceAlreadyPaidBeforeWindow": true,
+        "sameClinic": true,
+        "noPeriodBeyondSubscription": true
+      },
+      {
+        "at": "2026-11-17T06:09:35.250887Z",
+        "type": "PAYMENT_OVERDUE",
+        "authoritativeProviderStatus": "OVERDUE",
+        "status": "processed",
+        "invoiceStatus": "overdue",
+        "subscriptionTransition": "active_to_past_due",
+        "planChanged": false
+      }
+    ],
+    "skippedOutboxExplanation": {
+      "additionalEvents": 5,
+      "reason": "no_handler",
+      "financialEffectsAppliedSynchronouslyInWebhookTransaction": true,
+      "consumerRegistryChangedByCorrective": false,
+      "administrativeReplayPerformed": false
+    },
+    "liveProvider": {
+      "at": "2026-11-17T07:14:57.368Z",
+      "correctCentralStore": true,
+      "correctLiveProducts": 5,
+      "correctLiveWebhooks": 1,
+      "webhookEvents": 8,
+      "subscriptions": 0,
+      "checkouts": 0,
+      "method": "GET_ONLY"
+    },
+    "health": {
+      "at": "2026-11-17T07:14:43.523Z",
+      "authenticatedAuthHookHttp": 200,
+      "authenticatedDeepHealthHttp": 200,
+      "db": "ok",
+      "asaas": "ok",
+      "redis": "ok",
+      "outbox": "ok",
+      "signupClosed": true
+    },
+    "acquisition": {
+      "closed": true,
+      "cohortEmpty": true,
+      "flagsMatch": true,
+      "wafVersion": 5,
+      "wafClosureRuleActive": true
+    },
+    "sentry": {
+      "administrativeApiHttp": 401,
+      "issuesResolved": false,
+      "fullIssueHistoryAndCurrentAlertStatus": "NOT_VERIFIED",
+      "evidenceSource": "founder_event_attachment_plus_vercel_request_correlation",
+      "unavailable": {
+        "issueId": "7851117028",
+        "at": "2026-11-17T03:14:28Z",
+        "host": "project-q3zctqi82-clinic-os-v2-s-projects.vercel.app",
+        "deploymentId": "dpl_Dar6PpR89Lc3Zy8Ufdn2LW3i3GQF",
+        "runtimeSha": "44323990b3f1fb9282418fec44a3182b02148c66",
+        "requestId": "bqdx8-1794885267160-ac2e89bba919",
+        "requestAt": "2026-11-17T03:14:27.160Z",
+        "http": 500,
+        "operation": "GET /products/get",
+        "rootTransportCategory": "NOT_CAPTURED",
+        "correctiveRecurrence": false
+      },
+      "bindingMismatch": {
+        "issueId": "7851119668",
+        "suppliedEventAt": "2026-11-16T18:27:28Z",
+        "sameOldDeployment": true,
+        "correctiveRecurrence": false
+      }
+    },
+    "retry": {
+      "tests": "PASS_PREVIOUS_CI",
+      "naturalLiveFailure": "NOT_OBSERVED"
+    },
+    "classification": {
+      "correctiveDeployment": "PASS",
+      "fourHourObservation": "PASS",
+      "queuesAndObligations": "PASS_VERIFIED_HEALTHY",
+      "financialStability": "PASS_OBSERVED_SCOPE",
+      "gateC2": "HOMOLOGATED_OBSERVED_SCOPE",
+      "gateC3Readiness": "READY_TO_REQUEST_APPROVAL",
+      "gateC3Execution": "NOT_AUTHORIZED",
+      "gateC4Execution": "NOT_AUTHORIZED"
+    },
+    "realRestore": "DEFERRED_RISK_ACCEPTED_NOT_VERIFIED",
+    "risksR1ToR4": "PARTIAL_NO_NEW_ACCEPTANCE",
+    "operatorProductionWrites": 0,
+    "operatorProviderFinancialMutations": 0,
+    "automaticLegacyUpdatesObserved": true,
+    "codeChanges": 0,
+    "migrations": 0,
+    "deployments": 0
+  },
+  "gateC2ReadOnlyObservation20261117": {
+    "authorization": "04666a33-7b20-4c7c-930d-1240cb51642c",
+    "observedUntilUtc": "2026-11-17T04:03:52Z",
+    "runtimeSha": "25d01b17e9ee950c5760124445e4d1b2d9c0291e",
+    "documentaryHeadChecked": "b598f2d175c52a666da1df9bbbea79e47ba37f58",
+    "documentaryCiRun": 44009958884,
+    "documentaryCiStatus": "success",
+    "deploymentId": "dpl_J5FPbdLDxBwcoBuRMgrkcwJrVbHL",
+    "fourHourObservation": "OBSERVATION_PENDING",
+    "observationStartedAt": "2026-11-17T03:15:27.232Z",
+    "earliestConclusionAt": "2026-11-17T07:15:27.232Z",
+    "requests": {
+      "total": 250,
+      "http5xx": 0,
+      "http429": 0,
+      "naturalCronRequests": 61,
+      "outboxTicks": 49,
+      "outboxHttp200": 49,
+      "outboxHttp500": 0,
+      "outboxGapsOver90Seconds": 0,
+      "requestsHasMore": false,
+      "runtimeHasMore": false,
+      "excludedIntervals": 0
+    },
+    "runtime": {
+      "lines": 297,
+      "workerTicks": 49,
+      "workerErrors": 0,
+      "workerJobFailures": 0,
+      "readAttemptFailures": 0,
+      "readTransportFailures": 0,
+      "coordinationFailures": 0,
+      "workerBodyMinMs": 598,
+      "workerBodyMaxMs": 899,
+      "entireHttpDuration": "NOT_VERIFIED",
+      "retryInTests": "PASS_PREVIOUS_CI_NOT_REEXECUTED",
+      "retryDuringNaturalLiveFailure": "NOT_OBSERVED",
+      "previousUnauthorizedWebhookProbeNotFinancialFailure": "2026-11-17T03:18:06.950Z"
+    },
+    "queueSnapshot": {
+      "observedDuringUtcMinute": "2026-11-17T03:48Z",
+      "lastOutboxHeartbeatAt": "2026-11-17T03:48:28.243076Z",
+      "status": "VERIFIED_HEALTHY",
+      "inbox": 0,
+      "operations": 0,
+      "statementScans": 0,
+      "activeOrExpiredLeases": 0,
+      "outboxProcessed": 691,
+      "outboxHistoricalSkipped": 31,
+      "outboxPendingProcessingFailed": 0,
+      "heartbeat": "success"
+    },
+    "financialIntegrity": {
+      "observedAt": "2026-11-17T04:00:08.053304Z",
+      "readOnly": true,
+      "tlsMode": "verify-full",
+      "sslConfirmed": true,
+      "baselineAt": "2026-11-16T18:17:30.431Z",
+      "originalPlansPricesInvoicesSubscriptionsHashesUnchanged": true,
+      "crossTenantInvoices": 0,
+      "duplicateAsaasPaymentIds": 0,
+      "abacatepayPaidCheckouts": 0,
+      "abacatepayRecurringAccessPeriods": 0,
+      "asaasSubscriptions": 5,
+      "centralStoreMatchesProvider": true
+    },
+    "liveProviderReadback": {
+      "observedAt": "2026-11-17T03:58:52.213Z",
+      "correctLiveProducts": 5,
+      "correctLiveWebhooks": 1,
+      "webhookEvents": 8,
+      "liveSubscriptions": 0,
+      "liveCheckouts": 0,
+      "method": "GET_ONLY"
+    },
+    "acquisitionClosed": true,
+    "cohortEmpty": true,
+    "wafVersion": 5,
+    "wafClosureRuleActive": true,
+    "cronDefinitionsPreserved": 21,
+    "authenticatedHealthAuthRedisAsaasOutbox": "PASS_2026-11-17T04:01:58Z",
+    "sentry": {
+      "issueIds": ["7851117028", "7851119668"],
+      "administrativeApiHttp": 401,
+      "founderScreenshotUnavailableCount": 10,
+      "founderScreenshotUnavailableLastSeen": "41min ago",
+      "founderScreenshotBindingMismatchCount": 3,
+      "founderScreenshotBindingMismatchLastSeen": "9hr ago",
+      "latestEventAbsoluteTimestampAndRelease": "PENDING_FOUNDER_METADATA",
+      "resolvedIssues": false
+    },
+    "realRestore": "DEFERRED_RISK_ACCEPTED_NOT_VERIFIED",
+    "risksR1ToR4": "PARTIAL_NO_NEW_ACCEPTANCE",
+    "productionWrites": 0,
+    "providerFinancialMutations": 0,
+    "gateC3": "NO_GO",
+    "gateC4": "NO_GO"
+  },
   "gateC2Corrective20261117": {
     "authorization": "cde30014-c0c5-49c2-aff4-bfab2bf46202",
     "candidateSha": "25d01b17e9ee950c5760124445e4d1b2d9c0291e",

@@ -1,5 +1,59 @@
 # Operação e recuperação AbacatePay
 
+## Fechamento operacional C2 — 17/11/2026, após 04h15 Brasília
+
+**C2 HOMOLOGADO NO RECORTE OBSERVADO — APTO PARA SOLICITAR GO C3. AQUISIÇÃO FECHADA; C3/C4 NÃO AUTORIZADOS.** [Dossiê e limites da prova](../decoupling/asaas-to-abacatepay/ABACATEPAY-SaaS-GO-NO-GO-FINAL.md#fechamento-c2--quatro-horas-conferidas-em-17112026). As instruções de observação pendente abaixo foram preservadas como histórico; não repetir deploy, migração ou quatro horas já comprovadas sem justificativa técnica.
+
+- Janela UTC **03:15:27–07:15:27**, consultada após o marco: **240/240 ticks naturais da outbox HTTP 200**; **300 crons naturais**, oito rotas, todos 200. **1.187 requisições**, zero 5xx/429/499/status desconhecido, sem paginação restante ou intervalo excluído. **1.443 logs** parseados; zero falha de job, transporte/GET ou Redis. Worker 564–1.000ms, medida parcial do corpo do worker, não tempo HTTP total.
+- SQL final **07:17:22 UTC**, `READ ONLY`, TLS/CA verificados: inbox/operações/scans/bindings/leases **0**; outbox ativa **0**, **691 processed + 36 skipped**; heartbeat outbox `success` às 07:16:28 UTC. Zero obrigação AbacatePay, duplicidade ou invoice entre clínicas. Cinco contratos permanecem Asaas.
+- Hashes de planos/preços iguais. Hashes de invoices/assinaturas alterados por **webhooks Asaas legítimos** às 04:00:55 e 06:09:35 UTC: `RECEIVED` de invoice já paga e `OVERDUE` de obrigação existente, ambos autenticados, com readback, dedup e persistência. A transição `active→past_due` foi esperada pelo estado `OVERDUE`, sem troca de plano. Cinco notificações terminais `skipped_no_handler` não carregam trabalho financeiro pendente: os efeitos foram aplicados no próprio webhook.
+- Sentry `7851117028`: evento enviado pelo fundador às **03:14:28 UTC**, request `bqdx8-1794885267160-ac2e89bba919`, confirmado na Vercel como **500 do deployment antigo** `dpl_Dar6PpR89Lc3Zy8Ufdn2LW3i3GQF`/`44323990…`. A issue `7851119668` do anexo histórico também pertence ao antigo. Nenhum sinal equivalente no corretivo durante quatro horas. API Sentry ainda 401; histórico integral/alertas não lidos diretamente e issues não encerradas.
+- Provedor/saúde/fechamento reconfirmados: loja/cinco produtos/webhook corretos, zero checkouts/assinaturas live, health autenticado 200, cadastro fechado, flags corretas, coorte vazia, WAF v5 ativo. Runtime `25d01b17e9ee950c5760124445e4d1b2d9c0291e`, alias e 21 crons preservados. Nenhum comando financeiro ou mutação de Production pelo operador.
+
+**Próxima decisão específica:** usar a solicitação C3 preparada abaixo para **uma** clínica consentida. O fundador define UUID/consentimento, plano/quantidade/preço, janela/responsáveis e aceita ou rejeita separadamente R1–R4. A proposta não está aprovada. Até o GO expresso, não mudar flag/coorte/WAF, não criar checkout e não executar deployment. Manter consumidores e obrigações existentes. R1–R4 PARTIAL; B1-B DEFERRED/RISK ACCEPTED/NOT VERIFIED; retry em testes PASS e em falha natural live NOT OBSERVED. O canal Sentry tem comprovação histórica do fundador, não um novo teste de notificação neste ciclo.
+
+## Retomada somente leitura — C2 em observação, 17/11/2026
+
+Checkpoint de 04:03:52 UTC/01:03:52 Brasília: **49/49 ticks naturais da outbox HTTP 200**, mais 12 execuções naturais de outros crons HTTP 200; zero HTTP 5xx/429 nas 250 requisições retornadas. Consultas Vercel sem páginas restantes ou intervalos excluídos. Filas lidas diretamente sem backlog/leases; hashes de planos/preços/invoices/assinaturas legadas iguais ao snapshot anterior; loja central e zero contratações live conferidos por GET. Flags/WAF continuam fechados, 21 crons preservados e health autenticado Auth/Redis/Asaas/outbox aprovado. [Recortes e limites no dossiê](../decoupling/asaas-to-abacatepay/ABACATEPAY-SaaS-GO-NO-GO-FINAL.md#leitura-operacional-prevalente--17112026-040352-utc--010352-brasília).
+
+**C2 PARTIAL / OBSERVATION PENDING; C3/C4 NO-GO.** O término mínimo permanece **07:15:27.232 UTC/04:15:27.232 Brasília**. A captura do Sentry mostra 10 eventos `unavailable`/3 `binding_mismatch`, mas não mostra a release ou o horário absoluto; a API retornou 401. Obter apenas os metadados do último evento pelo painel autorizado. Não chamar cron, reprocessar eventos ou forçar falha live.
+
+### Leitura de encerramento reproduzível
+
+Após o marco, conferir alias/runtime `25d01b17e9ee950c5760124445e4d1b2d9c0291e` e deployment `dpl_J5FPbdLDxBwcoBuRMgrkcwJrVbHL`. Consultar separadamente requisições e runtime, usando a CLI autenticada existente:
+
+```powershell
+vercel logs requests --project project-os --scope clinic-os-v2-s-projects --deployment dpl_J5FPbdLDxBwcoBuRMgrkcwJrVbHL --since 2026-11-17T03:15:27Z --until 2026-11-17T07:15:27Z --limit 10000 --json
+vercel logs runtime --project project-os --scope clinic-os-v2-s-projects --deployment dpl_J5FPbdLDxBwcoBuRMgrkcwJrVbHL --since 2026-11-17T03:15:27Z --until 2026-11-17T07:15:27Z --limit 10000 --json
+```
+
+Esses comandos são para o operador autorizado. Processar em memória e registrar apenas agregados sanitizados; não colar logs brutos no chat ou no Git. Conferir `pagination.hasMore=false` e `excludedIntervals=[]`; caso contrário, paginar antes de classificar cobertura. A CLI arredonda os limites para segundos; registrar essa precisão e usar o relógio após 07:15:27.232 UTC para atestar as quatro horas. Contar somente registros `type=request`, caminho exato `/api/cron/outbox` e agente `vercel-cron/1.0` como ticks naturais de outbox. Inventariar também os outros caminhos cron. Duração `worker.tick.duration_ms` mede só o corpo do worker; não apresentá-la como duração HTTP completa. Obter os metadados de duração total no provedor se disponíveis; quando ausentes, manter **NOT VERIFIED** nesse detalhe.
+
+Repetir leitura SQL em `qoro-prod` com TLS `verify-full`/CA oficial e transação explicitamente `READ ONLY`: inbox por estado/tentativas/idade, outbox por estado/tentativas/idade, operações e scans por estado, leases ativas/expiradas, heartbeat, bindings, assinatura/invoice/períodos AbacatePay, duplicidade e vínculo entre clínicas. Comparar hashes dos campos originais de planos/preços/invoices/assinaturas com a referência existente. Não imprimir linhas, resultados de operações, payloads ou segredos. Conferir loja/catálogo/webhook por GET, sem reconfiguração. A prova HTTP, o snapshot SQL, a autenticação e o processamento financeiro têm limites distintos.
+
+Classificar `RETRY EM TESTES: PASS` pela evidência da CI existente; `RETRY EM FALHA NATURAL LIVE: NOT OBSERVED` se nenhum evento transitório o exercitar. O wrapper só registra heartbeat `success` após todos os jobs resolverem; rejeições produzem `worker.job_failed`, captura de erro e HTTP 500. Verificar esses sinais conjuntamente. Uma outbox vazia demonstra ausência de trabalho pendente conhecido; não homologa pagamento real ou recuperação de uma falha que não aconteceu.
+
+### Solicitação C3 preparada — ainda não emitida como recomendação de GO
+
+Somente após C2 homologado, apresentar ao fundador um pedido único com estes campos e condições:
+
+| Campo | Valor/condição |
+| --- | --- |
+| Release | PR #53 draft; runtime corretivo `25d01b17e9ee950c5760124445e4d1b2d9c0291e`; confirmar identidade e CI vigentes antes da janela |
+| Clínica | UUID e consentimento a serem definidos expressamente pelo fundador; nenhuma selecionada pela engenharia |
+| Oferta | Escolher e confirmar Consultório 1 médico/R$ 197 ou Clínica 2–5 médicos/R$ 397/544/691/838 mensais; sem anual ou preço especial implícito |
+| Responsáveis/janela | Fundador confirma disponibilidade operacional/incidentes e janela; executor técnico identificado na sessão; confirmação anterior não abre uma janela futura automaticamente |
+| Escopo financeiro | Um checkout para a clínica consentida, pagamento feito pela pessoa autorizada; sem migração de contratos Asaas ou expansão automática |
+| Aquisição | GO deve especificar exatamente a coorte de um UUID, flags/barreira que precisam mudar e o novo deployment; demais clínicas continuam bloqueadas |
+| Riscos | Decisão expressa sobre R1 fechamento live, R2 renovação futura, R3 eventos negativos e R4 capacidade do piloto; B1-B continua adiado com risco aceito e restore real não verificado |
+| Monitoramento | Alias/release, Sentry Production e logs, webhook/inbox/outbox/leases, scanner e heartbeat acompanhados durante a primeira contratação |
+| Prova da contratação | Valor/loja/cliente/identificação do checkout, assinatura externa única, evento autenticado, pagamento único, invoice única, período correto e cota aplicada à mesma clínica; readback do provedor e banco |
+| Fechamento/recuperação | Observar fechamento automático e reconciliação reais; reutilização do link, assinatura/invoice duplicada, estado externo desconhecido ou falha persistente exigem interrupção |
+| Contenção | Fechar somente novas aquisições pelo procedimento aprovado, preservando consumidores e obrigações pagas; sem refund/cancelamento automático, DOWN de migration ou atualização artificial de status |
+| Resultado exigido | Registrar separadamente cada evidência; falha concreta impede continuidade. Piloto e expansão 1→3→10 exigem autorizações próprias |
+
+Este formulário é preparação operacional. Nenhum checkout, pagamento, abertura de coorte, deployment ou aceite R1–R4 está autorizado por ele.
+
 ## Checkpoint operacional — C2 corretivo publicado em 17/11/2026
 
 O deployment **`dpl_J5FPbdLDxBwcoBuRMgrkcwJrVbHL`** (candidato `25d01b17e9ee950c5760124445e4d1b2d9c0291e`, CI 43982947396 GREEN) atende `app.qoro.dev` desde cerca de **03:14 UTC/00:14 Brasília**. Foi criado sem promoção automática, teve build `READY`, smoke no endereço imutável e só depois recebeu o alias. Não houve migration, mudança de WAF/variáveis, merge ou operação financeira. Aquisição: **fechada**. Gate C3/C4: **NO-GO**. O bloco abaixo que diz “não promover este código” é histórico, anterior ao GO corretivo; a observação de estabilidade ainda está em andamento.
