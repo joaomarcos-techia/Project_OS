@@ -73,6 +73,8 @@ export function ConfirmDialog({
     >
       {trigger ? <DialogTrigger asChild>{trigger}</DialogTrigger> : null}
       <DialogContent
+        // A-02: sem descrição, o Radix deixaria `aria-describedby` apontando para um id inexistente.
+        {...(description ? {} : { 'aria-describedby': undefined })}
         showClose={!loading}
         onEscapeKeyDown={(event) => {
           if (loading) event.preventDefault();

@@ -13,6 +13,7 @@ import {
   Drawer,
   DrawerBody,
   DrawerContent,
+  DrawerDescription,
   DrawerFooter,
   DrawerHeader,
   DrawerTitle,
@@ -251,6 +252,9 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
         >
           <DrawerHeader>
             <DrawerTitle>Novo atendimento</DrawerTitle>
+            <DrawerDescription>
+              Escolha o tipo, o paciente, o horário e o procedimento.
+            </DrawerDescription>
           </DrawerHeader>
           <DrawerBody className="flex flex-col gap-4">
             {formError ? <Alert variant="danger">{formError}</Alert> : null}
