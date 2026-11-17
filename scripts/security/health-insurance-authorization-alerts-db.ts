@@ -11,7 +11,7 @@
  *      outra clínica não vê nem marca;
  *   5. guardas do banco: aviso não nasce lido nem entregue; o fato não muda; encerrado não reabre;
  *      a entrega gravada não muda; tentativas não diminuem;
- *   6. módulo desligado e clínica sem assinatura: nada é criado (e o banco recusa a inclusão direta
+ *   6. módulo desligado e clínica em avaliação (trial): nada é criado (e o banco recusa a inclusão direta
  *      com o módulo desligado);
  *   7. entrega: o lote lido na hora conta só os abertos; entregue = carimbo; o que foi visto não vai;
  *   8. frequência: no máximo 3 lotes por clínica em 24 horas;
@@ -105,7 +105,8 @@ try {
   await fx.seedTerminology();
   const A = await fx.setupClinic('Avisos A');
   const B = await fx.setupClinic('Avisos B');
-  const T = await fx.setupClinic('Avisos sem assinatura', { paid: false });
+  // Clínica que vira AVALIAÇÃO (trial) depois de montada: o cadastro de Convênios exige assinatura.
+  const T = await fx.setupClinic('Avisos em avaliação');
   const cardOf = async (c: Clinic) => String((await sql`select membership_id from public.hi_guides where id = ${await c.approvedGuide()}::uuid`)[0]!.membership_id);
   const [cardA, cardB] = [await cardOf(A), await cardOf(B)];
   const [yesterday, tomorrow, threeAgo, sixAgo] = [await day(-1), await day(1), await day(-3), await day(-6)];
@@ -206,10 +207,12 @@ try {
     'módulo desligado',
   );
   await sql`update public.hi_clinic_settings set enabled = true where clinic_id = ${B.clinicId}::uuid`;
+  await sql`update public.subscriptions set billing_status = 'trial', trial_ends_at = now() + interval '10 days', enforce_trial_deadline = true
+             where clinic_id = ${T.clinicId}::uuid`;
   const offT = await fx.asSystem(T, (tx) => alerts.syncAuthorizationAlertsTx(tx, T.clinicId));
   assert.deepEqual([offT.operable, offT.created], [false, 0]);
   assert.equal((await alertRows(B.clinicId)).length + (await alertRows(T.clinicId)).length, 0);
-  pass('módulo desligado e clínica sem assinatura paga: nenhum aviso (e a inclusão direta com o módulo desligado é recusada pelo banco)');
+  pass('módulo desligado e clínica em avaliação (trial): nenhum aviso (e a inclusão direta com o módulo desligado é recusada pelo banco)');
 
   // 7. Entrega: só os abertos do lote; entregue = carimbo que não muda.
   const batch = String(a1[0]!.delivery_batch);
