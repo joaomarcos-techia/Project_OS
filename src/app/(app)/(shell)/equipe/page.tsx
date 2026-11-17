@@ -28,7 +28,7 @@ import { TableToolbar, TableToolbarSpacer } from '@/components/ui/table-toolbar'
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { getCurrentUser } from '@/lib/auth/tenant-context';
 import { cn } from '@/lib/ui/cn';
-import { loadTrialAccess } from '@/lib/trial-access';
+import { loadTrialAccessForRequest } from '../_painel/trial-access-request';
 
 import { InviteDrawer } from './invite-drawer';
 import { InviteRowActions } from './invite-row-actions';
@@ -125,15 +125,16 @@ export default async function EquipePage({
     );
   }
 
-  const [employees, limits, granularPermissionsEnabled] = await Promise.all([
+  // P-11: o trial entra no mesmo lote (antes esperava as outras três leituras terminarem).
+  const [employees, limits, granularPermissionsEnabled, trial] = await Promise.all([
     listEmployees(user.clinicId),
     billingApiV1.getPlanLimits(user.clinicId),
     user.permissions.includes(PERMISSIONS.MANAGE_PERMISSIONS)
       ? billingApiV1.hasGranularPermissions(user.clinicId)
       : Promise.resolve(false),
+    loadTrialAccessForRequest(user.clinicId),
   ]);
   const { q: qRaw, filtro: filtroRaw } = await searchParams;
-  const trial = await loadTrialAccess(user.clinicId);
   const q = (qRaw ?? '').trim();
   const filtro: FiltroEquipe = isFiltro(filtroRaw) ? filtroRaw : 'todos';
 

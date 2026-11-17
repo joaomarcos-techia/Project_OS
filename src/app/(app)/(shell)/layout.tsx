@@ -15,7 +15,7 @@ import { getCurrentUser } from '@/lib/auth/tenant-context';
 import { getImpersonationView } from '@/lib/impersonation';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { getActiveAnnouncement } from '@/lib/platform-announcements';
-import { loadTrialAccess } from '@/lib/trial-access';
+import { loadTrialAccessForRequest } from './_painel/trial-access-request';
 import { TrialAccessNotice } from './_painel/trial-access-notice';
 
 import { HandoffWatcher } from './_painel/handoff-watcher';
@@ -94,8 +94,11 @@ export default async function ShellLayout({ children }: { children: ReactNode })
   // Depois do guard de `user`: a leitura abre `withTenant`, e abrir transação
   // para quem o layout vai redirecionar seria trabalho jogado fora. Memoizada
   // por request, então o dashboard reaproveita a mesma linha. Nunca cria linha.
-  const onboarding = await currentOnboardingProgress();
-  const trialAccess = user.clinicId ? await loadTrialAccess(user.clinicId) : null;
+  // P-11: as duas leituras são independentes; antes uma esperava a outra em toda página.
+  const [onboarding, trialAccess] = await Promise.all([
+    currentOnboardingProgress(),
+    user.clinicId ? loadTrialAccessForRequest(user.clinicId) : null,
+  ]);
 
   return (
     <>
