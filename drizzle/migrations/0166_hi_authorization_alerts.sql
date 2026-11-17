@@ -18,7 +18,8 @@
 --       que não muda depois de gravado;
 --     - `detail`: só datas e contagens (validade, dias, saldo). NUNCA nome de paciente, número de
 --       carteirinha, senha ou dado clínico.
---   Gatilhos: na inclusão, o aviso nasce `open`, sem entrega nem leitura, e só com o módulo de
+--   Gatilhos (SECURITY DEFINER, como os da 0165: leem a pessoa da sessão por `hi_session_actor()`,
+--   que o papel authenticated não executa; sem EXECUTE para ninguém além do dono): na inclusão, o aviso nasce `open`, sem entrega nem leitura, e só com o módulo de
 --   Convênios LIGADO na clínica (55000 `hi_module_enabled`, o mesmo da 0164); na alteração, os
 --   campos do fato são imutáveis e só as transições acima passam.
 --
@@ -86,7 +87,7 @@ CREATE INDEX hi_authorization_alerts_authorization_idx ON public.hi_authorizatio
 
 -- Inclusão: o aviso nasce aberto, sem entrega e sem leitura, e só com o módulo ligado.
 CREATE FUNCTION public.hi_authorization_alert_insert_guard() RETURNS trigger
-  LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM public.hi_clinic_settings s WHERE s.clinic_id = NEW.clinic_id AND s.enabled
@@ -112,7 +113,7 @@ CREATE TRIGGER hi_authorization_alerts_a_insert_guard BEFORE INSERT ON public.hi
 
 -- Alteração: o fato não muda; só leitura (pela pessoa da sessão), encerramento e entrega.
 CREATE FUNCTION public.hi_authorization_alert_update_guard() RETURNS trigger
-  LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
   v_actor uuid := public.hi_session_actor();
 BEGIN

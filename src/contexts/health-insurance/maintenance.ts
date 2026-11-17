@@ -24,6 +24,7 @@
 import { sql } from 'drizzle-orm';
 
 import { withTenant } from '@/lib/db/tenant';
+import { captureBackgroundError } from '@/lib/observability/capture';
 import { metrics } from '@/lib/observability/metrics';
 import { supabaseTissObjectStore, type TissObjectStore } from '@/lib/storage/tiss-files';
 
@@ -161,6 +162,7 @@ export async function runInsuranceMaintenance(opts: {
               code: typeof cause?.code === 'string' ? cause.code : null,
               constraint: typeof cause?.constraint_name === 'string' ? cause.constraint_name : null,
             });
+            captureBackgroundError(error, { flow: 'cron.insurance-maintenance.alerts', clinicId });
           }
         }
         const counts = daily ? await insuranceDailyCountsTx(tx, clinicId) : null;
@@ -188,6 +190,8 @@ export async function runInsuranceMaintenance(opts: {
       summary.failed += 1;
       // Só o tipo do erro: nem clínica, nem mensagem do banco (pode citar dado).
       metrics.emit('insurance.maintenance.clinic_failed', { error: error instanceof Error ? error.name : 'unknown' });
+      // P12.6: a falha da clínica vai ao Sentry com stack e a clínica como tag escalar (sem texto do banco na métrica).
+      captureBackgroundError(error, { flow: 'cron.insurance-maintenance', clinicId });
     }
   }
   if (daily) {

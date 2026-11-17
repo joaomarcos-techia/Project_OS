@@ -33,6 +33,7 @@ import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 import { withCron } from '@/lib/http/cron';
+import { captureBackgroundError } from '@/lib/observability/capture';
 import { metrics } from '@/lib/observability/metrics';
 import { publishEvent } from '@/lib/outbox/publish';
 
@@ -311,6 +312,8 @@ export const GET = withCron(
         metrics.emit('insurance.maintenance.error', {
           error: error instanceof Error ? error.name : 'unknown',
         });
+        // P12.6: a falha também vai ao Sentry (com stack, tag `flow`), onde a regra de alerta a vê.
+        captureBackgroundError(error, { flow: 'cron.insurance-maintenance' });
       }
     } else {
       metrics.emit('insurance.maintenance.skipped_budget', {});

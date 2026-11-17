@@ -6,11 +6,13 @@ const m = vi.hoisted(() => ({
   expire: vi.fn(),
   execute: vi.fn(),
   sync: vi.fn(),
+  capture: vi.fn(),
 }));
 
 vi.mock('@/lib/db', () => ({ dbAdmin: { transaction: vi.fn() } }));
 vi.mock('@/lib/db/tenant', () => ({ withTenant: m.withTenant }));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: m.emit } }));
+vi.mock('@/lib/observability/capture', () => ({ captureBackgroundError: m.capture }));
 vi.mock('./internal/authorizations', () => ({ expireAuthorizationsTx: m.expire }));
 vi.mock('./internal/authorization-alert-service', () => ({ AWAITING_OPERATOR_ALERT_DAYS: 3, syncAuthorizationAlertsTx: m.sync }));
 vi.mock('@/lib/storage/tiss-files', () => ({ supabaseTissObjectStore: () => { throw new Error('sem armazenamento real no teste'); } }));
@@ -101,6 +103,8 @@ describe('manutenção de Convênios (P6.6/P12.6)', () => {
     const r = await runInsuranceMaintenance({ deadlineAt: Date.now() + 10_000, now: new Date('2026-11-16T15:00:00Z'), clinics: ['c1', 'c2'] });
     expect([r.processed, r.failed, r.expired]).toEqual([1, 1, 1]);
     expect(m.emit).toHaveBeenCalledWith('insurance.maintenance.clinic_failed', { error: 'DrizzleQueryError' });
+    // P12.6: a falha também vai ao Sentry, com o fluxo e a clínica como tag (o texto fica no stack do Sentry, não na métrica).
+    expect(m.capture).toHaveBeenCalledWith(expect.objectContaining({ name: 'DrizzleQueryError' }), { flow: 'cron.insurance-maintenance', clinicId: 'c1' });
     expect(JSON.stringify(m.emit.mock.calls)).not.toMatch(/violação|c1/u);
   });
 
@@ -133,6 +137,7 @@ describe('manutenção de Convênios (P6.6/P12.6)', () => {
     const r = await runInsuranceMaintenance({ deadlineAt: Date.now() + 10_000, now: new Date('2026-11-16T15:05:00Z'), clinics: ['c1'] });
     expect([r.processed, r.failed, r.expired, r.alertsCreated]).toEqual([1, 0, 1, 0]);
     expect(m.emit).toHaveBeenCalledWith('insurance.alerts.sync_failed', { error: 'DrizzleQueryError', code: '42P01', constraint: null });
+    expect(m.capture).toHaveBeenCalledWith(expect.objectContaining({ name: 'DrizzleQueryError' }), { flow: 'cron.insurance-maintenance.alerts', clinicId: 'c1' });
     expect(JSON.stringify(m.emit.mock.calls)).not.toContain('hi_authorization_alerts');
   });
 });

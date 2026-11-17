@@ -14,8 +14,10 @@ const {
   listCopaySyncCandidates,
   reconcileCopayCharges,
   runInsuranceMaintenance,
+  captureBackgroundError,
 } = vi.hoisted(() => ({
   runInsuranceMaintenance: vi.fn(),
+  captureBackgroundError: vi.fn(),
   listBillingGapCandidates: vi.fn(),
   reconcileInsuranceBilling: vi.fn(),
   listCopaySyncCandidates: vi.fn(),
@@ -33,6 +35,7 @@ vi.mock('@/lib/db', () => ({ dbAdmin: { transaction: transactionMock } }));
 vi.mock('@/lib/db/tenant', () => ({ withTenant }));
 vi.mock('@/lib/cron-heartbeat', () => ({ recordHeartbeat }));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit } }));
+vi.mock('@/lib/observability/capture', () => ({ captureBackgroundError }));
 vi.mock('@/lib/outbox/publish', () => ({ publishEvent }));
 // O passo de convênio (P7.4) tem a própria prova em banco descartável; aqui só a costura com o cron.
 vi.mock('@/contexts/health-insurance', () => ({
@@ -355,6 +358,8 @@ describe('financial reconcile', () => {
     expect(runInsuranceMaintenance).toHaveBeenCalledWith({ deadlineAt: expect.any(Number) });
     // Só o tipo do erro, sem mensagem do banco nem clínica.
     expect(emit).toHaveBeenCalledWith('insurance.maintenance.error', { error: 'DrizzleQueryError' });
+    // P12.6: a falha também vai ao Sentry (fluxo próprio), onde a regra de alerta a vê.
+    expect(captureBackgroundError).toHaveBeenCalledWith(expect.objectContaining({ name: 'DrizzleQueryError' }), { flow: 'cron.insurance-maintenance' });
     expect(recordHeartbeat).toHaveBeenCalledWith(
       'financial-reconcile',
       'success',
