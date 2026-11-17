@@ -35,6 +35,10 @@
       servidor ≠ navegador na hidratação; cada renderização trocava a chave, então repetir depois de
       uma resposta perdida podia gravar uma versão a mais). Agora nasce no envio e vale enquanto
       finalidade e versão forem as mesmas. +3 testes, com checagem de mutação.
+    - **Foco devolvido ao fechar** (`d91c439f`): diálogos abertos sem `DialogTrigger` (Fornecedores,
+      segurança da conta, menus "Ações de…" da Equipe) deixavam o foco no `body` (WCAG 2.4.3).
+      `DialogContent`/`DrawerContent` devolvem o foco a quem o tinha ao abrir; `returnFocusRef` cobre
+      o item de menu que some. +4 testes, com checagem de mutação. Validado no Preview: 7/7.
     - **Alvos de 24 px** (`2821e059`): migalhas (21 px) e link do cabeçalho de card do Dashboard
       (20 px) sem crescer a linha; mês anterior/próximo dos Repasses como botões; rótulo do
       "Mostrar encerrados" com `--hit-target`. Triagem completa em 25.11.
@@ -1989,6 +1993,22 @@ por renderização, sem hidratação, e não foi alterada.
 
 **Validação de depois no Preview `a2af7bbf`** (17/11 17h44, 1 login): prova assinada PASS; `/relatorios` e `/relatorios/repasses` nas 5 larguras = 10 medições, **0 rolagem lateral** (Repasses a 320 px resolvido), 0 erro de página ou de console, 0 controle sem nome; o único alvo listado é o "Dispensar" do toast (23–24 px na animação, PASS). A CI do `a2af7bbf` (run `44171803342`) reprovou no mesmo gate de auditoria (P-25).
 
+**A-02 no navegador, com o diálogo aberto** (`a02-dialog-probe.ts`, só abre e fecha com Esc, nunca
+envia; evidência em `evidence/2026-11-17/a02/`):
+- Preview `a2af7bbf`: 6/6 com `aria-describedby` apontando para descrição real e não vazia, título,
+  foco dentro e Esc fechando. **Achado:** em Fornecedores o foco não voltava ao botão "Novo
+  fornecedor"; caía no topo da página. Causa: o Radix modal devolve o foco só ao `DialogTrigger`
+  (`onCloseAutoFocus` → `triggerRef`), e o diálogo abre por estado. O mesmo padrão existe na
+  segurança da conta e nos menus "Ações de…" da Equipe (o item do menu some).
+- Corrigido no `d91c439f` (componente compartilhado + `returnFocusRef` na Equipe).
+- Preview `d91c439f`: prova PASS; **7/7** (Novo paciente, Novo atendimento, Convidar, Novo
+  lançamento, Novo fornecedor, Novo documento e "Ações de … → Trocar função"), todos com o foco
+  devolvido ao gatilho (no menu, ao botão "Ações de …"); 0 erro de página. Varredura de Agenda,
+  Pacientes, Fornecedores e Equipe nas 5 larguras: 20 medições, 0 rolagem lateral, 0 alvo pequeno,
+  0 erro. Não abertos por sonda: gavetas do Consultório (exigem atendimento em curso), nova clínica
+  (exige super admin) e o diálogo de segurança (abrir inicia o cadastro do TOTP, que grava);
+  cobertos pelo contrato estático e pelos testes.
+
 ## 26. Riscos e decisões
 
 | ID | Decisão | Motivo | Alternativa descartada |
@@ -2045,6 +2065,7 @@ por renderização, sem hidratação, e não foi alterada.
 | 17/11/2026 | Validação do ciclo 4 | Preview `82f98aab`: prova, S-02 ao vivo, desempenho, sidebar, varredura de 195 medições, `payout-review` 13/13; #418 de Documentos repetido, 0 em 24 | — | 25.11 |
 | 17/11/2026 | Consentimento, alvos de 24 px | Chave do consentimento nasce no envio; migalhas, cabeçalho de card, Repasses e lista de espera com 24 px | consentimento 5/5 (a mutação reprova), CSS 6/6, pastas afetadas 233/233; `tsc` 0; ESLint 0; Prettier 0; inventário OK | `2821e059` |
 | 17/11/2026 | Revalidação, Repasses a 320 px, CI | Preview `abcbef5f`: prova, varredura dirigida 35, `payout-review` 13/13; regressão a 320 px em Repasses corrigida (`a2af7bbf`); CI do `abcbef5f` reprovada no gate de auditoria por advisory externa sem correção (P-25) | Repasses 10/10; `tsc` 0; ESLint 0; Prettier 0; inventário OK | 25.11 |
+| 17/11/2026 | A-02 no navegador, foco ao fechar | Sonda com diálogo aberto: 6/6 descrições reais; achado de foco no `body` ao fechar diálogos sem Trigger → corrigido no componente compartilhado e na Equipe; Preview `d91c439f` 7/7 com foco devolvido | foco 4/4 (mutação reprova 3), pastas com diálogos 617/617; `tsc` 0; ESLint 0; Prettier 0; inventário OK; conflitos iguais (9 e 7) | `d91c439f`; 25.11 |
 
 ## 28. Pendências e bloqueios
 

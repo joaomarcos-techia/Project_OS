@@ -57,7 +57,7 @@ código ficam como estão. O fundador é quem decide política, merge e Producti
    - evidências em `.tmp/ui-audit/evidence/2026-11-1{4,5,7}/`; o log da CI fica em `.tmp/ci/`.
 
 ## 3. Estado exato em que parou
-- **Código:** igual ao `a2af7bbf` (Repasses quebra linha a 320 px), sobre o `2821e059` (consentimento e alvos de 24 px). Depois dele, só documento.
+- **Código:** igual ao `d91c439f` (foco devolvido ao fechar diálogos sem Trigger), sobre o `a2af7bbf` (Repasses a 320 px) e o `2821e059` (consentimento e alvos de 24 px). Depois dele, só documento.
 - **Commits do ciclo 4** (todos no PR #56; detalhes no bloco de estado e na seção 27):
   - `c9098ad8`: A-02, descrição nas 8 gavetas e diálogos;
   - `8f73258a`: P-19, chave do Caixa sobrevive ao reload da aba;
@@ -65,7 +65,10 @@ código ficam como estão. O fundador é quem decide política, merge e Producti
   - `046f7fa6`: UX-021, ações do cabeçalho na linha do título no celular, e texto de Documentos;
   - `82f98aab`: S-02, action sem sessão recebe 401 com `x-action-redirect`;
   - `2821e059`: chave do consentimento nasce no envio; migalhas, card do Dashboard, Repasses e
-    lista de espera com alvo de 24 px.
+    lista de espera com alvo de 24 px;
+  - `a2af7bbf`: navegação de mês dos Repasses quebra linha a 320 px;
+  - `d91c439f`: foco volta a quem abriu o diálogo ou a gaveta (`useFocusReturn` em
+    `components/ui/dialog.tsx`; `returnFocusRef` para item de menu).
 - **CI:** verde no `cc1f1f1c` e no `82f98aab` (run `44114727352`), o último verde completo. Do `abcbef5f` em diante, reprovada no gate de auditoria por advisory externa sem correção (P-25; decisão do fundador). O resultado do HEAD final fica
   registrado no corpo do PR #56; confira com `gh pr checks 56` antes de afirmar qualquer coisa.
 - **Validado no Preview `82f98aab`** (25.11): prova assinada, S-02 ao vivo (401), desempenho sem
