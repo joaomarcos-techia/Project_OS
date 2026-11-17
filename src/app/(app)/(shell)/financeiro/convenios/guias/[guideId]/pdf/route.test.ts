@@ -43,7 +43,7 @@ describe('GET /financeiro/convenios/guias/:guideId/pdf (P7.6/P12.7)', () => {
 
   it('exige ver financeiro e gera do snapshot pela leitura auditada da clínica da sessão', async () => {
     const res = await call();
-    expect(mocks.resourceGate).toHaveBeenCalledWith([PERMISSIONS.VIEW_FATURAMENTO_CONVENIO, PERMISSIONS.OPERATE_CONVENIOS]);
+    expect(mocks.resourceGate).toHaveBeenCalledWith([PERMISSIONS.VIEW_FATURAMENTO_CONVENIO]);
     expect(mocks.renderIssuedGuidePdf).toHaveBeenCalledWith(
       expect.objectContaining({ clinicId: 'clinic-1', guideId: GUIDE, surface: 'rota_pdf_guia' }),
     );

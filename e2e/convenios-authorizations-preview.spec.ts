@@ -1,7 +1,6 @@
 /**
- * P6.3 — telas das autorizações da operadora no Preview ligado ao DEV (PREPARADO, ainda NÃO
- * executado: o notebook não roda Chromium pesado e não há navegador remoto autorizado; a P6.3 só
- * fecha com esta execução).
+ * P6.3 — telas das autorizações da operadora no Preview ligado ao DEV, executado no navegador
+ * remoto (convenios-preview-e2e.yml) desde 17/11.
  *
  *   - fila: o alerta "Senha vence amanhã" aparece ANTES do vencimento (P6.6, calculado na leitura);
  *   - registro: a gestora registra a resposta da operadora numa autorização de Consulta aguardando;
@@ -27,6 +26,7 @@
  * Logins: gestora (1) e recepção (1) da clínica paga. Não rode outro spec autenticado na mesma
  * janela (limite de 10 logins por IP em 15 min, dividido com a frente de UI).
  */
+import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
@@ -131,3 +131,125 @@ test('gestora: alerta antes do vencimento, registro da resposta com evidência e
   }
 });
 
+// ── Comprovantes (P6.3): envio em partes até 10 MB, download auditado e integridade ─────────────
+
+const sha256 = (b: Buffer) => createHash('sha256').update(b).digest('hex');
+/** PDF sintético de `size` bytes (cabeçalho real, conteúdo determinístico pela marca da execução). */
+function syntheticPdf(size: number, salt: string): Buffer {
+  const b = Buffer.alloc(size);
+  const head = Buffer.from(`%PDF-1.4\n% comprovante sintetico ${fx!.run} ${salt}\n`);
+  head.copy(b);
+  for (let i = head.length; i < size; i++) b[i] = (i * 31 + salt.length * 7) % 251;
+  return b;
+}
+const receiptsRegion = (page: Page) => page.getByRole('region', { name: 'Comprovantes da autorização' });
+const receiptLinks = (page: Page) => receiptsRegion(page).getByRole('link', { name: 'Baixar (leitura registrada)' });
+const uploadForm = (page: Page) => page.getByRole('form', { name: 'Anexar comprovante da operadora' });
+
+async function attach(page: Page, name: string, mimeType: string, buffer: Buffer) {
+  await uploadForm(page).locator('input[type="file"]').setInputFiles({ name, mimeType, buffer });
+  await uploadForm(page).getByRole('button', { name: 'Anexar comprovante' }).click();
+}
+
+/** Baixa todos os comprovantes da tela e devolve o que tem o SHA-256 pedido. */
+async function downloadBySha(page: Page, wanted: string) {
+  const hrefs = await receiptLinks(page).evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''));
+  for (const href of hrefs) {
+    const r = await page.context().request.get(href, { failOnStatusCode: false });
+    if (r.status() === 200 && r.headers()['x-content-sha256'] === wanted) {
+      return { href, status: r.status(), type: r.headers()['content-type'] ?? '', cache: r.headers()['cache-control'] ?? '', body: await r.body() };
+    }
+  }
+  return null;
+}
+
+test('gestora: anexa comprovante pequeno e de 10 MB (em partes), baixa e confere a integridade; excesso e tipo falso são recusados', async ({ browser }) => {
+  test.setTimeout(600_000);
+  const s = await login(browser, 'gestor');
+  try {
+    await s.page.goto(`/convenios/autorizacoes/${fx!.expiring}`);
+    await expect(uploadForm(s.page)).toBeVisible();
+    const before = await receiptLinks(s.page).count();
+
+    // 1) Arquivo pequeno (uma parte).
+    const small = syntheticPdf(4_096, 'pequeno');
+    await attach(s.page, 'comprovante-pequeno.pdf', 'application/pdf', small);
+    await expect(uploadForm(s.page).getByText('Comprovante anexado e conferido.')).toBeVisible({ timeout: 90_000 });
+    await expect(receiptLinks(s.page)).toHaveCount(before + 1, { timeout: 30_000 });
+    const gotSmall = await downloadBySha(s.page, sha256(small));
+    expect(gotSmall, 'comprovante pequeno baixado com o mesmo SHA-256').not.toBeNull();
+    expect(gotSmall!.type).toBe('application/pdf');
+    expect(gotSmall!.cache).toContain('no-store');
+    expect(sha256(gotSmall!.body)).toBe(sha256(small));
+
+    // 2) Exatamente 10 MB (4 partes de 3 MiB): chega inteiro e idêntico.
+    const big = syntheticPdf(10 * 1024 * 1024, 'limite');
+    await attach(s.page, 'comprovante-10mb.pdf', 'application/pdf', big);
+    await expect(uploadForm(s.page).getByText('Comprovante anexado e conferido.')).toBeVisible({ timeout: 300_000 });
+    await expect(receiptLinks(s.page)).toHaveCount(before + 2, { timeout: 30_000 });
+    const gotBig = await downloadBySha(s.page, sha256(big));
+    expect(gotBig, 'comprovante de 10 MB baixado com o mesmo SHA-256').not.toBeNull();
+    expect(gotBig!.body.length).toBe(big.length);
+    expect(sha256(gotBig!.body)).toBe(sha256(big));
+
+    // 3) O mesmo arquivo de novo (já registrado): não vira um segundo comprovante.
+    await attach(s.page, 'comprovante-pequeno.pdf', 'application/pdf', small);
+    await expect(uploadForm(s.page).getByRole('button', { name: 'Anexar comprovante' })).toBeEnabled({ timeout: 90_000 });
+    await s.page.reload();
+    await expect(receiptLinks(s.page)).toHaveCount(before + 2);
+
+    // 4) Acima do limite: recusado antes de enviar, com a mensagem do limite.
+    await attach(s.page, 'comprovante-grande.pdf', 'application/pdf', syntheticPdf(10 * 1024 * 1024 + 1, 'excesso'));
+    await expect(uploadForm(s.page).getByRole('alert')).toContainText('passa de 10 MB');
+
+    // 5) Tipo falso (declarado PDF, conteúdo executável): o servidor confere pelo conteúdo e recusa.
+    const fake = Buffer.concat([Buffer.from('MZ\x90\x00\x03\x00\x00\x00'), syntheticPdf(2_048, 'falso').subarray(64)]);
+    await attach(s.page, 'comprovante-falso.pdf', 'application/pdf', fake);
+    await expect(uploadForm(s.page).getByRole('alert')).toBeVisible({ timeout: 90_000 });
+    await s.page.reload();
+    await expect(receiptLinks(s.page)).toHaveCount(before + 2);
+    expect(await downloadBySha(s.page, sha256(fake))).toBeNull();
+    expect(await axeViolations(s.page)).toEqual([]);
+    expect(s.errors).toEqual([]);
+  } finally {
+    await s.context.close();
+  }
+});
+
+test('comprovante: a recepção baixa (leitura registrada); médica, outra clínica e sem sessão não recebem o arquivo', async ({ browser }) => {
+  test.setTimeout(240_000);
+  const rec = await login(browser, 'recepcao');
+  let href = '';
+  try {
+    await rec.page.goto(`/convenios/autorizacoes/${fx!.expiring}`);
+    href = (await receiptLinks(rec.page).first().getAttribute('href')) ?? '';
+    expect(href).toMatch(/^\/financeiro\/convenios\/comprovantes\/[0-9a-f-]{36}$/u);
+    const ok = await rec.context.request.get(href, { failOnStatusCode: false });
+    expect([ok.status(), ok.headers()['content-type']]).toEqual([200, 'application/pdf']);
+    expect(ok.headers()['x-content-sha256']).toMatch(/^[0-9a-f]{64}$/u);
+    // Id adulterado: o mesmo 404, sem corpo.
+    const forged = await rec.context.request.get(`/financeiro/convenios/comprovantes/${randomUUID()}`, { failOnStatusCode: false });
+    expect([forged.status(), await forged.text()]).toEqual([404, '']);
+    expect(rec.errors).toEqual([]);
+  } finally {
+    await rec.context.close();
+  }
+  for (const key of ['medica', 'gestor-suspensa']) {
+    const s = await login(browser, key);
+    try {
+      const r = await s.context.request.get(href, { failOnStatusCode: false });
+      expect(r.status(), key).toBe(404);
+      expect(await r.text(), key).toBe('');
+    } finally {
+      await s.context.close();
+    }
+  }
+  const anon = await browser.newContext({ baseURL: BASE!, extraHTTPHeaders: vercelBypassHeaders() });
+  try {
+    const r = await anon.request.get(href, { maxRedirects: 0, failOnStatusCode: false });
+    expect(r.status()).not.toBe(200);
+    expect(r.headers()['content-type'] ?? '').not.toContain('application/pdf');
+  } finally {
+    await anon.close();
+  }
+});

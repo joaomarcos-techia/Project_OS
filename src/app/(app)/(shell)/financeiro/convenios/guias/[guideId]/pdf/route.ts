@@ -31,7 +31,7 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ guideId: string }> },
 ): Promise<Response> {
-  // PDF da guia emitida (D-5, fases 1–2): faturamento ou recepção, como era com ver o financeiro.
+  // PDF completo da guia emitida (D-5 fase 3): só quem vê o faturamento; a recepção usa a via.
   const gate = await resourceGate(CONVENIOS_RULES.emittedDocuments);
   if (!gate) return tissNotFound();
   const parsed = z.uuid().safeParse((await params).guideId);

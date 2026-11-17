@@ -23,8 +23,9 @@ describe('direitos de Convênios (matriz I.2)', () => {
     const r = conveniosRights(BUNDLE.attendant);
     expect(r).toMatchObject({ view: true, operate: true, configure: false, seeValues: false, bill: false, broad: true });
     expect(allows(BUNDLE.attendant, 'operateOrBill')).toBe(true);
-    // D-5 fase 1–2: mantém o PDF/arquivo emitido que já tinha; não ganha cobrança do paciente.
-    expect(r.emittedDocuments).toBe(true);
+    // D-5 fase 3: o PDF completo e o XML são de quem vê o faturamento; a recepção tem a via de atendimento.
+    expect(r.emittedDocuments).toBe(false);
+    expect(r.attendanceCopy).toBe(true);
     expect(r.patientCharge).toBe(false);
   });
 
@@ -38,6 +39,7 @@ describe('direitos de Convênios (matriz I.2)', () => {
     const r = conveniosRights(BUNDLE.doctor);
     expect(r).toMatchObject({ view: true, operate: false, seeValues: false, bill: false, configure: false, broad: false });
     expect(r.emittedDocuments).toBe(false);
+    expect(r.attendanceCopy).toBe(true);
     expect(guideScopeFor(r, 'u-1')).toEqual({ kind: 'own', professionalId: 'u-1' });
     // D-4: a visão de valores concedida individualmente (override auditado) dá valores e visão ampla.
     const granted = conveniosRights([...BUNDLE.doctor, P.VIEW_FATURAMENTO_CONVENIO]);

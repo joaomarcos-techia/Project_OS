@@ -48,9 +48,8 @@ import { loadApprovedSnapshots, type ApprovedSnapshotRow } from './guide-snapsho
 
 /**
  * Operações de usuário (matriz I.2, P1.12-b; `rights.ts`). Cada uma aceita QUALQUER um dos códigos
- * listados, conferido de forma FRESCA. PDF, guia emitida e arquivo emitido: D-5 em três fases — até a
- * via de atendimento ser validada, a recepção (`operate:convenios`) mantém o acesso que tinha com
- * `view:financial`; a fase 3 deixa só `view:faturamento_convenio`. A médica não tinha e não ganha.
+ * listados, conferido de forma FRESCA. PDF completo, guia emitida e arquivo emitido: D-5 fase 3
+ * (17/11) — só `view:faturamento_convenio`; a recepção e a médica usam a via de atendimento.
  */
 const EMITTED = CONVENIOS_RULES.emittedDocuments;
 export const GUIDE_USER_OPERATIONS = {

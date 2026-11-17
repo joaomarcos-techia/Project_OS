@@ -36,11 +36,11 @@ export const CONVENIOS_RULES = {
   /** Ler comprovante de autorização (matriz 4.2). */
   readReceipt: [PERMISSIONS.OPERATE_CONVENIOS, PERMISSIONS.MANAGE_FATURAMENTO_CONVENIO],
   /**
-   * PDF e XML emitidos. D-5 em três fases: até a via de atendimento ser validada (fase 2), a
-   * recepção mantém o acesso que tinha (nada é ampliado nem retirado); a fase 3 troca esta regra
-   * por `seeValues`. A médica não tinha e continua sem.
+   * PDF completo e XML emitidos (com valores). D-5 FASE 3 (17/11/2026, depois da via de atendimento
+   * validada no Preview com a recepção): só quem vê o faturamento. A recepção e a médica usam a via
+   * de atendimento (`attendanceCopy`), sem valores.
    */
-  emittedDocuments: [PERMISSIONS.VIEW_FATURAMENTO_CONVENIO, PERMISSIONS.OPERATE_CONVENIOS],
+  emittedDocuments: [PERMISSIONS.VIEW_FATURAMENTO_CONVENIO],
   /**
    * Via de atendimento (D-5 fase 2): sem valores, fator, indicação clínica nem observação, com a
    * carteirinha mascarada. Quem opera, quem fatura e a médica (D-4) nas PRÓPRIAS guias: a posse é
