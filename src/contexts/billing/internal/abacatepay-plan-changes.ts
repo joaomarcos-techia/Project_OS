@@ -199,6 +199,7 @@ export async function requestAbacatePayPlanChange(
     subscriptionId: reserved.current.subscription_id,
     checkoutId: reserved.current.external_checkout_id,
     storeId: env.ABACATEPAY_STORE_ID,
+    environment: account.environment,
   });
   if (!consumed) throw new AbacatePayPlanChangeError('reconcile_required');
   const commands = createAbacatePayCommands(

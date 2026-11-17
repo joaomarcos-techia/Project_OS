@@ -64,6 +64,14 @@ describe('deferred acquisition composition', () => {
     expect(deferredSaasSignupEnabled()).toBe(false);
     expect(isAbacatePayRuntime()).toBe(true);
   });
+  it('allows only the existing live pilot without selecting AbacatePay signup', () => {
+    live();
+    config.SAAS_SIGNUP_PROVIDER = 'asaas';
+    expect(abacatePayCheckoutAllowed(clinic)).toBe(true);
+    expect(abacatePayCheckoutAllowed(other)).toBe(false);
+    expect(deferredSaasSignupEnabled()).toBe(false);
+    expect(isAbacatePayRuntime()).toBe(true);
+  });
   it('requires a live cohort even with an enabled acquisition flag', () => {
     live();
     config.ABACATEPAY_CHECKOUT_CLINIC_IDS = undefined;

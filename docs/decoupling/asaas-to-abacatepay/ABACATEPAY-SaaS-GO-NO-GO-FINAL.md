@@ -1,5 +1,45 @@
 # AbacatePay SaaS — decisão final de release e piloto
 
+## Preparação C3 — 17/11/2026, após 08h00 UTC
+
+**C2 permanece HOMOLOGADO no recorte já apresentado. C3/C4 NÃO AUTORIZADOS.** Esta preparação não repetiu as quatro horas, não publicou código e não alterou Production. O pedido de GO precisa incluir a correção localizada descrita abaixo e o provisionamento elegível do piloto; somente liberar um UUID não resolve esse pré-requisito.
+
+### Qualidade e defeito reproduzido
+
+- Baseline documental de entrada `90817b134adb036c2fb978ac8d2086446d62e8d5`, PR #53 OPEN/DRAFT: CI [44038668330](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44038668330) GREEN, 7.335 testes/27 E2E. **Snyk SUCCESS às 07:43:12 UTC**, Semgrep e Preview SUCCESS. Esse resultado pertence à baseline de entrada, não ao commit desta correção.
+- **Defeito confirmado, restrito à candidata:** `requestAbacatePayPlanChange` não informava `environment` ao leitor do checkout pago, cujo padrão é Sandbox. Mesmo com uma geração paga live válida, a consulta buscava a conta Sandbox e devolvia `reconcile_required`. A regressão com leitor SQL real e banco/comando sintéticos falhou em Production e passou em Sandbox antes da correção. A correção passa `account.environment`; os dois casos passaram depois. Não envolve preço, prorrata, migration, credencial ou contrato Asaas. Não há assinatura AbacatePay live para ter sido afetada até o snapshot.
+- Regressão adicional comprova a combinação exata do piloto: checkout permitido apenas ao UUID configurado com `SAAS_SIGNUP_PROVIDER=asaas`, sem selecionar onboarding AbacatePay. Não altera flags reais nem provisiona clínica.
+- **491/491 testes dirigidos, 25 arquivos, zero SKIP**, incluindo primeira prova financeira, receipt, webhook, inbox, idempotência, preço, fechamento, falhas e cancelamento legado. Dois casos de ambiente foram repetidos após o ajuste de import do teste. Rede e pagamentos dessas provas são sintéticos; não são homologação financeira live. Lint dos três arquivos e formatação PASS. Typecheck local com heap de 640 MiB encerrou por falta de memória; não aumentar o limite para forçar o notebook. Typecheck/build/segurança completos devem ser comprovados pela CI do novo SHA. Não transferir a CI anterior nem executar build pesado local.
+- Exceção ao congelamento: **uma linha de runtime** em `abacatepay-plan-changes.ts`, mais regressões e documentos. C2 continua no runtime `25d01b17`; essa correção NÃO está publicada. A configuração futura C3 deve usar composição SaaS derivada do C2 com somente esse delta aprovado, sem código TISS/0160+; conferir manifesto e build antes de promover. Sem nova CI verde e composição identificada, não executar o piloto.
+
+### Readback atual, somente leitura
+
+Banco `qoro-prod` às **07:57:52 UTC**, transação explícita `READ ONLY`, TLS `verify-full`/CA: cinco assinaturas Asaas, **zero assinatura/binding/clínica elegível AbacatePay**, uma identidade técnica central correta; inbox/operações/scans/leases zero, outbox 691 processed + 36 skipped, sem trabalho ativo; heartbeats outbox/financial-reconcile/payments-deposit success. Zero invoice entre clínicas, pagamento Asaas duplicado ou checkout AbacatePay pago. Não reverter os webhooks Asaas legítimos documentados no C2.
+
+Infraestrutura às **08:00:29 UTC**: alias `app.qoro.dev`, deployment `dpl_J5FPbdLDxBwcoBuRMgrkcwJrVbHL`, revisão `25d01b17e9ee950c5760124445e4d1b2d9c0291e`, READY/Production, 21 crons. Health Auth e profundo HTTP 200; banco, Gemini, Meta, Asaas, Redis, outbox e signup `ok`. Cadastro fechado, WAF v5 preservado e coorte vazia. `ABACATEPAY_API_KEY` e `ABACATEPAY_WEBHOOK_SECRET` existem como sensitive/Production; seus valores Vercel não foram lidos. GETs com a credencial PROD sob custódia local confirmaram loja/catálogo/webhook e zero checkouts/assinaturas; não apresentar isso como nova comparação de valores secretos Vercel. A atestação da chave no runtime C2 e a entrega dos alertas são provas anteriores preservadas. Sentry administrativo continua sem nova leitura autenticada; issues não foram encerradas.
+
+Catálogo PostgreSQL também conferido: cinco planos ativos, preço mensal BRL vigente sem campanha, cotas separadas de médicos/equipe. Os cinco produtos live são ACTIVE, MONTHLY, BRL, `devMode=false`, sem trial nativo; um webhook da mesma loja, oito eventos, endpoint `https://app.qoro.dev/api/webhooks/abacatepay`. Nenhuma operação externa mutável.
+
+| Médicos com CRM | Equipe administrativa incluída | Mensalidade | Código |
+| --- | --- | --- | --- |
+| 1 | Até 3 pessoas | R$ 197 | `consultorio_2026` |
+| 2 | Até 3 pessoas | R$ 397 | `clinica_2026_2` |
+| 3 | Até 3 pessoas | R$ 544 | `clinica_2026_3` |
+| 4 | Até 3 pessoas | R$ 691 | `clinica_2026_4` |
+| 5 | Até 3 pessoas | R$ 838 | `clinica_2026_5` |
+
+O POST de checkout aceita somente `{}`; clínica vem da sessão e `MANAGE_SETTINGS` é conferida com permissão fresca. Plano/preço/produto vêm do contrato persistido e catálogo do servidor, não de campos do navegador. A seleção aprovada deve estar persistida antes do pagamento; a tela de assinatura não transforma um contrato Asaas em AbacatePay nem muda o plano inicial por um preço enviado pelo browser.
+
+### Pré-requisito real do piloto e decisão mínima
+
+**Não há clínica elegível neste momento.** `createDeferredSubscriptionCheckout` exige assinatura trial AbacatePay, binding da loja/ambiente corretos, política de trial e ausência de assinatura Asaas; a ativação também exige trial claim vinculado ao proprietário. Os cinco contratos atuais são Asaas e permanecem íntegros. Inserir só um UUID na coorte, criar uma clínica via convite legado ou editar `billing_provider` não cria um piloto válido e não está autorizado.
+
+O fundador deve indicar clínica/UUID ou informar que será uma **nova clínica**, quantidade de médicos e responsável/consentimento. Para uma nova clínica, o futuro GO precisa incluir um provisionamento restrito e validado, antes de abrir seu checkout: Auth verificado, proprietário correto, plano/preço escolhido e transação existente de onboarding com binding/política/claim. O operador Sandbox não pode ser redirecionado a Production nem as proteções do cadastro público removidas. Não existe neste checkpoint autorização ou ferramenta de provisionamento live validada; preparar essa execução restrita após identificar o beneficiário. Não converter os contratos Asaas para contornar a falta do piloto.
+
+**Preparação operacional documentada; execução C3 bloqueada por identificação/provisionamento elegível, nova CI/composição da correção e GO específico.** A falta desses dados não invalida C2 e não justifica novo desenvolvimento financeiro. O [runbook C3](../../runbooks/abacatepay-operacao.md#gate-c3--procedimento-assistido-preparado-em-17112026) contém configuração proposta, T0–T4, contenção e formulário único. R1 fechamento live, R2 renovação natural futura em 13/12, R3 eventos negativos externos e R4 capacidade continuam PARTIAL, para ratificação do piloto; B1-B **DEFERRED/RISK ACCEPTED/NOT VERIFIED**, sem reabrir host/cofre/restore. Expansão C4 não autorizada.
+
+Evidências sanitizadas no bloco `gateC3Preparation20261117` do registro financeiro existente; relatórios locais ignorados em `dist/gate-c2-corrective-20261117-25d01b17/c3-*`. A CI final será vinculada no PR para evitar um commit documental recursivo apenas para registrar seu próprio SHA.
+
 ## Fechamento C2 — quatro horas conferidas em 17/11/2026
 
 **C2 HOMOLOGADO NO ESCOPO OPERACIONAL OBSERVADO — APTO PARA SOLICITAR GO C3. C3/C4 NÃO AUTORIZADOS; AQUISIÇÃO FECHADA.** Este checkpoint prevalece sobre os estados temporais `OBSERVATION PENDING` abaixo. Não houve mudança de código, deployment, migration, flag, WAF ou operação financeira nesta validação. O pedido de GO para uma clínica está preparado no runbook; a identidade, o consentimento, o plano, a janela e a decisão de riscos continuam a cargo do fundador.

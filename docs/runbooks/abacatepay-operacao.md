@@ -1,5 +1,70 @@
 # Operação e recuperação AbacatePay
 
+## Gate C3 — procedimento assistido preparado em 17/11/2026
+
+**PREPARAÇÃO; EXECUÇÃO NÃO AUTORIZADA.** C2 homologado nas quatro horas existentes. Production continua no C2 `25d01b17` com aquisição fechada. CI/Snyk da baseline documental `90817b13` passaram; a correção posterior de ambiente na troca de plano exige CI própria e composição identificada antes do deployment autorizado. [Evidências, defeito e pré-requisito do piloto](../decoupling/asaas-to-abacatepay/ABACATEPAY-SaaS-GO-NO-GO-FINAL.md#preparação-c3--17112026-após-08h00-utc). Este checkpoint prevalece; os formulários antigos abaixo são históricos.
+
+### Parada inicial: obter um piloto elegível
+
+Consulta somente leitura de 07:57:52 UTC: **cinco contratos Asaas e nenhuma clínica AbacatePay elegível**. Não selecionar clínica, migrar contrato ou criar titular fictício. O fundador informa UUID/consentimento e médicos; se disser “nova clínica”, o GO terá de incluir seu provisionamento restrito antes de qualquer checkout. Confirmar Auth verificado/proprietário correto e usar a transação já testada de onboarding para formar assinatura trial, binding, política e trial claim coerentes. A leitura do checkout não faz esse provisionamento. Convite legado e edição manual de provider não substituem a transação. Não reutilizar o operador DEV/Sandbox contra Production. A execução de provisionamento live ainda precisa ser delimitada/validada com o beneficiário definido.
+
+Após existir o piloto, em transação explicitamente READ ONLY verificar **um** contrato da clínica: `billing_provider=abacatepay`, `asaas_subscription_id IS NULL`, status trial, sem cancelamento, política não liberada, binding da conta Production/loja esperada e sem assinatura externa paga; Auth/claim/proprietário e plano/preço devem coincidir. Zero ou múltiplos resultados, claim ausente, qualquer assinatura Asaas ou geração já paga: PARAR. Não corrigir esses estados durante o preflight nem criar segunda obrigação.
+
+### Configuração exata proposta, somente após GO
+
+| Variável/barreira | Atual | C3 proposto |
+| --- | --- | --- |
+| `SIGNUP_ENABLED` | `false` | Manter `false` |
+| `SAAS_SIGNUP_PROVIDER` | `asaas` | Manter `asaas` |
+| `ABACATEPAY_ENVIRONMENT` | `production` | Manter `production` |
+| `ABACATEPAY_NEW_CHECKOUTS_ENABLED` | `false` | `true` |
+| `ABACATEPAY_CHECKOUT_CLINIC_IDS` | Vazia | Exatamente o UUID aprovado, sem lista adicional |
+| WAF cadastro | Ativo v5 | Manter bloqueio dos POSTs `/api/signup/sessions` e `/api/signup/checkout` |
+| Receiver/consumidores/scanner/cron | Ativos | Preservar; não dependem da flag de aquisição |
+| Chave/loja/catálogo/secret | Production central | Preservar; nenhuma chave da clínica ou novo segredo |
+
+O teste de aquisição comprova essa combinação com provedor de signup Asaas e um único UUID. Isso autoriza checkout apenas para contrato AbacatePay elegível; não habilita o cadastro público. O POST `/api/billing/checkout` exige sessão, tenant, origem confiável e `MANAGE_SETTINGS` fresca; aceita apenas `{}`. Valor/ciclo/produto são calculados pelo contrato/catálogo do servidor. Trocas de plano e cancelamento de contratos existentes têm seus próprios guards; a flag de aquisição **não é** um bloqueio geral dessas operações.
+
+A futura publicação deve partir da composição SaaS C2 identificada (`25d01b17`, manifesto `f56ed41b370d065ce65900a60fcaa0d923500279dc0cd9a6cfa2a71d69f1a042`), com somente o delta aprovado `environment: account.environment` em `abacatepay-plan-changes.ts`. Exigir CI do SHA da correção, novo manifesto da composição e READY no deployment sem promoção automática; sem migrations, TISS `0160+`, merge ou alterações de preço. Os checks do C2 não substituem o build dessa nova composição. A configuração só vale no deployment novo; testar preflight e então promover `app.qoro.dev` dentro da janela autorizada. Registrar deployment/configuração antes/depois, sem valores secretos.
+
+### T0–T4: uma clínica, uma obrigação
+
+| Etapa | Operação e evidência exigidas | Ponto de parada |
+| --- | --- | --- |
+| T0 — antes | Confirmar GO, consentimento, UUID/owner/RBAC, plano/preço BRL mensal/médicos/equipe, runtime/CI/manifesto, flags/coorte, loja/webhook/secret presente, health/Redis, inbox/outbox/leases e heartbeats. Capturar somente IDs e agregados sanitizados; cinco Asaas separados. Repetir elegibilidade acima e conferir inexistência de checkout/operação pendente para a mesma obrigação. | Clínica ainda não provisionada, ausência de permissão, valor/loja divergente, fila travada, operação desconhecida ou falha de monitoramento: não abrir. |
+| T1 — criação | Responsável autenticado abre `/configuracoes/assinatura` e solicita checkout uma vez. Associar intenção, business key, operation, binding, checkout, produto, preço e clínica. GET da loja/produto/checkout e listagem por checkout confirmam geração esperada. Registrar horário, status e ID sem link de pagamento em logs públicos. | Timeout/unknown: consultar a operação/estado remoto; não criar outra cobrança nem clicar repetidamente para “resolver”. |
+| T2 — pagamento | Pagador consentido conclui no checkout oficial, ciente do valor e recorrência mensal. Nenhum pagamento é executado pelo agente, API mestra ou simulador. | Divergência ou segundo pagador/assinatura: conter novas aquisições e preservar evidências. |
+| T3 — conciliação | Acompanhar webhook autenticado, inbox/event ID/lease/outcome e readback autoritativo. Correlacionar payment/receipt/checkout/customer/subscription/produto/valor/moeda/loja/ambiente. Conferir invoice paga única, paid_checkout, binding, período calculado pela âncora aprovada, liberação da política trial e entitlements/cotas para a mesma clínica. | ACTIVE isolado, webhook isolado, invoice em aberto, receipt incompatível ou preço parcial não liberam direitos. Divergência abre revisão, sem status artificial. |
+| T4 — depois | Aguardar fechamento automático pelo cron; conferir operação `close_paid_checkout` e auditoria `subscription.checkout.closed`, link remoto fechado, assinatura preservada e uma geração paga. Recarregar Assinatura e testar nova sessão do proprietário; conferir preço/plano, período, médicos e equipe. Readbacks devem continuar convergentes, sem segunda cobrança/invoice/entitlement nem backlog. | Link aberto além do limiar, lease vencida, desconhecido, duplicidade ou direito incorreto: conter. Não fechar manualmente para fabricar R1 PASS. |
+
+As leituras necessárias estão nos readers e serviços reais: `initial-payment.ts`, `approved-card-receipt.ts`, `abacatepay-processing.ts`, `abacatepay-checkout-closure.ts`. Usar GET da loja, produtos, `/subscriptions/checkouts/get`, `/subscriptions/list?checkoutId=...` e recursos financeiros correlacionados conforme os readers; após o pagamento, não executar o helper de pré-C3 que exige zero assinaturas/checkouts live. SQL somente leitura nas tabelas `bindings`, `checkout_intents`, `operations`, `event_inbox`, `paid_checkouts`, `subscriptions`, `invoices`, `trial_access_policies`, `billing_events`, scans e heartbeats, sempre filtrado por clínica/assinatura/conta aprovadas. Não exportar payload, recibo, e-mail ou dados clínicos; não chamar cron manualmente nem reprocessar financeiramente como parte da leitura.
+
+O período mensal do Qoro usa a âncora verificada de criação da assinatura externa após pagamento integral; não é confirmação da data da próxima cobrança no provedor. O reenvio/worker utiliza a mesma obrigação persistida. O journal evita um segundo POST com resultado desconhecido; isso pode exigir revisão humana em vez de tentativa automática cega. O fechamento remove a oportunidade do link conforme readback, preservando a assinatura e histórico; prova live ainda pendente. As cinco compras Sandbox anteriores são evidência reutilizada, não pagamentos repetidos neste ciclo.
+
+### Monitoramento e contenção propostos para aprovação no GO
+
+- Uma contratação por vez. Outbox esperada a cada minuto; conferir worker/Redis, idade das filas, leases e scan. Pagamento/inbox sem progresso por mais de 2min: alertar; mais de 5min: conter. Fechamento elegível aberto por mais de dois ticks: alertar; mais de 5min: conter. 429 persistente por mais de dois ticks: conter. Esses limiares são propostas para piloto, não SLA ou alertas já configurados.
+- Qualquer tenant/loja/valor/receipt divergente, duplicidade, estado externo desconhecido, autenticação legítima falhando, Redis indisponível ou persistência perdida: interrupção imediata de novas contratações e acionamento técnico/financeiro. Preservar a obrigação, inbox/journal/invoices e os consumidores. Não cancelar, estornar, apagar ou recriar automaticamente.
+- **Contenção de aquisição:** prever no GO a possibilidade de bloquear POST `/api/billing/checkout` no WAF de Production para todos os hostnames do deployment, sem bloquear receiver/cron/Asaas, e voltar as duas flags de aquisição ao estado fechado por deployment identificado. Validar bloqueio antes de considerar contenção completa. Alterar env ou promover o C2 fechado não altera retroativamente a configuração do URL imutável C3; conferir essa exposição explicitamente.
+- Fechar a rota impede novas criações, mas **não invalida um link externo já emitido**. Nesse caso, acompanhar a mesma obrigação e seu fechamento seguro; qualquer ação externa adicional fora do fechamento automático contratado exige escopo autorizado. Um checkout reutilizável permanece risco R1 até prova real; não prometer uso único por `customerId` ou allowlist.
+- Não desarmar `ABACATEPAY_ENVIRONMENT`, receiver, webhook, Redis ou consumidores para conter aquisição. Preservar cinco Asaas, cobranças de pacientes, crons e obrigações AbacatePay que passem a existir. Sem rollback automático de migrations ou reversão de webhooks legítimos.
+
+### Pedido único preparado — GO C3, ainda não concedido
+
+| Campo | Proposta/evidência ou dado indispensável |
+| --- | --- |
+| Identificação | `joaomarcos-techia/Project_OS`, PR #53 draft. SHA final/CI/manifesto da correção deverão ser transcritos do PR após conclusão, sem usar CI de outro SHA. Runtime atual C2 `25d01b17`; nova composição deve conter somente a correção localizada e configuração autorizada. |
+| Beneficiário | **Fundador define:** clínica, UUID (ou nova clínica), responsável autorizado e consentimento explícito; ausência de elegibilidade atual exige provisionamento restrito previamente validado e incluído no GO. Não autorizar migração dos cinco Asaas. |
+| Oferta | **Fundador escolhe:** 1/2/3/4/5 médicos por R$197/397/544/691/838 ao mês, até três pessoas administrativas, cartão no checkout oficial, sem trial nativo, anual, desconto ou prorrata novos. Plano/preço persistidos antes da abertura. |
+| Responsáveis | Execução técnica/observação/rollback nesta sessão Codex, a reconfirmar disponível; **fundador nomeia/confirma** operacional, financeiro, suporte e incidentes. Podem ser a mesma pessoa, mas não presumir disponibilidade herdada do C2. |
+| Janela | Proposta até60min após GO específico, fuso America/Sao_Paulo. Data/hora e disponibilidade a confirmar. Encerrar/fechar aquisição após uma contratação, sem expansão automática. |
+| Alterações a autorizar | Provisionamento restrito se necessário; publicação da composição corrigida/validada; somente duas flags de aquisição para um UUID; preservação de signup fechado e WAF; contenção imediata da rota se incidente. Sem essas autorizações não executar. |
+| Aceite específico | Ratificar riscos R1 live ainda não observado, R2 renovação natural13/12 futura, R3 eventos negativos parcialmente externos e R4 capacidade de uma clínica; B1-B segue DEFERRED/RISK ACCEPTED/NOT VERIFIED. Não confundir ratificação com PASS. |
+| Condições antes do primeiro POST | CI/Snyk/segurança novos verdes, composição íntegra, elegibilidade e catálogo, responsáveis/consentimento, health/filas/cron/Sentry conferidos e contenção preparada. Falha fecha a janela. |
+| Exclusões | Sem C4/expansão, cadastro público, migração Asaas, pagamento pelo agente, cancelamento/reembolso real de teste, migration, merge, mudança de preço/cota, TISS/UI ou restore real. |
+
+**Parecer:** solicitação preparada; execução **NO-GO** até identificar/provisionar o piloto, concluir CI/composição da correção e receber GO C3 específico com riscos/janela/responsáveis. Não há autorização implícita neste documento. O êxito financeiro será registrado separadamente em T1–T4, nunca antecipado.
+
 ## Fechamento operacional C2 — 17/11/2026, após 04h15 Brasília
 
 **C2 HOMOLOGADO NO RECORTE OBSERVADO — APTO PARA SOLICITAR GO C3. AQUISIÇÃO FECHADA; C3/C4 NÃO AUTORIZADOS.** [Dossiê e limites da prova](../decoupling/asaas-to-abacatepay/ABACATEPAY-SaaS-GO-NO-GO-FINAL.md#fechamento-c2--quatro-horas-conferidas-em-17112026). As instruções de observação pendente abaixo foram preservadas como histórico; não repetir deploy, migração ou quatro horas já comprovadas sem justificativa técnica.

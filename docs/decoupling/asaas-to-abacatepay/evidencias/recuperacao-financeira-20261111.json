@@ -1,5 +1,292 @@
 {
   "observedAt": "2026-11-11T13:51:12.859Z",
+  "gateC3Preparation20261117": {
+    "authorization": "ed459a6b-734d-4d9e-ad3f-2774eaab2dc4",
+    "preparedAt": "2026-11-17T08:10:52.455Z",
+    "gateC3": "NOT AUTHORIZED",
+    "gateC4": "NOT AUTHORIZED",
+    "baseline": {
+      "head": "90817b134adb036c2fb978ac8d2086446d62e8d5",
+      "ci": 44038668330,
+      "ciStatus": "SUCCESS",
+      "snykStatus": "SUCCESS",
+      "snykCompletedAt": "2026-11-17T07:43:12Z"
+    },
+    "production": {
+      "observedAt": "2026-11-17T08:00:29.648Z",
+      "readOnly": true,
+      "productionWrites": 0,
+      "deployment": {
+        "id": "dpl_J5FPbdLDxBwcoBuRMgrkcwJrVbHL",
+        "revision": "25d01b17e9ee950c5760124445e4d1b2d9c0291e",
+        "alias": "app.qoro.dev",
+        "target": "production",
+        "readyState": "READY",
+        "cronCount": 21
+      },
+      "flags": {
+        "SIGNUP_ENABLED": "false",
+        "SAAS_SIGNUP_PROVIDER": "asaas",
+        "ABACATEPAY_NEW_CHECKOUTS_ENABLED": "false",
+        "ABACATEPAY_CHECKOUT_CLINIC_IDS": "",
+        "ABACATEPAY_ENVIRONMENT": "production"
+      },
+      "secretMetadata": [
+        {
+          "name": "ABACATEPAY_API_KEY",
+          "type": "sensitive",
+          "present": true,
+          "valueRead": false
+        },
+        {
+          "name": "ABACATEPAY_WEBHOOK_SECRET",
+          "type": "sensitive",
+          "present": true,
+          "valueRead": false
+        }
+      ],
+      "waf": {
+        "version": 5,
+        "enabled": true,
+        "acquisitionRuleId": "rule_qoro_gate_b_aquisicao_temporariamente_fechada_5B0OEL",
+        "rulePreserved": true
+      },
+      "centralStore": {
+        "matches": true,
+        "sha256": "57c4bd55fe2644b1beee88005e1bc1af2792c91281c0f80d41c037d88dddbf3d",
+        "credentialSource": "approved local production custody; not a fresh read of sensitive Vercel value"
+      },
+      "products": [
+        {
+          "plan": "consultorio_2026",
+          "id": "prod_SsBGWnFA5Qk1dED3DLRkzSDT",
+          "amountMinor": 19700,
+          "devMode": false,
+          "cycle": "MONTHLY"
+        },
+        {
+          "plan": "clinica_2026_2",
+          "id": "prod_4sn4YU2Q3P3jbXs3a6UXMgzd",
+          "amountMinor": 39700,
+          "devMode": false,
+          "cycle": "MONTHLY"
+        },
+        {
+          "plan": "clinica_2026_3",
+          "id": "prod_CXMmb0y0FJHRDFDsy0Lj4MAW",
+          "amountMinor": 54400,
+          "devMode": false,
+          "cycle": "MONTHLY"
+        },
+        {
+          "plan": "clinica_2026_4",
+          "id": "prod_pNectEHBe356SAystDzmMJbD",
+          "amountMinor": 69100,
+          "devMode": false,
+          "cycle": "MONTHLY"
+        },
+        {
+          "plan": "clinica_2026_5",
+          "id": "prod_YtHhRgEbMxLZasE5KsqS4s3c",
+          "amountMinor": 83800,
+          "devMode": false,
+          "cycle": "MONTHLY"
+        }
+      ],
+      "webhook": {
+        "count": 1,
+        "devMode": false,
+        "origin": "https://app.qoro.dev",
+        "path": "/api/webhooks/abacatepay",
+        "events": [
+          "subscription.completed",
+          "subscription.renewed",
+          "subscription.payment_failed",
+          "subscription.cancelled",
+          "checkout.completed",
+          "checkout.refunded",
+          "checkout.disputed",
+          "checkout.lost"
+        ]
+      },
+      "liveSubscriptions": 0,
+      "liveCheckouts": 0,
+      "health": [
+        {
+          "path": "/api/health/auth-hook",
+          "status": 200,
+          "checks": null
+        },
+        {
+          "path": "/api/health?deep=1",
+          "status": 200,
+          "checks": {
+            "db": "ok",
+            "gemini": "ok",
+            "meta": "ok",
+            "asaas": "ok",
+            "redis": "ok",
+            "outbox": "ok",
+            "signup": "ok"
+          }
+        }
+      ],
+      "signupClosed": true
+    },
+    "database": {
+      "observedAt": "2026-11-17T07:57:52.778506+00:00",
+      "project": "shlcbxawrxuaebazuiue",
+      "readOnly": "on",
+      "subscriptionsByProvider": [
+        {
+          "provider": "asaas",
+          "count": 5
+        }
+      ],
+      "abacateBindings": 0,
+      "eligibleInitialPilots": 0,
+      "technicalAccounts": 1,
+      "accountStoreMatches": true,
+      "inbox": null,
+      "outbox": [
+        {
+          "status": "processed",
+          "count": 691,
+          "max_attempts": 1
+        },
+        {
+          "status": "skipped",
+          "count": 36,
+          "max_attempts": 1
+        }
+      ],
+      "operations": null,
+      "statementScans": null,
+      "activeInboxLeases": 0,
+      "expiredInboxLeases": 0,
+      "heartbeats": [
+        {
+          "job": "payments-deposit",
+          "last_run_at": "2026-11-17T07:45:18.763119+00:00",
+          "last_status": "success"
+        },
+        {
+          "job": "outbox",
+          "last_run_at": "2026-11-17T07:57:28.089404+00:00",
+          "last_status": "success"
+        },
+        {
+          "job": "financial-reconcile",
+          "last_run_at": "2026-11-17T07:45:07.448779+00:00",
+          "last_status": "success"
+        }
+      ],
+      "crossTenantInvoices": 0,
+      "duplicateAsaasPaymentIds": 0,
+      "paidAbacateCheckouts": 0
+    },
+    "catalog": [
+      {
+        "code": "consultorio_2026",
+        "amount": 197,
+        "currency": "BRL",
+        "billing_cycle": "monthly",
+        "ativo": true,
+        "doctors": 1,
+        "staff": 3
+      },
+      {
+        "code": "clinica_2026_2",
+        "amount": 397,
+        "currency": "BRL",
+        "billing_cycle": "monthly",
+        "ativo": true,
+        "doctors": 2,
+        "staff": 3
+      },
+      {
+        "code": "clinica_2026_3",
+        "amount": 544,
+        "currency": "BRL",
+        "billing_cycle": "monthly",
+        "ativo": true,
+        "doctors": 3,
+        "staff": 3
+      },
+      {
+        "code": "clinica_2026_4",
+        "amount": 691,
+        "currency": "BRL",
+        "billing_cycle": "monthly",
+        "ativo": true,
+        "doctors": 4,
+        "staff": 3
+      },
+      {
+        "code": "clinica_2026_5",
+        "amount": 838,
+        "currency": "BRL",
+        "billing_cycle": "monthly",
+        "ativo": true,
+        "doctors": 5,
+        "staff": 3
+      }
+    ],
+    "tests": {
+      "passed": 491,
+      "failed": 0,
+      "skipped": 0,
+      "files": 25,
+      "success": true,
+      "network": "synthetic doubles; no external payments",
+      "additionalFinalRegression": {
+        "passed": 2,
+        "failed": 0
+      },
+      "lint": "PASS three changed source/test files",
+      "format": "PASS",
+      "localTypecheck": "BLOCKED: 640MiB heap exhausted; do not force laptop; require new SHA CI",
+      "fullBuild": "not repeated locally; require new SHA CI"
+    },
+    "runtimeCorrection": {
+      "file": "src/contexts/billing/internal/abacatepay-plan-changes.ts",
+      "defect": "Consumed paid generation defaulted to sandbox because caller omitted environment",
+      "redBefore": {
+        "production": "FAIL reconcile_required",
+        "sandbox": "PASS"
+      },
+      "greenAfter": {
+        "production": "PASS",
+        "sandbox": "PASS"
+      },
+      "delta": "environment: account.environment",
+      "deployed": false,
+      "migrations": 0,
+      "dependencyChanges": 0
+    },
+    "pilot": {
+      "selected": false,
+      "eligibleClinics": 0,
+      "legacyAsaasContracts": 5,
+      "requires": "founder beneficiary/consent/doctor count; properly provisioned new AbacatePay contract before checkout; no legacy conversion"
+    },
+    "proposedConfiguration": {
+      "SIGNUP_ENABLED": "false",
+      "SAAS_SIGNUP_PROVIDER": "asaas",
+      "ABACATEPAY_ENVIRONMENT": "production",
+      "ABACATEPAY_NEW_CHECKOUTS_ENABLED": "true only after GO",
+      "ABACATEPAY_CHECKOUT_CLINIC_IDS": "one approved UUID only after GO"
+    },
+    "risks": {
+      "R1": "PARTIAL live closure not observed",
+      "R2": "PARTIAL natural renewal 2026-12-13 future",
+      "R3": "PARTIAL external negative events",
+      "R4": "PARTIAL one-clinic pilot capacity only",
+      "B1B": "DEFERRED RISK ACCEPTED NOT VERIFIED"
+    },
+    "productionWrites": 0,
+    "financialProviderMutations": 0
+  },
   "gateC2FourHourObservation20261117": {
     "authorization": "04666a33-7b20-4c7c-930d-1240cb51642c",
     "documentaryBaseline": "b598f2d175c52a666da1df9bbbea79e47ba37f58",
