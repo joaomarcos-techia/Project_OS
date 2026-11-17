@@ -98,6 +98,25 @@ describe('RepassesPage', () => {
     expect(mocks.getCurrentPractitioner).not.toHaveBeenCalled();
   });
 
+  // Varredura de 17/11/2026: os links de mês tinham 21 px; como botões, a 320 px a linha passava
+  // de 369 px e rolava para o lado. A navegação quebra linha e leva aos meses vizinhos.
+  it('a navegação de mês leva aos meses vizinhos e quebra linha no celular', async () => {
+    mocks.requireUser.mockResolvedValue({
+      userId: 'manager-a',
+      role: 'gestor',
+      permissions: [PERMISSIONS.MANAGE_FINANCIAL],
+    });
+    render(await RepassesPage({ searchParams: Promise.resolve({ mes: '2026-10' }) }));
+    const nav = screen.getByRole('navigation', { name: 'Mês de competência' });
+    expect(nav.className).toContain('flex-wrap');
+    expect(screen.getByRole('link', { name: 'Mês anterior' }).getAttribute('href')).toBe(
+      '/relatorios/repasses?mes=2026-09',
+    );
+    expect(screen.getByRole('link', { name: 'Próximo mês' }).getAttribute('href')).toBe(
+      '/relatorios/repasses?mes=2026-11',
+    );
+  });
+
   it('titular com CRM e sem permissão financeira recebe apenas os próprios repasses', async () => {
     mocks.requireUser.mockResolvedValue({ userId: 'owner-a', role: 'owner', permissions: [] });
     mocks.getCurrentPractitioner.mockResolvedValue(true);

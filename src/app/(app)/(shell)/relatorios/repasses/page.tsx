@@ -91,7 +91,10 @@ export default async function RepassesPage({
           ownOnly ? 'Seus atendimentos concluídos' : 'Atendimentos concluídos da clínica'
         }
       />
-      <nav aria-label="Mês de competência" className="mb-6 flex items-center gap-4">
+      <nav
+        aria-label="Mês de competência"
+        className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-2"
+      >
         <Link
           href={`/relatorios/repasses?mes=${adjacentMonth(month, -1)}`}
           className={buttonVariants({ variant: 'secondary', size: 'sm' })}
