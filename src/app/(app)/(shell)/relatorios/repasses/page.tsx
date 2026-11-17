@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 
 import { billingApiV1 } from '@/contexts/billing/api';
@@ -7,6 +8,7 @@ import { listMonthlyPayoutSnapshots } from '@/contexts/financial/payout-queries'
 import { listCompletedAppointmentsForMonth } from '@/contexts/scheduling/queries';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { Alert } from '@/components/ui/alert';
+import { buttonVariants } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
 import {
   Table,
@@ -90,9 +92,21 @@ export default async function RepassesPage({
         }
       />
       <nav aria-label="Mês de competência" className="mb-6 flex items-center gap-4">
-        <Link href={`/relatorios/repasses?mes=${adjacentMonth(month, -1)}`}>Mês anterior</Link>
+        <Link
+          href={`/relatorios/repasses?mes=${adjacentMonth(month, -1)}`}
+          className={buttonVariants({ variant: 'secondary', size: 'sm' })}
+        >
+          <ChevronLeft aria-hidden="true" className="size-4" />
+          Mês anterior
+        </Link>
         <strong className="font-mono tabular-nums">{month}</strong>
-        <Link href={`/relatorios/repasses?mes=${adjacentMonth(month, 1)}`}>Próximo mês</Link>
+        <Link
+          href={`/relatorios/repasses?mes=${adjacentMonth(month, 1)}`}
+          className={buttonVariants({ variant: 'secondary', size: 'sm' })}
+        >
+          Próximo mês
+          <ChevronRight aria-hidden="true" className="size-4" />
+        </Link>
       </nav>
       <p className="mb-4 text-sm text-fg-muted">
         A competência é o mês em que a consulta foi concluída no fuso {timezone}. Os valores são

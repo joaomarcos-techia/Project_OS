@@ -1803,7 +1803,14 @@ body:has([data-qoro-shell='tenant'])
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-/* Toque: a margem negativa dá o alvo ao link sem mudar a altura do cabeçalho. */
+/* Alvo mínimo de 24 px também com mouse (WCAG 2.5.8; varredura de 17/11/2026: 20 px). A margem
+   negativa dá o alvo ao link sem mudar a altura do cabeçalho; no toque ele vai a --hit-target. */
+[data-qoro-shell='tenant'] [data-slot='panel-header'] > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  margin-block: -2px;
+}
 @media (pointer: coarse) {
   [data-qoro-shell='tenant'] [data-slot='panel-header'] > a {
     display: inline-flex;

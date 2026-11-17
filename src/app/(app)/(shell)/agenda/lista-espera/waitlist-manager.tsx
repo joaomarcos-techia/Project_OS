@@ -242,7 +242,7 @@ export function WaitlistManager({
         </div>
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-fg-muted">
+      <label className="flex min-h-(--hit-target) w-fit items-center gap-2 text-sm text-fg-muted">
         <input
           type="checkbox"
           disabled={!interactive}

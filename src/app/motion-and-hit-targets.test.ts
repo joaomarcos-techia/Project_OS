@@ -88,4 +88,16 @@ describe('fundação de movimento e alvos de interação', () => {
     const busca = bloco.match(/\[data-slot='page-header-search'\] \{[^}]*\}/u)?.[0] ?? '';
     expect(busca).toContain('order: 2;');
   });
+
+  // Varredura de 17/11/2026: com mouse, o link do card do Dashboard tinha 20 px de altura e as
+  // migalhas, 21 px. O mínimo da WCAG 2.5.8 é 24 px, sem crescer a linha (margem negativa).
+  it('dá 24 px de alvo ao link do cabeçalho de card e às migalhas, também com mouse', () => {
+    const inicio = css.indexOf('varredura de 17/11/2026: 20 px');
+    expect(inicio).toBeGreaterThan(-1);
+    const regra = css.slice(inicio).match(/\[data-slot='panel-header'\] > a \{[^}]*\}/u)?.[0] ?? '';
+    expect(regra).toContain('min-height: 24px;');
+    expect(regra).toContain('margin-block: -2px;');
+    const migalhas = readFileSync(resolve(root, 'src/components/ui/breadcrumbs.tsx'), 'utf8');
+    expect(migalhas).toContain('-my-0.5 inline-flex min-h-6 items-center');
+  });
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useRef } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -50,6 +50,21 @@ export function ConsentCard({
   const [revokeState, revoke, revoking] = useActionState(revokeConsentForm, INITIAL);
   const state = grantState.error || grantState.message ? grantState : revokeState;
   const busy = granting || revoking;
+  // A chave é da operação, não da renderização. Antes ela saía de `uuidv4()` no render: o HTML do
+  // servidor e o navegador tinham valores diferentes (divergência na hidratação) e cada nova
+  // renderização trocava a chave, então repetir depois de uma resposta perdida podia gravar uma
+  // versão a mais. Agora ela nasce no envio e vale enquanto a decisão for a mesma; a versão
+  // nova que volta do servidor depois do sucesso abre outra operação.
+  const chaves = useRef(new Map<string, string>());
+  const comChave = (acao: (fd: FormData) => void, pedido: string) => (fd: FormData) => {
+    let chave = chaves.current.get(pedido);
+    if (!chave) {
+      chave = uuidv4();
+      chaves.current.set(pedido, chave);
+    }
+    fd.set('idempotencyKey', chave);
+    acao(fd);
+  };
 
   return (
     <Card className="p-(--card-pad)">
@@ -102,10 +117,15 @@ export function ConsentCard({
             </div>
 
             {canEdit ? (
-              <form action={p.granted ? revoke : grant} className="shrink-0">
+              <form
+                action={comChave(
+                  p.granted ? revoke : grant,
+                  `${p.granted ? 'revogar' : 'conceder'}:${patientId}:${p.purpose}:${p.version}`,
+                )}
+                className="shrink-0"
+              >
                 <input type="hidden" name="id" value={patientId} />
                 <input type="hidden" name="purpose" value={p.purpose} />
-                <input type="hidden" name="idempotencyKey" value={uuidv4()} />
                 {!p.granted &&
                 (p.purpose === 'agendamento_whatsapp' || p.purpose === 'cobranca_whatsapp') ? (
                   <label className="mb-2 flex max-w-64 items-start gap-2 text-(length:--fs-xs) text-fg-muted">
