@@ -126,11 +126,18 @@ try {
   pass('segunda execução: nada vence de novo, o histórico não se repete e, fora da janela diária, não há resumo (sem repetição indefinida)');
 
   // 3. Métricas sem identificador.
-  const text = JSON.stringify(captured);
+  // As métricas de Convênios (insurance.*) só com contagens. A `outbox.enqueued` é a telemetria padrão
+  // do outbox da plataforma (código compartilhado, não do módulo) e leva o clinicId desde sempre; ela
+  // aparece porque a manutenção agora pede a entrega dos avisos (P6.6) e não leva dado do aviso.
+  const insurance = captured.filter(([e]) => e.startsWith('insurance.'));
+  const text = JSON.stringify(insurance);
   for (const id of [A.clinicId, B.clinicId, expiredA, expiringA, cardA]) assert.ok(!text.includes(id), `métrica sem ${id.slice(0, 8)}`);
+  const platform = captured.filter(([e]) => !e.startsWith('insurance.') && e !== 'audit.written');
+  assert.ok(platform.every(([e]) => e === 'outbox.enqueued'), `métricas fora do módulo: ${[...new Set(platform.map(([e]) => e))].join(', ')}`);
+  for (const id of [expiredA, expiringA, cardA]) assert.ok(!JSON.stringify(platform).includes(id), 'a métrica do outbox não leva autorização nem carteirinha');
   assert.ok(captured.some(([e]) => e === 'insurance.maintenance.daily_summary'));
   assert.ok(captured.some(([e]) => e === 'insurance.authorization.expired'));
-  pass('métricas da manutenção e do vencimento só com contagens: nenhum id de clínica, autorização ou carteirinha');
+  pass('métricas da manutenção e do vencimento só com contagens: nenhum id de clínica, autorização ou carteirinha (a do outbox da plataforma só com a clínica e o evento)');
 
   // 4. Isolamento: B não foi tocada pela execução da A; na própria execução, vence só a dela.
   assert.equal(await statusOf(expiredB), 'authorized');
