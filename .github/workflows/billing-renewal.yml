@@ -70,7 +70,7 @@ jobs:
       - name: Trial provisioning, verified payment and operational module gates
         run: |
           export SECURITY_PG_BIN="$(pg_config --bindir)"
-          node --conditions=react-server --import tsx scripts/security/signup-free-trial-db.ts --shared-schema
+          node --conditions=react-server --import tsx scripts/security/signup-free-trial-db.ts
           cp dist/signup-free-trial-db.json dist/renewal-qualification/
       - name: Nine trial limits, payment release and permanent plan capacity
         run: |
@@ -107,6 +107,47 @@ jobs:
           cp "$target/dist/signup-free-trial-db.json" dist/renewal-qualification/trial-schema160.json
           cp "$target/dist/cancellation-candidate-160.json" dist/renewal-qualification/
           cp dist/abacatepay-tiss-composition.json dist/renewal-qualification/schema-composition.json
+      - name: Build the exact exported financial source with the frozen composed schema
+        run: |
+          node --import tsx --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { spawnSync, execFileSync } from 'node:child_process';
+          import { createHash } from 'node:crypto';
+          import { readFileSync, mkdtempSync, writeFileSync } from 'node:fs';
+          import path from 'node:path';
+          import { syntheticBuildEnvironment } from './scripts/gate-b-composed-build.ts';
+          import { readFrozenRelease } from './scripts/abacatepay-release-validation.ts';
+          const target = path.join(process.env.RUNNER_TEMP, 'qoro-financial-schema160');
+          const sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+          const plan = await readFrozenRelease(path.join(target, 'drizzle/migrations'), sha);
+          assert.equal(plan.migrations.length, 160);
+          const records = execFileSync('git', ['ls-tree', '-rz', 'HEAD', '--', 'src', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'next.config.ts'], { encoding: 'utf8', maxBuffer: 16 << 20 });
+          const sources = [];
+          for (const record of records.split('\0').filter(Boolean)) {
+            const match = /^\d+ blob ([a-f0-9]{40})\t(.+)$/su.exec(record);
+            assert.ok(match);
+            const file = match[2];
+            const content = readFileSync(path.join(target, file));
+            const blob = createHash('sha1').update(`blob ${content.length}\0`).update(content).digest('hex');
+            assert.equal(blob, match[1], `Export differs: ${file}`);
+            sources.push({ file, sha256: createHash('sha256').update(content).digest('hex') });
+          }
+          const home = mkdtempSync(path.join(process.env.RUNNER_TEMP, 'qoro-build-home-'));
+          const startedAt = new Date().toISOString();
+          const result = spawnSync(process.execPath, ['node_modules/next/dist/bin/next', 'build'], {
+            cwd: target, env: syntheticBuildEnvironment(process.env, home), stdio: 'inherit', timeout: 600000
+          });
+          const proof = { status: result.status === 0 && !result.error ? 'PASS' : 'FAIL', sha,
+            startedAt, finishedAt: new Date().toISOString(), exitCode: result.status,
+            scope: 'Exact current financial source exported by git archive plus frozen 160-entry SQL composition; not a build of the historical C2 TAR',
+            sourceFiles: sources.length,
+            sourceManifestSha256: createHash('sha256').update(JSON.stringify(sources)).digest('hex'),
+            sqlCount: plan.migrations.length, lastMigration: plan.migrations.at(-1).tag,
+            build: 'next build', transformedApplicationSources: false, syntheticEnvironmentOnly: true,
+            productionWrites: 0, deploys: 0 };
+          writeFileSync('dist/renewal-qualification/composed-build.json', JSON.stringify(proof, null, 2));
+          assert.equal(proof.status, 'PASS');
+          NODE
       - name: Preserve synthetic evidence only
         if: always()
         uses: actions/upload-artifact@v4
