@@ -207,9 +207,14 @@ test.describe('fase 1: solicitação, indicação, documento, autorização e se
     const s = await session(browser, 'sadt-recepcao');
     await s.page.goto(requestPath);
     const doc = s.page.getByRole('region', { name: 'Documento oficial do pedido à operadora' });
-    await doc.getByRole('button', { name: 'Gerar documento oficial' }).click();
-    await done(s.page, 'Documento gerado e validado no XSD');
-    await s.page.reload();
+    // O documento pode já ter nascido na conferência/indicação; se não, a recepção gera pela tela.
+    const generate = doc.getByRole('button', { name: 'Gerar documento oficial' });
+    if (await generate.isVisible().catch(() => false)) {
+      await generate.click();
+      await done(s.page, 'Documento gerado e validado no XSD');
+      await s.page.reload();
+    }
+    await expect(doc).toContainText('XML validado no XSD da ANS');
     const xmlHref = await doc.getByRole('link', { name: 'Baixar XML (TISS)' }).getAttribute('href');
     const xml = await fetchFile(s.page, xmlHref!);
     expect(xml.status).toBe(200);

@@ -755,3 +755,36 @@ e `queries.ts` (+ `listActiveMemberEmails`), `src/app/api/cron/outbox/handlers.t
 partir dos IPs dos runners, não deste notebook: não consome a cota de logins por IP da frente de UI.
 
 **Mesclagem simulada de novo** (`git merge-tree`, só em memória) com o #56 em `bf1b4a66`: os **mesmos 9 arquivos** em conflito do §12/§13, nenhum novo. Rebase ou merge só com coordenação do fundador.
+
+## 15. 18/11: o que mudou para a interface e para o console (#57)
+
+**Conflitos com o #56 reconferidos** (`git merge-tree`, só em memória) entre o #55 em `f992c091` e o #56 em `70dd5058`: os
+**mesmos 9 arquivos** do §12–§14, nenhum novo: `docs/security/acoes.md` (gerado: regerar depois do merge),
+`drizzle/migrations/meta/_journal.json` (ficar com a cauda do #55 até a 0166; o #56 não tem migration),
+`agenda/lista-espera/waitlist-manager.tsx`, `agenda/new-appointment-drawer.tsx` ("Forma de atendimento" do #55 dentro
+do layout novo), `caixa/caixa-view.tsx`, `caixa/cash-item-card.tsx` (textos novos da UI; ação e permissão iguais),
+`consultorio/format.ts`, `consultorio/waiting-card.tsx` (modalidade e cobertura do #55 no cartão novo) e
+`financeiro/page.tsx` (**manter `l.valor - l.valorPago - l.valorGlosado`** no saldo parcial). Fora dos conflitos, o
+resultado simulado mantém intactos `outbox/handlers.ts` (handlers da conclusão de convênio e da entrega dos avisos),
+`identity/internal/owner-contacts.ts` (`listActiveMemberEmails`), a rota do `financial-reconcile` (manutenção e
+Sentry), `rights.ts` (`attendanceCopy`, D-5) e a exceção temporária do picomatch no `pnpm-workspace.yaml`.
+
+**Para a interface, nada novo de tela neste ciclo.** Mudanças de servidor que a UI não deve desfazer: a leitura do XML
+do pedido de cancelamento agora é auditada (`health_insurance.guide.substitution_xml_read`, mesmo portão); a
+sincronização dos avisos trava por clínica (execuções sobrepostas do cron).
+
+**P1.13 — contrato para o console do #57** (`src/contexts/health-insurance/platform.ts`; o #55 não cria tela nem rota em
+`src/app/(admin)`):
+
+| Função | Quem | O que faz |
+| --- | --- | --- |
+| `listConveniosModuleStates({ limit, afterClinicId }, requestContext)` | super admin (AAL2) | `{ available, clinics[] }` com id, nome e situação da clínica, instalado, ligado, data e motivo comercial (D24); paginado por id; registra `health_insurance.module.states_read` |
+| `setConveniosModuleForClinic({ clinicId, enabled, reason }, requestContext)` | super admin (AAL2) | liga ou desliga UMA clínica; ligar exige `convenios.available = true` e assinatura que inclua Convênios; motivo obrigatório; `super_admin_actions` + trilha da própria clínica; repetir não grava nada |
+| `isConveniosAvailableOnPlatform()` | servidor | lê a flag global; só `true` literal libera |
+| `ConveniosPlatformError.code` | tela | `unavailable`, `commercial`, `not_found`, `invalid` (mensagens prontas, sem detalhe interno) |
+
+O que cabe ao #57: (1) acrescentar `convenios.available` (booleano, padrão desligado) à lista de flags do console
+(`FLAG_SCHEMAS` em `src/app/(admin)/admin/actions/platform-settings.ts`); (2) uma tela no console que lista as clínicas e
+chama as duas funções, com o motivo e a confirmação; (3) o e2e do console (super admin liga uma clínica, outra não muda;
+clínica em avaliação recusada; desligar sempre possível). Sem isso a P1.13 fica PARCIAL no plano. Prova do contrato:
+`scripts/security/health-insurance-platform-db.ts` (6/6) e `platform.test.ts` (7).

@@ -1,6 +1,6 @@
 {
   "note": "Pedido de E2E no Preview (navegador remoto). Mudar este arquivo dispara convenios-preview-e2e.yml.",
-  "run": "SADT1-F1",
+  "run": "SADT1-F1b",
   "groups": [
     [
       "e2e/convenios-sadt-preview.spec.ts"
