@@ -1,4 +1,4 @@
-# Prompt de continuidade — Qoro, frente "Otimização UI final" (estado de 17/11/2026, fim do ciclo 4)
+# Prompt de continuidade — Qoro, frente "Otimização UI final" (estado de 18/11/2026, ciclo 5: checkout no desenho aprovado)
 
 > Cole este texto, inteiro, numa sessão nova de IA com acesso ao repositório e à máquina do
 > fundador. Ele foi escrito para que quem o leia continue exatamente do ponto em que a frente parou.
@@ -23,7 +23,7 @@ código ficam como estão. O fundador é quem decide política, merge e Producti
 
 ## 2. Leia nesta ordem antes de qualquer ação
 1. `docs/otimização_ui_final.md`:
-   - bloco **ESTADO ATUAL DA EXECUÇÃO** (o item "CICLO 4 (17/11/2026)" primeiro);
+   - bloco **ESTADO ATUAL DA EXECUÇÃO** (o item "CICLO 5 (18/11/2026)" primeiro);
    - seção **00**: 00.1 ordem de leitura, 00.2 onde o trabalho vive, 00.3 ambiente local, 00.4 regras
      invioláveis, 00.5 segurança do ambiente;
    - seções **25.7, 25.9, 25.10 e 25.11**: regressão do Caixa, ciclo 3, sondas no Preview e a
@@ -57,7 +57,9 @@ código ficam como estão. O fundador é quem decide política, merge e Producti
    - evidências em `.tmp/ui-audit/evidence/2026-11-1{4,5,7}/`; o log da CI fica em `.tmp/ci/`.
 
 ## 3. Estado exato em que parou
-- **Código:** igual ao `d91c439f` (foco devolvido ao fechar diálogos sem Trigger), sobre o `a2af7bbf` (Repasses a 320 px) e o `2821e059` (consentimento e alvos de 24 px). Depois dele, só documento.
+- **Código:** igual ao `8cc52dad` (checkout no desenho aprovado, `66991037`; P-24 e P-26, `2665aa7d`), sobre o `d91c439f`. Depois dele, só documento.
+- **Ciclo 5 (18/11):** a referência é a prancha "Cadastro · 3. Checkout" do artefato do Claude Design (seção 25.12). Ferramentas em `.tmp/` (fora do Git): `harness/` (bancada com o componente e o CSS reais: `node .tmp/harness/build.mjs` e `npx tsx .tmp/harness/shot.ts <rótulo> <cenários>`), `e2e-visual/` (cópia local do `@code-flow` com capturas) e `ui-audit/run-signup-code-flow.ts` (e2e oficial com as travas do runner; lê só os `*_DEV` do checkout principal, como o fundador autorizou em 18/11).
+- **Bloqueios novos:** P-27 (senha da conta `2E2_UI` trocada; sondas logadas paradas) e P-28 (conta do cadastro com código não entra por senha no Preview do #56).
 - **Commits do ciclo 4** (todos no PR #56; detalhes no bloco de estado e na seção 27):
   - `c9098ad8`: A-02, descrição nas 8 gavetas e diálogos;
   - `8f73258a`: P-19, chave do Caixa sobrevive ao reload da aba;

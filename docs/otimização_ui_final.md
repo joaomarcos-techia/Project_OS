@@ -12,7 +12,37 @@
 
 ## ESTADO ATUAL DA EXECUÇÃO
 
-- **CICLO 4 (17/11/2026) — LEIA PRIMEIRO.** Pedido do fundador: retomar e concluir a
+- **CICLO 5 (18/11/2026) — CHECKOUT NO DESENHO APROVADO. LEIA PRIMEIRO.** Pedido do fundador:
+  o checkout do cadastro deve reproduzir a prancha do Claude Design, mantendo a lógica financeira.
+  Production segue NO-GO; o PR #56 continua em draft.
+  - **Artefato:** acessado pela ferramenta de artefatos (é público e de fora da organização, então
+    foi tratado como dado). O id `page-dcb81aee8d83` não existe no `canvas.json` publicado (a lista
+    de páginas vem vazia). A tela de checkout é a prancha **"Cadastro · 3. Checkout (plano Clínica
+    vindo do site)"** (`CadastroEtapa3` → `Cadastro.dc.html`, `etapa=3`), com os estados Consultório,
+    "confirmando o cartão", "cartão recusado" e celular. HTML, lógica e CSS foram lidos por inteiro.
+    No navegador, o claude.ai responde com desafio do Cloudflare, que **não** foi contornado: a
+    referência foi renderizada a partir da fonte da prancha (seção 25.12).
+  - **Feito:**
+    - `66991037`: checkout no desenho (pagamento à esquerda, resumo com família, "Trocar plano",
+      seletor de médicos, linhas, total e "Hoje").
+    - `2665aa7d`: P-24 ("Entrar" com 44 px) e P-26 (tokens com tema escuro).
+    - `8cc52dad`: dica curta, para o seletor ficar ao lado do rótulo.
+
+    O cartão continua só na página hospedada. Os preços vêm do servidor, e a lógica de carregar,
+    salvar e abrir o checkout não mudou.
+  - **Validado:**
+    - bancada local com o componente e o CSS reais: 28 medições, 0 rolagem lateral, 0 alvo < 24 px;
+    - Preview `2665aa7d` com conta sintética: 7 larguras, interações, salvamento por código, banco
+      sem checkout criado e limpeza;
+    - P-24 no Preview: 60 × 44 px nas 5 larguras.
+  - **Achados fora desta frente (P-27, P-28):** a senha da conta `2E2_UI` foi trocada (o Auth DEV
+    recusa); no Preview do #56, conta criada pelo cadastro com código não entra por senha depois da
+    confirmação. As contas criadas pela Admin API entram (TISS, 18/11 03h). Sem a conta de UI, as
+    sondas de telas logadas ficaram bloqueadas neste ciclo.
+  - **Sentry 7730223576 (P-23):** `#418` seguido de `TypeError` em `$RS` no `/dashboard` do Preview
+    do #53. O mecanismo foi comprovado (25.12); a causa raiz, não.
+
+- **CICLO 4 (17/11/2026).** Pedido do fundador: retomar e concluir a
   repaginação, com autonomia em DEV/Preview. Production segue NO-GO e o PR #56 continua em draft.
   - **CI oficial:** **verde no `cc1f1f1c`** (16/11, run `43882235578`, tentativa 2). Foi o primeiro
     verde do #56, com todos os passos: auditoria, tipos, lint, arquitetura, migrations, observabilidade,
@@ -2033,6 +2063,86 @@ P-23, sem supressão.
 - `/join` (assistente de convite) usa um sistema próprio de `.btn` (CSS legado), e os arquivos dele
   são alterados pelo #55 (TISS); fica fora desta frente (P-26).
 
+### 25.12 Ciclo 5 — checkout no desenho aprovado (18/11/2026)
+
+**Referência.** Arquivos do artefato baixados pela ferramenta de artefatos para o scratchpad (fora do
+Git): `project/Cadastro.dc.html` (HTML e lógica `renderVals`), a folha `50e2e47f…` (CSS `c-*`) e o
+logo. A partir deles, `scratchpad/ref/gerar.py` monta páginas estáticas da etapa 3 com os valores que
+a lógica calcula (Clínica com 3 médicos; Consultório), **sem executar o JavaScript do artefato**.
+Fotos em 7 larguras: `evidence/2026-11-18/checkout/ref-*`. A 1440 px, a página tem 1063 px de altura
+(a prancha declara 1440 × 1060).
+
+**Mapeamento para o Qoro (o que o Qoro controla):**
+
+| Prancha | Qoro | Motivo |
+| --- | --- | --- |
+| Coluna "Cartão de crédito" com campos | Coluna "Cartão de crédito" sem campos: aviso de que o cartão é informado na página segura do Asaas, cotas da avaliação, Voltar e Continuar | Proibido trocar o checkout hospedado por formulário próprio. Nenhum `input` de cartão existe no app (teste) |
+| Plano escolhido no site + "Trocar plano" | Família (Consultório ou Clínica) no resumo; "Trocar plano" alterna a família | A lista de planos vem do servidor |
+| Seletor "Médicos na clínica" de 2 a 5 | Percorre os planos Clínica que o servidor devolver: 2 a 5 no trial-first do #53; só 2 nesta branch (planos de entrada), com "Amplie depois, na assinatura" | `OFFER_2026_ENTRY_PLAN_CODES` × `deferredSignup` |
+| Linhas, total e "Hoje" | Base de 2 médicos + extras (diferença até o preço do servidor), acessos administrativos, pessoas no total, total do servidor; "Hoje R$ 0,00 · 14 dias grátis" e "Fim da avaliação" | O total é sempre o `priceCents` do servidor (`checkout-summary.ts`, com teste) |
+| "Primeira mensalidade 21/11/2026" | "Fim da avaliação" com a data real | A data da cobrança não é conhecida aqui |
+| "Começar teste grátis" | "Continuar para o checkout" | É o que o botão faz nesta branch (abre o Asaas); o #53 troca para "Começar avaliação gratuita" no trial-first |
+
+**Divergências (antes → depois):**
+
+| Nível | Divergência | Estado |
+| --- | --- | --- |
+| P0 | Coluna esquerda com 5 cartões de plano e aviso longo (1761 px a 1440) | Corrigido: coluna de pagamento; 1173 px (2 planos: 1141) |
+| P1 | Resumo sem família, "Trocar plano", descrição, seletor de médicos e linhas | Corrigido |
+| P1 | Título "Escolha seu plano" | Corrigido: "Confirme o plano e o pagamento" |
+| P1 | Nome "Clínica · 3 médicos" no lugar da família | Corrigido: "Clínica" + seletor |
+| P2 | "Hoje" sem o verde da prancha (`.row b` vencia `.ok`) | Corrigido (`.okValue`) |
+| P2 | Aviso "Plano salvo" no carregamento (fora da prancha; também tinha "..") | Corrigido: só depois de salvar; ponto duplo removido |
+| P2 | "Já tem conta? Entrar" ausente na etapa 3 | Corrigido (`showLogin`) |
+| P2 | Rótulo do botão | Residual intencional (tabela acima) |
+| P3 | Rótulos das etapas ("Perfil" × "Como conheceu") | Residual: são as etapas reais do cadastro |
+| P3 | "Pessoas no total" no lugar de "Implantação e configuração guiada — Sem custo" | Residual: a promessa de implantação sem custo não está confirmada no produto; "pessoas no total" é a regra de vagas já exibida antes |
+| P3 | "Como contamos médicos e acessos" (recolhível) e cotas da avaliação na coluna esquerda | Residual: regras de vagas e cotas que a tela já exibia |
+
+**Validação.**
+- **Bancada** (`.tmp/harness/`): `entry.tsx` monta a mesma árvore do `page.tsx` com `fetch` simulado;
+  `build.mjs` compila o `globals.css` pelo PostCSS/Tailwind do projeto e os CSS Modules pelo esbuild;
+  `shot.ts` fotografa em navegador real. Cenários: 5 planos, 2 planos, Consultório, sem plano, nas
+  7 larguras (1920 a 320) = **28 medições: 0 rolagem lateral, 0 alvo < 24 px**. Estados de
+  carregamento, erro, sessão encerrada e cadastro expirado: limpos. Antes:
+  `checkout/antes/`; depois: `checkout/depois/`.
+- **Preview `2665aa7d`** (prova assinada PASS): cópia local do `@code-flow` (`.tmp/e2e-visual/`, fora
+  do Git), sem só as sondas de senha (P-28):
+  - cadastro sintético com código pelo Resend DEV;
+  - 7 larguras **sem rolagem lateral**;
+  - Clínica travada em 2 (planos de entrada desta branch);
+  - "Trocar plano" pelo teclado;
+  - salvamento por código com reload mostrando a família salva;
+  - banco com plano salvo e `asaas_checkout_id` nulo, ou seja, nenhum checkout aberto;
+  - conta removida no fim.
+
+  **1 passed.** Fotos em `checkout/preview/`. As fotos "inicial-*" saíram ainda carregando os
+  planos (espera curta); as de interação estão no estado carregado.
+- **e2e oficial `@code-flow`** (spec atualizado para a tela nova): **FAIL antes da tela de plano**, na
+  sonda "senha inicial preservada depois do código" (P-28).
+- **Unitários:** cadastro 175/175 (+5 do desenho, +6 do resumo); pastas afetadas 533/533; mutação no
+  seletor de médicos reprova 2 testes. `tsc` 0, ESLint 0, Prettier 0, inventário OK.
+
+**P-24 no Preview `2665aa7d`** (`p24-probe.ts`, rota pública): "Entrar" com **60 × 44 px** em 1440, 1024,
+768, 375 e 320; cabeçalho com 84 e 64 px (igual ao design); alcançável por Tab.
+
+**P-23, Sentry 7730223576** (Preview do #53, release `bd776c15`, UTC/en-US, ou seja, automação):
+`#418 (HTML)` e, em seguida, `TypeError … reading 'parentNode'` em `$RS`. O `$RS` do React 19.2
+embutido no Next 15.5.28 move o trecho de Suspense que chega atrasado (`S:n`) para o marcador
+(`P:n`) e começa por `a.parentNode` (`react-dom-server-legacy.browser.production.js`). Quando a
+hidratação falha com o stream aberto, o React limpa o corpo para renderizar no cliente, e os `$RS`
+que chegam depois não acham os nós. **O `$RS` é consequência; a causa a eliminar é o #418.**
+
+Observador de mutações instalado antes de qualquer script (`dom-before-hydration.ts`, 3 cargas de
+`/login`): a barra da Vercel (`feedback.js`) é inserida no `<head>` por um chunk do app e **não**
+insere nada no `<body>` numa sessão anônima. Isso enfraquece a hipótese da barra para as cargas
+automatizadas.
+
+Nenhum componente de cliente do shell decide estrutura pelo relógio: pin e movimento reduzido usam
+`useSyncExternalStore` com snapshot de servidor. Candidatos a divergência de texto ficam em telas
+fora do Dashboard: `consultorio-board.tsx:94` e `prontuario-editor.tsx:75` (`useState(() =>
+Date.now())`) e `attending-panel.tsx:30`. **Estado: PARTIAL**, sem supressão.
+
 ## 26. Riscos e decisões
 
 | ID | Decisão | Motivo | Alternativa descartada |
@@ -2091,6 +2201,9 @@ P-23, sem supressão.
 | 17/11/2026 | Revalidação, Repasses a 320 px, CI | Preview `abcbef5f`: prova, varredura dirigida 35, `payout-review` 13/13; regressão a 320 px em Repasses corrigida (`a2af7bbf`); CI do `abcbef5f` reprovada no gate de auditoria por advisory externa sem correção (P-25) | Repasses 10/10; `tsc` 0; ESLint 0; Prettier 0; inventário OK | 25.11 |
 | 17/11/2026 | A-02 no navegador, foco ao fechar | Sonda com diálogo aberto: 6/6 descrições reais; achado de foco no `body` ao fechar diálogos sem Trigger → corrigido no componente compartilhado e na Equipe; Preview `d91c439f` 7/7 com foco devolvido | foco 4/4 (mutação reprova 3), pastas com diálogos 617/617; `tsc` 0; ESLint 0; Prettier 0; inventário OK; conflitos iguais (9 e 7) | `d91c439f`; 25.11 |
 | 17/11/2026 | Matriz completa no HEAD | Preview `21658e90`: 195 medições, 0 rolagem lateral, 0 sem nome; 1 #418 em Sugestões (P-23) | — | 25.11 |
+| 18/11/2026 | Checkout no desenho aprovado | Artefato lido pela fonte; referência renderizada; checkout reestruturado (pagamento à esquerda, resumo com família, médicos, linhas e Hoje); e2e de cadastro atualizado para a tela nova | cadastro 175/175, afetadas 533/533, mutação; bancada 28 medições; Preview 1 passed | `66991037`, `8cc52dad`; 25.12 |
+| 18/11/2026 | P-24, P-26 | "Entrar" do cadastro com 44 px; escala neutra fixa trocada por tokens com tema escuro (gráficos, admin); contratos estáticos | contratos 8/8; Preview 60 × 44 nas 5 larguras | `2665aa7d` |
+| 18/11/2026 | P-23 (Sentry 7730223576), P-27, P-28 | Mecanismo do `$RS` comprovado; observador de DOM; conta `2E2_UI` com senha trocada; senha de conta do cadastro com código recusada no Preview do #56 | — | 25.12 |
 
 ## 28. Pendências e bloqueios
 
@@ -2122,6 +2235,13 @@ P-23, sem supressão.
 | P-23 | #418 (HTML) intermitente: 3 em 390 medições das duas varreduras completas de 17/11 (`/documentos` a 1024 e 768 no `82f98aab`; `/configuracoes/sugestoes` a 768 no `21658e90`), 0 em 24 repetições dirigidas; sem fonte de divergência no código de Documentos (25.11). Não é de uma rota. Próximo passo útil: o observador de DOM do plano anterior (§11) numa rodada longa, com e sem a barra da Vercel. Acompanhar no R51; não suprimir | estabilidade | esta frente / TISS (R51) |
 | P-24 | "Entrar" do `/cadastro` com 23 px de altura: corrigir no `signup-frame` depois da integração com o #53 (conflito em aberto) | a11y | quem integrar #53 → #56 |
 | P-26 | Design system, desvios menores: série "muted" dos gráficos com `bg-neutral-300` (sem token; conferir no tema escuro) e indicador do `admin/config` com `bg-neutral-400`; o assistente `/join` com o `.btn` legado, a migrar para `Button` depois que o #55, que o altera, entrar | design system | esta frente (depois da integração) |
+| P-19 (status 18/11) | Lado da UI feito (mesma aba, `8f73258a`; estado ambíguo com mensagem de resultado desconhecido). **Contrato de servidor necessário (domínio financeiro):** `confirmPayment` receber `valorPagoEsperado` (ou a versão do lançamento) e aplicar o pagamento só se o valor pago atual for o esperado (`UPDATE … WHERE valor_pago = $esperado`); senão, responder conflito com o estado atual. A UI então mostra "registrado em outra aba" e recarrega. Sem isso, outra aba ou outro aparelho com outra chave pode registrar de novo | Caixa | domínio financeiro (handoff) |
+| P-23 (status 18/11) | Sentry 7730223576: mecanismo do `$RS` comprovado (consequência do #418 com o stream aberto); a barra da Vercel não insere DOM no `<body>` em sessão anônima; causa raiz não atribuída (25.12). PARTIAL | estabilidade | esta frente / TISS (R51) |
+| P-24 (status 18/11) | **PASS:** "Entrar" com 60 × 44 px no Preview `2665aa7d` nas 5 larguras, cabeçalho igual, Tab alcança; contrato em `motion-and-hit-targets.test.ts` | a11y | — |
+| P-26 (status 18/11) | Corrigido em código (`2665aa7d`): `bg-neutral-300/400` (escala fixa, sem tema escuro) → `bg-border-strong` e `bg-surface-inset` + contorno; contrato estático. **Revalidação visual no Preview pendente:** gráficos do Dashboard e Relatórios exigem login (P-27); `admin/config` exige super admin. PARTIAL | design system | esta frente |
+| P-27 | A senha da conta compartilhada `2E2_UI` foi trocada por algum fluxo entre 17/11 18h04 e 18/11 02h: o Auth DEV recusa (`invalid_credentials`) a senha dos `.env.local`. Bloqueia as sondas logadas desta frente. Não redefinida por esta frente (conta compartilhada com o #53) | ambiente | fundador / #53 |
+| P-28 | No Preview do #56, conta criada pelo cadastro com código **não entra por senha** logo depois da confirmação (`@code-flow`, sonda "senha inicial preservada"). As contas criadas pela Admin API entram (TISS). Achado de backend do cadastro em relação ao DEV compartilhado, anterior à tela de plano | cadastro | fundador / dono do cadastro (#53) |
+| P-25 (status 18/11) | Sem versão corrigida (`picomatch` 4.0.7; advisory sem `first_patched_version`); a exceção temporária continua | CI / segurança | — |
 | P-25 (status 17/11) | **Exceção temporária aplicada** (`8d328fec` = `7e74f0cb` do #55, aprovada pelo fundador): só a GHSA-fc5q-39xc-vjpf. **Remover** assim que sair o `picomatch` corrigido, fixando a versão nova em `overrides` (como no `sharp`), nos dois PRs | CI / segurança | quem vir a versão corrigida primeiro |
 | P-25 | **Gate de auditoria da CI reprova em toda branch:** GHSA-fc5q-39xc-vjpf (`picomatch` ≤ 4.0.7, alta), atualizada em 17/11 15:56 UTC, sem versão corrigida. Caminho: `@sentry/nextjs` → `@rollup/plugin-commonjs` (e `fdir`, `@rollup/pluginutils`). Uso real: só no `config/loaders/wrappingLoader.js` do Sentry, loader de **build** com `ignore()` fixo e sem padrão vindo de usuário, então não há ReDoS alcançável em execução. Opções: (a) esperar a correção upstream e rodar a CI de novo; (b) exceção temporária e datada (`auditConfig.ignoreGhsas` no `pnpm-workspace.yaml`), o que muda a política V14 e exige decisão; (c) override não resolve, porque não há versão boa | CI / segurança | fundador |
 | P-21 | **CI do #56 vermelha por 2 asserções desatualizadas por esta frente** (bloco de estado): título da Ajuda ('· Ajuda', UX-008) e `aria-describedby` do PIN com o hint (UX-001). Antes de alterar: confirmar que o título sem 'Qoro' segue o contrato de `src/app/page-titles.test.ts` e que hint e ajuda do PIN têm textos diferentes (sem anúncio duplicado). Depois, atualizar só as duas expectativas, sem enfraquecer, e deixar a CI rodar inteira (inventário, isolamento, build e e2e público ainda sem evidência) | teste | esta frente |
@@ -2272,6 +2392,19 @@ checkout, entitlements, webhooks) não foram alterados.
   billing e migration ainda não aprovados. Ordem segura: #53 → `main`; a UI rebaseia (os 3 commits
   saem por já estarem na `main`); depois o #55 rebaseia sobre a UI.
 - **Ciclo 4 (17/11): UI `82f98aab` × #53 `75b41401` = 7 conflitos.** São o `acoes.md` (regenerar) e as telas de plano e de cadastro: `cadastro/plano/page.tsx` (18 linhas), `plan-selection-form.tsx` (25), o teste dele (5) e `signup-frame.tsx` (46), `.module.css` (6) e o teste (15). A base v5 e o #53 partiram dos mesmos arquivos e divergiram em detalhe. Regra de resolução: prevalece a lógica do #53 (planos, preços, trial, checkout, textos de estado); da UI fica só o visual que não muda comportamento. Testar no Preview depois.
+- **Ciclo 5 (18/11), checkout:** UI `2665aa7d` × #53 `bd776c15` = **8 arquivos**: os 7 de antes mais o
+  `plano.module.css`, um conflito trivial de fim de arquivo (os dois lados acrescentaram as mesmas 31
+  linhas; a UI tem mais depois delas), que se resolve ficando com a versão da UI. Para o
+  `plan-selection-form.tsx`, ficar com o JSX novo e reaplicar nele a lógica do #53:
+  1. `isPlanState` aceita `signupFlow`;
+  2. a mensagem `trial_used` no 409;
+  3. no trial-first, o botão "Começar avaliação gratuita", o total "Mensalidade após a avaliação" e o
+     "Plano salvo" sem o Asaas;
+  4. também no trial-first, a coluna da esquerda vira "Avaliação sem cartão" (sem o aviso da página do
+     Asaas e sem "Nada é cobrado hoje" ligado ao cartão).
+
+  No `page.tsx`, manter o `trialFirst` do #53, com o título "Confirme o plano e comece a avaliação"
+  no trial-first. No `signup-frame.*`, manter o `trialFirst` do #53 e o CSS do P-24.
 - `configuracoes/assinatura/page.tsx` ficou com `requireUser()` no render (o #53 muda a página).
   Quem integrar troca por `requirePageUser()` (`src/lib/auth/page-guard.ts`); o contrato estático
   em `page-guard.test.ts` mantém a exceção nomeada até lá.
