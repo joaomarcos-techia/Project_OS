@@ -1003,8 +1003,28 @@ async function passwordSignInSucceeds(email: string, password: string): Promise<
 }
 
 /** Fixture setup for auth-only scenarios: persist through the real API without starting billing. */
-async function savePlanFixtureWithoutCheckout(page: Page): Promise<void> {
-  const planId = await page.getByRole('radio', { checked: true }).inputValue();
+/**
+ * Checkout no desenho aprovado (18/11/2026): a família do plano é escolhida pelo cartão de escolha
+ * (sem plano salvo) ou por "Trocar plano" (com plano salvo). O resumo mostra a família escolhida.
+ */
+async function choosePlanFamily(page: Page, family: 'Consultório' | 'Clínica'): Promise<void> {
+  const escolha = page.getByRole('group', { name: 'Escolha o plano' });
+  const titulo = page.getByRole('heading', { name: family, exact: true });
+  await expect(escolha.or(page.getByRole('button', { name: /^Trocar plano/u }))).toBeVisible({
+    timeout: 30_000,
+  });
+  if (await escolha.isVisible()) {
+    await escolha.getByRole('button', { name: new RegExp(`^${family}`, 'u') }).click();
+  } else if (!(await titulo.isVisible())) {
+    await page.getByRole('button', { name: `Trocar plano: mudar para ${family}` }).click();
+  }
+  await expect(titulo).toBeVisible();
+}
+
+async function savePlanFixtureWithoutCheckout(
+  page: Page,
+  planCode: 'consultorio_2026' | 'clinica_2026_2',
+): Promise<void> {
   const endpoint = new URL('/api/signup/plan', page.url()).href;
   const current = await page.request.get(endpoint, { headers: vercelBypassHeaders() });
   expect(current.status()).toBe(200);
@@ -1013,9 +1033,16 @@ async function savePlanFixtureWithoutCheckout(page: Page): Promise<void> {
     typeof state !== 'object' ||
     state === null ||
     !('rowVersion' in state) ||
-    typeof state.rowVersion !== 'number'
+    typeof state.rowVersion !== 'number' ||
+    !('plans' in state) ||
+    !Array.isArray(state.plans)
   )
     throw new Error('Plan fixture version unavailable');
+  const plan = (state.plans as { id?: unknown; code?: unknown; cycle?: unknown }[]).find(
+    (item) => item.code === planCode && item.cycle === 'monthly',
+  );
+  if (!plan || typeof plan.id !== 'string') throw new Error('Plan fixture code unavailable');
+  const planId = plan.id;
   const response = await page.request.put(endpoint, {
     headers: {
       ...vercelBypassHeaders(),
@@ -1026,6 +1053,13 @@ async function savePlanFixtureWithoutCheckout(page: Page): Promise<void> {
   });
   expect(response.status()).toBe(200);
   await page.reload();
+  // O resumo volta com a família salva, não com o que estava só na tela.
+  await expect(
+    page.getByRole('heading', {
+      name: planCode === 'consultorio_2026' ? 'Consultório' : 'Clínica',
+      exact: true,
+    }),
+  ).toBeVisible({ timeout: 30_000 });
 }
 
 async function answerQuestions(page: Page): Promise<void> {
@@ -1260,7 +1294,9 @@ async function openOnPhone(
     if (new URL(protectedPage.url()).pathname === '/cadastro/plano') {
       throw new Error('sessão com credencial pendente alcançou a seleção de plano');
     }
-    await expect(protectedPage.getByRole('heading', { name: 'Escolha seu plano' })).toHaveCount(0);
+    await expect(
+      protectedPage.getByRole('heading', { name: 'Confirme o plano e o pagamento' }),
+    ).toHaveCount(0);
   } finally {
     await protectedPage.close();
   }
@@ -1276,7 +1312,9 @@ async function waitForOriginalHandoff(page: Page): Promise<void> {
   await expect(page.getByLabel('Código do e-mail')).toBeVisible();
   await expect(page.getByLabel('E-mail usado no cadastro')).toHaveCount(0);
   await expect(page.getByLabel('Crie sua senha')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Escolha seu plano' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Confirme o plano e o pagamento' })).toHaveCount(
+    0,
+  );
 }
 
 async function completeHandoffAfterRefresh(
@@ -1317,7 +1355,7 @@ async function completeHandoffAfterRefresh(
     );
   }
   await expect(page).toHaveURL(/\/cadastro\/plano$/u, { timeout: 120_000 });
-  await expect(page.getByRole('heading', { name: 'Escolha seu plano' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Confirme o plano e o pagamento' })).toBeVisible();
 }
 
 test.describe('cadastro — confirmação real via Resend', () => {
@@ -1399,8 +1437,8 @@ test.describe('cadastro — confirmação real via Resend', () => {
       await expect(signup.page.locator('input[type=password]')).toHaveCount(0);
       if (!(await passwordSignInSucceeds(email, signup.password)))
         throw new Error('Initial password was not preserved after the code');
-      await signup.page.locator('[data-slot="option-card-group"] label').first().click();
-      await savePlanFixtureWithoutCheckout(signup.page);
+      await choosePlanFamily(signup.page, 'Consultório');
+      await savePlanFixtureWithoutCheckout(signup.page, 'consultorio_2026');
       await expect(
         signup.page.getByRole('button', { name: 'Continuar para o checkout' }),
       ).toBeVisible();
@@ -1490,8 +1528,8 @@ test.describe('cadastro — confirmação real via Resend', () => {
           await signup.page.getByLabel('Código de confirmação').fill(code);
           await signup.page.getByRole('button', { name: 'Confirmar e-mail', exact: true }).click();
           await expect(signup.page).toHaveURL(/\/cadastro\/plano$/u, { timeout: 120_000 });
-          await signup.page.locator('[data-slot="option-card-group"] label').first().click();
-          await savePlanFixtureWithoutCheckout(signup.page);
+          await choosePlanFamily(signup.page, 'Consultório');
+          await savePlanFixtureWithoutCheckout(signup.page, 'consultorio_2026');
           await expect(
             signup.page.getByRole('button', { name: 'Continuar para o checkout' }),
           ).toBeVisible();
@@ -1723,8 +1761,8 @@ test.describe('cadastro — confirmação real via Resend', () => {
         throw new Error('a senha instalada pelo handoff não autenticou');
       }
 
-      await signup.page.locator('[data-slot="option-card-group"] label').first().click();
-      await savePlanFixtureWithoutCheckout(signup.page);
+      await choosePlanFamily(signup.page, 'Consultório');
+      await savePlanFixtureWithoutCheckout(signup.page, 'consultorio_2026');
       await expect(signup.page.getByText('Plano salvo')).toBeVisible();
       await expect(signup.page).toHaveURL(/\/cadastro\/plano$/u);
     } finally {
@@ -1799,7 +1837,9 @@ test.describe('cadastro — confirmação real via Resend', () => {
       await verified.page.getByRole('button', { name: 'Criar senha e escolher plano' }).click();
       expect((await passwordResponse).status()).toBe(200);
       await expect(verified.page).toHaveURL(/\/cadastro\/plano$/u, { timeout: 120_000 });
-      await expect(verified.page.getByRole('heading', { name: 'Escolha seu plano' })).toBeVisible();
+      await expect(
+        verified.page.getByRole('heading', { name: 'Confirme o plano e o pagamento' }),
+      ).toBeVisible();
       expect(await passwordSignInSucceeds(email, signup.password)).toBe(true);
       // Fault injection only into this disposable fixture: simulate SQL
       // finalization losing its response after Auth has installed the password.
@@ -1841,7 +1881,9 @@ test.describe('cadastro — confirmação real via Resend', () => {
       expect(await passwordSignInSucceeds(email, 'DifferentSyntheticReplay7!')).toBe(false);
       expect(passwordQuerySeen, 'password entered a request URL').toBe(false);
       await expect(signup.page).toHaveURL(/\/cadastro$/u);
-      await expect(signup.page.getByRole('heading', { name: 'Escolha seu plano' })).toHaveCount(0);
+      await expect(
+        signup.page.getByRole('heading', { name: 'Confirme o plano e o pagamento' }),
+      ).toHaveCount(0);
     } finally {
       await Promise.allSettled([phone?.close(), desktop?.close()]);
       await cleanupFixture(fixture);
@@ -1900,13 +1942,11 @@ test.describe('cadastro — confirmação real via Resend', () => {
       if (catalog.trialDays !== 14 || endsAt - createdAt !== 14 * 86_400_000) {
         throw new Error('cadastro novo não preservou 14 dias desde a criação no Auth DEV');
       }
-      const selectedName = 'Clínica · 2 médicos';
       const selectedCode = 'clinica_2026_2';
-      await signup.page
-        .locator('[data-slot="option-card-group"]')
-        .getByText(selectedName, { exact: true })
-        .click();
-      await expect(signup.page.getByRole('radio', { name: /Clínica/u })).toBeChecked();
+      await choosePlanFamily(signup.page, 'Clínica');
+      await expect(signup.page.getByRole('group', { name: 'Médicos na clínica' })).toContainText(
+        '2',
+      );
       await signup.page.getByRole('button', { name: 'Continuar para o checkout' }).click();
       await signup.page.waitForURL(
         (url) =>
@@ -2056,12 +2096,15 @@ test.describe('cadastro — confirmação real via Resend', () => {
       if (billingCycle === 'annual') {
         await signup.page.getByRole('button', { name: 'Anual · preço de 10 meses' }).click();
       }
-      await signup.page
-        .locator('[data-slot="option-card-group"]')
-        .getByText(planCode === 'consultorio_2026' ? 'Consultório' : 'Clínica · 2 médicos', {
-          exact: true,
-        })
-        .click();
+      await choosePlanFamily(
+        signup.page,
+        planCode === 'consultorio_2026' ? 'Consultório' : 'Clínica',
+      );
+      if (planCode !== 'consultorio_2026') {
+        await expect(signup.page.getByRole('group', { name: 'Médicos na clínica' })).toContainText(
+          '2',
+        );
+      }
       await signup.page.getByRole('button', { name: 'Continuar para o checkout' }).click();
       await signup.page.waitForURL(
         (url) =>
@@ -2691,7 +2734,9 @@ test.describe('cadastro — confirmação real via Resend', () => {
       await expect(page.getByText('Cadastro recuperado na conta verificada')).toBeVisible();
       await page.getByRole('link', { name: 'Escolher plano' }).click();
       await expect(page).toHaveURL(/\/cadastro\/plano$/u);
-      await expect(page.getByRole('heading', { name: 'Escolha seu plano' })).toBeVisible();
+      await expect(
+        page.getByRole('heading', { name: 'Confirme o plano e o pagamento' }),
+      ).toBeVisible();
     } finally {
       try {
         await context?.close();
@@ -2994,7 +3039,9 @@ test.describe('cadastro — confirmação real via Resend', () => {
       await signup.page.getByLabel('Código do e-mail').fill(newProof.verificationCode);
       await signup.page.getByRole('button', { name: 'Continuar', exact: true }).click();
       await expect(signup.page).toHaveURL(/\/cadastro\/plano$/u, { timeout: 120_000 });
-      await expect(signup.page.getByRole('heading', { name: 'Escolha seu plano' })).toBeVisible();
+      await expect(
+        signup.page.getByRole('heading', { name: 'Confirme o plano e o pagamento' }),
+      ).toBeVisible();
       if (!(await passwordSignInSucceeds(email, signup.password))) {
         throw new Error('a senha não autenticou depois do código mais recente');
       }

@@ -14,15 +14,11 @@ export default async function SignupPlanPage() {
 
   return (
     <PublicPage>
-      <SignupStage step={3}>
+      {/* Desenho aprovado no Claude Design ("Cadastro · 3. Checkout"). */}
+      <SignupStage step={3} showLogin>
         <PublicHeading
-          title="Escolha seu plano"
-          lead={
-            <>
-              O plano fica salvo no seu cadastro. O pagamento será iniciado somente na próxima
-              etapa, com o valor confirmado no checkout.
-            </>
-          }
+          title="Confirme o plano e o pagamento"
+          lead="Confira o plano e a quantidade de médicos. Se quiser, troque antes de continuar."
         />
         <PlanSelectionForm />
       </SignupStage>
