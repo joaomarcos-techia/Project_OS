@@ -106,6 +106,12 @@ jobs:
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55557 NODE_OPTIONS=--conditions=react-server \
             pnpm exec tsx scripts/security/health-insurance-authorization-alerts-db.ts
 
+      - name: Concorrência da manutenção de Convênios (execuções sobrepostas, linha presa, conexão derrubada)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55558 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/health-insurance-maintenance-concurrency-db.ts
+
       # Cada prova roda mesmo se a anterior falhar (evidência independente); o job falha se qualquer uma falhar.
       - name: SP/SADT — solicitação, automação e indicação clínica × D24
         if: ${{ !cancelled() }}

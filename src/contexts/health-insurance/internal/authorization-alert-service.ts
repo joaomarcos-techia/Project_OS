@@ -146,6 +146,10 @@ export async function syncAuthorizationAlertsTx(tx: Tx, clinicId: string): Promi
   const result: AlertSyncResult = { operable: false, created: 0, cancelled: 0, deliveryRequested: 0 };
   if (!(await isConveniosOperableTx(tx, clinicId))) return result;
   result.operable = true;
+  // Execuções sobrepostas (cron atrasado + reexecução) sincronizam a MESMA clínica uma de cada vez:
+  // a segunda espera a primeira terminar e já lê o que ela gravou, então não há impasse entre as
+  // inclusões nem dois lotes para os mesmos avisos (prova: maintenance-concurrency-db).
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`hi:authorization-alerts:${clinicId}`}, 0))`);
   const inputs = await loadAuthorizationAlertInputsTx(tx, clinicId);
   if (!inputs) return result;
   const overdue = (await tx.execute(sql`
@@ -165,7 +169,8 @@ export async function syncAuthorizationAlertsTx(tx: Tx, clinicId: string): Promi
     expired: expired.map((e) => ({ id: e.id, validUntil: e.valid_until })),
   });
 
-  for (const f of facts) {
+  // Ordem estável das inclusões (pela chave), também como defesa caso a trava acima mude.
+  for (const f of [...facts].sort((x, y) => x.key.localeCompare(y.key))) {
     const inserted = (await tx.execute(sql`
       INSERT INTO public.hi_authorization_alerts (clinic_id, authorization_id, kind, alert_key, detail)
       VALUES (${clinicId}::uuid, ${f.authorizationId}::uuid, ${f.kind}, ${f.key}, ${JSON.stringify(f.detail)}::jsonb)

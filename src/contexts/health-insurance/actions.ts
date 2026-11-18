@@ -1642,10 +1642,13 @@ export async function readGuideCancellationXmlAction(input: {
 }): Promise<ActionResult<{ xml: string; fileName: string; sha256: string }>> {
   return run(async () => {
     const { cancellationId } = z.object({ cancellationId: uuid }).parse(input);
-    const ctx = await gate('bill');
-    const r = await withTenant(ctx.clinicId, (tx) => cancellation.readCancellationXmlTx(tx, ctx.clinicId, cancellationId), ctx.userId);
-    if (!r) throw new cancellation.GuideCancellationError('Pedido sem XML nesta clínica.', 'not_found');
-    return { xml: r.xml, fileName: `cancela-guia-${r.guideNumber}.xml`, sha256: r.sha256 };
+    // P12.4: a leitura do XML é auditada (quem baixou e qual pedido), como os demais documentos
+    // gerados; o portão é o do faturamento, derivado do evento.
+    return write('health_insurance.guide.substitution_xml_read', { type: 'hi_guide_cancellation', id: cancellationId }, async (tx, ctx) => {
+      const r = await cancellation.readCancellationXmlTx(tx, ctx.clinicId, cancellationId);
+      if (!r) throw new cancellation.GuideCancellationError('Pedido sem XML nesta clínica.', 'not_found');
+      return { xml: r.xml, fileName: `cancela-guia-${r.guideNumber}.xml`, sha256: r.sha256 };
+    });
   });
 }
 
