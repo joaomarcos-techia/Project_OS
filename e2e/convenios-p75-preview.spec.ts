@@ -153,7 +153,10 @@ test('gestora: confere, aprova e leva as duas guias à operadora pela tela (lote
     }
   }
   await s.page.goto('/convenios/lotes');
-  await s.page.getByLabel('Operadora').first().selectOption({ label: `${fx!.insurerName} (2 aprovadas)` });
+  // Pela operadora (a contagem do rótulo muda entre execuções: a substituta aprovada de uma anterior entra junto).
+  const select = s.page.getByLabel('Operadora').first();
+  const value = await select.locator('option', { hasText: fx!.insurerName }).first().getAttribute('value');
+  await select.selectOption(value!);
   await s.page.getByText('Todas (até 100)').click();
   await s.page.getByRole('button', { name: 'Montar lote' }).click();
   await s.page.waitForURL(/\/convenios\/lotes\/[0-9a-f-]{36}$/u, { timeout: 60_000 });

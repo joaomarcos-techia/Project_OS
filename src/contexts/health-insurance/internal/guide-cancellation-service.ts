@@ -238,12 +238,33 @@ export async function createSubstituteGuideTx(
   tx: Tx,
   input: { clinicId: string; originalGuideId: string; idempotencyKey: string; actorUserId: string },
 ): Promise<{ guideId: string; existing: boolean }> {
-  const [already] = (await tx.execute(sql`SELECT id FROM public.hi_guides
+  const [already] = (await tx.execute(sql`SELECT id, replaces_guide_id FROM public.hi_guides
       WHERE clinic_id = ${input.clinicId}::uuid AND idempotency_key = ${input.idempotencyKey}`)) as unknown as Row[];
-  if (already) return { guideId: String(already.id), existing: true };
+  if (already) {
+    // Achado do E2E de 17/11: a mesma chave com OUTRA guia original devolvia a substituta da primeira.
+    if (String(already.replaces_guide_id ?? '') !== input.originalGuideId) {
+      throw new GuideCancellationError('Esta chave de pedido já foi usada para outra guia. Atualize a página e tente de novo.', 'conflict');
+    }
+    return { guideId: String(already.id), existing: true };
+  }
   const [orig] = (await tx.execute(sql`SELECT status FROM public.hi_guides
       WHERE clinic_id = ${input.clinicId}::uuid AND id = ${input.originalGuideId}::uuid`)) as unknown as Row[];
   if (!orig) throw new GuideCancellationError('Guia original não encontrada nesta clínica.', 'not_found');
+  // A substituta só nasce com a original NA OPERADORA e o cancelamento dela CONFIRMADO (Tabela 46 = 1).
+  // A tela só oferece o botão nesse caso; o servidor confere de novo (achado do E2E de 17/11: a criação
+  // passava sem o recibo; a aprovação já era barrada pelo gatilho da 0165).
+  if (!['exported', 'sent', 'under_review'].includes(String(orig.status))) {
+    throw new GuideCancellationError('Só se substitui guia já enviada à operadora (exportada, enviada ou em análise).', 'state');
+  }
+  const [confirmed] = (await tx.execute(sql`SELECT 1 AS ok FROM public.hi_guide_cancellations
+      WHERE clinic_id = ${input.clinicId}::uuid AND guide_id = ${input.originalGuideId}::uuid AND status = 'confirmed'
+      LIMIT 1`)) as unknown as Row[];
+  if (!confirmed) {
+    throw new GuideCancellationError(
+      'A substituta só pode ser criada depois que a operadora confirmar o cancelamento da guia original (recibo com a situação 1).',
+      'state',
+    );
+  }
   const number = await allocateTissNumber(tx, { clinicId: input.clinicId, kind: 'guide' });
   try {
     const [sub] = (await tx.execute(sql`INSERT INTO public.hi_guides

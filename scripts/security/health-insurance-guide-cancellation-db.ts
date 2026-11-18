@@ -4,6 +4,7 @@
  * compartilhado. Recibos aqui são SINTÉTICOS: homologação INTERNA, não da operadora.
  *
  *   1. pedido só de guia exportada/enviada/em análise (aprovada não; mensagem do estado);
+ *   (10. regressão do E2E de 17/11: o serviço só cria a substituta com o recibo 1; chave reaproveitada com outra guia é recusada.)
  *   2. pedido com o XML `cancelaGuia` validado no XSD oficial, SHA-256 guardado; mesma chave devolve
  *      o mesmo pedido; segundo pedido ativo para a guia é recusado; autor = pessoa da sessão;
  *   3. substituta em rascunho; aprovação recusada SEM recibo e com recibo 4 (em processamento);
@@ -81,6 +82,34 @@ const receipt = (c: Clinic, cancellationId: string, statusCode: '1' | '2' | '3' 
   }));
 const substitute = (c: Clinic, originalGuideId: string, k = key('sub')) =>
   fx.asUser(c, (tx) => svc.createSubstituteGuideTx(tx, { clinicId: c.clinicId, originalGuideId, idempotencyKey: k, actorUserId: c.doctorId }));
+/**
+ * Rascunho de substituta criado DIRETO no banco (como o dono, sem o serviço): o serviço já recusa
+ * criar sem o recibo 1 (prova 10); aqui se prova que o GATILHO da 0165 também barra a aprovação.
+ */
+async function rawSubstitute(c: Clinic, originalGuideId: string): Promise<{ guideId: string }> {
+  const id = await fx.asUser(c, async (tx) => {
+    const [n] = (await tx.execute(fx.sqlTag`select public.hi_next_counter(${c.clinicId}::uuid, 'guide', '') as v`)) as unknown as Array<{ v: string }>;
+    const [row] = (await tx.execute(fx.sqlTag`insert into public.hi_guides
+        (clinic_id, guide_type, number, insurer_id, plan_id, patient_id, membership_id, authorization_id,
+         executant_professional_id, requester_professional_id, replaces_guide_id, idempotency_key, created_via, created_by)
+      select clinic_id, guide_type, ${String(n!.v)}, insurer_id, plan_id, patient_id, membership_id, authorization_id,
+             executant_professional_id, requester_professional_id, id, ${key('raw')}, 'user', ${c.doctorId}::uuid
+        from public.hi_guides where id = ${originalGuideId}::uuid
+      returning id`)) as unknown as Array<{ id: string }>;
+    const sid = String(row!.id);
+    await tx.execute(fx.sqlTag`insert into public.hi_guide_items
+        (clinic_id, guide_id, sequence, appointment_id, contract_line_id, authorization_item_id, executed_on,
+         table_code, procedure_code, description, quantity, factor_hundredths, unit_value_cents, total_value_cents)
+      select clinic_id, ${sid}::uuid, sequence, appointment_id, contract_line_id, authorization_item_id, executed_on,
+             table_code, procedure_code, description, quantity, factor_hundredths, unit_value_cents, total_value_cents
+        from public.hi_guide_items where guide_id = ${originalGuideId}::uuid`);
+    await tx.execute(fx.sqlTag`update public.hi_guides s set status = 'ready_for_review', issues = '[]'::jsonb,
+        total_value_cents = o.total_value_cents, terminology_version = o.terminology_version, consulta_overrides = o.consulta_overrides
+      from public.hi_guides o where s.id = ${sid}::uuid and o.id = ${originalGuideId}::uuid`);
+    return sid;
+  });
+  return { guideId: id };
+}
 async function approve(c: Clinic, guideId: string) {
   const [g] = (await sql`select membership_id::text m from public.hi_guides where id = ${guideId}::uuid`) as unknown as Array<{ m: string }>;
   // Conferida uma vez (de novo é nada a fazer): só a partir de "para conferir".
@@ -129,10 +158,10 @@ try {
   await rejects(() => request(A, g1), /pedido de cancelamento ativo/u);
   pass('pedido com o cancelaGuia gerado pelo app e válido no XSD oficial 4.03.00 (SHA-256 conferido); a mesma chave devolve o mesmo pedido; segundo pedido ativo recusado; autor = pessoa da sessão');
 
-  // 3. Substituta em rascunho; aprovação recusada sem recibo e com "em processamento".
-  const s1 = await substitute(A, g1);
+  // 3. Substituta em rascunho (direto no banco); o GATILHO recusa a aprovação sem recibo e com "em processamento".
+  const s1 = await rawSubstitute(A, g1);
   assert.deepEqual(await guide(s1.guideId), { status: 'ready_for_review', live: false });
-  const s2 = await substitute(A, g2);
+  const s2 = await rawSubstitute(A, g2);
   await rejects(() => approve(A, s2.guideId), /registre o pedido de cancelamento e o recibo/u);
   await rejects(() => approve(A, s1.guideId), /ainda não foi confirmado/u);
   await receipt(A, r1.cancellationId, '4');
@@ -148,7 +177,7 @@ try {
   await rejects(() => approve(A, s2.guideId), /não cancelou a guia original/u);
   await rejects(() => receipt(A, r2.cancellationId, '1'), /resposta final/u);
   const r3 = await request(A, g3);
-  const s3 = await substitute(A, g3);
+  const s3 = await rawSubstitute(A, g3);
   await receipt(A, r3.cancellationId, '3');
   assert.equal(await statusOf(r3.cancellationId), 'divergent');
   await rejects(() => approve(A, s3.guideId), /Divergência com a operadora/u);
@@ -210,8 +239,32 @@ try {
   assert.equal(await fx.asUser(B, (tx) => svc.readCancellationXmlTx(tx, B.clinicId, r1.cancellationId)), null);
   pass('isolamento: a clínica B não vê os pedidos, não lê o XML e não registra recibo no pedido da A');
 
-  console.log(`\n${passed}/9 provas do cancelamento na operadora e da substituição (P7.5, 0165).`);
-  assert.equal(passed, 9);
+  // 10. Regressão do E2E de 17/11: o SERVIÇO só cria a substituta com o cancelamento confirmado (Tabela 46 = 1),
+  //     e a mesma chave com outra guia original é recusada (antes devolvia a substituta da primeira).
+  const L3 = await fx.sentBatch(A, 3);
+  const [h1, h2, h3] = L3.guides as [string, string, string];
+  await rejects(() => substitute(A, h1), /recibo com a situação 1/u);
+  const q1 = await request(A, h1);
+  await rejects(() => substitute(A, h1), /recibo com a situação 1/u);
+  await receipt(A, q1.cancellationId, '4');
+  await rejects(() => substitute(A, h1), /recibo com a situação 1/u);
+  const q2 = await request(A, h2);
+  await receipt(A, q2.cancellationId, '2');
+  await rejects(() => substitute(A, h2), /recibo com a situação 1/u);
+  await rejects(() => substitute(A, approved), /já enviada à operadora/u);
+  const born = await sql`select count(*)::int n from public.hi_guides where replaces_guide_id in (${h1}::uuid, ${h2}::uuid, ${approved}::uuid)`;
+  assert.equal(Number(born[0]!.n), 0, 'nenhum rascunho nasceu');
+  const q3 = await request(A, h3);
+  await receipt(A, q3.cancellationId, '1');
+  const kk = key('sub');
+  const made = await substitute(A, h3, kk);
+  const repeat = await substitute(A, h3, kk);
+  assert.deepEqual([repeat.guideId, repeat.existing], [made.guideId, true], 'a mesma chave devolve a mesma substituta');
+  await rejects(() => substitute(A, h2, kk), /já foi usada para outra guia/u);
+  pass('o serviço só cria a substituta com a original na operadora e o cancelamento confirmado (sem pedido, aguardando, recibo 4 e recibo 2 recusados; nada nasce); a mesma chave devolve a mesma, e com outra guia é recusada');
+
+  console.log(`\n${passed}/10 provas do cancelamento na operadora e da substituição (P7.5, 0165).`);
+  assert.equal(passed, 10);
 } finally {
   await cluster.stop();
 }
