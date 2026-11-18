@@ -144,7 +144,7 @@ function HealthDot({ tone = 'gray' }: { tone?: 'green' | 'red' | 'amber' | 'gray
             ? 'bg-danger-500'
             : tone === 'amber'
               ? 'bg-warning-500'
-              : 'bg-neutral-400',
+              : 'bg-border-strong',
       )}
     />
   );

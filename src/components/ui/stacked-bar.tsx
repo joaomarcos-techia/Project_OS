@@ -14,7 +14,8 @@ const SEGMENT_TONE = [
   'bg-primary',
   'bg-[color-mix(in_oklch,var(--primary)_55%,var(--surface))]',
   'bg-[color-mix(in_oklch,var(--primary)_28%,var(--surface))]',
-  'bg-neutral-300',
+  // P-26: token semântico, com valor no tema escuro (a escala neutra não muda com o tema).
+  'bg-border-strong',
 ] as const;
 
 /**

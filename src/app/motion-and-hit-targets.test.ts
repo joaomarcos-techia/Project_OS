@@ -100,4 +100,24 @@ describe('fundação de movimento e alvos de interação', () => {
     const migalhas = readFileSync(resolve(root, 'src/components/ui/breadcrumbs.tsx'), 'utf8');
     expect(migalhas).toContain('-my-0.5 inline-flex min-h-6 items-center');
   });
+
+  // P-24 (18/11/2026): "Entrar" do cabeçalho do cadastro tinha 23 px de altura.
+  it('dá 44 px de área de toque ao "Entrar" do cabeçalho do cadastro, sem crescer o cabeçalho', () => {
+    const frame = readFileSync(
+      resolve(root, 'src/components/shared/signup-frame.module.css'),
+      'utf8',
+    );
+    const regra = frame.match(/\.headAside a \{[^}]*\}/u)?.[0] ?? '';
+    expect(regra).toContain('min-height: 44px;');
+    expect(regra).toContain('margin: -10px -8px;');
+  });
+
+  // P-26 (18/11/2026): a escala neutra é fixa (não muda no tema escuro); cor de dado e de estado
+  // usa token semântico.
+  it('não usa a escala neutra fixa como cor de fundo em componentes', () => {
+    const fixos = sourceFiles(resolve(root, 'src'))
+      .filter((path) => path.endsWith('.tsx'))
+      .filter((path) => /\bbg-neutral-[1-9]\d{1,2}\b/u.test(readFileSync(path, 'utf8')));
+    expect(fixos).toEqual([]);
+  });
 });

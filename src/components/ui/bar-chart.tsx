@@ -21,7 +21,8 @@ const TONE_BAR = {
 
 const TONE_DOT = {
   primary: 'bg-primary',
-  muted: 'bg-neutral-300',
+  // P-26: a mesma cor da barra (token com tema escuro), com contorno para o ponto aparecer.
+  muted: 'bg-surface-inset ring-1 ring-inset ring-border-strong',
 } as const;
 
 /**
