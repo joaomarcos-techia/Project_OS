@@ -389,6 +389,21 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
       stages.push(stage);
     }
     if (phase === 'paid') {
+      stage = 'paid_checkout_retries_refused';
+      for (const response of await Promise.all(
+        [1, 2].map(() =>
+          context.request.post(`${PREVIEW}/api/billing/checkout`, {
+            headers: { ...vercelBypassHeaders(), Origin: PREVIEW, 'Sec-Fetch-Site': 'same-origin' },
+            data: {},
+          }),
+        ),
+      )) {
+        expect(response.status()).toBe(409);
+        expect(await response.json()).toEqual({ error: 'already_paid' });
+      }
+      stages.push(stage);
+    }
+    if (phase === 'paid') {
       stage = 'real_logout_blocks_access';
       const loggedOut = await context.request.post(`${PREVIEW}/logout`, {
         headers: { ...vercelBypassHeaders(), Origin: PREVIEW, 'Sec-Fetch-Site': 'same-origin' },
