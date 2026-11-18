@@ -101,6 +101,7 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
   } | null = null;
   let stage = 'session';
   let outcome = 'FAIL';
+  let logoutHttpStatus: number | null = null;
   const context = await browser.newContext({
     baseURL: PREVIEW,
     viewport: { width: 1440, height: 1000 },
@@ -405,11 +406,17 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
     }
     if (phase === 'paid') {
       stage = 'real_logout_blocks_access';
-      const loggedOut = await context.request.post(`${PREVIEW}/logout`, {
-        headers: { ...vercelBypassHeaders(), Origin: PREVIEW, 'Sec-Fetch-Site': 'same-origin' },
-        maxRedirects: 0,
-      });
-      expect(loggedOut.status()).toBe(303);
+      const loggedOut = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' && new URL(response.url()).pathname === '/logout',
+      );
+      await page.getByRole('button', { name: 'Sair', exact: true }).click();
+      logoutHttpStatus = (await loggedOut).status();
+      // Route-handler redirect() uses HTTP 307 in this Next.js version;
+      // the contract is a redirect to login followed by denied access.
+      expect(logoutHttpStatus).toBeGreaterThanOrEqual(300);
+      expect(logoutHttpStatus).toBeLessThan(400);
+      await expect(page).toHaveURL(/\/login(?:\?|$)/u);
       await page.goto('/dashboard');
       await expect(page).toHaveURL(/\/login(?:\?|$)/u);
       stages.push(stage);
@@ -452,6 +459,7 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
           productionWrites: 0,
           syntheticPaidStateUsed: false,
           startingCounts: { patients: session.patientCount, procedures: session.procedureCount },
+          logoutHttpStatus,
           runtimeErrors,
           failedChecks,
           diagnostics,
