@@ -31,7 +31,11 @@ const AUDITED: Record<string, number> = {
 };
 
 /** Recebem a transação privilegiada do chamador (sem uso próprio), e também precisam estar na auditoria. */
-const RUNS_INSIDE_AUDITED = ['src/app/api/cron/financial-reconcile/external-refund-sweep.ts'];
+const RUNS_INSIDE_AUDITED = [
+  'src/app/api/cron/financial-reconcile/external-refund-sweep.ts',
+  // §5: interruptor e lista da plataforma, dentro da transação do superAdminAction (AAL2).
+  'src/contexts/health-insurance/platform.ts',
+];
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {

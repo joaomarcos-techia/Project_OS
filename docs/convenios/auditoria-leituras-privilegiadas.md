@@ -93,6 +93,28 @@ O lint e o `arch:db-check` só permitem `dbAdmin` em arquivos listados com justi
 | Identificador manipulado | Os ids vêm do próprio banco, não de entrada externa. |
 | Limites | `LIMIT 200` clínicas por execução, prazos próprios (parar de começar clínica aos 53 s, encerrar até 56 s) e só depois das etapas financeiras: falha ou estouro aqui não interrompe obrigação financeira legada (teste da rota). |
 
+## 5. Interruptor do módulo pela plataforma (P1.13, 17/11)
+
+Arquivo: `src/contexts/health-insurance/platform.ts` (contrato para o console do #57; sem tela nem rota neste PR).
+Não usa `dbAdmin` direto: roda dentro da transação do `superAdminAction`.
+
+| Pergunta | Resposta |
+| --- | --- |
+| Identidade | Super admin com AAL2 (`requireSuperAdmin`), conferido antes de qualquer leitura. |
+| Por que admin | Ligar ou desligar o módulo de uma clínica e listar o estado de todas é operação de plataforma, fora de qualquer clínica. |
+| Escopo | Uma transação por pedido; ligar/desligar toca só `hi_clinic_settings` da clínica pedida (`FOR UPDATE`). |
+| Clínica | A do pedido (uuid validado; inexistente é recusada). Nenhuma outra linha muda (provado: B continua como estava). |
+| Registro | Duas trilhas na mesma transação: `super_admin_actions` (quem, ação, clínica, motivo) e `audit_events` da PRÓPRIA clínica (antes, depois e motivo). Pedido repetido não grava nada. |
+| Conferência | Ligar exige a disponibilidade comercial `convenios.available = true` (ausente = desligado) e assinatura que inclua Convênios (D24: serviço e gatilho `hi_aa_premium_settings`). Desligar é sempre possível (contenção). |
+| Tabelas e colunas | Lista: `clinics` (id, nome, situação) e `hi_clinic_settings` (instalado, ligado, data), mais o motivo comercial (`qoro_premium_denial_for`). Nada de paciente, guia, valor ou credencial. |
+| Menos privilégio | O console é a única porta; a função fica fora de `internal/` só para o console importar. |
+| Risco entre clínicas | A lista é só para o super admin e também fica registrada (`health_insurance.module.states_read`). |
+| Usuário excluído / sessão | Sem super admin ativo com AAL2, recusa antes de abrir transação. |
+| Identificador manipulado | Clínica inexistente: erro conhecido, sem detalhe interno. |
+| Limites | Lista paginada (até 200 por página, continuação por id). |
+
+Prova: `scripts/security/health-insurance-platform-db.ts` (6/6) e `platform.test.ts` (7 unitários).
+
 ## Provas adversariais
 
 | Caso | Onde |

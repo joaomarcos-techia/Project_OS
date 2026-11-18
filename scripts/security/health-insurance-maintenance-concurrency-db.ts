@@ -137,7 +137,9 @@ try {
   const D = await fx.setupClinic('Concorrência D (linha presa)');
   const E = await fx.setupClinic('Concorrência E (conexão derrubada)');
   const F = await fx.setupClinic('Concorrência F (falha parcial)');
-  const [cardA, cardB, cardC, cardD, cardE, cardF] = await Promise.all([A, B, C, D, E, F].map(cardOf));
+  const [cardA, cardB, cardC, cardD, cardE, cardF] = (await Promise.all([A, B, C, D, E, F].map(cardOf))) as [
+    string, string, string, string, string, string,
+  ];
   const [yesterday, tomorrow, threeAgo, sixAgo] = [await day(-1), await day(1), await day(-3), await day(-6)];
 
   // 1. Quatro execuções simultâneas nas mesmas clínicas.
@@ -278,7 +280,8 @@ try {
   // 6. Clínicas diferentes ao mesmo tempo: sem bloqueio mútuo e sem mistura.
   const G = await fx.setupClinic('Concorrência G');
   const H = await fx.setupClinic('Concorrência H');
-  const [cardG, cardH] = [await cardOf(G), await cardOf(H)];
+  const cardG = await cardOf(G);
+  const cardH = await cardOf(H);
   const dueG = await granted(G, cardG, threeAgo, yesterday);
   const dueH = await granted(H, cardH, threeAgo, yesterday);
   const [rG, rH] = await Promise.all([run([G.clinicId]), run([H.clinicId])]);

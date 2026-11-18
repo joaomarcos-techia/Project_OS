@@ -55,7 +55,7 @@ const outFile = arg('out');
  *   set-active --account <chave> --active true|false perfil ativo/desativado de uma conta e2e-hi-*
  *   guide-state --guide <id>                         status, versão, ajuste e eventos (só leitura)
  */
-const COMMANDS = ['setup', 'setup-config', 'cleanup', 'setup-states', 'setup-authorizations', 'setup-i2', 'deliver-alerts', 'setup-p75', 'set-state', 'set-active', 'guide-state'];
+const COMMANDS = ['setup', 'setup-config', 'cleanup', 'setup-states', 'setup-authorizations', 'setup-i2', 'deliver-alerts', 'setup-p75', 'setup-sadt', 'complete-sadt', 'set-state', 'set-active', 'guide-state'];
 if (!COMMANDS.includes(command ?? '') || !expectedRef || !accountsFile || !outFile) {
   throw new Error(`uso: ${COMMANDS.join('|')} --expected-ref <ref> --accounts <arquivo> --out <ids.json>`);
 }
@@ -1043,6 +1043,162 @@ async function setupP75() {
   console.log(`[hi-dev-e2e-fixture] ok: clínica e2e-hi-p75, ${Object.keys(accounts).length} contas, guias ${out.guides.a.status}/${out.guides.b.status}, marca ${run}`);
 }
 
+/**
+ * Jornada SP/SADT no Preview (fase 1 pela tela): clínica e2e-hi-sadt com o contrato de psicoterapia
+ * (exige autorização), uma paciente com carteirinha e três sessões de convênio de HOJE (data da
+ * clínica, de manhã) ainda sem ligação, para a recepção ligar pela tela. Nada é enviado a operadora.
+ */
+async function setupSadt() {
+  const run = arg('run');
+  if (!run || !/^[A-Z0-9]{3,12}$/u.test(run)) throw new Error('--run <marca> obrigatório (A-Z e 0-9)');
+  const c = await clinic('e2e-hi-sadt', 'Clínica Sintética E2E SP/SADT');
+  await subscription(c, 'paid');
+  const accounts: Record<string, { email: string; password: string; userId: string; clinic: string; role: string }> = {};
+  const add = async (key: string, role: string, nome: string) => {
+    const email = `e2e-hi-${key}@example.com`;
+    const pass = password();
+    const userId = await ensureUser(email, pass);
+    await profile(userId, c, nome, role);
+    accounts[key] = { email, password: pass, userId, clinic: 'sadt', role };
+    return userId;
+  };
+  await add('sadt-gestor', 'gestor', 'Gestora SP/SADT E2E');
+  await add('sadt-recepcao', 'attendant', 'Recepção SP/SADT E2E');
+  await add('sadt-financeiro', 'financial', 'Financeiro SP/SADT E2E');
+  const medica = await add('sadt-medica', 'doctor', 'Dra. Solicitante SP/SADT E2E');
+  const medica2 = await add('sadt-medica2', 'doctor', 'Dra. Outra SP/SADT E2E');
+  await exec(sql`
+    INSERT INTO public.hi_clinic_settings (clinic_id, enabled, enabled_at, enabled_by, provider_kind, cnes_status, contractor_name)
+    VALUES (${c}::uuid, true, now(), ${SYS}::uuid, 'PJ', 'none_declared', 'Clínica Sintética SP/SADT E2E Ltda')
+    ON CONFLICT (clinic_id) DO UPDATE SET enabled = true, contractor_name = EXCLUDED.contractor_name`);
+  for (const [pro, num] of [[medica, '42345'], [medica2, '42346']] as const) {
+    await exec(sql`
+      INSERT INTO public.hi_professional_profiles (clinic_id, professional_id, council, council_number, council_uf, cbo)
+      VALUES (${c}::uuid, ${pro}::uuid, '06', ${num}, '35', '225133') ON CONFLICT DO NOTHING`);
+  }
+  let [proc] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.procedures WHERE clinic_id = ${c}::uuid AND codigo = 'E2E-PSI'`);
+  if (!proc) {
+    [proc] = await exec<{ id: string }>(sql`
+      INSERT INTO public.procedures (clinic_id, codigo, descricao, valor_padrao, duracao_padrao_min, ativo)
+      VALUES (${c}::uuid, 'E2E-PSI', 'Psicoterapia sintética E2E', 120, 50, true) RETURNING id::text AS id`);
+  }
+  const insurerName = 'Operadora Sintética SP/SADT';
+  let [ins] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.hi_insurers WHERE clinic_id = ${c}::uuid AND registro_ans = '999906'`);
+  if (!ins) {
+    [ins] = await exec<{ id: string }>(sql`
+      INSERT INTO public.hi_insurers (clinic_id, name, registro_ans, provider_id_kind, provider_id_value, status, sadt_grouping, created_by)
+      VALUES (${c}::uuid, ${insurerName}, '999906', 'codigoPrestadorNaOperadora', 'E2E0006', 'active', 'per_request', ${SYS}::uuid)
+      RETURNING id::text AS id`);
+    await exec(sql`
+      INSERT INTO public.hi_procedure_contracts (clinic_id, insurer_id, guide_type, table_code, procedure_code, description, procedure_id,
+        unit_value_cents, valid_from, requires_authorization, copay_kind, copay_fixed_cents, created_by)
+      VALUES (${c}::uuid, ${ins!.id}::uuid, 'sp_sadt', '22', '50000470', 'Sessão de psicoterapia individual', ${proc!.id}::uuid, 9000, '2026-01-01', true, 'none', null, ${SYS}::uuid)`);
+  }
+  const insurerId = ins!.id;
+  await exec(sql`
+    INSERT INTO public.hi_credentials (clinic_id, insurer_id, plan_id, professional_id, valid_from, status, created_by)
+    SELECT ${c}::uuid, ${insurerId}::uuid, NULL, x.pro, '2026-01-01', 'active', ${SYS}::uuid
+      FROM (VALUES (NULL::uuid), (${medica}::uuid), (${medica2}::uuid)) AS x(pro)
+     WHERE NOT EXISTS (SELECT 1 FROM public.hi_credentials k WHERE k.clinic_id = ${c}::uuid AND k.insurer_id = ${insurerId}::uuid
+                         AND k.plan_id IS NULL AND k.professional_id IS NOT DISTINCT FROM x.pro AND k.status = 'active')`);
+  const cpf = cpfOf('314159265');
+  const card = '0081234500066661';
+  const nome = 'Paciente Sintética SP/SADT';
+  let [p] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.patients WHERE clinic_id = ${c}::uuid AND nome = ${nome}`);
+  if (!p) {
+    [p] = await exec<{ id: string }>(sql`
+      INSERT INTO public.patients (clinic_id, nome, cpf_encrypted, cpf_hash)
+      VALUES (${c}::uuid, ${nome}, ${await encryptForTenant(c, cpf)}, ${await hashForLookup(cpf)}) RETURNING id::text AS id`);
+  }
+  const hash = await hashForLookup(`${c}:${card}`);
+  let [m] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.hi_memberships WHERE clinic_id = ${c}::uuid AND card_number_hash = ${hash}`);
+  if (!m) {
+    [m] = await exec<{ id: string }>(sql`
+      INSERT INTO public.hi_memberships (clinic_id, patient_id, insurer_id, card_number_encrypted, card_number_hash, card_last4, created_by)
+      VALUES (${c}::uuid, ${p!.id}::uuid, ${insurerId}::uuid, ${await encryptForTenant(c, card)}, ${hash}, ${card.slice(-4)}, ${SYS}::uuid)
+      RETURNING id::text AS id`);
+  }
+  // Sessões de rodadas anteriores que ninguém ligou saem da lista de "ligar sessão" (canceladas).
+  await exec(sql`
+    UPDATE public.appointments ap SET status = 'cancelado'
+     WHERE ap.clinic_id = ${c}::uuid AND ap.status = 'agendado' AND ap.observacoes LIKE 'e2e-hi:sadt-%'
+       AND ap.observacoes NOT LIKE ${`e2e-hi:sadt-${run}-%`}
+       AND NOT EXISTS (SELECT 1 FROM public.hi_appointment_coverages cv WHERE cv.clinic_id = ap.clinic_id AND cv.appointment_id = ap.id)`);
+  const [today] = await exec<{ d: string }>(sql`SELECT (now() AT TIME ZONE 'America/Sao_Paulo')::date::text AS d`);
+  const sessions: string[] = [];
+  let hour = 10;
+  for (let i = 0; i < 3; i++) {
+    const tag = `e2e-hi:sadt-${run}-s${i + 1}`;
+    let [ap] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.appointments WHERE clinic_id = ${c}::uuid AND observacoes = ${tag}`);
+    // Horário livre de HOJE (data da clínica): uma rodada anterior pode ocupar o mesmo horário.
+    for (; !ap && hour <= 22; hour++) {
+      try {
+        [ap] = await exec<{ id: string }>(sql`
+          INSERT INTO public.appointments (clinic_id, doctor_id, patient_id, procedure_id, scheduled_at, duration_min, status, valor,
+            snapshot_procedure_name, snapshot_procedure_valor, snapshot_procedure_duracao_min, snapshot_doctor_nome, created_via, observacoes, billing_mode)
+          VALUES (${c}::uuid, ${medica}::uuid, ${p!.id}::uuid, ${proc!.id}::uuid, ${`${today!.d}T${String(hour).padStart(2, '0')}:00:00Z`}::timestamptz, 50,
+            'agendado'::appointment_status, 120, 'Psicoterapia sintética E2E', 120, 50, 'Dra. Solicitante SP/SADT E2E', 'attendant', ${tag}, 'convenio')
+          RETURNING id::text AS id`);
+      } catch (e) {
+        if (pgCode(e) !== '23P01') throw e;
+      }
+    }
+    if (!ap) throw new Error('sem horário livre hoje para as sessões');
+    sessions.push(ap.id);
+  }
+  const out = { clinicId: c, run, today: today!.d, insurerName, patientName: nome, cardLast4: card.slice(-4), procedureCode: '50000470', sessions };
+  writeFileSync(accountsFile!, JSON.stringify(accounts, null, 1));
+  writeFileSync(outFile!, JSON.stringify(out, null, 1));
+  console.log(`[hi-dev-e2e-fixture] ok: clínica e2e-hi-sadt, ${Object.keys(accounts).length} contas, 3 sessões de hoje (${today!.d}), marca ${run}`);
+}
+
+/**
+ * Fase 2 da jornada SP/SADT: as sessões que a recepção LIGOU pela tela são concluídas pelo caminho
+ * real (prontuário assinado + `applyTransition` do Scheduling) e o worker do outbox roda só os
+ * eventos delas, com os handlers reais (a guia SP/SADT nasce da conclusão). Só na clínica sintética.
+ */
+async function completeSadt() {
+  const run = arg('run');
+  if (!run || !/^[A-Z0-9]{3,12}$/u.test(run)) throw new Error('--run <marca> obrigatório (A-Z e 0-9)');
+  const [c] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.clinics WHERE slug = 'e2e-hi-sadt'`);
+  if (!c) throw new Error('clínica e2e-hi-sadt ausente (rode setup-sadt)');
+  const linked = await exec<{ id: string; patient_id: string; doctor_id: string; status: string }>(sql`
+    SELECT ap.id::text AS id, ap.patient_id::text AS patient_id, ap.doctor_id::text AS doctor_id, ap.status::text AS status
+      FROM public.appointments ap
+      JOIN public.hi_appointment_coverages cv ON cv.clinic_id = ap.clinic_id AND cv.appointment_id = ap.id AND cv.sadt_request_item_id IS NOT NULL
+     WHERE ap.clinic_id = ${c.id}::uuid AND ap.observacoes LIKE ${`e2e-hi:sadt-${run}-s%`}
+     ORDER BY ap.scheduled_at`);
+  if (linked.length === 0) throw new Error('nenhuma sessão ligada pela tela nesta marca');
+  const { applyTransition } = await import('../../src/contexts/scheduling/internal/appointment-core');
+  await import('../../src/contexts/health-insurance/internal/handlers/insurance-completed');
+  const { runOutboxEventsNow } = await import('../../src/lib/outbox/worker');
+  const keys: string[] = [];
+  for (const ap of linked) {
+    if (ap.status === 'agendado') {
+      await exec(sql`UPDATE public.appointments SET status = 'em_atendimento' WHERE id = ${ap.id}::uuid AND status = 'agendado'`);
+      await exec(sql`
+        INSERT INTO public.prontuarios (clinic_id, patient_id, doctor_id, appointment_id, status, signed_at, signed_by, content_encrypted)
+        VALUES (${c.id}::uuid, ${ap.patient_id}::uuid, ${ap.doctor_id}::uuid, ${ap.id}::uuid, 'assinado', now(), ${ap.doctor_id}::uuid,
+          ${await encryptForTenant(c.id, JSON.stringify({ sintetico: 'Registro sintético E2E, sem conteúdo clínico' }))})`);
+    }
+    if (ap.status !== 'atendido') {
+      await withTenant(c.id, (tx) => applyTransition(tx, {
+        clinicId: c.id, appointmentId: ap.id, target: 'atendido', transitionedBy: ap.doctor_id, actorType: 'user',
+        clientKey: `e2e-sadt-concluir-${ap.id}`, correlationId: null,
+      }), ap.doctor_id);
+    }
+    keys.push(`e2e-sadt-concluir-${ap.id}:atendido:convenio`);
+  }
+  const tick = await runOutboxEventsNow([{ eventType: 'scheduling.appointment.insurance_completed', idempotencyKeys: keys }]);
+  const guides = await exec<{ id: string; status: string; items: number }>(sql`
+    SELECT DISTINCT g.id::text AS id, g.status, (SELECT count(*)::int FROM public.hi_guide_items i WHERE i.guide_id = g.id) AS items
+      FROM public.hi_guides g JOIN public.hi_guide_items gi ON gi.guide_id = g.id
+     WHERE g.clinic_id = ${c.id}::uuid AND g.guide_type = 'sp_sadt' AND gi.appointment_id = ANY(${`{${linked.map((l) => l.id).join(',')}}`}::uuid[])`);
+  const out = { run, completed: linked.length, outbox: { processed: tick.processed, failed: tick.failed }, guides };
+  writeFileSync(outFile!, JSON.stringify(out, null, 1));
+  console.log(`[hi-dev-e2e-fixture] ok: ${linked.length} sessões concluídas, outbox ${tick.processed}/${tick.failed}, guias SP/SADT ${guides.map((g) => `${g.status}(${g.items})`).join(', ')}`);
+}
+
 // Comando desconhecido NÃO cai no cleanup (antes era o ramo padrão: um erro de digitação desativava
 // as contas e clínicas e2e-hi-*). O cleanup só roda pelo nome.
 const main =
@@ -1053,6 +1209,8 @@ const main =
   : command === 'setup-i2' ? setupI2
   : command === 'deliver-alerts' ? deliverAlerts
   : command === 'setup-p75' ? setupP75
+  : command === 'setup-sadt' ? setupSadt
+  : command === 'complete-sadt' ? completeSadt
   : command === 'set-state' ? setState
   : command === 'set-active' ? setActive
   : command === 'guide-state' ? guideState
