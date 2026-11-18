@@ -14,7 +14,7 @@ on:
         required: true
         default: active
         type: choice
-        options: [active, expired]
+        options: [active, expired, paid, paid_resume]
 
 permissions:
   contents: read

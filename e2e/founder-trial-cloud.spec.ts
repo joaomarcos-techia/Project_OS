@@ -5,7 +5,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { z } from 'zod';
 
 import { assertPreviewRuntimeIsDev } from './preview-dev-runtime';
-import { installVercelBypassForOrigin } from './vercel-bypass';
+import { installVercelBypassForOrigin, vercelBypassHeaders } from './vercel-bypass';
 
 const PREVIEW = 'https://project-26afjm4bg-clinic-os-v2-s-projects.vercel.app';
 const SHA = 'bd776c15783a3637a1f6053cd53765833a28864f';
@@ -19,8 +19,17 @@ const sessionSchema = z.object({
   clinicId: z.literal(CLINIC),
   subscriptionId: z.literal(SUBSCRIPTION),
   expiresAt: z.iso.datetime(),
-  patientCount: z.number().int().min(0).max(10),
-  procedureCount: z.number().int().min(0).max(15),
+  patientCount: z.number().int().min(0).max(11),
+  procedureCount: z.number().int().min(0).max(16),
+  paymentProof: z
+    .object({
+      invoiceId: z.uuid(),
+      externalSubscriptionId: z.string().startsWith('subs_'),
+      amountMinor: z.literal(39700),
+      environment: z.literal('sandbox'),
+      status: z.literal('paid'),
+    })
+    .optional(),
   cookies: z
     .array(
       z.object({
@@ -58,8 +67,19 @@ async function createPatient(page: Page, index: number): Promise<void> {
 test('founder DEV trial: real browser, immutable candidate, no payment or paid-state seam', async ({
   browser,
 }) => {
-  const phase = z.enum(['active', 'expired']).parse(process.env.BILLING_TRIAL_PHASE);
+  const phase = z
+    .enum(['active', 'expired', 'paid', 'paid_resume'])
+    .parse(process.env.BILLING_TRIAL_PHASE);
   const session = sessionSchema.parse(JSON.parse(process.env.BILLING_TRIAL_SESSION ?? '{}'));
+  const paidPhase = phase === 'paid' || phase === 'paid_resume';
+  if (paidPhase && !session.paymentProof)
+    throw new Error('Verified Sandbox payment proof required');
+  if (!paidPhase && (session.patientCount > 10 || session.procedureCount > 15)) {
+    throw new Error('Unpaid fixture exceeds trial limits');
+  }
+  if (phase === 'paid_resume' && (session.patientCount !== 11 || session.procedureCount !== 16)) {
+    throw new Error('Paid creation evidence required before new-session resume');
+  }
   if (
     !session.cookies.some(
       (cookie) => cookie.name === 'qoro-auth-session' && /^[a-f0-9]{32}$/u.test(cookie.value),
@@ -200,21 +220,104 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
       await expect(counters).toContainText('Procedimentos: 15/15');
       stages.push(stage);
     }
+    if (paidPhase) {
+      stage = 'paid_dashboard_without_trial_counters';
+      await page.goto('/dashboard');
+      await expect(page).toHaveURL(`${PREVIEW}/dashboard`);
+      for (const width of [1440, 390]) {
+        await page.setViewportSize({ width, height: 1000 });
+        await expect(page.getByRole('list', { name: 'Uso da avaliação' })).toHaveCount(0);
+        expect(
+          await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+        ).toBe(true);
+      }
+      stages.push(stage);
+      if (phase === 'paid') {
+        stage = 'paid_eleventh_patient_created';
+        if (session.patientCount === 10) {
+          await createPatient(page, 11);
+          await expect(page).toHaveURL(/\/pacientes\/[a-f0-9-]+(?:\?|$)/u, { timeout: 60_000 });
+        }
+        stages.push(stage);
+        stage = 'paid_sixteenth_procedure_created';
+        if (session.procedureCount === 15) {
+          await page.goto('/configuracoes/procedimentos');
+          await page
+            .getByRole('button', { name: 'Novo procedimento', exact: true })
+            .first()
+            .click();
+          await page.locator('#proc-codigo').fill('QA-TRIAL-16');
+          await page.locator('#proc-descricao').fill('Procedimento sintético trial 16');
+          await page.locator('#proc-duracao').fill('30');
+          await page.getByRole('button', { name: 'Salvar', exact: true }).click();
+          await expect(page.locator('#proc-codigo')).toHaveCount(0);
+        }
+        await expect(
+          page.getByText('Procedimento sintético trial 16', { exact: true }),
+        ).toBeVisible();
+        stages.push(stage);
+      } else {
+        stage = 'paid_records_visible_in_new_session';
+        await page.goto('/pacientes');
+        await expect(page.getByText('QA trial sintético 11', { exact: true })).toBeVisible();
+        await page.goto('/configuracoes/procedimentos');
+        await expect(
+          page.getByText('Procedimento sintético trial 16', { exact: true }),
+        ).toBeVisible();
+        stages.push(stage);
+      }
+      stage = 'paid_integration_pages_unlocked_without_connecting';
+      for (const [path, blocked] of [
+        ['/configuracoes/whatsapp', 'WhatsApp disponível após o pagamento'],
+        ['/configuracoes/pagamentos', 'Asaas disponível após o pagamento'],
+      ] as const) {
+        await page.goto(path);
+        await expect(page).toHaveURL(`${PREVIEW}${path}`);
+        await expect(page.getByText(blocked, { exact: true })).toHaveCount(0);
+        if (path === '/configuracoes/whatsapp') {
+          await expect(
+            page.getByRole('heading', { name: 'WhatsApp da clínica', exact: true }),
+          ).toBeVisible();
+        } else {
+          await expect(page.locator('#asaas-api-key')).toBeVisible();
+        }
+      }
+      stages.push(stage);
+      stage = 'paid_invite_ui_available_without_sending';
+      await page.goto('/equipe');
+      await expect(
+        page.getByText('Convites disponíveis após o pagamento', { exact: true }),
+      ).toHaveCount(0);
+      const invite = page.getByRole('button', { name: 'Convidar', exact: true });
+      await expect(invite).toBeEnabled();
+      await invite.click();
+      await expect(
+        page.getByRole('heading', { name: 'Convidar para a equipe', exact: true }),
+      ).toBeVisible();
+      stages.push(stage);
+    }
     stage = `${phase}_subscription_screen`;
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 1000 });
       await page.goto('/configuracoes/assinatura');
       await expect(
-        page.getByText(phase === 'expired' ? 'Contratação pendente' : 'Avaliação sem cartão', {
-          exact: true,
-        }),
+        page.getByText(
+          paidPhase
+            ? 'Pagamento confirmado'
+            : phase === 'expired'
+              ? 'Contratação pendente'
+              : 'Avaliação sem cartão',
+          {
+            exact: true,
+          },
+        ),
       ).toBeVisible();
       await expect(page.getByRole('region', { name: 'Assinatura e avaliação' })).toContainText(
         '397,00',
       );
-      await expect(
-        page.getByRole('button', { name: 'Contratar assinatura', exact: true }),
-      ).toBeEnabled();
+      const subscribe = page.getByRole('button', { name: 'Contratar assinatura', exact: true });
+      if (paidPhase) await expect(subscribe).toHaveCount(0);
+      else await expect(subscribe).toBeEnabled();
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
       ).toBe(true);
@@ -239,12 +342,10 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
           // Shared patient cores inject a trusted actor; their INSERT is denied
           // by the SQL trial guard. Request-only mutations use the platform gate.
           await expect(
-            page
-              .getByRole('alert')
-              .filter({
-                hasText:
-                  /Sua avaliação terminou\. Confirme o pagamento da assinatura|pending_payment/u,
-              }),
+            page.getByRole('alert').filter({
+              hasText:
+                /Sua avaliação terminou\. Confirme o pagamento da assinatura|pending_payment/u,
+            }),
           ).toBeVisible();
           stages.push(stage);
         } catch (error) {
@@ -280,6 +381,23 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
       await page.waitForURL(session.checkoutUrl, { timeout: 60_000, waitUntil: 'commit' });
       stages.push(stage);
       // Stop here. No card, Pix, simulator or payment button is used.
+    }
+    if (paidPhase) {
+      stage = 'paid_state_survives_reload';
+      await page.reload();
+      await expect(page.getByText('Pagamento confirmado', { exact: true })).toBeVisible();
+      stages.push(stage);
+    }
+    if (phase === 'paid') {
+      stage = 'real_logout_blocks_access';
+      const loggedOut = await context.request.post(`${PREVIEW}/logout`, {
+        headers: { ...vercelBypassHeaders(), Origin: PREVIEW, 'Sec-Fetch-Site': 'same-origin' },
+        maxRedirects: 0,
+      });
+      expect(loggedOut.status()).toBe(303);
+      await page.goto('/dashboard');
+      await expect(page).toHaveURL(/\/login(?:\?|$)/u);
+      stages.push(stage);
     }
     stage = 'browser_runtime';
     expect(runtimeErrors).toEqual([]);
