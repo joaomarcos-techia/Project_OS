@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 
 import { expect, test, type Page } from '@playwright/test';
@@ -99,11 +100,41 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
     ['GET', 'HEAD'].includes(route.request().method()) ? route.continue() : route.abort(),
   );
   const page = await context.newPage();
-  const runtimeErrors: string[] = [];
+  const runtimeErrors: {
+    kind: string;
+    phase: string;
+    path: string;
+    fingerprint: string;
+    frames: string[];
+  }[] = [];
   page.on('pageerror', (error) => {
-    runtimeErrors.push(
-      /hydration|#418/iu.test(error.message) ? 'hydration' : 'unhandled_browser_exception',
-    );
+    const reactCode = error.message.match(/Minified React error #(\d+)/u)?.[1];
+    const kind = reactCode
+      ? `react_${reactCode}`
+      : /parentNode/u.test(error.message)
+        ? 'parentNode'
+        : /removeChild/u.test(error.message)
+          ? 'removeChild'
+          : /NEXT_REDIRECT/u.test(error.message)
+            ? 'NEXT_REDIRECT'
+            : /Failed to fetch/u.test(error.message)
+              ? 'fetch_failed'
+              : /hydration/iu.test(error.message)
+                ? 'hydration'
+                : 'unhandled_browser_exception';
+    runtimeErrors.push({
+      kind,
+      phase: stage,
+      path: new URL(page.url()).pathname,
+      fingerprint: createHash('sha256').update(error.message).digest('hex'),
+      frames: (error.stack ?? '')
+        .split('\n')
+        .slice(1, 6)
+        .flatMap((line) => {
+          const frame = line.match(/\/_next\/[a-zA-Z0-9_./%-]+\.js:\d+:\d+/u)?.[0];
+          return frame ? [frame] : [];
+        }),
+    });
   });
   try {
     if (phase === 'active') {
