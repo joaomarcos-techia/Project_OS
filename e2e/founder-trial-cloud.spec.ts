@@ -18,6 +18,8 @@ const sessionSchema = z.object({
   clinicId: z.literal(CLINIC),
   subscriptionId: z.literal(SUBSCRIPTION),
   expiresAt: z.iso.datetime(),
+  patientCount: z.number().int().min(0).max(10),
+  procedureCount: z.number().int().min(0).max(15),
   cookies: z
     .array(
       z.object({
@@ -114,7 +116,7 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
         stage = `trial_counter_count_${width}`;
         await expect(counters.getByRole('listitem')).toHaveCount(9);
         stage = `trial_counter_initial_value_${width}`;
-        await expect(counters).toContainText('Pacientes: 0/10');
+        await expect(counters).toContainText(`Pacientes: ${session.patientCount}/10`);
         stage = `trial_counter_viewport_${width}`;
         expect(
           await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
@@ -136,7 +138,7 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
       stages.push(stage);
       await page.setViewportSize({ width: 1440, height: 1000 });
       stage = 'ten_patients_created_eleventh_refused';
-      for (let index = 1; index <= 10; index++) {
+      for (let index = session.patientCount + 1; index <= 10; index++) {
         await createPatient(page, index);
         await expect(page).toHaveURL(/\/pacientes\/[a-f0-9-]+(?:\?|$)/u, { timeout: 60_000 });
       }
@@ -144,9 +146,9 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
       await expect(page.getByText(/Limite da avaliação atingido: 10 pacientes/u)).toBeVisible();
       stages.push(stage);
       stage = 'fifteen_procedures_created_sixteenth_refused';
-      for (let index = 1; index <= 16; index++) {
+      for (let index = session.procedureCount + 1; index <= 16; index++) {
         await page.goto('/configuracoes/procedimentos');
-        await page.getByRole('button', { name: 'Novo procedimento', exact: true }).click();
+        await page.getByRole('button', { name: 'Novo procedimento', exact: true }).first().click();
         await page.locator('#proc-codigo').fill(`QA-TRIAL-${index}`);
         await page.locator('#proc-descricao').fill(`Procedimento sintético trial ${index}`);
         await page.locator('#proc-duracao').fill('30');
@@ -249,6 +251,7 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
           payments: 0,
           productionWrites: 0,
           syntheticPaidStateUsed: false,
+          startingCounts: { patients: session.patientCount, procedures: session.procedureCount },
           runtimeErrors,
           diagnostics,
         },
