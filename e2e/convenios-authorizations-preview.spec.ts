@@ -258,3 +258,32 @@ test('comprovante: a recepção baixa (leitura registrada); médica, outra clín
     await anon.close();
   }
 });
+
+test('celular (390 px): fila, detalhe e formulário do comprovante sem rolagem lateral; axe sem violação', async ({ browser }) => {
+  test.setTimeout(180_000);
+  const account = accounts.gestor!;
+  const context = await browser.newContext({ baseURL: BASE!, extraHTTPHeaders: vercelBypassHeaders(), viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const page = await context.newPage();
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(`${e.message} @ ${new URL(page.url()).pathname}`));
+  try {
+    await page.goto('/login', { waitUntil: 'load' });
+    await page.fill('#email', account.email);
+    await page.fill('#password', account.password);
+    await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+    await page.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: 60_000 });
+    for (const path of ['/convenios/autorizacoes', `/convenios/autorizacoes/${fx!.expiring}`, `/convenios/autorizacoes/${fx!.waiting}`]) {
+      const res = await page.goto(path, { waitUntil: 'load' });
+      expect(res?.status(), path).toBe(200);
+      await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => undefined);
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      expect(overflow, `${path} transborda na horizontal`).toBeLessThanOrEqual(1);
+      expect(await axeViolations(page), path).toEqual([]);
+    }
+    await expect(uploadForm(page)).toBeVisible();
+    await expect(uploadForm(page).getByRole('button', { name: 'Anexar comprovante' })).toBeVisible();
+    expect(errors).toEqual([]);
+  } finally {
+    await context.close();
+  }
+});

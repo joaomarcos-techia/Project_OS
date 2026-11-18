@@ -108,3 +108,31 @@ real, leitura real de `GET /payments/{id}/refunds` e a varredura do cron no Prev
 8. Evidência e plano mestre: só então "R54 homologado no Sandbox".
 
 Até lá, o estado oficial é **R54 implementado e validado localmente; homologação externa pendente de autorização.**
+
+## Participação do fundador: procedimento curto (17/11)
+
+O único passo que precisa de você é **pagar o checkout do Sandbox**, porque ele tem reCAPTCHA. O agente não
+contorna o captcha e não usa serviço de resolução. O resto é do agente.
+
+| Item | O que é |
+| --- | --- |
+| Ambiente | Preview do #55 (banco e Auth do DEV, provados pela prova assinada) e conta **Asaas Sandbox** da clínica sintética. Sem dinheiro real |
+| Prova de que é Sandbox | o checkout abre em `sandbox.asaas.com`; a chave da clínica sintética tem o prefixo `$aact_hmlg_` (o roteiro recusa qualquer outra) |
+| Fixture | clínica sintética **nova** `e2e-hi-r54-<data>`, paciente e cliente Asaas Sandbox novos. A cobrança histórica de R$ 45 não é usada; o id dela é anotado antes e o roteiro para se aparecer |
+| Valor | **R$ 10,00** |
+| URL do checkout | gerada **na hora**, quando você disser "pronto" (o checkout expira; gerar antes deixaria uma cobrança Sandbox parada) |
+
+**Passo a passo:**
+1. Você responde "pronto para o R54".
+2. O agente cria a cobrança de R$ 10,00 pela tela do Qoro e devolve a URL do checkout.
+3. **Você** abre a URL, paga com o cartão de teste (Visa 4539 6560 4839 2220, validade futura qualquer, CVV
+   qualquer) e resolve o reCAPTCHA.
+4. **Você** responde "paguei" e, se possível, o horário aproximado.
+5. O agente confere que a cobrança ficou paga, com uma baixa só, e faz o estorno pela API do Sandbox: R$ 4,00 e
+   depois o restante. Para isso basta o "pronto" do passo 1, que já cobre o estorno Sandbox.
+6. O agente confere o webhook, a reentrega, a varredura do cron, o livro financeiro e o estado da cobrança de
+   R$ 45, e grava a evidência em `evidence/tiss-r54-estorno-sandbox-<data>/`.
+
+**Critério de conclusão:** "R54 homologado no Sandbox" só com os três estados da tabela do item 5 (antes,
+depois do parcial e depois do total) conferidos no Qoro e no Asaas, a reentrega sem linha nova e a cobrança de
+R$ 45 igual. Até lá: **BLOCKED (participação humana)**.

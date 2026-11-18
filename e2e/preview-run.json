@@ -1,9 +1,9 @@
 {
   "note": "Pedido de E2E no Preview (navegador remoto). Mudar este arquivo dispara convenios-preview-e2e.yml.",
-  "run": "P75B-1",
+  "run": "MOB-1",
   "groups": [
     [
-      "e2e/convenios-p75-preview.spec.ts"
+      "e2e/convenios-authorizations-preview.spec.ts"
     ]
   ],
   "env": {
@@ -14,5 +14,6 @@
     "E2E_HI_AUTHS": "e2e-hi-auths.json",
     "E2E_HI_P75_ACCOUNTS": "e2e-hi-p75-accounts.json",
     "E2E_HI_P75": "e2e-hi-p75.json"
-  }
+  },
+  "grep": "celular"
 }
