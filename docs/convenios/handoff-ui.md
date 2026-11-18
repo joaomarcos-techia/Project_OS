@@ -788,3 +788,15 @@ O que cabe ao #57: (1) acrescentar `convenios.available` (booleano, padrão desl
 chama as duas funções, com o motivo e a confirmação; (3) o e2e do console (super admin liga uma clínica, outra não muda;
 clínica em avaliação recusada; desligar sempre possível). Sem isso a P1.13 fica PARCIAL no plano. Prova do contrato:
 `scripts/security/health-insurance-platform-db.ts` (6/6) e `platform.test.ts` (7).
+
+## 16. 18/11 (2º ciclo): o que mudou para a interface e para o console
+
+- **Tela nova:** `/convenios/relatorios` (aba "Relatórios" em `convenios/_lib/tabs.tsx`, depois de "Repasses"), com o CSV
+  em `/financeiro/convenios/relatorios/csv`. Só quem vê os valores do faturamento; a recepção e a médica recebem "Sem
+  acesso" e o CSV devolve 404 no servidor. Ao repaginar, manter a região "Resumo por operadora" e o rótulo que explica
+  "em atraso" (pendente com mais de 30 dias do envio).
+- **Servidor:** a guia de Consulta passou a consumir a autorização (uma unidade por atendimento). Nada muda na tela além
+  da pendência nova "saldo esgotado" na guia.
+- **Conflitos:** #56 em `afaaf5cb` contra o #55 neste ciclo: os mesmos 9 arquivos do §15, nenhum novo; `tabs.tsx` mescla
+  sem conflito. Arquivos compartilhados do TISS preservados no resultado simulado.
+- **#57 (P1.13):** o contrato de `platform.ts` não mudou desde o §15 (#57 ainda em `93a79601`).

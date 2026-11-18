@@ -1,0 +1,82 @@
+# Decisões humanas pendentes do módulo Convênios (18/11/2026)
+
+Uma ficha por decisão. Nenhuma é presumida a partir de silêncio; cada uma destrava tarefas nomeadas. As alternativas e
+recomendações vêm do plano mestre (seções N e L) e do código atual.
+
+## R54 — homologar o estorno externo no Asaas Sandbox
+
+- **Questão:** autoriza gerar o checkout de R$ 10,00 no Sandbox e acompanhar o seu pagamento (reCAPTCHA humano)?
+- **Alternativas:** autorizar agora; adiar (R54 fica provado só em banco descartável com o Asaas simulado).
+- **Recomendação:** autorizar. Risco nulo de dinheiro real (Sandbox), cobrança de R$ 45 intocada.
+- **Depois da aprovação:** checkout de R$ 10,00, você paga com o cartão de teste, estorno de R$ 4,00 e do restante pela
+  API do Sandbox, conferência do webhook, da reentrega, do cron e do livro (`homologacao-r54-sandbox.md`).
+
+## P12.6 — alerta do provedor disparando em teste
+
+- **Questão:** quem cria a regra de alerta no Sentry (ou entrega um acesso com permissão de alertas, fora do chat)?
+- **Alternativas:** (a) você cria pela tela do Sentry, em 5 minutos, com os dados abaixo; (b) um token com escopo de
+  alertas guardado como segredo do repositório, para o agente criar e provar; (c) outro provedor (Better Stack), que
+  exigiria conta nova.
+- **Recomendação:** (a). Regra de issue alert no projeto do app, ambiente `preview`, filtro pela tag `flow` começando
+  por `cron.insurance-maintenance`, ação: e-mail para o endereço de teste que você escolher.
+- **Depois:** o agente provoca uma falha sintética controlada da manutenção no Preview, confere o evento, a regra e a
+  entrega, e marca a P12.6.
+
+## B5 — operadora e clínica piloto
+
+- **Questão:** qual operadora e qual clínica homologam a Consulta e a SP/SADT?
+- **Alternativas:** operadora regional com portal de homologação; operadora em que a clínica piloto já fatura.
+- **Recomendação:** a operadora em que a clínica piloto já fatura (há volume real para comparar) — escolha sua.
+- **Destrava:** P2.5 (checklist C1–C10), P6.5 (homologação do conector), P13.6, P15.3, P15.4.
+
+## B6 — retenção legal (P12.3, P12.13)
+
+- **Questão:** prazos de guarda de guias, carteirinhas e autorizações; descarte; texto ao titular.
+- **Alternativas:** seguir a recomendação jurídica formal; adotar o prazo mais longo conhecido como conservador.
+- **Recomendação:** orientação jurídica formal (o técnico já anonimiza o paciente e preserva a guia).
+- **Depois:** prazos no runbook de retenção, rotina de descarte e o texto ao titular; testes LGPD.
+
+## B10 — perfil de segurança TISS da ANS (S1–S9)
+
+| Decisão | Questão | Recomendação do plano | Destrava |
+| --- | --- | --- | --- |
+| S1 | perfil só para clínicas com convênio ou para toda a base | só com convênio (separação segura já investigada) | P12.8, P12.9 |
+| S2 | inatividade de 10 min no servidor e no cliente (R83) | aprovar o desenho de N.3 | P12.9 |
+| S3 | símbolo obrigatório na senha (R67) | só no perfil `tiss` | P12.9 |
+| S4 | expiração de 90 dias e histórico de 10 senhas (R81, R82) | aprovar, com 90 dias de carência | P12.9 |
+| S5 | auditoria imutável 180 dias e retenção de tentativas 90 → 180 dias (R84, R85) | aprovar (global; muda o runbook) | P12.10 |
+| S6 | CPF do usuário e inativar em vez de excluir (R41) | só no perfil `tiss` | P12.8 |
+| S7 | rodapé com fornecedor e versão (R36) | aprovar, com a UI | P12.11 |
+| S8 | último acesso (R42), sem memorização no login (R43), limite fechado na queda do Upstash (R69) | aprovar R42; decidir R43 e R69 | P12.12 |
+| S9 | consulta formal à ANS sobre o alcance (N.1) e o R77 | recomendada antes de publicar | P12.8 |
+
+- **Depois:** cada aprovação liga a política já preparada em `security-profile` e ganha E2E (N.9).
+
+## B7 — Validador TISS para Windows (P13.5)
+
+- **Questão:** como obter a terceira camada de validação sem instalar o programa na máquina principal.
+- **Alternativas:** licença comercial; VM isolada sem dado real; autorização expressa do fornecedor.
+- **Recomendação:** VM isolada só com o corpus sintético. Hoje o substituto é o motor XSD da Microsoft (38/38).
+
+## P4.7 (parte b) — importação de agenda com convênio
+
+- **Questão:** a importação de atendimentos HISTÓRICOS deve aceitar convênio? Se sim, ela registra só a forma de
+  atendimento e a cobertura, ou também gera guia?
+- **Alternativas:** (a) histórico entra como particular (hoje), fora do faturamento TISS; (b) registra forma e cobertura
+  sem gerar guia (histórico faturado fora do Qoro); (c) gera guia como uma conclusão nova.
+- **Recomendação:** (b). Gerar guia para atendimento antigo arrisca faturar duas vezes o que a clínica já cobrou.
+- **Depois:** coluna de convênio no arquivo, cobertura por linha sem guia, prova de banco e E2E da importação.
+
+## P15.6 — revisão financeira com você
+
+- **Questão:** conferir comigo, numa sessão, a conciliação ponta a ponta (faturado, recebido, glosado, pendente, repasse,
+  coparticipação) sobre a clínica sintética.
+- **Evidência pronta:** relatório por operadora (P9.10) com as somas conferidas contra o livro; conciliação e repasse
+  validados no Preview.
+- **Depois:** registro da aprovação (ou dos ajustes pedidos) no plano.
+
+## P15.8 — aprovação final e piloto
+
+- **Questão:** aprovação de release e ativação por flag numa clínica piloto (contrato da P1.13 pronto).
+- **Pré-condições:** B5, B6, B10 (no mínimo S1–S4), P15.6, P12.6, integração #53 → #56 → #55 e o painel do #57.
+- **Depois:** gates T2 (pré-voo de produção só leitura), T3 e T4, cada um com autorização própria.
