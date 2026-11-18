@@ -79,9 +79,10 @@ código ficam como estão. O fundador é quem decide política, merge e Producti
   - P-24: "Entrar" do `/cadastro` com 23 px, depois da integração com o #53;
   - P-19, resto: outra aba ou outro aparelho exige `valorPagoEsperado` (domínio financeiro);
   - P-20: latência de Server Action no Preview (logs da Vercel/Supabase).
-  - **P-25: o gate `pnpm audit` da CI reprova em toda branch** (GHSA-fc5q-39xc-vjpf, `picomatch`
-    ≤ 4.0.7, sem versão corrigida em 17/11). Sem exceção nem override sem decisão do fundador;
-    quando sair a correção upstream, aplicar a versão no `pnpm-workspace.yaml` e rodar a CI de novo.
+  - **P-25:** exceção temporária da GHSA-fc5q-39xc-vjpf (`picomatch` ≤ 4.0.7, sem versão
+    corrigida em 17/11), aprovada pelo fundador e aplicada no `8d328fec` (igual ao `7e74f0cb` do #55).
+    Quando sair o `picomatch` corrigido: tirar o `auditConfig` e fixar a versão em `overrides`, nos
+    dois PRs.
 - **Bloqueados:** os specs `production-*`, por política (Production NO-GO; só `--list`).
 - **Integração** (heads de 17/11): UI × TISS `087380af` = 9 arquivos em conflito; UI × #53
   `bd776c15` = 7. Resolução na 31.R e na 32; a fórmula `l.valor - l.valorPago - l.valorGlosado`

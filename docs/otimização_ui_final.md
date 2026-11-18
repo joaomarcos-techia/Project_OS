@@ -69,7 +69,10 @@
     no registro é a 4.0.7). Tipos, lint, testes, inventário, isolamento, build e e2e ficaram
     **pulados**, então o HEAD não tem evidência de CI para eles. Vale para qualquer branch a partir de
     agora; o TISS `087380af` passou às 16:16 UTC, antes de a base do audit absorver a mudança.
-    Decisão do fundador (P-25). Sem exceção aplicada aqui: a política V14 do `ci.yml` proíbe.
+    Decisão do fundador (P-25): **exceção temporária aprovada em 17/11** (pedido levado pelo TISS e
+    confirmado pelo fundador nesta sessão). Aplicada no `8d328fec`, cherry-pick do `7e74f0cb` do #55: o
+    mesmo bloco `auditConfig.ignoreGhsas` no `pnpm-workspace.yaml`, sem mudar o lockfile. Em cópia
+    isolada, o audit sai com 0 ("1 ignored"). O resultado da CI do SHA final fica no corpo do PR #56.
   - **CI do `82f98aab`: verde** (run `44114727352`), o último verde completo. Rodada de validação no Preview `82f98aab`:
     seção 25.11. Um #418 (variante HTML) em `/documentos` a 1024 e 768 na varredura **não se
     reproduziu** em 24 cargas dirigidas; vai para o R51, sem supressão (25.11).
@@ -2119,6 +2122,7 @@ P-23, sem supressão.
 | P-23 | #418 (HTML) intermitente: 3 em 390 medições das duas varreduras completas de 17/11 (`/documentos` a 1024 e 768 no `82f98aab`; `/configuracoes/sugestoes` a 768 no `21658e90`), 0 em 24 repetições dirigidas; sem fonte de divergência no código de Documentos (25.11). Não é de uma rota. Próximo passo útil: o observador de DOM do plano anterior (§11) numa rodada longa, com e sem a barra da Vercel. Acompanhar no R51; não suprimir | estabilidade | esta frente / TISS (R51) |
 | P-24 | "Entrar" do `/cadastro` com 23 px de altura: corrigir no `signup-frame` depois da integração com o #53 (conflito em aberto) | a11y | quem integrar #53 → #56 |
 | P-26 | Design system, desvios menores: série "muted" dos gráficos com `bg-neutral-300` (sem token; conferir no tema escuro) e indicador do `admin/config` com `bg-neutral-400`; o assistente `/join` com o `.btn` legado, a migrar para `Button` depois que o #55, que o altera, entrar | design system | esta frente (depois da integração) |
+| P-25 (status 17/11) | **Exceção temporária aplicada** (`8d328fec` = `7e74f0cb` do #55, aprovada pelo fundador): só a GHSA-fc5q-39xc-vjpf. **Remover** assim que sair o `picomatch` corrigido, fixando a versão nova em `overrides` (como no `sharp`), nos dois PRs | CI / segurança | quem vir a versão corrigida primeiro |
 | P-25 | **Gate de auditoria da CI reprova em toda branch:** GHSA-fc5q-39xc-vjpf (`picomatch` ≤ 4.0.7, alta), atualizada em 17/11 15:56 UTC, sem versão corrigida. Caminho: `@sentry/nextjs` → `@rollup/plugin-commonjs` (e `fdir`, `@rollup/pluginutils`). Uso real: só no `config/loaders/wrappingLoader.js` do Sentry, loader de **build** com `ignore()` fixo e sem padrão vindo de usuário, então não há ReDoS alcançável em execução. Opções: (a) esperar a correção upstream e rodar a CI de novo; (b) exceção temporária e datada (`auditConfig.ignoreGhsas` no `pnpm-workspace.yaml`), o que muda a política V14 e exige decisão; (c) override não resolve, porque não há versão boa | CI / segurança | fundador |
 | P-21 | **CI do #56 vermelha por 2 asserções desatualizadas por esta frente** (bloco de estado): título da Ajuda ('· Ajuda', UX-008) e `aria-describedby` do PIN com o hint (UX-001). Antes de alterar: confirmar que o título sem 'Qoro' segue o contrato de `src/app/page-titles.test.ts` e que hint e ajuda do PIN têm textos diferentes (sem anúncio duplicado). Depois, atualizar só as duas expectativas, sem enfraquecer, e deixar a CI rodar inteira (inventário, isolamento, build e e2e público ainda sem evidência) | teste | esta frente |
 | P-21 (status 16/11) | **Corrigido localmente:** título da Ajuda (teste atualizado ao UX-008) e PIN do WhatsApp (defeito real de descrição duplicada, corrigido no componente; teste mais estrito). Falta a CI inteira, que depende da P-22 | teste/a11y | esta frente |
