@@ -733,3 +733,25 @@ manutenção de Convênios). `docs/security/acoes.md` continua sendo resolvido p
 
 Todos usam os componentes do design system (`PanelCard`, `Field`, `Input`, `Table`, `Badge`, `Alert`), sem estilo
 próprio novo. **Ordem proposta, sem mudança:** #53 → #56 → #55. Não é autorização de merge; nenhum rebase feito.
+
+## 14. 17/11: o que mudou para a interface
+
+**Telas novas ou alteradas (só arquivos do #55):**
+- **Guia:** botão "Via para assinatura" (D-5 fase 2) para quem opera, fatura ou é a médica da própria guia; o
+  "Ver PDF da guia" passou a ser só de quem vê o faturamento (fase 3). Componente `convenios/_lib/attendance-copy-ui.tsx`
+  (estado de carregamento, erro em `role="alert"`, confirmação em `role="status"`);
+- **Autorizações:** painel "Avisos enviados à clínica" (P6.6) com o estado do envio por e-mail e o botão "Marcar como
+  visto";
+- **Carteirinhas:** sem visão ampla (a médica), a busca e o paciente aberto ficam restritos aos pacientes com atendimento
+  dela (correção da D-3 achada no E2E).
+
+**Arquivos compartilhados tocados neste ciclo** (para a simulação de merge): `src/contexts/identity/internal/owner-contacts.ts`
+e `queries.ts` (+ `listActiveMemberEmails`), `src/app/api/cron/outbox/handlers.ts` (+1 import do handler dos avisos),
+`src/app/api/cron/financial-reconcile/route.ts` (falha da manutenção também ao Sentry), `docs/security/acoes.md`
+(gerado). Nenhum toque em `middleware.ts`, `vercel.json`, Equipe, Caixa ou Financeiro. Regra financeira
+`l.valor - l.valorPago - l.valorGlosado` preservada.
+
+**E2E da interface de Convênios** agora roda no navegador remoto (`.github/workflows/convenios-preview-e2e.yml`), a
+partir dos IPs dos runners, não deste notebook: não consome a cota de logins por IP da frente de UI.
+
+**Mesclagem simulada de novo** (`git merge-tree`, só em memória) com o #56 em `bf1b4a66`: os **mesmos 9 arquivos** em conflito do §12/§13, nenhum novo. Rebase ou merge só com coordenação do fundador.

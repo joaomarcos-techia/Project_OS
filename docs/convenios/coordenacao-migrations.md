@@ -822,3 +822,25 @@ fluxo do §18, nunca à mão.
 
 **Fora deste ciclo:** qualquer passo em produção (pré-voo só leitura de produção continua pendente de autorização;
 §16), o backfill da revisão do repasse fora do DEV, e a aplicação das quatro em qualquer outro banco.
+
+## 24. 17/11: 0166 APLICADA no DEV (P6.6, avisos de autorização)
+
+**Autorização:** prompt do fundador de 17/11 ("migrations TISS no DEV com controles"). Nada em produção.
+
+| Migration | Aplicada (UTC) | Ledger antes → depois | Duração | Pós-voo | Locks |
+| --- | --- | --- | --- | --- | --- |
+| 0166 `hi_authorization_alerts` | 17/11 23:11 | 166 → 167 | 6,2 s | 7/7 | 12 amostras, 0 sessão esperando |
+
+- Antes do DEV: prova sintética `health-insurance-authorization-alerts-db.ts` **9/9** no job do Actions. Ela pegou um
+  defeito do arquivo antes da aplicação (gatilhos sem `SECURITY DEFINER`, 42501 em `hi_session_actor`), corrigido no
+  próprio arquivo, que ainda não estava aplicado em lugar nenhum.
+- Pré-voo 5/5, backup lógico com manifesto (44 tabelas `hi_*` + `clinics`, contagem conferida), dry-run com 1
+  pendente, aplicação pelo aplicador limitado, pós-voo 7/7 (RLS forçada, uma política por clínica, `authenticated` só
+  SELECT/INSERT/UPDATE, funções `SECURITY DEFINER` sem EXECUTE para `authenticated`, autorizações intocadas).
+- **SHA-256 fixado** no manifesto de composição: `ccf1639b4eccbdd50e5aa5b2f49a0b55d964ff8092dc47c09d77db61487025c6`.
+- **Evidência:** `evidence/tiss-ciclo-2026-11-17-0166-dev`.
+- **Reversão:** pelo cabeçalho do arquivo (não exercida).
+
+**Estado depois:** DEV com 167 entradas (última 0166, `when` 1795641773857). **Próxima migration livre: 0167.**
+A candidata `0165_super_admin_actions_append_only.candidate.sql` do #59 está fora do journal; ela recebe o próximo
+número livre **na autorização dela** (hoje, 0167 ou acima), conferindo de novo o journal do #55 e do #53.
