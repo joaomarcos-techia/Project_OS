@@ -1,0 +1,62 @@
+name: Billing trial — Chromium DEV Preview
+
+on:
+  push:
+    branches: [test/billing-trial-cloud-20261118]
+    paths:
+      - .github/workflows/billing-trial-preview.yml
+      - playwright.billing-trial.config.ts
+      - e2e/founder-trial-cloud.spec.ts
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: Approved DEV trial state, prepared by the local operator
+        required: true
+        default: active
+        type: choice
+        options: [active, expired]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: billing-founder-trial-dev-only
+  cancel-in-progress: false
+
+jobs:
+  chromium:
+    if: github.repository == 'joaomarcos-techia/Project_OS' && github.ref == 'refs/heads/test/billing-trial-cloud-20261118'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.4
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Check the test harness
+        run: |
+          pnpm exec eslint e2e/founder-trial-cloud.spec.ts playwright.billing-trial.config.ts
+          pnpm typecheck
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Real browser against the immutable DEV Preview; no payment
+        env:
+          BILLING_TRIAL_SESSION: ${{ secrets.BILLING_TRIAL_SESSION }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.PREVIEW_E2E_BYPASS }}
+          MAGIC_TOKEN_SECRET_DEV: ${{ secrets.PREVIEW_E2E_MAGIC }}
+          BILLING_TRIAL_PHASE: ${{ inputs.phase || 'active' }}
+        run: pnpm exec playwright test --config playwright.billing-trial.config.ts
+      - name: Preserve sanitized checkpoints only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: billing-trial-${{ inputs.phase || 'active' }}-${{ github.run_id }}
+          path: dist/billing-trial-cloud.json
+          retention-days: 1
+          if-no-files-found: warn
