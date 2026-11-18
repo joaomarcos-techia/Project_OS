@@ -152,7 +152,9 @@ export default async function SolicitacaoPage({ params }: { params: Promise<{ re
               <a href={`/financeiro/convenios/solicitacoes/${r.id}/pdf`} target="_blank" rel="noopener" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
                 Abrir PDF
               </a>
-              {m && r.document.xmlFileId ? (
+              {/* O XML guardado sai pela rota de arquivos emitidos, que exige ver o faturamento (D-5):
+                  a recepção não vê um link que o servidor recusaria (achado do E2E de 18/11). */}
+              {access.rights.seeValues && r.document.xmlFileId ? (
                 <a href={`/financeiro/convenios/arquivos/${r.document.xmlFileId}`} className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
                   Baixar XML (TISS)
                 </a>

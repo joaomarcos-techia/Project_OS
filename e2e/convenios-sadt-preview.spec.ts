@@ -202,7 +202,7 @@ test.describe('fase 1: solicitação, indicação, documento, autorização e se
     expectRefused(await replay(s.page, indicationAction!, indicationAction!.body.replace('psicoterapia semanal', 'texto de outra profissional')));
   });
 
-  test('recepção gera o documento oficial: XML validado no XSD (baixado) e PDF', async ({ browser }) => {
+  test('documento oficial: recepção abre o PDF do pedido; o XML (validado no XSD) só para quem vê o faturamento', async ({ browser }) => {
     test.setTimeout(240_000);
     const s = await session(browser, 'sadt-recepcao');
     await s.page.goto(requestPath);
@@ -215,17 +215,26 @@ test.describe('fase 1: solicitação, indicação, documento, autorização e se
       await s.page.reload();
     }
     await expect(doc).toContainText('XML validado no XSD da ANS');
-    const xmlHref = await doc.getByRole('link', { name: 'Baixar XML (TISS)' }).getAttribute('href');
-    const xml = await fetchFile(s.page, xmlHref!);
-    expect(xml.status).toBe(200);
-    expect(xml.text).toContain('4.03.00');
-    expect(xml.text).toMatch(/solicitacaoSP-SADT|solicitacaoSPSADT/u);
-    expect(xml.text).toContain(fx!.procedureCode);
     const pdf = await fetchFile(s.page, (await doc.getByRole('link', { name: 'Abrir PDF' }).getAttribute('href'))!);
     expect(pdf.status).toBe(200);
     expect(pdf.type).toContain('application/pdf');
     expect(pdf.text.startsWith('%PDF')).toBe(true);
+    // D-5: a recepção não recebe o link do XML guardado (a rota de arquivos emitidos a recusa).
+    await expect(doc.getByRole('link', { name: 'Baixar XML (TISS)' })).toHaveCount(0);
     expect(s.errors).toEqual([]);
+
+    const g = await session(browser, 'sadt-gestor');
+    await g.page.goto(requestPath);
+    const gdoc = g.page.getByRole('region', { name: 'Documento oficial do pedido à operadora' });
+    const xmlHref = await gdoc.getByRole('link', { name: 'Baixar XML (TISS)' }).getAttribute('href');
+    const xml = await fetchFile(g.page, xmlHref!);
+    expect(xml.status).toBe(200);
+    expect(xml.text).toContain('4.03.00');
+    expect(xml.text).toMatch(/solicitacaoSP-SADT|solicitacaoSPSADT/u);
+    expect(xml.text).toContain(fx!.procedureCode);
+    // A recepção pedindo o mesmo arquivo direto: o servidor recusa (mesmo 404 de inexistente).
+    expect((await fetchFile(s.page, xmlHref!)).status).toBe(404);
+    expect(g.errors).toEqual([]);
   });
 
   test('recepção registra a resposta sintética da operadora (8 de 10, senha e validade)', async ({ browser }) => {

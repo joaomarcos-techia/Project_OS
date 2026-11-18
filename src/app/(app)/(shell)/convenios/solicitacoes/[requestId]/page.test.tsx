@@ -100,4 +100,18 @@ describe('detalhe da solicitação SP/SADT', () => {
     render(await SolicitacaoPage({ params: Promise.resolve({ requestId: ID }) }));
     expect(screen.getByRole('button', { name: 'Gerar documento oficial' })).toBeTruthy();
   });
+
+  it('XML guardado: só quem vê o faturamento recebe o link (a rota recusa a recepção, D-5); o PDF do pedido fica para a recepção', async () => {
+    const auth = { status: 'requested', operatorGuideNumber: null, operatorProtocol: null, authorizedOn: null, passwordValidUntil: null, hasPassword: false, denialReason: null };
+    const detail = { ...draft, status: 'awaiting_authorization', requestNumber: '7', authorizationRequirement: 'required', authorization: auth, document: { pdfFileId: 'f1', xmlFileId: 'f2', generatedAt: '2026-11-13T01:12:00.000Z' } };
+    m.getSadtRequestDetail.mockResolvedValue(detail);
+    m.conveniosAccess.mockResolvedValue(accessFor(PROFILES.recepcao, { commercial: null }));
+    render(await SolicitacaoPage({ params: Promise.resolve({ requestId: ID }) }));
+    expect(screen.getByRole('link', { name: 'Abrir PDF' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Baixar XML (TISS)' })).toBeNull();
+    cleanup();
+    m.conveniosAccess.mockResolvedValue(accessFor(PROFILES.gestor, { commercial: null }));
+    render(await SolicitacaoPage({ params: Promise.resolve({ requestId: ID }) }));
+    expect(screen.getByRole('link', { name: 'Baixar XML (TISS)' }).getAttribute('href')).toBe('/financeiro/convenios/arquivos/f2');
+  });
 });
