@@ -406,6 +406,7 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
     }
     if (phase === 'paid') {
       stage = 'real_logout_blocks_access';
+      await page.setViewportSize({ width: 1440, height: 1000 });
       const loggedOut = page.waitForResponse(
         (response) =>
           response.request().method() === 'POST' && new URL(response.url()).pathname === '/logout',
