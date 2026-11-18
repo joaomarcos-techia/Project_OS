@@ -602,9 +602,7 @@ describe('checkout do cadastro no desenho aprovado', () => {
     expect(
       (screen.getByRole('button', { name: 'Mais um médico' }) as HTMLButtonElement).disabled,
     ).toBe(true);
-    expect(
-      screen.getByText(/Mais médicos podem ser contratados depois, na assinatura/u),
-    ).toBeTruthy();
+    expect(screen.getByText('Amplie depois, na assinatura.')).toBeTruthy();
     expect(screen.queryByText(/médico extra/u)).toBeNull();
   });
 

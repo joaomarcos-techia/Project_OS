@@ -743,7 +743,7 @@ export function PlanSelectionForm() {
               </p>
               <p className={styles.quantityHint}>
                 {minDoctors === maxDoctors
-                  ? `${minDoctors} médicos neste cadastro. Mais médicos podem ser contratados depois, na assinatura.`
+                  ? 'Amplie depois, na assinatura.'
                   : `De ${minDoctors} a ${maxDoctors} médicos.`}
               </p>
             </div>
