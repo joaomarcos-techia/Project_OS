@@ -1,0 +1,15 @@
+{
+ "run": "SADT1",
+ "completed": 3,
+ "outbox": {
+  "processed": 3,
+  "failed": 0
+ },
+ "guides": [
+  {
+   "id": "cdc7cdb6-0b71-46a0-9e76-51cd5a0e7fe5",
+   "status": "ready_for_review",
+   "items": 3
+  }
+ ]
+}
