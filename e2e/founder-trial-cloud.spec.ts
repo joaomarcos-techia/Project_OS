@@ -236,9 +236,15 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
           await page.locator('#patient-email').fill(`trial-qa-${index}@example.invalid`);
           await page.getByRole('button', { name: 'Criar paciente', exact: true }).click();
           stage = `expired_patient_write_gate_${width}`;
-          // Validate the exact business state independently of prose/punctuation.
+          // Shared patient cores inject a trusted actor; their INSERT is denied
+          // by the SQL trial guard. Request-only mutations use the platform gate.
           await expect(
-            page.getByRole('alert').filter({ hasText: 'pending_payment' }),
+            page
+              .getByRole('alert')
+              .filter({
+                hasText:
+                  /Sua avaliação terminou\. Confirme o pagamento da assinatura|pending_payment/u,
+              }),
           ).toBeVisible();
           stages.push(stage);
         } catch (error) {
