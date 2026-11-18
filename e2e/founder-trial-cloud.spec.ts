@@ -234,15 +234,18 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
       }
       stages.push(stage);
       if (phase === 'paid') {
-        stage = 'paid_eleventh_patient_created';
+        stage = 'paid_patient_above_trial_limit';
         if (session.patientCount === 10) {
           await createPatient(page, 11);
           await expect(page).toHaveURL(/\/pacientes\/[a-f0-9-]+(?:\?|$)/u, { timeout: 60_000 });
+        } else {
+          await page.goto('/pacientes');
+          await expect(page.getByText('QA trial sintético 11', { exact: true })).toBeVisible();
         }
         stages.push(stage);
-        stage = 'paid_sixteenth_procedure_created';
+        stage = 'paid_procedure_above_trial_limit';
+        await page.goto('/configuracoes/procedimentos');
         if (session.procedureCount === 15) {
-          await page.goto('/configuracoes/procedimentos');
           await page
             .getByRole('button', { name: 'Novo procedimento', exact: true })
             .first()
