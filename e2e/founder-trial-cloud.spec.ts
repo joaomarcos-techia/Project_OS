@@ -50,6 +50,7 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
   if (remaining < 60_000 || remaining > 7_200_000) throw new Error('Short-lived DEV session outside approved window');
   await assertPreviewRuntimeIsDev(PREVIEW, { requireSandboxAsaas: true });
   const stages: string[] = [];
+  let diagnostics: { path: string; counters: number; counterItems: number; loginForm: boolean } | null = null;
   let stage = 'session';
   let outcome = 'FAIL';
   const context = await browser.newContext({ baseURL: PREVIEW, viewport: { width: 1440, height: 1000 } });
@@ -67,17 +68,20 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
   });
   try {
     if (phase === 'active') {
-      stage = 'responsive_trial_counters';
+      stage = 'authenticated_dashboard_url';
       await page.goto('/dashboard');
       await expect(page).toHaveURL(`${PREVIEW}/dashboard`);
       for (const width of [1440, 390]) {
         await page.setViewportSize({ width, height: 1000 });
         const counters = page.getByRole('list', { name: 'Uso da avaliação' });
+        stage = `trial_counter_count_${width}`;
         await expect(counters.getByRole('listitem')).toHaveCount(9);
+        stage = `trial_counter_initial_value_${width}`;
         await expect(counters).toContainText('Pacientes: 0/10');
+        stage = `trial_counter_viewport_${width}`;
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       }
-      stages.push(stage);
+      stages.push('responsive_trial_counters');
       stage = 'unpaid_integration_and_invite_gates';
       await page.goto('/configuracoes/whatsapp');
       await expect(page.getByText('WhatsApp disponível após o pagamento', { exact: true })).toBeVisible();
@@ -148,6 +152,12 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
     stages.push(stage);
     outcome = 'PASS';
   } catch {
+    diagnostics = {
+      path: new URL(page.url()).pathname,
+      counters: await page.getByRole('list', { name: 'Uso da avaliação' }).count(),
+      counterItems: await page.getByRole('list', { name: 'Uso da avaliação' }).getByRole('listitem').count(),
+      loginForm: await page.locator('input[name="password"]').count() > 0,
+    };
     // No HTML, account details, cookies, tokens, network bodies or provider URLs in diagnostics.
     throw new Error(`DEV browser check failed at ${stage}; sensitive diagnostics suppressed`);
   } finally {
@@ -157,7 +167,7 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
       status: outcome, phase, stage, stages, sha: SHA, clinicId: CLINIC,
       subscriptionId: SUBSCRIPTION, at: new Date().toISOString(),
       browser: 'Chromium on GitHub Actions', payments: 0, productionWrites: 0,
-      syntheticPaidStateUsed: false, runtimeErrors,
+      syntheticPaidStateUsed: false, runtimeErrors, diagnostics,
     }, null, 2));
   }
 });
