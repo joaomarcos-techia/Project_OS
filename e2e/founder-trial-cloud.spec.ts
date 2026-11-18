@@ -18,10 +18,18 @@ const sessionSchema = z.object({
   clinicId: z.literal(CLINIC),
   subscriptionId: z.literal(SUBSCRIPTION),
   expiresAt: z.iso.datetime(),
-  cookies: z.array(z.object({
-    name: z.string().regex(/^sb-pqhkirrszzpwezdaqrai-auth-token-v2-/u),
-    value: z.string().min(1),
-  })).min(1),
+  cookies: z
+    .array(
+      z.object({
+        name: z
+          .string()
+          .regex(
+            /^(?:qoro-auth-session|sb-pqhkirrszzpwezdaqrai-auth-token-v2-[a-f0-9]{32}(?:\.\d+)?)$/u,
+          ),
+        value: z.string().min(1),
+      }),
+    )
+    .min(1),
   // Only an already attested Sandbox checkout may be opened by the browser.
   checkoutUrl: z.url().optional(),
 });
@@ -29,7 +37,8 @@ const sessionSchema = z.object({
 function fixtureCpf(index: number): string {
   const digits = Array.from(`9876500${String(index).padStart(2, '0')}`, Number);
   for (const weight of [10, 11]) {
-    const remainder = digits.reduce((sum, digit, offset) => sum + digit * (weight - offset), 0) % 11;
+    const remainder =
+      digits.reduce((sum, digit, offset) => sum + digit * (weight - offset), 0) % 11;
     digits.push(remainder < 2 ? 0 : 11 - remainder);
   }
   return digits.join('');
@@ -43,28 +52,56 @@ async function createPatient(page: Page, index: number): Promise<void> {
   await page.getByRole('button', { name: 'Criar paciente', exact: true }).click();
 }
 
-test('founder DEV trial: real browser, immutable candidate, no payment or paid-state seam', async ({ browser }) => {
+test('founder DEV trial: real browser, immutable candidate, no payment or paid-state seam', async ({
+  browser,
+}) => {
   const phase = z.enum(['active', 'expired']).parse(process.env.BILLING_TRIAL_PHASE);
   const session = sessionSchema.parse(JSON.parse(process.env.BILLING_TRIAL_SESSION ?? '{}'));
+  if (
+    !session.cookies.some(
+      (cookie) => cookie.name === 'qoro-auth-session' && /^[a-f0-9]{32}$/u.test(cookie.value),
+    )
+  ) {
+    throw new Error('DEV session generation selector missing');
+  }
   const remaining = Date.parse(session.expiresAt) - Date.now();
-  if (remaining < 60_000 || remaining > 7_200_000) throw new Error('Short-lived DEV session outside approved window');
+  if (remaining < 60_000 || remaining > 7_200_000)
+    throw new Error('Short-lived DEV session outside approved window');
   await assertPreviewRuntimeIsDev(PREVIEW, { requireSandboxAsaas: true });
   const stages: string[] = [];
-  let diagnostics: { path: string; counters: number; counterItems: number; loginForm: boolean } | null = null;
+  let diagnostics: {
+    path: string;
+    counters: number;
+    counterItems: number;
+    loginForm: boolean;
+  } | null = null;
   let stage = 'session';
   let outcome = 'FAIL';
-  const context = await browser.newContext({ baseURL: PREVIEW, viewport: { width: 1440, height: 1000 } });
+  const context = await browser.newContext({
+    baseURL: PREVIEW,
+    viewport: { width: 1440, height: 1000 },
+  });
   // These are Qoro server-session cookies only. No Supabase admin, DB or financial key.
-  await context.addCookies(session.cookies.map(cookie => ({ ...cookie, url: PREVIEW, httpOnly: true, secure: true, sameSite: 'Lax' })));
+  await context.addCookies(
+    session.cookies.map((cookie) => ({
+      ...cookie,
+      url: PREVIEW,
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Lax',
+    })),
+  );
   await installVercelBypassForOrigin(context, PREVIEW);
   // A browser may display the hosted checkout; it must never submit payment.
-  await context.route(/https:\/\/(?:app|pay|api)\.abacatepay\.com\//u, route =>
+  await context.route(/https:\/\/(?:app|pay|api)\.abacatepay\.com\//u, (route) =>
     ['GET', 'HEAD'].includes(route.request().method()) ? route.continue() : route.abort(),
   );
   const page = await context.newPage();
   const runtimeErrors: string[] = [];
-  page.on('pageerror', error => {
-    runtimeErrors.push(/hydration|#418/iu.test(error.message) ? 'hydration' : 'unhandled_browser_exception');
+  page.on('pageerror', (error) => {
+    runtimeErrors.push(
+      /hydration|#418/iu.test(error.message) ? 'hydration' : 'unhandled_browser_exception',
+    );
   });
   try {
     if (phase === 'active') {
@@ -79,14 +116,20 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
         stage = `trial_counter_initial_value_${width}`;
         await expect(counters).toContainText('Pacientes: 0/10');
         stage = `trial_counter_viewport_${width}`;
-        expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+        expect(
+          await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+        ).toBe(true);
       }
       stages.push('responsive_trial_counters');
       stage = 'unpaid_integration_and_invite_gates';
       await page.goto('/configuracoes/whatsapp');
-      await expect(page.getByText('WhatsApp disponível após o pagamento', { exact: true })).toBeVisible();
+      await expect(
+        page.getByText('WhatsApp disponível após o pagamento', { exact: true }),
+      ).toBeVisible();
       await page.goto('/configuracoes/pagamentos');
-      await expect(page.getByText('Asaas disponível após o pagamento', { exact: true })).toBeVisible();
+      await expect(
+        page.getByText('Asaas disponível após o pagamento', { exact: true }),
+      ).toBeVisible();
       await page.goto('/equipe');
       await expect(page.getByText(/Convites.*após.*pagamento/u).last()).toBeVisible();
       await expect(page.getByRole('button', { name: /Convidar/u })).toHaveCount(0);
@@ -109,7 +152,10 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
         await page.locator('#proc-duracao').fill('30');
         await page.getByRole('button', { name: 'Salvar', exact: true }).click();
         if (index <= 15) await expect(page.locator('#proc-codigo')).toHaveCount(0);
-        else await expect(page.getByText(/Limite da avaliação atingido: 15 procedimentos/u)).toBeVisible();
+        else
+          await expect(
+            page.getByText(/Limite da avaliação atingido: 15 procedimentos/u),
+          ).toBeVisible();
       }
       stages.push(stage);
       stage = 'quota_persistence_after_reload';
@@ -124,23 +170,44 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 1000 });
       await page.goto('/configuracoes/assinatura');
-      await expect(page.getByText(phase === 'expired' ? 'Contratação pendente' : 'Avaliação sem cartão', { exact: true })).toBeVisible();
-      await expect(page.getByRole('region', { name: 'Assinatura e avaliação' })).toContainText('397,00');
-      await expect(page.getByRole('button', { name: 'Contratar assinatura', exact: true })).toBeEnabled();
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      await expect(
+        page.getByText(phase === 'expired' ? 'Contratação pendente' : 'Avaliação sem cartão', {
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(page.getByRole('region', { name: 'Assinatura e avaliação' })).toContainText(
+        '397,00',
+      );
+      await expect(
+        page.getByRole('button', { name: 'Contratar assinatura', exact: true }),
+      ).toBeEnabled();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
     }
     stages.push(stage);
     if (phase === 'expired') {
       stage = 'expired_trial_write_refused';
       await createPatient(page, 12);
-      await expect(page.getByText(/avaliação.*(?:terminou|encerrad)|(?:prazo|período).*avaliação/iu).last()).toBeVisible();
+      await expect(
+        page.getByText(/avaliação.*(?:terminou|encerrad)|(?:prazo|período).*avaliação/iu).last(),
+      ).toBeVisible();
       stages.push(stage);
       stage = 'one_click_existing_sandbox_checkout';
-      if (!session.checkoutUrl) throw new Error('Attested pending checkout required for navigation');
+      if (!session.checkoutUrl)
+        throw new Error('Attested pending checkout required for navigation');
       const checkout = new URL(session.checkoutUrl);
-      if (checkout.protocol !== 'https:' || !['app.abacatepay.com', 'pay.abacatepay.com'].includes(checkout.hostname)) throw new Error('Invalid hosted Sandbox checkout origin');
+      if (
+        checkout.protocol !== 'https:' ||
+        !['app.abacatepay.com', 'pay.abacatepay.com'].includes(checkout.hostname)
+      )
+        throw new Error('Invalid hosted Sandbox checkout origin');
       await page.goto('/configuracoes/assinatura');
-      const response = page.waitForResponse(result => result.url() === `${PREVIEW}/api/billing/checkout` && result.request().method() === 'POST');
+      const response = page.waitForResponse(
+        (result) =>
+          result.url() === `${PREVIEW}/api/billing/checkout` &&
+          result.request().method() === 'POST',
+      );
       await page.getByRole('button', { name: 'Contratar assinatura', exact: true }).click();
       expect((await response).status()).toBe(200);
       await page.waitForURL(session.checkoutUrl, { timeout: 60_000, waitUntil: 'commit' });
@@ -155,19 +222,39 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
     diagnostics = {
       path: new URL(page.url()).pathname,
       counters: await page.getByRole('list', { name: 'Uso da avaliação' }).count(),
-      counterItems: await page.getByRole('list', { name: 'Uso da avaliação' }).getByRole('listitem').count(),
-      loginForm: await page.locator('input[name="password"]').count() > 0,
+      counterItems: await page
+        .getByRole('list', { name: 'Uso da avaliação' })
+        .getByRole('listitem')
+        .count(),
+      loginForm: (await page.locator('input[name="password"]').count()) > 0,
     };
     // No HTML, account details, cookies, tokens, network bodies or provider URLs in diagnostics.
     throw new Error(`DEV browser check failed at ${stage}; sensitive diagnostics suppressed`);
   } finally {
     await context.close();
     await mkdir('dist', { recursive: true });
-    await writeFile('dist/billing-trial-cloud.json', JSON.stringify({
-      status: outcome, phase, stage, stages, sha: SHA, clinicId: CLINIC,
-      subscriptionId: SUBSCRIPTION, at: new Date().toISOString(),
-      browser: 'Chromium on GitHub Actions', payments: 0, productionWrites: 0,
-      syntheticPaidStateUsed: false, runtimeErrors, diagnostics,
-    }, null, 2));
+    await writeFile(
+      'dist/billing-trial-cloud.json',
+      JSON.stringify(
+        {
+          status: outcome,
+          phase,
+          stage,
+          stages,
+          sha: SHA,
+          clinicId: CLINIC,
+          subscriptionId: SUBSCRIPTION,
+          at: new Date().toISOString(),
+          browser: 'Chromium on GitHub Actions',
+          payments: 0,
+          productionWrites: 0,
+          syntheticPaidStateUsed: false,
+          runtimeErrors,
+          diagnostics,
+        },
+        null,
+        2,
+      ),
+    );
   }
 });
