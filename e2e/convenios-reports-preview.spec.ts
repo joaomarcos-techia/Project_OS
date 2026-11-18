@@ -77,9 +77,10 @@ test('gestora: resumo por operadora, filtro e CSV seguro baixado pela sessão', 
   await s.page.goto(`/convenios/relatorios?${PERIOD}`);
   const row = summary(s.page).getByRole('row', { name: new RegExp(fx!.insurerName, 'u') });
   await expect(row).toContainText('270,00');
-  insurerId = (await s.page.getByLabel('Operadora').locator('option', { hasText: fx!.insurerName }).first().getAttribute('value'))!;
-  await s.page.getByLabel('Operadora').selectOption(insurerId);
-  await s.page.getByRole('button', { name: 'Aplicar' }).click();
+  const filters = s.page.getByRole('region', { name: 'Filtros do relatório' });
+  insurerId = (await filters.getByLabel('Operadora').locator('option', { hasText: fx!.insurerName }).first().getAttribute('value'))!;
+  await filters.getByLabel('Operadora').selectOption(insurerId);
+  await filters.getByRole('button', { name: 'Aplicar' }).click();
   await s.page.waitForURL(new RegExp(`insurerId=${insurerId}`, 'u'));
   await expect(summary(s.page)).toContainText(fx!.insurerName);
   const href = (await s.page.getByRole('link', { name: 'Exportar CSV' }).getAttribute('href'))!;

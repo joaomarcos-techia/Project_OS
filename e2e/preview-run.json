@@ -1,6 +1,6 @@
 {
   "note": "Pedido de E2E no Preview (navegador remoto). Mudar este arquivo dispara convenios-preview-e2e.yml.",
-  "run": "REL-1",
+  "run": "REL-2",
   "groups": [
     [
       "e2e/convenios-reports-preview.spec.ts"
