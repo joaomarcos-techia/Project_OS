@@ -1,5 +1,13 @@
 # Handoff da AbacatePay para a repaginação do Qoro
 
+## Observação do trial DEV em 18/11/2026
+
+Na candidata imutável `bd776c15783a3637a1f6053cd53765833a28864f`, a [rodada Actions 44221156413](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44221156413) criou quinze procedimentos sintéticos, recusou a criação excedente e conferiu a assinatura, mas falhou no gate de runtime: um erro de hidratação e quinze exceções de navegador. O diagnóstico antigo preservou classes, sem stack suficiente para atribuir causa. Não concluir que houve erro financeiro nem declarar o incidente corrigido.
+
+As rodadas [ativa 44222587653](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44222587653) e [vencida 44284271573](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44284271573) passaram em 1440/390 px sem erro de navegador; retomaram os registros já criados, não repetiram a sequência de quinze criações. R51 continua PARTIAL, com causa a investigar pelo responsável da UI compartilhada. Preservar as falhas anteriores e repetir a navegação/criação estrita ao alterar esses componentes. O harness atual registra classe, fase, rota, fingerprint e frames estáticos sanitizados; não registra HTML, dados pessoais, tokens ou payloads financeiros.
+
+Nenhum componente do aplicativo, regra financeira ou worktree UI/TISS foi alterado nesta bateria. O [checkpoint do trial](ABACATEPAY-SaaS-GO-NO-GO-FINAL.md#trial-da-conta-dev--verificações-na-nuvem-concluídas-em-18112026) contém o alcance de cada prova e a pendência de pagamento Sandbox.
+
 Atualizado em 14/11/2026. Documento autocontido para o agente de UI. O PR53 continua draft e não autoriza merge, configuração, migration, pagamento ou deploy Production. O domínio financeiro está congelado; esta integração permite reorganizar a apresentação sem reescrever suas regras. Não depende da conclusão do TISS ou do HEAD do PR55.
 
 ## Responsabilidades e isolamento de trabalho

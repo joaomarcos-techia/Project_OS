@@ -1,5 +1,46 @@
 # AbacatePay SaaS — decisão final de release e piloto
 
+## Trial da conta DEV — verificações na nuvem concluídas em 18/11/2026
+
+**Verificações anteriores ao pagamento: PASS. Fechamento integral: PARTIAL.** O pagamento manual Sandbox e a prova posterior de liberação ainda não ocorreram. Uma ocorrência intermitente de hidratação da UI também permanece aberta. Não houve operação em Production, migration, merge ou pagamento pela automação.
+
+### Identidade e separação das evidências
+
+- Aplicativo e Preview imutável: `bd776c15783a3637a1f6053cd53765833a28864f`, deployment `dpl_GKmv316LGHCqS822VHtAJXAbgShM`, [Preview DEV](https://project-26afjm4bg-clinic-os-v2-s-projects.vercel.app). PR #53 continua OPEN/DRAFT no mesmo SHA.
+- CI integral **anterior**, [44115899390](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44115899390): 7.339 testes, 27 E2E, zero SKIP, build/typecheck/lint/segurança aprovados. Não foi repetida nem atribuída ao código novo do harness.
+- Harness isolado em `test/billing-trial-cloud-20261118`, worktree próprio. Apenas workflow, configuração e spec de testes foram adicionados; nenhum delta de `src/`, SQL, dependências ou lockfile. SHA do harness de vencimento: `db066639458e5fc2f7b5fef92027d58c1ba742e2`.
+- O DEV compartilhado foi reconhecido explicitamente com 167 entradas: prefixo revisado de 166 e `0166_hi_authorization_alerts`, hash `ccf1639b4eccbdd50e5aa5b2f49a0b55d964ff8092dc47c09d77db61487025c6`. Essa leitura não altera o manifesto SaaS, não aplica SQL e não torna aceitável drift desconhecido.
+
+### Resultados observados
+
+| Camada | Resultado e limite | Evidência |
+| --- | --- | --- |
+| Banco DEV | 25 verificações PASS: nove categorias, última criação permitida, próxima recusada, proteções de integração/convites/liberação e expiração. Fixture transacional integralmente revertida | `database-quotas.json` |
+| HTTP e renderização do servidor | 14 verificações PASS: páginas autenticadas, estado vencido, preço e recusas de payload/origem indevidos | `http-inspection.json` |
+| Chromium com trial ativo | PASS, 1440/390 px: contadores, integrações e convites bloqueados, excesso de pacientes/procedimentos recusado, persistência após reload e assinatura correta | [Actions 44222587653](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44222587653) |
+| Chromium com trial vencido | PASS, 1440/390 px: contratação pendente, escrita recusada e um clique abre o checkout existente; zero erros de navegador nessa rodada | [Actions 44284271573](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44284271573) |
+| Checkout e concorrência | Um checkout Sandbox de R$ 397; duas retentativas concorrentes devolvem o mesmo link e há uma única operação de criação | `checkout-ready.json` |
+| Estado final | Prazo original restaurado, Auth/claim preservados, trial e política ainda limitados, zero invoices e nenhuma assinatura externa | `final-database-readback.json`, 10:22:33 UTC |
+| Provedor, somente GET | `devMode=true`, PENDING, R$ 397, sem pagamento e sem assinatura vinculada | `provider-final.json`, 10:22:52 UTC |
+
+Os nove limites são: pacientes (10); agendamentos, documentos/prescrições na categoria compartilhada, pagamentos, contas a receber, despesas, procedimentos, recursos e modelos de documento (15 por categoria). A prova SQL cobre todas as categorias; a criação real pela UI cobriu pacientes e procedimentos. Dez pacientes e quinze procedimentos **sintéticos** permanecem exclusivamente nessa clínica DEV para a futura prova após pagamento; as outras categorias não foram deixadas preenchidas.
+
+A rodada ativa verde retomou esses registros criados nas tentativas anteriores, sem repetir sua criação. As rodadas Actions executaram lint e TypeScript do harness; não executaram outro build do aplicativo. As correções de seletores de sessão/CTA e da expectativa do erro existente de expiração pertencem ao harness, sem mudança de comportamento do produto. As tentativas que falharam foram preservadas, não reclassificadas como PASS.
+
+### Checkout deixado para pagamento manual
+
+`bill_GHCsGAQeBPuKcd6rCbhEwtc0`, Sandbox, R$ 397/mês, Clínica com dois médicos e até três acessos administrativos. [Link do checkout Sandbox](https://app.abacatepay.com/pay/bill_GHCsGAQeBPuKcd6rCbhEwtc0). O responsável deve avisar antes de pagar; a automação não pagou nem criou estado financeiro artificial. Não criar outro checkout para essa mesma prova.
+
+Trial original restaurado: **02/12/2026 às 01:13:37.670 UTC** (01/12 às 22:13 de Brasília). A simulação mudou temporariamente somente as datas da assinatura DEV; a origem no Auth e o claim de 14 dias não mudaram. A sessão limitada de teste foi removida dos secrets do Actions após o término; segredos administrativos, financeiros e de banco não foram enviados ao runner. Os demais secrets foram preservados.
+
+### Limite de UI e próxima ação exata
+
+A [rodada 44221156413](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44221156413) persistiu os quinze procedimentos e recusou o excesso, mas **FAIL** no gate de runtime: um erro de hidratação e quinze exceções de navegador. A rodada seguinte não os reproduziu, sem repetir a criação dos quinze procedimentos. Causa raiz e correção não comprovadas; não encerrar o R51 compartilhado por essa amostra. [Handoff atualizado para UI](HANDOFF-UI-BILLING-SaaS.md#observação-do-trial-dev-em-18112026).
+
+Quando o fundador autorizar e efetuar manualmente esse pagamento Sandbox: conferir provedor, webhook/autenticidade/deduplicação, assinatura, invoice/período e liberação persistente das nove cotas em nova sessão. Confirmar que continuam os limites contratados de dois médicos/três administrativos. Não conectar WhatsApp/Asaas nem convidar pessoas para fabricar a prova. **Essa liberação ainda é NOT TESTED nesta conta.**
+
+Evidências locais sanitizadas: `dist/founder-trial-e2e-20261117/RELATORIO-TRIAL-SANDBOX.md` e `summary.json`. Relatórios do navegador no Actions têm retenção de um dia; as cópias locais e este checkpoint preservam os resultados. Production e C3/C4 reais permanecem fora do escopo; R1–R4 não foram ratificados por este ensaio.
+
 ## Direção atual — teste exclusivo no Sandbox, 17/11/2026
 
 **O fundador determinou testar a candidata do PR #53 no Sandbox e preservar a cópia exata da main. Não criar a nova clínica em Production. C3/C4 reais NÃO AUTORIZADOS.** A ficha do piloto real abaixo fica suspensa; a fixture do ensaio não comprova contratação real nem ratifica R1–R4. C2 permanece homologado no recorte observado e inalterado.
