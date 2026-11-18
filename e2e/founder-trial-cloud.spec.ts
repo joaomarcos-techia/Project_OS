@@ -72,6 +72,7 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
     throw new Error('Short-lived DEV session outside approved window');
   await assertPreviewRuntimeIsDev(PREVIEW, { requireSandboxAsaas: true });
   const stages: string[] = [];
+  const failedChecks: { stage: string; kind: string }[] = [];
   let diagnostics: {
     path: string;
     counters: number;
@@ -220,16 +221,39 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
     }
     stages.push(stage);
     if (phase === 'expired') {
-      stage = 'expired_trial_write_refused';
-      await createPatient(page, 12);
-      // The platform write gate precedes the per-resource INSERT trigger.
-      // It identifies an expired unpaid trial as pending_payment.
-      await expect(
-        page.getByText("[billing] escrita bloqueada: clínica está 'pending_payment'", {
-          exact: true,
-        }),
-      ).toBeVisible();
-      stages.push(stage);
+      for (const [width, index] of [
+        [1440, 12],
+        [390, 13],
+      ] as const) {
+        try {
+          stage = `expired_patient_drawer_${width}`;
+          await page.setViewportSize({ width, height: 1000 });
+          await page.goto('/pacientes?novo=1');
+          await expect(page.locator('#patient-name')).toBeVisible();
+          stage = `expired_patient_submit_${width}`;
+          await page.locator('#patient-name').fill(`QA trial sintético ${index}`);
+          await page.locator('#patient-cpf').fill(fixtureCpf(index));
+          await page.locator('#patient-email').fill(`trial-qa-${index}@example.invalid`);
+          await page.getByRole('button', { name: 'Criar paciente', exact: true }).click();
+          stage = `expired_patient_write_gate_${width}`;
+          // Validate the exact business state independently of prose/punctuation.
+          await expect(
+            page.getByRole('alert').filter({ hasText: 'pending_payment' }),
+          ).toBeVisible();
+          stages.push(stage);
+        } catch (error) {
+          // Continue the independent checkout check, then propagate failure below.
+          failedChecks.push({
+            stage,
+            kind:
+              error instanceof Error && /strict mode violation/u.test(error.message)
+                ? 'ambiguous_locator'
+                : error instanceof Error && /Timeout/u.test(error.name + error.message)
+                  ? 'timeout'
+                  : 'assertion',
+          });
+        }
+      }
       stage = 'one_click_existing_sandbox_checkout';
       if (!session.checkoutUrl)
         throw new Error('Attested pending checkout required for navigation');
@@ -254,6 +278,8 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
     stage = 'browser_runtime';
     expect(runtimeErrors).toEqual([]);
     stages.push(stage);
+    stage = 'all_independent_checks';
+    expect(failedChecks).toEqual([]);
     outcome = 'PASS';
   } catch {
     diagnostics = {
@@ -288,6 +314,7 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
           syntheticPaidStateUsed: false,
           startingCounts: { patients: session.patientCount, procedures: session.procedureCount },
           runtimeErrors,
+          failedChecks,
           diagnostics,
         },
         null,
