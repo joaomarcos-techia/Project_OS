@@ -2020,6 +2020,16 @@ medições nas duas varreduras completas de hoje, em rotas diferentes, o que ref
 (não é de uma rota; o histórico já tinha "1–6% em Dashboard, Sugestões e prontuário"). Segue no
 P-23, sem supressão.
 
+**Auditoria estática do design system** (17/11, só leitura, `src/app` e `src/components`, sem testes):
+- botões das telas do shell: `Button`/`buttonVariants` ou classes de token; os `<button>` crus que
+  restam são intencionais (trilho e chrome do shell, alternância de gráfico, botão de texto em linha);
+- **0 cor fixa** (hex ou `rgb`) em `.tsx`;
+- `style` inline: 11 no shell, todos de geometria de gráfico calculada a partir de dados;
+- paleta crua: 3 (`bg-neutral-300` na série "muted" de `bar-chart.tsx` e `stacked-bar.tsx`;
+  `bg-neutral-400` num indicador de `admin/config`). Desvio menor de token (P-26);
+- `/join` (assistente de convite) usa um sistema próprio de `.btn` (CSS legado), e os arquivos dele
+  são alterados pelo #55 (TISS); fica fora desta frente (P-26).
+
 ## 26. Riscos e decisões
 
 | ID | Decisão | Motivo | Alternativa descartada |
@@ -2108,6 +2118,7 @@ P-23, sem supressão.
 | P-20 | Latência de Server Action no Preview, de 11,4 s (seção 33): precisa dos logs da Vercel/Supabase | observabilidade | plataforma |
 | P-23 | #418 (HTML) intermitente: 3 em 390 medições das duas varreduras completas de 17/11 (`/documentos` a 1024 e 768 no `82f98aab`; `/configuracoes/sugestoes` a 768 no `21658e90`), 0 em 24 repetições dirigidas; sem fonte de divergência no código de Documentos (25.11). Não é de uma rota. Próximo passo útil: o observador de DOM do plano anterior (§11) numa rodada longa, com e sem a barra da Vercel. Acompanhar no R51; não suprimir | estabilidade | esta frente / TISS (R51) |
 | P-24 | "Entrar" do `/cadastro` com 23 px de altura: corrigir no `signup-frame` depois da integração com o #53 (conflito em aberto) | a11y | quem integrar #53 → #56 |
+| P-26 | Design system, desvios menores: série "muted" dos gráficos com `bg-neutral-300` (sem token; conferir no tema escuro) e indicador do `admin/config` com `bg-neutral-400`; o assistente `/join` com o `.btn` legado, a migrar para `Button` depois que o #55, que o altera, entrar | design system | esta frente (depois da integração) |
 | P-25 | **Gate de auditoria da CI reprova em toda branch:** GHSA-fc5q-39xc-vjpf (`picomatch` ≤ 4.0.7, alta), atualizada em 17/11 15:56 UTC, sem versão corrigida. Caminho: `@sentry/nextjs` → `@rollup/plugin-commonjs` (e `fdir`, `@rollup/pluginutils`). Uso real: só no `config/loaders/wrappingLoader.js` do Sentry, loader de **build** com `ignore()` fixo e sem padrão vindo de usuário, então não há ReDoS alcançável em execução. Opções: (a) esperar a correção upstream e rodar a CI de novo; (b) exceção temporária e datada (`auditConfig.ignoreGhsas` no `pnpm-workspace.yaml`), o que muda a política V14 e exige decisão; (c) override não resolve, porque não há versão boa | CI / segurança | fundador |
 | P-21 | **CI do #56 vermelha por 2 asserções desatualizadas por esta frente** (bloco de estado): título da Ajuda ('· Ajuda', UX-008) e `aria-describedby` do PIN com o hint (UX-001). Antes de alterar: confirmar que o título sem 'Qoro' segue o contrato de `src/app/page-titles.test.ts` e que hint e ajuda do PIN têm textos diferentes (sem anúncio duplicado). Depois, atualizar só as duas expectativas, sem enfraquecer, e deixar a CI rodar inteira (inventário, isolamento, build e e2e público ainda sem evidência) | teste | esta frente |
 | P-21 (status 16/11) | **Corrigido localmente:** título da Ajuda (teste atualizado ao UX-008) e PIN do WhatsApp (defeito real de descrição duplicada, corrigido no componente; teste mais estrito). Falta a CI inteira, que depende da P-22 | teste/a11y | esta frente |
