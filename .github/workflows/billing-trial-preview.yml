@@ -12,9 +12,9 @@ on:
       phase:
         description: Approved DEV trial state, prepared by the local operator
         required: true
-        default: active
+        default: paid_navigation
         type: choice
-        options: [active, expired, paid, paid_resume]
+        options: [active, expired, paid, paid_resume, paid_navigation]
 
 permissions:
   contents: read
@@ -50,13 +50,13 @@ jobs:
           BILLING_TRIAL_SESSION: ${{ secrets.BILLING_TRIAL_SESSION }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.PREVIEW_E2E_BYPASS }}
           MAGIC_TOKEN_SECRET_DEV: ${{ secrets.PREVIEW_E2E_MAGIC }}
-          BILLING_TRIAL_PHASE: ${{ inputs.phase || 'active' }}
+          BILLING_TRIAL_PHASE: ${{ inputs.phase || 'paid_navigation' }}
         run: pnpm exec playwright test --config playwright.billing-trial.config.ts
       - name: Preserve sanitized checkpoints only
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: billing-trial-${{ inputs.phase || 'active' }}-${{ github.run_id }}
+          name: billing-trial-${{ inputs.phase || 'paid_navigation' }}-${{ github.run_id }}
           path: dist/billing-trial-cloud.json
           retention-days: 1
           if-no-files-found: warn

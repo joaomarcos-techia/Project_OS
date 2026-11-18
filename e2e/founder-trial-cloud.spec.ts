@@ -68,10 +68,10 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
   browser,
 }) => {
   const phase = z
-    .enum(['active', 'expired', 'paid', 'paid_resume'])
+    .enum(['active', 'expired', 'paid', 'paid_resume', 'paid_navigation'])
     .parse(process.env.BILLING_TRIAL_PHASE);
   const session = sessionSchema.parse(JSON.parse(process.env.BILLING_TRIAL_SESSION ?? '{}'));
-  const paidPhase = phase === 'paid' || phase === 'paid_resume';
+  const paidPhase = phase === 'paid' || phase === 'paid_resume' || phase === 'paid_navigation';
   if (paidPhase && !session.paymentProof)
     throw new Error('Verified Sandbox payment proof required');
   if (!paidPhase && (session.patientCount > 10 || session.procedureCount > 15)) {
@@ -105,6 +105,7 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
   const context = await browser.newContext({
     baseURL: PREVIEW,
     viewport: { width: 1440, height: 1000 },
+    ...(phase === 'paid_navigation' ? { timezoneId: 'Asia/Tokyo' } : {}),
   });
   // These are Qoro server-session cookies only. No Supabase admin, DB or financial key.
   await context.addCookies(
@@ -300,6 +301,33 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
       ).toBeVisible();
       stages.push(stage);
     }
+    if (phase === 'paid_navigation') {
+      for (const width of [1440, 390]) {
+        await page.setViewportSize({ width, height: 1000 });
+        for (let round = 1; round <= 3; round++) {
+          for (const path of [
+            '/dashboard',
+            '/pacientes',
+            '/configuracoes/procedimentos',
+            '/configuracoes/assinatura',
+          ]) {
+            stage = `paid_navigation_${width}_${round}_${path}`;
+            await page.goto(path);
+            await expect(page).toHaveURL(`${PREVIEW}${path}`);
+            await expect(page.locator('h1').first()).toBeVisible();
+            if (path === '/configuracoes/assinatura') {
+              await expect(page.getByText('Pagamento confirmado', { exact: true })).toBeVisible();
+            }
+            await page.reload();
+            await expect(page.locator('h1').first()).toBeVisible();
+            expect(
+              await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+            ).toBe(true);
+            stages.push(stage);
+          }
+        }
+      }
+    }
     stage = `${phase}_subscription_screen`;
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 1000 });
@@ -464,6 +492,7 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
           syntheticPaidStateUsed: false,
           startingCounts: { patients: session.patientCount, procedures: session.procedureCount },
           logoutHttpStatus,
+          timezone: phase === 'paid_navigation' ? 'Asia/Tokyo' : 'browser_default',
           runtimeErrors,
           failedChecks,
           diagnostics,
