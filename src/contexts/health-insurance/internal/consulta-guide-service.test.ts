@@ -142,7 +142,7 @@ const run = (tx: Tx, over: Partial<Parameters<typeof createConsultaGuideForAppoi
 
 /** Respostas do caminho completo até a transação de gravação. */
 const fullPath = (
-  o: { card?: unknown[]; lines?: unknown[]; prev?: string | null; auths?: unknown[] } = {},
+  o: { card?: unknown[]; lines?: unknown[]; prev?: string | null; auths?: unknown[]; items?: unknown[]; mine?: unknown[] } = {},
 ) => [
   [settings],
   [], // chave de origem: nada
@@ -152,7 +152,12 @@ const fullPath = (
   o.lines ?? [line()],
   [{ last: o.prev ?? null }],
   ...(o.auths ? [o.auths] : []),
+  // P4.7: itens das autorizações válidas e o consumo que este atendimento já fez.
+  ...(o.items ? [o.items] : []),
+  ...(o.items && o.items.length > 0 ? [o.mine ?? []] : []),
 ];
+/** Consumo da autorização na criação: procura a chave (nada) e grava. */
+const consumed = [[], undefined];
 const created = [[{ value: 7 }], [{ id: 'guia-1', number: '7' }], undefined];
 
 beforeEach(() => vi.clearAllMocks());
@@ -317,12 +322,15 @@ describe('createConsultaGuideForAppointment — decisões', () => {
     const valid = { id: 'aut-1', authorizedOn: '2026-11-01', validUntil: '2026-12-31' };
     const expired = { id: 'aut-0', authorizedOn: '2026-09-01', validUntil: '2026-10-01' };
     const lines = [line({ requiresAuthorization: true })];
-    const f1 = fakeTx([...fullPath({ lines, auths: [expired, valid] }), ...created]);
+    const item1 = { id: 'it-1', authorizationId: 'aut-1', authorized: 1, consumed: 0 };
+    const f1 = fakeTx([...fullPath({ lines, auths: [expired, valid], items: [item1] }), ...consumed, ...created]);
     await run(f1.tx);
-    expect(f1.inserts[0]).toMatchObject({ authorizationId: 'aut-1', status: 'ready_for_review' });
+    // P4.7: o consumo de UMA unidade vem antes da guia, com a chave do atendimento.
+    expect(f1.inserts[0]).toMatchObject({ itemId: 'it-1', quantity: 1, idempotencyKey: `consulta:${appointment.id}:it-1` });
+    expect(f1.inserts[1]).toMatchObject({ authorizationId: 'aut-1', status: 'ready_for_review' });
 
     const f2 = fakeTx([
-      ...fullPath({ lines, auths: [valid, { ...valid, id: 'aut-2' }] }),
+      ...fullPath({ lines, auths: [valid, { ...valid, id: 'aut-2' }], items: [item1, { ...item1, id: 'it-2', authorizationId: 'aut-2' }] }),
       ...created,
     ]);
     const out = await run(f2.tx);
@@ -330,6 +338,27 @@ describe('createConsultaGuideForAppointment — decisões', () => {
       'AUTHORIZATION_AMBIGUOUS',
     ]);
     expect(f2.inserts[0]).toMatchObject({ authorizationId: null });
+  });
+
+  it('P4.7: autorização sem saldo (série que já usou a unidade) vira pendência; o mesmo atendimento refeito não consome de novo', async () => {
+    const valid = { id: 'aut-1', authorizedOn: '2026-11-01', validUntil: '2026-12-31' };
+    const lines = [line({ requiresAuthorization: true })];
+    const spent = { id: 'it-1', authorizationId: 'aut-1', authorized: 1, consumed: 1 };
+    const f1 = fakeTx([...fullPath({ lines, auths: [valid], items: [spent] }), ...created]);
+    const out = await run(f1.tx);
+    expect(out.kind === 'created' && out.issues.map((i) => i.code)).toEqual(['AUTHORIZATION_EXHAUSTED']);
+    expect(f1.inserts.filter((i) => 'itemId' in i && 'quantity' in i && !('guideId' in i))).toEqual([]);
+    expect(f1.inserts[0]).toMatchObject({ authorizationId: null, status: 'pending_data' });
+
+    // A unidade consumida é DESTE atendimento (guia refeita): continua servindo, sem novo consumo.
+    const f2 = fakeTx([
+      ...fullPath({ lines, auths: [valid], items: [spent], mine: [{ key: `consulta:${appointment.id}:it-1` }] }),
+      [{ id: 'consumo-1' }],
+      ...created,
+    ]);
+    await run(f2.tx);
+    expect(f2.inserts.filter((i) => String(i.idempotencyKey ?? '').startsWith('consulta:'))).toEqual([]);
+    expect(f2.inserts[0]).toMatchObject({ authorizationId: 'aut-1', status: 'ready_for_review' });
   });
 });
 

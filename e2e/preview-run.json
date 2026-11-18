@@ -1,22 +1,14 @@
 {
   "note": "Pedido de E2E no Preview (navegador remoto). Mudar este arquivo dispara convenios-preview-e2e.yml.",
-  "run": "SADT1-F2",
+  "run": "REL-1",
   "groups": [
     [
-      "e2e/convenios-sadt-preview.spec.ts"
+      "e2e/convenios-reports-preview.spec.ts"
     ]
   ],
   "env": {
     "E2E_HI_ACCOUNTS": "e2e-hi-accounts.json",
-    "E2E_HI_I2_ACCOUNTS": "e2e-hi-i2-accounts.json",
-    "E2E_HI_I2": "e2e-hi-i2.json",
-    "E2E_HI_D5_PHASE": "3",
-    "E2E_HI_AUTHS": "e2e-hi-auths.json",
-    "E2E_HI_P75_ACCOUNTS": "e2e-hi-p75-accounts.json",
-    "E2E_HI_P75": "e2e-hi-p75.json",
     "E2E_HI_SADT_ACCOUNTS": "e2e-hi-sadt-accounts.json",
-    "E2E_HI_SADT": "e2e-hi-sadt.json",
-    "E2E_HI_SADT_PHASE": "2",
-    "E2E_HI_SADT_REQUEST": "1994b61f-7c09-4f57-bef2-ad24b91af835"
+    "E2E_HI_SADT": "e2e-hi-sadt.json"
   }
 }

@@ -560,10 +560,13 @@ try {
   await age(vAuth);
   await reconcile();
   assert.equal((await guidesOf(vAuth))[0]!.status, 'pending_data');
-  await sql`insert into public.hi_authorizations
+  // Como o app grava (P4.7): autorização com o item do procedimento e a quantidade concedida.
+  await sql`with a as (insert into public.hi_authorizations
       (clinic_id, insurer_id, membership_id, guide_type, origin, status, authorized_on, recorded_by, operator_guide_number, created_by)
     values (${A.clinicId}::uuid, ${A.insurerId}::uuid, ${vAuth.cardId}::uuid, 'consulta', 'manual', 'authorized', '2026-11-10',
-      ${SYS}::uuid, 'OP-SINT-1', ${SYS}::uuid)`;
+      ${SYS}::uuid, 'OP-SINT-1', ${SYS}::uuid) returning id, clinic_id)
+    insert into public.hi_authorization_items (clinic_id, authorization_id, table_code, procedure_code, quantity_requested, quantity_authorized)
+    select clinic_id, id, '22', '10101039', 1, 1 from a`;
   await forceDue(vAuth);
   await reconcile();
   const [authAfter] = await sql`select status, authorization_id is not null as linked from public.hi_guides where id = ${authGuide!.id}::uuid`;

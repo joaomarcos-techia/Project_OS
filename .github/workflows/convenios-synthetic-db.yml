@@ -118,6 +118,22 @@ jobs:
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55559 NODE_OPTIONS=--conditions=react-server \
             pnpm exec tsx scripts/security/health-insurance-platform-db.ts
 
+      - name: Relatório por operadora e período (P9.10, somas contra o livro)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55560 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/health-insurance-report-db.ts
+
+      - name: Estados da cobertura não bloqueiam o atendimento clínico (P5.1)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55561           NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-coverage-states-db.ts
+
+      - name: Série recorrente de convênio e consumo da autorização (P4.7)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55562           NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-series-authorization-db.ts
+
       # Cada prova roda mesmo se a anterior falhar (evidência independente); o job falha se qualquer uma falhar.
       - name: SP/SADT — solicitação, automação e indicação clínica × D24
         if: ${{ !cancelled() }}

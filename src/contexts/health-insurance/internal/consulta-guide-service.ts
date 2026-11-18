@@ -30,6 +30,8 @@ import type { Tx } from '@/lib/db';
 import { assertPremiumFeatureTx } from '@/lib/premium-access';
 
 import {
+  hiAuthorizationConsumptions,
+  hiAuthorizationItems,
   hiAuthorizations,
   hiClinicSettings,
   hiGuideEvents,
@@ -144,10 +146,13 @@ export async function createConsultaGuideForAppointment(
     settings,
   });
   if (derived.kind !== 'derived') return derived;
-  const { insurerId, membershipId, line, authorizationId, issues, status } = derived;
+  const { insurerId, membershipId, line, authorizationId, authorizationItemId, issues, status } = derived;
   const coverage = args.coverage;
   try {
     return await tx.transaction(async (sp) => {
+      if (authorizationItemId) {
+        await consumeAuthorizationTx(sp, clinicId, ap.id, authorizationItemId, args.actor.kind === 'user' ? args.actor.userId : ap.professionalId);
+      }
       const number = await allocateTissNumber(sp, { clinicId, kind: 'guide' });
       const [guide] = await sp
         .insert(hiGuides)
@@ -210,9 +215,30 @@ type Derivation =
       membershipId: string | null;
       line: ContractLine | null;
       authorizationId: string | null;
+      /** Item da autorização que esta guia consome (P4.7): uma unidade por atendimento. */
+      authorizationItemId: string | null;
       issues: GuideIssue[];
       status: 'pending_data' | 'ready_for_review';
     };
+
+/** Chave do consumo da autorização por atendimento: a guia refeita do mesmo atendimento não consome de novo. */
+const consumptionKey = (appointmentId: string, itemId: string) => `consulta:${appointmentId}:${itemId}`;
+
+/**
+ * P4.7: consome UMA unidade do item da autorização para este atendimento (idempotente pela chave). O
+ * gatilho da 0146 trava o item e recusa consumo acima do autorizado, inclusive em corrida.
+ */
+async function consumeAuthorizationTx(tx: Tx, clinicId: string, appointmentId: string, itemId: string, actorId: string): Promise<void> {
+  const key = consumptionKey(appointmentId, itemId);
+  const [done] = await tx
+    .select({ id: hiAuthorizationConsumptions.id })
+    .from(hiAuthorizationConsumptions)
+    .where(and(eq(hiAuthorizationConsumptions.clinicId, clinicId), eq(hiAuthorizationConsumptions.idempotencyKey, key)))
+    .limit(1);
+  if (!done) {
+    await tx.insert(hiAuthorizationConsumptions).values({ clinicId, itemId, quantity: 1, idempotencyKey: key, createdBy: actorId });
+  }
+}
 
 function itemValues(clinicId: string, guideId: string, ap: CompletedAppointment, line: ContractLine) {
   return {
@@ -444,6 +470,7 @@ async function deriveConsultaGuide(
 
   // Autorização concedida pela operadora, quando o contrato exige. Nunca presumida.
   let authorizationId: string | null = null;
+  let authorizationItemId: string | null = null;
   if (line?.requiresAuthorization) {
     const candidates = membershipId
       ? await tx
@@ -470,10 +497,70 @@ async function deriveConsultaGuide(
         a.authorizedOn <= ap.date &&
         (a.validUntil === null || a.validUntil >= ap.date),
     );
-    if (valid.length === 1) authorizationId = valid[0]!.id;
-    else {
+    // P4.7: só serve a autorização com SALDO no item do procedimento (ou que este mesmo atendimento já
+    // consumiu). Numa série de consultas, a autorização de 1 unidade não cobre a segunda.
+    const items = valid.length
+      ? await tx
+          .select({
+            id: hiAuthorizationItems.id,
+            authorizationId: hiAuthorizationItems.authorizationId,
+            authorized: hiAuthorizationItems.quantityAuthorized,
+            consumed: hiAuthorizationItems.quantityConsumed,
+          })
+          .from(hiAuthorizationItems)
+          .where(
+            and(
+              eq(hiAuthorizationItems.clinicId, clinicId),
+              inArray(
+                hiAuthorizationItems.authorizationId,
+                valid.map((a) => a.id),
+              ),
+              eq(hiAuthorizationItems.tableCode, line.tableCode),
+              eq(hiAuthorizationItems.procedureCode, line.procedureCode),
+            ),
+          )
+      : [];
+    const mine = items.length
+      ? await tx
+          .select({ key: hiAuthorizationConsumptions.idempotencyKey })
+          .from(hiAuthorizationConsumptions)
+          .where(
+            and(
+              eq(hiAuthorizationConsumptions.clinicId, clinicId),
+              inArray(
+                hiAuthorizationConsumptions.idempotencyKey,
+                items.map((i) => consumptionKey(ap.id, i.id)),
+              ),
+            ),
+          )
+      : [];
+    const withBalance = items.filter(
+      (i) => mine.some((m) => m.key === consumptionKey(ap.id, i.id)) || (i.consumed ?? 0) < (i.authorized ?? 0),
+    );
+    if (withBalance.length === 1) {
+      authorizationId = withBalance[0]!.authorizationId;
+      authorizationItemId = withBalance[0]!.id;
+    } else if (valid.length > 0 && items.length === 0) {
       issues.push(
-        valid.length === 0
+        issue(
+          'AUTHORIZATION_PROCEDURE_MISSING',
+          'autorizacao',
+          'A autorização concedida para esta carteirinha não inclui este procedimento. Confira a autorização ou peça uma nova à operadora.',
+          'recepcao',
+        ),
+      );
+    } else if (withBalance.length === 0 && valid.length > 0) {
+      issues.push(
+        issue(
+          'AUTHORIZATION_EXHAUSTED',
+          'autorizacao',
+          'A autorização concedida para esta carteirinha já foi usada por outros atendimentos (saldo esgotado). Peça uma nova autorização à operadora.',
+          'recepcao',
+        ),
+      );
+    } else {
+      issues.push(
+        withBalance.length === 0
           ? issue(
               'AUTHORIZATION_MISSING',
               'autorizacao',
@@ -483,7 +570,7 @@ async function deriveConsultaGuide(
           : issue(
               'AUTHORIZATION_AMBIGUOUS',
               'autorizacao',
-              `Há ${valid.length} autorizações válidas para esta carteirinha na data; escolha a correta.`,
+              `Há ${withBalance.length} autorizações válidas com saldo para esta carteirinha na data; escolha a correta.`,
               'recepcao',
             ),
       );
@@ -497,6 +584,7 @@ async function deriveConsultaGuide(
     membershipId,
     line: line ?? null,
     authorizationId,
+    authorizationItemId,
     issues,
     status,
   };
@@ -580,9 +668,13 @@ export async function refreshConsultaGuide(
   });
   if (derived.kind === 'needs_coverage') return derived;
   if (derived.kind === 'skipped_return') return { kind: 'return_detected', reason: derived.reason };
-  const { line, membershipId, authorizationId, issues, status } = derived;
+  const { line, membershipId, authorizationId, authorizationItemId, issues, status } = derived;
 
   return tx.transaction(async (sp) => {
+    if (authorizationItemId) {
+      // Reavaliação é do automático: o consumo fica com o profissional do atendimento (a chave aponta o atendimento).
+      await consumeAuthorizationTx(sp, clinicId, ap.id, authorizationItemId, ap.professionalId);
+    }
     const items = await sp
       .select({
         id: hiGuideItems.id,

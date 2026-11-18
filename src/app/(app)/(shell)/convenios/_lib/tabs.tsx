@@ -11,6 +11,7 @@ const TABS = [
   { label: 'Lotes', href: '/convenios/lotes' },
   { label: 'Conciliação', href: '/convenios/conciliacao' },
   { label: 'Repasses', href: '/convenios/repasses' },
+  { label: 'Relatórios', href: '/convenios/relatorios' },
   { label: 'Carteirinhas', href: '/convenios/carteirinhas' },
   { label: 'Configuração', href: '/convenios/configuracao' },
 ];

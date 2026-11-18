@@ -302,10 +302,13 @@ try {
     await sql`select count(*)::int as n from public.hi_authorizations where clinic_id = ${A.clinicId}::uuid`
   )[0]!.n as number;
   assert.equal(authAfter, authBefore);
-  await sql`insert into public.hi_authorizations
+  // Como o app grava (P4.7): autorização com o item do procedimento e a quantidade concedida.
+  await sql`with a as (insert into public.hi_authorizations
       (clinic_id, insurer_id, membership_id, guide_type, origin, status, authorized_on, recorded_by, operator_guide_number, created_by)
     values (${A.clinicId}::uuid, ${A.insurerId}::uuid, ${A.cardId}::uuid, 'consulta', 'manual', 'authorized', '2026-11-25',
-      ${SYS}::uuid, 'OP-77', ${SYS}::uuid)`;
+      ${SYS}::uuid, 'OP-77', ${SYS}::uuid) returning id, clinic_id)
+    insert into public.hi_authorization_items (clinic_id, authorization_id, table_code, procedure_code, quantity_requested, quantity_authorized)
+    select clinic_id, id, '22', '10101039', 1, 1 from a`;
   const apAuth2 = await A.appointment(A.authProc, '2026-11-29');
   const outAuth2 = (await run(A.clinicId, apAuth2, A.coverage)) as Extract<
     ConsultaGuideOutcome,
