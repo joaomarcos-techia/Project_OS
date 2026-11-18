@@ -222,8 +222,12 @@ test('founder DEV trial: real browser, immutable candidate, no payment or paid-s
     if (phase === 'expired') {
       stage = 'expired_trial_write_refused';
       await createPatient(page, 12);
+      // The platform write gate precedes the per-resource INSERT trigger.
+      // It identifies an expired unpaid trial as pending_payment.
       await expect(
-        page.getByText(/avaliação.*(?:terminou|encerrad)|(?:prazo|período).*avaliação/iu).last(),
+        page.getByText("[billing] escrita bloqueada: clínica está 'pending_payment'", {
+          exact: true,
+        }),
       ).toBeVisible();
       stages.push(stage);
       stage = 'one_click_existing_sandbox_checkout';
