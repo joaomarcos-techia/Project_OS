@@ -24,6 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: pnpm/action-setup@v4
         with:
@@ -81,11 +82,31 @@ jobs:
           export SECURITY_PG_BIN="$(pg_config --bindir)"
           node --conditions=react-server --import tsx scripts/security/abacatepay-checkout-recovery-db.ts
           cp dist/abacatepay-checkout-recovery-db.json dist/renewal-qualification/
-      - name: Legacy cancellation with the candidate schema
+      - name: Exact frozen 160-entry schema; no functional TISS code
         run: |
           export SECURITY_PG_BIN="$(pg_config --bindir)"
-          node --conditions=react-server --import tsx scripts/security/legacy-cancellation-db.ts candidate-160
-          cp dist/cancellation-candidate-160.json dist/renewal-qualification/
+          export QORO_TISS_REF=4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269
+          export QORO_TISS_WORKTREE="$RUNNER_TEMP/qoro-frozen-schema-input"
+          git worktree add --detach "$QORO_TISS_WORKTREE" "$QORO_TISS_REF"
+          node --import tsx scripts/security/abacatepay-tiss-composition.ts
+          target="$RUNNER_TEMP/qoro-financial-schema160"
+          mkdir "$target"
+          git archive HEAD | tar -xf - -C "$target"
+          test "$target" = "$RUNNER_TEMP/qoro-financial-schema160"
+          rm -r "$target/drizzle/migrations"
+          cp -R dist/abacatepay-tiss-release-158-4d0ed1d5/drizzle/migrations "$target/drizzle/"
+          ln -s "$GITHUB_WORKSPACE/node_modules" "$target/node_modules"
+          unset QORO_TISS_REF QORO_TISS_WORKTREE
+          (
+            cd "$target"
+            node --conditions=react-server --import tsx scripts/security/abacatepay-renewal-db.ts
+            node --conditions=react-server --import tsx scripts/security/signup-free-trial-db.ts --shared-schema
+            node --conditions=react-server --import tsx scripts/security/legacy-cancellation-db.ts candidate-160
+          )
+          cp "$target/dist/abacatepay-renewal-db.json" dist/renewal-qualification/renewal-schema160.json
+          cp "$target/dist/signup-free-trial-db.json" dist/renewal-qualification/trial-schema160.json
+          cp "$target/dist/cancellation-candidate-160.json" dist/renewal-qualification/
+          cp dist/abacatepay-tiss-composition.json dist/renewal-qualification/schema-composition.json
       - name: Preserve synthetic evidence only
         if: always()
         uses: actions/upload-artifact@v4
