@@ -1,4 +1,4 @@
-# Prompt de continuidade — Qoro, frente "Otimização UI final" (estado de 18/11/2026, ciclo 5: checkout no desenho aprovado)
+# Prompt de continuidade — Qoro, frente "Otimização UI final" (estado de 19/11/2026, ciclo 6: P-28 corrigido, e2e oficial e sidebar)
 
 > Cole este texto, inteiro, numa sessão nova de IA com acesso ao repositório e à máquina do
 > fundador. Ele foi escrito para que quem o leia continue exatamente do ponto em que a frente parou.
@@ -23,7 +23,7 @@ código ficam como estão. O fundador é quem decide política, merge e Producti
 
 ## 2. Leia nesta ordem antes de qualquer ação
 1. `docs/otimização_ui_final.md`:
-   - bloco **ESTADO ATUAL DA EXECUÇÃO** (o item "CICLO 5 (18/11/2026)" primeiro);
+   - bloco **ESTADO ATUAL DA EXECUÇÃO** (o item "CICLO 6 (18–19/11/2026)" primeiro, depois o 5);
    - seção **00**: 00.1 ordem de leitura, 00.2 onde o trabalho vive, 00.3 ambiente local, 00.4 regras
      invioláveis, 00.5 segurança do ambiente;
    - seções **25.7, 25.9, 25.10 e 25.11**: regressão do Caixa, ciclo 3, sondas no Preview e a
@@ -57,9 +57,24 @@ código ficam como estão. O fundador é quem decide política, merge e Producti
    - evidências em `.tmp/ui-audit/evidence/2026-11-1{4,5,7}/`; o log da CI fica em `.tmp/ci/`.
 
 ## 3. Estado exato em que parou
-- **Código:** igual ao `8cc52dad` (checkout no desenho aprovado, `66991037`; P-24 e P-26, `2665aa7d`), sobre o `d91c439f`. Depois dele, só documento.
+- **Código:** igual ao `d9770192`. Ciclo 6:
+  - `6e157eaa`: P-28 (confirmação administrativa antes da prova de recovery);
+  - `46b7a689`: primeira mensalidade pela regra do servidor, estados "processando" e "recusado";
+  - `58e0e6a5` e `d9770192`: respiro da sidebar e contorno da série muted (P-26).
+
+  Sobre o ciclo 5 (`8cc52dad`). Depois disso, só documento.
+- **Ferramentas do ciclo 6** (`.tmp/`, fora do Git):
+  - `ui-audit/ui-fixture.ts create|cleanup`: conta sintética de UI no DEV, que substitui a `2E2_UI`;
+  - `ui-audit/sidebar-rhythm.ts`: ritmo da sidebar em 11 viewports;
+  - `e2e-diag/`: cópia diagnóstica do spec do cadastro;
+  - `harness-charts/`: gráficos nos dois temas;
+  - `ui-audit/run-signup-*.ts`: testes oficiais isolados, porque o spec é serial e para na primeira falha.
 - **Ciclo 5 (18/11):** a referência é a prancha "Cadastro · 3. Checkout" do artefato do Claude Design (seção 25.12). Ferramentas em `.tmp/` (fora do Git): `harness/` (bancada com o componente e o CSS reais: `node .tmp/harness/build.mjs` e `npx tsx .tmp/harness/shot.ts <rótulo> <cenários>`), `e2e-visual/` (cópia local do `@code-flow` com capturas) e `ui-audit/run-signup-code-flow.ts` (e2e oficial com as travas do runner; lê só os `*_DEV` do checkout principal, como o fundador autorizou em 18/11).
-- **Bloqueios novos:** P-27 (senha da conta `2E2_UI` trocada; sondas logadas paradas) e P-28 (conta do cadastro com código não entra por senha no Preview do #56).
+- **Em aberto (ciclo 6):**
+  - P-29: fluxos de confirmação pelo link falham desde antes do ciclo; dono do cadastro;
+  - P-27: restaurar a `2E2_UI` exige coordenação com o #53;
+  - checkout incorporado: decisão do fundador (seção 32);
+  - P-28: levar a correção ao #53 e à `main`.
 - **Commits do ciclo 4** (todos no PR #56; detalhes no bloco de estado e na seção 27):
   - `c9098ad8`: A-02, descrição nas 8 gavetas e diálogos;
   - `8f73258a`: P-19, chave do Caixa sobrevive ao reload da aba;

@@ -12,7 +12,46 @@
 
 ## ESTADO ATUAL DA EXECUÇÃO
 
-- **CICLO 5 (18/11/2026) — CHECKOUT NO DESENHO APROVADO. LEIA PRIMEIRO.** Pedido do fundador:
+- **CICLO 6 (18–19/11/2026) — P-28 CORRIGIDO, E2E OFICIAL VERDE, SIDEBAR. LEIA PRIMEIRO.**
+  - **P-28 (causa raiz comprovada):** o Supabase Auth passou a apagar a senha de um usuário **ainda
+    não confirmado** quando um token de recovery ou magic link é verificado. A função
+    `recoverVerify` chama `ClearUnconfirmedPassword`, com o comentário: "a password set before the
+    email was confirmed may belong to someone who doesn't own the email". O cadastro por código
+    criava o usuário com a senha inicial, sem confirmar, e confirmava pela prova de recovery; a
+    senha sumia.
+
+    Reprodução no Preview: a impressão do hash (`md5(encrypted_password)`) era bcrypt de 60
+    caracteres antes do código e **vazia** logo depois da verificação. A correção (`6e157eaa`)
+    confirma o e-mail pela API administrativa antes da prova, só quando o código desta reserva é
+    válido e a senha inicial foi definida por esta mesma sessão (`initial_password_ref` =
+    `signupRef`). A confirmação administrativa não toca a senha. Sem senha desta sessão, a
+    proteção do Auth continua valendo. Foram 4 testes novos, com checagem de mutação.
+
+    **`@code-flow` oficial, sem nenhuma alteração no spec: PASS** (Preview `6e157eaa`, 57,7 s).
+    **Afeta também o #53 e a `main`/Production** quando a mesma versão do Auth chegar lá: o arquivo
+    é o mesmo e a correção entra limpa (handoff na seção 32).
+  - **P-27:** a conta `2E2_UI` também está com o hash de senha vazio (tocada em 18/11 23:18 UTC
+    por um fluxo de recuperação ou código), o mesmo mecanismo. Não foi redefinida. As sondas
+    logadas passaram a usar uma conta sintética própria (`.tmp/ui-audit/ui-fixture.ts`: usuário
+    confirmado pela Admin API, clínica, assinatura Pro e perfil `owner`, com limpeza e readback).
+  - **Checkout (comercial):** o painel "Hoje / Primeira mensalidade" segue a regra do servidor
+    (`resolveSignupTrialTerms`), com teste de paridade. Se a avaliação já terminou, mostra a
+    cobrança de hoje. Na prancha, os estados "processando" (abertura do pagamento seguro) e
+    "recusado" (402) existem de verdade (`46b7a689`).
+  - **AbacatePay (#53), limite do provedor:** assinatura com cartão
+    (`/v2/subscriptions/create`) devolve uma `url` hospedada; o cartão é digitado lá. O campo
+    seguro incorporável (`abacatepay.js`, token no navegador) existe só no checkout transparente
+    (`/transparents/create`), para cobrança avulsa ou "one click" por `cardToken`, e **não está
+    documentado para assinatura**. Os campos de cartão da prancha dependem de uma decisão do
+    fundador (seção 32).
+  - **Sidebar** (`58e0e6a5`, `d9770192`): mais respiro e hierarquia com 4 tokens de ritmo. A
+    1440×900 cabe sem rolar; abaixo de 800 px a lista rola, com o destino atual à vista. Medidas
+    antes e depois na seção 25.13.
+  - **E2E oficial do cadastro:** `@code-flow`, `@code-checkout` (sandbox do Asaas), recuperação e
+    cadastro expirado PASS. Os fluxos de confirmação pelo link falham desde antes deste ciclo
+    (P-29). Resíduo no DEV: 0.
+
+- **CICLO 5 (18/11/2026) — CHECKOUT NO DESENHO APROVADO.** Pedido do fundador:
   o checkout do cadastro deve reproduzir a prancha do Claude Design, mantendo a lógica financeira.
   Production segue NO-GO; o PR #56 continua em draft.
   - **Artefato:** acessado pela ferramenta de artefatos (é público e de fora da organização, então
@@ -2143,6 +2182,106 @@ Nenhum componente de cliente do shell decide estrutura pelo relógio: pin e movi
 fora do Dashboard: `consultorio-board.tsx:94` e `prontuario-editor.tsx:75` (`useState(() =>
 Date.now())`) e `attending-panel.tsx:30`. **Estado: PARTIAL**, sem supressão.
 
+### 25.13 Ciclo 6 — P-28, e2e oficial, sidebar e P-26 (18–19/11/2026)
+
+**P-28, reprodução e prova.** Uma cópia diagnóstica do e2e (`.tmp/e2e-diag/`, fora do Git) manteve
+a sonda oficial e registrou o password grant e o estado do usuário no Auth, este lido pela Admin API
+e pelo banco DEV em transação somente leitura:
+
+| Momento | Password grant | Hash da senha |
+| --- | --- | --- |
+| Antes do código | `email_not_confirmed` (a senha bate) | bcrypt, 60 caracteres |
+| Logo depois da verificação | `invalid_credentials` | **vazio** |
+| Em `/cadastro/plano` | `invalid_credentials` | vazio |
+
+O log de auditoria do Auth no DEV está desligado (0 linhas). A causa está no código-fonte do serviço
+(`supabase/auth`, `internal/api/verify.go`). Já a confirmação administrativa (`admin.go`,
+`email_confirm`) só chama `user.Confirm`, sem tocar na senha.
+
+**E2E oficial `@code-flow`** (spec intacto, com as duas sondas de senha): **1 passed** no Preview
+`6e157eaa`.
+
+**Sidebar, antes e depois** (`sidebar-rhythm.ts`, conta sintética, mesma rota `/agenda`). **Antes**
+(Preview `6e157eaa`):
+
+| Viewport | Item | Folga entre itens | Entre grupos | Rodapé → conta | Títulos |
+| --- | --- | --- | --- | --- | --- |
+| 1440×900 / 1920×1080 | 40 px | 2 px | 30 px | 6 px | sim |
+| 1366×768 / 1024×768 | 32 px | 2 px | 24 px | 6 px | sim |
+| 1280×720 | 32 px | 2 px | 15 px | 6 px | escondidos |
+| Gaveta 320–390 | 44 px | 2 px | 30 px | 6 px | sim |
+
+Problemas: o título do grupo ficava mais perto do grupo de cima que dos próprios itens; a marca
+ficava colada no primeiro título; o rodapé e a conta não tinham separação; os itens eram espremidos
+em notebook.
+
+**Depois** (Preview `58e0e6a5`):
+
+| Viewport | Item | Folga entre itens | Entre grupos | Rodapé → conta | Lista rola? |
+| --- | --- | --- | --- | --- | --- |
+| 1920×1080 | 40 px | 4 px | 48 px | 14 px | não |
+| 1440×900 | 36 px | 4 px | 42 px | 14 px | não (folga de 20 px) |
+| 768×1024 | 40 px | 4 px | 48 px | 14 px | não |
+| 1366×768 · 1280×720 · 1024×768 | 36 px | 4 px | 38 px | 10 px | sim: títulos visíveis, destino atual rolado para a vista, esmaecido no fim |
+| Gaveta 390 · 375 · 320 | 44 px | 4 px | 48 px | 14 px | não |
+
+Outras medidas: ícone → texto passou de 9 para 11 px; título → primeiro item 8 px, com cerca de 20 px de
+respiro acima; marca → primeiro item de 38 para 50 px. A largura não mudou (44 px recolhido, 188 px
+aberto). Nenhum erro de página.
+
+Na primeira versão (`58e0e6a5`), a lista **rolava em 1440×900**. Isso foi corrigido no `d9770192`: o
+degrau de 36 px passou a valer até 960 px de altura, e as ações do rodapé ficaram 4 px mais baixas,
+só com mouse.
+
+Fotos em `evidence/2026-11-18/sidebar-antes/`, `sidebar-depois/` e `sidebar-depois2/`.
+
+**Varredura logada** (Preview `d9770192`, conta sintética): 190 medições em 38 rotas (a ficha do
+paciente não entrou, porque a clínica sintética não tem paciente). 0 rolagem lateral, 0 erro de
+página e nenhum #418. 5 "sem nome" no `/dashboard`: são falsos positivos, os links e o botão do
+checklist de primeiros passos dentro de um `<details>` fechado (conteúdo não renderizado nem
+focável; aberto, os links têm o título do passo e o botão "Não mostrar mais"). Os alvos pequenos
+restantes são os da triagem de 25.11 com PASS; o "Entrar" do P-24 saiu da lista.
+
+**Spec oficial do cadastro** (`e2e/signup-confirmation.spec.ts`, sem alteração; Preview `d9770192`,
+salvo indicação):
+
+| Teste | Resultado |
+| --- | --- |
+| `@code-flow` | PASS, também no `6e157eaa` |
+| `@recovery-flow`, missing e retained | PASS |
+| `/cadastro/confirmado` não afirma confirmação sem sessão | PASS |
+| `@code-checkout`: o checkout recorrente abre no **sandbox** do Asaas pela tela nova | PASS |
+| Cadastro expirado retoma a mesma conta | PASS |
+| O link confirma no telefone (P-29) | FAIL, também no `afaaf5cb` |
+| O destinatário confirma e cria a senha no telefone (P-29) | FAIL, mesmo sintoma |
+| O código do link vivo recupera o segundo draft (P-29) | FAIL, mesmo sintoma |
+| Conta legada não confirmada (P-29) | FAIL ("o callback sobrescreveu a senha legada"), também no `afaaf5cb` |
+| Reenvio entrega um link novo | só a checagem de limpeza do `afterAll` acusou a fixture local; a limpeza do próprio spec na execução seguinte removeu tudo |
+| Fluxos de oferta com pagamento manual (`@prepare`, `@inspect`, `@retire`, `@verify`) | não executados: exigem flags e pagamento manual no sandbox |
+
+Resíduo no DEV ao fim: 0 contas e 0 rascunhos abertos do cadastro; a conta sintética de UI foi
+removida (0 clínicas e 0 usuários com o prefixo).
+
+Todas as falhas do P-29 são de fluxos que confirmam pelo **link**, aplicando a prova de recovery
+numa conta ainda não confirmada. A causa provável é a mesma mudança do Auth do P-28, mas não foi
+comprovada. Corrigir esses fluxos é decisão de produto e de segurança do cadastro, por exemplo se a
+senha legada deve sobreviver a uma confirmação por link, o que o Supabase passou a considerar
+inseguro. Fica com o dono do cadastro.
+
+**Checkout final no Preview** (`evidence/2026-11-18/checkout/preview-ciclo6/`): 7 larguras sem
+rolagem lateral, "Hoje R$ 0,00 · 14 dias grátis" e "Primeira mensalidade 04/12/2026", com o rodapé
+coerente. 1 passed.
+
+**P-26, validação visual.** Bancada com os componentes reais nos temas claro e escuro
+(`evidence/2026-11-18/p26-depois/`). A 4ª fatia da pilha (`border-strong`) mede 3,30:1 no claro e
+3,86:1 no escuro, acima do mínimo de 3:1 para elementos gráficos. O ponto e a barra "muted" tinham
+1,07:1, quase invisíveis, e ganharam contorno `border-strong`. Achados:
+- `BarChart` e `StackedBar` **não são usados por nenhuma tela hoje**;
+- o único uso real do P-26 numa tela é o indicador do `admin/config`, que exige super admin. Não
+  criei um super admin sintético no DEV compartilhado, porque ele enxerga todas as clínicas;
+- as 2ª e 3ª fatias da pilha medem 2,29:1 no escuro. A legenda traz rótulo e valor em texto, então
+  não é bloqueio; fica registrado como resíduo.
+
 ## 26. Riscos e decisões
 
 | ID | Decisão | Motivo | Alternativa descartada |
@@ -2204,6 +2343,9 @@ Date.now())`) e `attending-panel.tsx:30`. **Estado: PARTIAL**, sem supressão.
 | 18/11/2026 | Checkout no desenho aprovado | Artefato lido pela fonte; referência renderizada; checkout reestruturado (pagamento à esquerda, resumo com família, médicos, linhas e Hoje); e2e de cadastro atualizado para a tela nova | cadastro 175/175, afetadas 533/533, mutação; bancada 28 medições; Preview 1 passed | `66991037`, `8cc52dad`; 25.12 |
 | 18/11/2026 | P-24, P-26 | "Entrar" do cadastro com 44 px; escala neutra fixa trocada por tokens com tema escuro (gráficos, admin); contratos estáticos | contratos 8/8; Preview 60 × 44 nas 5 larguras | `2665aa7d` |
 | 18/11/2026 | P-23 (Sentry 7730223576), P-27, P-28 | Mecanismo do `$RS` comprovado; observador de DOM; conta `2E2_UI` com senha trocada; senha de conta do cadastro com código recusada no Preview do #56 | — | 25.12 |
+| 18–19/11/2026 | P-28 | Causa raiz comprovada no Auth (`ClearUnconfirmedPassword` na prova de recovery); confirmação administrativa antes da prova só para a senha da mesma sessão; `@code-flow` oficial verde | email-code 28/28 (mutação reprova 7); onboarding e cadastro 1108/1108 | `6e157eaa`; 25.13 |
+| 19/11/2026 | Checkout comercial e estados | Primeira mensalidade pela regra do servidor (paridade); "processando" e "recusado" | cadastro 182/182 | `46b7a689` |
+| 19/11/2026 | Sidebar, P-26 | 4 tokens de ritmo; telas baixas sem espremer; rodapé separado; contorno da série muted | contratos 9/9; UI 108/108 | `58e0e6a5`; 25.13 |
 
 ## 28. Pendências e bloqueios
 
@@ -2241,6 +2383,10 @@ Date.now())`) e `attending-panel.tsx:30`. **Estado: PARTIAL**, sem supressão.
 | P-26 (status 18/11) | Corrigido em código (`2665aa7d`): `bg-neutral-300/400` (escala fixa, sem tema escuro) → `bg-border-strong` e `bg-surface-inset` + contorno; contrato estático. **Revalidação visual no Preview pendente:** gráficos do Dashboard e Relatórios exigem login (P-27); `admin/config` exige super admin. PARTIAL | design system | esta frente |
 | P-27 | A senha da conta compartilhada `2E2_UI` foi trocada por algum fluxo entre 17/11 18h04 e 18/11 02h: o Auth DEV recusa (`invalid_credentials`) a senha dos `.env.local`. Bloqueia as sondas logadas desta frente. Não redefinida por esta frente (conta compartilhada com o #53) | ambiente | fundador / #53 |
 | P-28 | No Preview do #56, conta criada pelo cadastro com código **não entra por senha** logo depois da confirmação (`@code-flow`, sonda "senha inicial preservada"). As contas criadas pela Admin API entram (TISS). Achado de backend do cadastro em relação ao DEV compartilhado, anterior à tela de plano | cadastro | fundador / dono do cadastro (#53) |
+| P-28 (status 19/11) | **PASS:** causa raiz no Auth, corrigida (`6e157eaa`); `@code-flow` oficial verde sem alterar o spec. **O #53 e a `main` têm o mesmo defeito**, porque o arquivo é idêntico; o handoff está na seção 32 | cadastro | dono do cadastro (#53/main) |
+| P-27 (status 19/11) | Mecanismo identificado: a conta `2E2_UI` está com o hash vazio (recovery ou código em 18/11 23:18 UTC). Não foi redefinida. A conta sintética de UI substitui a compartilhada nas sondas. Restaurar a `2E2_UI` exige coordenação com o #53 (redefinir a senha pela Admin API e atualizar os `.env.local`) | ambiente | fundador / #53 |
+| P-29 | No spec oficial do cadastro, **"o link confirma no telefone, mas só o código libera a aba original"** falha: depois da confirmação pelo link no telefone, a aba original pede de novo o e-mail ("E-mail usado no cadastro"), e o teste espera que não peça. **Anterior a este ciclo**: reproduz igual no Preview `afaaf5cb`, antes da correção do P-28. A lógica das credenciais da aba (`continuationCredentials`) é idêntica à da `main`. A hipótese é a mesma mudança do Auth (prova de recovery numa conta não confirmada), não comprovada. Como o spec é serial, os testes seguintes foram rodados à parte (25.13) | cadastro | dono do cadastro (#53/main) |
+| P-26 (status 19/11) | Bancada nos dois temas: tokens com ≥ 3:1. Os gráficos não são usados por telas; o `admin/config` exige super admin, que não foi criado por política. PARTIAL só nesse ponto | design system | conta autorizada de super admin |
 | P-25 (status 18/11) | Sem versão corrigida (`picomatch` 4.0.7; advisory sem `first_patched_version`); a exceção temporária continua | CI / segurança | — |
 | P-25 (status 17/11) | **Exceção temporária aplicada** (`8d328fec` = `7e74f0cb` do #55, aprovada pelo fundador): só a GHSA-fc5q-39xc-vjpf. **Remover** assim que sair o `picomatch` corrigido, fixando a versão nova em `overrides` (como no `sharp`), nos dois PRs | CI / segurança | quem vir a versão corrigida primeiro |
 | P-25 | **Gate de auditoria da CI reprova em toda branch:** GHSA-fc5q-39xc-vjpf (`picomatch` ≤ 4.0.7, alta), atualizada em 17/11 15:56 UTC, sem versão corrigida. Caminho: `@sentry/nextjs` → `@rollup/plugin-commonjs` (e `fdir`, `@rollup/pluginutils`). Uso real: só no `config/loaders/wrappingLoader.js` do Sentry, loader de **build** com `ignore()` fixo e sem padrão vindo de usuário, então não há ReDoS alcançável em execução. Opções: (a) esperar a correção upstream e rodar a CI de novo; (b) exceção temporária e datada (`auditConfig.ignoreGhsas` no `pnpm-workspace.yaml`), o que muda a política V14 e exige decisão; (c) override não resolve, porque não há versão boa | CI / segurança | fundador |
@@ -2392,6 +2538,20 @@ checkout, entitlements, webhooks) não foram alterados.
   billing e migration ainda não aprovados. Ordem segura: #53 → `main`; a UI rebaseia (os 3 commits
   saem por já estarem na `main`); depois o #55 rebaseia sobre a UI.
 - **Ciclo 4 (17/11): UI `82f98aab` × #53 `75b41401` = 7 conflitos.** São o `acoes.md` (regenerar) e as telas de plano e de cadastro: `cadastro/plano/page.tsx` (18 linhas), `plan-selection-form.tsx` (25), o teste dele (5) e `signup-frame.tsx` (46), `.module.css` (6) e o teste (15). A base v5 e o #53 partiram dos mesmos arquivos e divergiram em detalhe. Regra de resolução: prevalece a lógica do #53 (planos, preços, trial, checkout, textos de estado); da UI fica só o visual que não muda comportamento. Testar no Preview depois.
+- **Ciclo 6 (19/11):**
+  - **P-28 para o #53 e a `main`:** aplicar o bloco de `signup-email-code.ts` do `6e157eaa`
+    (confirmação administrativa antes da prova de recovery, só com `hasInitialSignupPassword`) e os
+    4 testes. Sem isso, o cadastro por código com senha inicial perde a senha assim que o Auth
+    aplicar `ClearUnconfirmedPassword`, o que já acontece no DEV.
+  - **Checkout incorporado:** a prancha desenha os campos de cartão dentro do Qoro. Na AbacatePay,
+    o campo seguro incorporável (`abacatepay.js`) só existe para o checkout transparente de cobrança
+    avulsa ou "one click"; assinatura com cartão usa a página hospedada. Há três caminhos, e a
+    decisão é do fundador:
+    1. manter a página hospedada e o resto da jornada no Qoro, que é o que está implementado;
+    2. perguntar à AbacatePay se o token do `abacatepay.js` pode criar uma assinatura;
+    3. fazer a recorrência no Qoro com `cardToken`, o que muda a arquitetura do #53.
+  - Conflitos com as heads de 19/11: 9 arquivos com o TISS (`1d2b7b07`) e 8 com o #53 (`9394f773`),
+    os mesmos de antes.
 - **Ciclo 5 (18/11), checkout:** UI `2665aa7d` × #53 `bd776c15` = **8 arquivos**: os 7 de antes mais o
   `plano.module.css`, um conflito trivial de fim de arquivo (os dois lados acrescentaram as mesmas 31
   linhas; a UI tem mais depois delas), que se resolve ficando com a versão da UI. Para o
