@@ -134,6 +134,11 @@ jobs:
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55562           NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-series-authorization-db.ts
 
+      - name: Credenciais da operadora e leitura só para o envio SOAP (P2.5, P6.5, P12.5)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55563           NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-insurer-credentials-db.ts
+
       # Cada prova roda mesmo se a anterior falhar (evidência independente); o job falha se qualquer uma falhar.
       - name: SP/SADT — solicitação, automação e indicação clínica × D24
         if: ${{ !cancelled() }}

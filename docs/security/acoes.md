@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 279 actions (0 inline); 69 métodos em 65 handlers; 89 props com referência de action; 883 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
+Contagem: 279 actions (0 inline); 69 métodos em 65 handlers; 89 props com referência de action; 884 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -499,10 +499,10 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `src/components/shared/turnstile-widget.tsx:151`                             | `NEXT_PUBLIC_TURNSTILE_SITE_KEY_DEV`   | `process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY_DEV`                            |
 | `src/components/shared/turnstile-widget.tsx:152`                             | `NEXT_PUBLIC_TURNSTILE_SITE_KEY`       | `process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY`                                |
 | `src/contexts/health-insurance/actions.ts:973`                               | `VERCEL_GIT_COMMIT_SHA`                | `process.env.VERCEL_GIT_COMMIT_SHA`                                         |
-| `src/contexts/health-insurance/tiss/xml/xsd-engine.ts:185`                   | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
-| `src/contexts/health-insurance/tiss/xml/xsd-engine.ts:185`                   | `TISS_XMLLINT_WASM_DIR`                | `process.env.TISS_XMLLINT_WASM_DIR`                                         |
-| `src/contexts/health-insurance/tiss/xml/xsd-engine.ts:186`                   | `TISS_XMLLINT_WASM_DIR`                | `process.env.TISS_XMLLINT_WASM_DIR`                                         |
-| `src/contexts/health-insurance/tiss/xml/xsd-engine.ts:497`                   | `TISS_XSD_POOL`                        | `process.env.TISS_XSD_POOL`                                                 |
+| `src/contexts/health-insurance/tiss/xml/xsd-engine.ts:195`                   | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
+| `src/contexts/health-insurance/tiss/xml/xsd-engine.ts:195`                   | `TISS_XMLLINT_WASM_DIR`                | `process.env.TISS_XMLLINT_WASM_DIR`                                         |
+| `src/contexts/health-insurance/tiss/xml/xsd-engine.ts:196`                   | `TISS_XMLLINT_WASM_DIR`                | `process.env.TISS_XMLLINT_WASM_DIR`                                         |
+| `src/contexts/health-insurance/tiss/xml/xsd-engine.ts:508`                   | `TISS_XSD_POOL`                        | `process.env.TISS_XSD_POOL`                                                 |
 | `src/instrumentation-client.ts:9`                                            | `NEXT_PUBLIC_SENTRY_DSN`               | `process.env.NEXT_PUBLIC_SENTRY_DSN`                                        |
 | `src/instrumentation-client.ts:15`                                           | `NEXT_PUBLIC_VERCEL_ENV`               | `process.env.NEXT_PUBLIC_VERCEL_ENV`                                        |
 | `src/instrumentation-client.ts:15`                                           | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
@@ -897,14 +897,15 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/health-insurance-guide-service-db.ts:36`                   | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
 | `scripts/security/health-insurance-guide-service-db.ts:37`                   | `PORT`                                 | `process.env.PORT`                                                          |
 | `scripts/security/health-insurance-guides-db.ts:28`                          | `PORT`                                 | `process.env.PORT`                                                          |
-| `scripts/security/health-insurance-insurer-credentials-db.ts:16`             | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
-| `scripts/security/health-insurance-insurer-credentials-db.ts:17`             | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
-| `scripts/security/health-insurance-insurer-credentials-db.ts:18`             | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
-| `scripts/security/health-insurance-insurer-credentials-db.ts:19`             | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
-| `scripts/security/health-insurance-insurer-credentials-db.ts:20`             | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                                         |
-| `scripts/security/health-insurance-insurer-credentials-db.ts:21`             | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
-| `scripts/security/health-insurance-insurer-credentials-db.ts:22`             | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
-| `scripts/security/health-insurance-insurer-credentials-db.ts:23`             | `LOG_LEVEL`                            | `process.env.LOG_LEVEL`                                                     |
+| `scripts/security/health-insurance-insurer-credentials-db.ts:13`             | `PORT`                                 | `process.env.PORT`                                                          |
+| `scripts/security/health-insurance-insurer-credentials-db.ts:18`             | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
+| `scripts/security/health-insurance-insurer-credentials-db.ts:19`             | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
+| `scripts/security/health-insurance-insurer-credentials-db.ts:20`             | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
+| `scripts/security/health-insurance-insurer-credentials-db.ts:21`             | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
+| `scripts/security/health-insurance-insurer-credentials-db.ts:22`             | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                                         |
+| `scripts/security/health-insurance-insurer-credentials-db.ts:23`             | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
+| `scripts/security/health-insurance-insurer-credentials-db.ts:24`             | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
+| `scripts/security/health-insurance-insurer-credentials-db.ts:25`             | `LOG_LEVEL`                            | `process.env.LOG_LEVEL`                                                     |
 | `scripts/security/health-insurance-ledger-bridge-db.ts:25`                   | `PORT`                                 | `process.env.PORT`                                                          |
 | `scripts/security/health-insurance-ledger-bridge-db.ts:27`                   | `PORT`                                 | `process.env.PORT`                                                          |
 | `scripts/security/health-insurance-ledger-bridge-db.ts:28`                   | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |

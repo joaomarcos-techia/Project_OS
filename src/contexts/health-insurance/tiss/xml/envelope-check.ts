@@ -44,7 +44,12 @@ const escapeName = (name: string) => name.replace(/\./gu, '\\.');
 
 export function checkTissEnvelope(
   bytes: Uint8Array,
-  expected: { version: string; maxBytes: number },
+  expected: {
+    version: string;
+    maxBytes: number;
+    /** Raízes aceitas (padrão `mensagemTISS`; o webservice usa os elementos `*WS`, P6.5). */
+    roots?: readonly string[];
+  },
 ): EnvelopeProblem[] {
   if (bytes.length === 0) return [{ code: 'EMPTY', message: 'O arquivo XML está vazio.' }];
   if (bytes.length > expected.maxBytes) {
@@ -78,8 +83,10 @@ export function checkTissEnvelope(
   const root = ROOT.exec(text);
   const prefix = root?.[2] ? root[1]! : null;
   const local = root ? (root[2] ?? root[1]!) : null;
-  if (local !== 'mensagemTISS') {
-    return [{ code: 'ROOT_ELEMENT', message: 'O elemento raiz não é mensagemTISS.' }];
+  const roots = expected.roots ?? ['mensagemTISS'];
+  if (!local || !roots.includes(local)) {
+    const what = roots.length === 1 ? roots[0] : 'um elemento de mensagem do webservice TISS';
+    return [{ code: 'ROOT_ELEMENT', message: `O elemento raiz não é ${what}.` }];
   }
   const attrs = root?.[3] ?? '';
   const nsAttr = prefix ? `xmlns:${prefix}` : 'xmlns';
@@ -87,7 +94,7 @@ export function checkTissEnvelope(
   if (ns !== TISS_NAMESPACE) {
     problems.push({
       code: 'NAMESPACE',
-      message: `A raiz mensagemTISS não está no namespace oficial da ANS (${TISS_NAMESPACE}).`,
+      message: `A raiz ${local} não está no namespace oficial da ANS (${TISS_NAMESPACE}).`,
     });
   }
   const tag = prefix ? `${prefix}:Padrao` : 'Padrao';

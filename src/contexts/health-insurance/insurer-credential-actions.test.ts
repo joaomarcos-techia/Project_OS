@@ -173,7 +173,7 @@ describe('ações de credencial da operadora', () => {
 });
 
 describe('acesso à credencial cifrada (P12.5)', () => {
-  it('só o módulo de credenciais toca a coluna, e só para cifrar: nenhum código do app decifra', async () => {
+  it('só o módulo de credenciais cifra e só o adaptador SOAP decifra, na hora do envio (P6.5)', async () => {
     const { readdirSync, readFileSync, statSync } = await import('node:fs');
     const { join, relative, sep } = await import('node:path');
     const walk = (dir: string): string[] =>
@@ -187,9 +187,9 @@ describe('acesso à credencial cifrada (P12.5)', () => {
       .filter((f) => /secret_encrypted|secretEncrypted/u.test(readFileSync(f, 'utf8')))
       .map((f) => relative(root, f).split(sep).join('/'))
       .sort();
-    // Quando o adaptador homologado de uma operadora existir (P12.5/B5), ele entra aqui de
-    // propósito — e só ele decifra, na hora do envio.
+    // O adaptador SOAP (P6.5) entra aqui de propósito — e só ele decifra, na hora do envio.
     expect(touching).toEqual([
+      'src/contexts/health-insurance/internal/connectors/tiss-soap/credential.ts',
       'src/contexts/health-insurance/internal/insurer-credentials.ts',
       'src/contexts/health-insurance/schema-clinic.ts',
     ]);
@@ -198,5 +198,10 @@ describe('acesso à credencial cifrada (P12.5)', () => {
       'utf8',
     );
     expect(credentialsSource).not.toMatch(/decryptForTenant/u);
+    // Sem operadora homologada (B5), nenhum código do app chama a leitura em claro.
+    const callers = walk(join(root, 'src'))
+      .filter((f) => /tiss-soap\/credential['"]|readWebserviceCredentialForSendTx/u.test(readFileSync(f, 'utf8')))
+      .map((f) => relative(root, f).split(sep).join('/'));
+    expect(callers).toEqual(['src/contexts/health-insurance/internal/connectors/tiss-soap/credential.ts']);
   }, 60_000);
 });

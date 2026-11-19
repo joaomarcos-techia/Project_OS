@@ -56,6 +56,13 @@ export class XsdEngineError extends Error {
 export interface XsdEngineOptions {
   /** Pasta dos XSD com `MANIFEST.json` (padrão: a versionada no app). */
   schemaDir?: string;
+  /**
+   * XSD de entrada, entre os do MANIFEST (padrão: o `entrypoint` dele, `mensagemTISS`). O
+   * webservice (P6.5) usa `tissWebServicesV4_03_00.xsd`, com `rootElements` dos elementos `*WS`.
+   */
+  entrypoint?: string;
+  /** Raízes aceitas pelo envelope (padrão `mensagemTISS`). */
+  rootElements?: readonly string[];
   /** Pasta cujo `node_modules` tem o `xmllint-wasm` (padrão: a raiz do app). */
   packageDir?: string;
   /** Prazo de uma validação, incluindo a subida do worker (padrão 30 s). */
@@ -146,7 +153,7 @@ export function maskValues(message: string): string {
 }
 
 /** Lê e confere os XSD contra o MANIFEST.json (SHA-256 de cada arquivo). */
-export function loadSchemaSet(schemaDir: string): SchemaSet {
+export function loadSchemaSet(schemaDir: string, entrypoint?: string): SchemaSet {
   let manifest: { version?: string; entrypoint?: string; files?: Record<string, string> };
   try {
     manifest = JSON.parse(readFileSync(path.join(schemaDir, 'MANIFEST.json'), 'utf8')) as typeof manifest;
@@ -169,12 +176,15 @@ export function loadSchemaSet(schemaDir: string): SchemaSet {
     if (sha256(contents) !== expected) throw new XsdEngineError('integrity', `XSD ${fileName} não confere com o MANIFEST`);
     loaded.push({ fileName, contents });
   }
-  const entry = loaded.find((f) => f.fileName === manifest.entrypoint)!;
+  const entryName = entrypoint ?? manifest.entrypoint;
+  const entry = loaded.find((f) => f.fileName === entryName);
+  if (!entry) throw new XsdEngineError('integrity', 'XSD de entrada fora do MANIFEST');
   return {
     version: manifest.version,
     entry,
     preload: loaded.filter((f) => f !== entry),
-    sha256: sha256(files.map(([n, h]) => `${n}:${h}`).join('\n')),
+    // Com entrada trocada (webservice), o nome dela entra na identidade do conjunto validado.
+    sha256: sha256(files.map(([n, h]) => `${n}:${h}`).join('\n') + (entrypoint ? `\nentry:${entryName}` : '')),
   };
 }
 
@@ -485,7 +495,8 @@ class Semaphore {
  * não estiverem presentes e íntegros: sem motor, nenhum XML TISS sai do Qoro.
  */
 export function createTissXsdEngine(opts: XsdEngineOptions = {}): TissXsdEngine {
-  const schemas = loadSchemaSet(opts.schemaDir ?? path.join(process.cwd(), TISS_SCHEMA_DIR));
+  const schemas = loadSchemaSet(opts.schemaDir ?? path.join(process.cwd(), TISS_SCHEMA_DIR), opts.entrypoint);
+  const roots = opts.rootElements;
   const { workerPath, version, wasm } = resolveXmllint(opts.packageDir);
   const timeoutMs = opts.timeoutMs ?? 30_000;
   const maxXmlBytes = opts.maxXmlBytes ?? 16 * 1024 * 1024;
@@ -521,7 +532,7 @@ export function createTissXsdEngine(opts: XsdEngineOptions = {}): TissXsdEngine 
     poolStats: () => (poolReady ? poolReady.stats() : pooled ? { spawned: 0, jobs: 0, recycled: 0, discarded: 0, live: 0 } : null),
     async validate({ bytes }) {
       const started = performance.now();
-      const envelope = checkTissEnvelope(bytes, { version: schemas.version, maxBytes: maxXmlBytes });
+      const envelope = checkTissEnvelope(bytes, { version: schemas.version, maxBytes: maxXmlBytes, ...(roots ? { roots } : {}) });
       if (envelope.length > 0) {
         return {
           ...base,
@@ -568,7 +579,46 @@ export function createTissXsdEngine(opts: XsdEngineOptions = {}): TissXsdEngine 
   };
 }
 
+/** XSD de entrada das mensagens do webservice TISS 4.03.00 (P6.5). */
+export const TISS_WS_ENTRYPOINT = 'tissWebServicesV4_03_00.xsd';
+
+/** Elementos raiz do `tissWebServicesV4_03_00.xsd` (pedidos do prestador e respostas da operadora). */
+export const TISS_WS_ELEMENTS = [
+  'cancelaGuiaWS',
+  'reciboCancelaGuiaWS',
+  'comunicacaoBeneficiarioWS',
+  'reciboComunicacaoWS',
+  'loteGuiasWS',
+  'protocoloRecebimentoWS',
+  'loteRecursoGlosaWS',
+  'protocoloRecebimentoRecursoWS',
+  'solicitacaoDemonstrativoRetornoWS',
+  'demonstrativoRetornoWS',
+  'solicitacaoProcedimentoWS',
+  'autorizacaoProcedimentoWS',
+  'solicitacaoStatusAutorizacaoWS',
+  'situacaoAutorizacaoWS',
+  'solicitacaoStatusProtocoloWS',
+  'situacaoProtocoloWS',
+  'pedidoElegibilidadeWS',
+  'respostaElegibilidadeWS',
+  'loteAnexoWS',
+  'protocoloRecebimentoAnexoWS',
+  'solicitacaoStatusRecursoGlosaWS',
+  'situacaoProtocoloRecursoWS',
+  'envioDocumentoWS',
+  'reciboDocumentosWS',
+  'tissFaultWS',
+] as const;
+
 let shared: TissXsdEngine | null = null;
+let sharedWs: TissXsdEngine | null = null;
+
+/** Motor das mensagens do webservice (P6.5): mesmo pacote e mesmos XSD, outra entrada. */
+export function getTissWsXsdEngine(): TissXsdEngine {
+  sharedWs ??= createTissXsdEngine({ entrypoint: TISS_WS_ENTRYPOINT, rootElements: TISS_WS_ELEMENTS });
+  return sharedWs;
+}
 
 /**
  * Motor do app (um por processo, com fila compartilhada). Sucesso fica em cache; falha

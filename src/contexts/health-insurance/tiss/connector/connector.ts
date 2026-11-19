@@ -11,13 +11,29 @@
  * Nada de endpoint, credencial ou resposta de operadora é inventado neste arquivo.
  */
 
+/**
+ * Resposta da operadora, como chegou (P6.5): o elemento do webservice já conferido no XSD
+ * oficial e no hash, em ISO-8859-1. Pode ter dado de paciente: quem recebe guarda pelo caminho
+ * cifrado de sempre e nunca põe em log.
+ */
+export interface ConnectorReceipt {
+  /** Elemento de resposta do webservice (ex.: `protocoloRecebimentoWS`). */
+  element: string;
+  xml: Uint8Array;
+  sha256: string;
+}
+
 export type ConnectorOutcome =
   /** A operadora recebeu e devolveu um protocolo. */
-  | { kind: 'accepted'; protocol: string }
+  | { kind: 'accepted'; protocol: string; receipt?: ConnectorReceipt }
   /** A operadora recusou o conteúdo (motivo dela); repetir não adianta. */
-  | { kind: 'rejected'; code: string; message: string }
-  /** Falha de transporte ou tempo esgotado; pode ser repetido se o envio for idempotente. */
-  | { kind: 'unavailable'; reason: 'timeout' | 'network' | 'server_error' }
+  | { kind: 'rejected'; code: string; message: string; receipt?: ConnectorReceipt }
+  /**
+   * Falha de transporte, tempo esgotado ou resposta que não confere (`invalid_response`: fora do
+   * XSD, hash errado, de outra operadora). Só é repetido se o envio for idempotente: num envio que
+   * altera algo, a operadora pode ter recebido, e a tela manda conferir antes de reenviar.
+   */
+  | { kind: 'unavailable'; reason: 'timeout' | 'network' | 'server_error' | 'invalid_response' }
   /** O circuito desta operadora está aberto (falhas seguidas): nem tenta, espera esfriar. */
   | { kind: 'circuit_open'; retryAfterMs: number }
   /** Sem homologação/configuração: nenhum envio por webservice é possível. */
@@ -25,6 +41,8 @@ export type ConnectorOutcome =
 
 export interface ConnectorRequest {
   insurerId: string;
+  /** Operação do webservice (P6.5), quando o transporte atende mais de uma. */
+  operation?: string;
   /** XML `mensagemTISS` já validado no XSD oficial (o conector não monta nem altera conteúdo). */
   xml: Uint8Array;
   /** Mesmo valor nas repetições do MESMO envio (a operadora deduplica, quando suporta). */
@@ -34,6 +52,8 @@ export interface ConnectorRequest {
 export interface ConnectorTransport {
   /** O transporte declara se a operadora deduplica pelo identificador (só então há retentativa). */
   readonly idempotent: boolean;
+  /** Por pedido, quando o transporte mistura consultas (repetíveis) e envios (P6.5). */
+  isIdempotent?(request: ConnectorRequest): boolean;
   send(request: ConnectorRequest, signal: AbortSignal): Promise<ConnectorOutcome>;
 }
 
@@ -126,7 +146,8 @@ export function createConnector(options: ConnectorOptions): InsuranceConnector {
           retryAfterMs: options.circuit.cooldownMs - (now() - (st.openedAt ?? now())),
         };
       }
-      const maxAttempts = options.transport.idempotent && p === 'closed' ? 1 + options.retries : 1;
+      const idempotent = options.transport.isIdempotent?.(request) ?? options.transport.idempotent;
+      const maxAttempts = idempotent && p === 'closed' ? 1 + options.retries : 1;
       let outcome: ConnectorOutcome = { kind: 'unavailable', reason: 'network' };
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
         outcome = await once(request);

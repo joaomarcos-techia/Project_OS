@@ -1,14 +1,16 @@
 /**
  * P2.5 — credenciais da clínica na operadora, em Postgres DESCARTÁVEL com as migrations reais.
  * Sintético: nenhuma credencial real, nenhuma operadora real, nenhum envio.
+ * P6.5/P12.5 — prova 6: a leitura em claro para o envio (só o adaptador SOAP a usa).
  *
- *   NODE_OPTIONS=--conditions=react-server npx tsx scripts/security/health-insurance-insurer-credentials-db.ts
+ *   SECURITY_PG_BIN=... NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs" \
+ *     npx tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-insurer-credentials-db.ts
  */
 import assert from 'node:assert/strict';
 
 import { startScratchSchema } from './scratch-schema';
 
-const PORT = 55535;
+const PORT = Number(process.env.PORT ?? 55535);
 const cluster = await startScratchSchema({ port: PORT, maxConnections: 8 });
 const { sql } = cluster;
 if (!new RegExp(`@(?:127\\.0\\.0\\.1|localhost):${PORT}/`, 'u').test(cluster.url))
@@ -25,6 +27,9 @@ process.env.LOG_LEVEL = 'error';
 const { withTenant } = await import('../../src/lib/db/tenant');
 const { decryptForTenant } = await import('../../src/lib/crypto/encryption');
 const cred = await import('../../src/contexts/health-insurance/internal/insurer-credentials');
+const { readWebserviceCredentialForSendTx } = await import(
+  '../../src/contexts/health-insurance/internal/connectors/tiss-soap/credential'
+);
 const { loadHiFixtures } = await import('./hi-fixtures');
 const fx = await loadHiFixtures(sql, {
   store: { put: async () => {}, get: async () => new Uint8Array(), remove: async () => {} },
@@ -204,7 +209,43 @@ try {
     'revogar deixa a operadora sem credencial ativa (nada apagado); login sem usuário e segredo curto são recusados',
   );
 
-  console.log(`\n${passed}/5 provas das credenciais por operadora (P2.5) passaram.`);
+  // 6. Leitura em claro para o envio (P6.5): só a ativa do login, marca o uso, isolada por clínica.
+  const s3 = await as(A, (tx) =>
+    cred.saveInsurerCredentialTx(tx, {
+      clinicId: A.clinicId,
+      userId: A.doctorId,
+      insurerId: A.insurerId,
+      kind: 'webservice_login',
+      username: 'prestador02',
+      secret: SECRET,
+    }),
+  );
+  await as(A, (tx) =>
+    cred.saveInsurerCredentialTx(tx, {
+      clinicId: A.clinicId,
+      userId: A.doctorId,
+      insurerId: A.insurerId,
+      kind: 'certificate',
+      username: null,
+      secret: 'certificado-sintetico',
+    }),
+  );
+  const forSend = await as(A, (tx) => readWebserviceCredentialForSendTx(tx, A.clinicId, A.insurerId));
+  assert.deepEqual(forSend, { login: 'prestador02', password: SECRET });
+  const [used] =
+    await sql`select last_used_at is not null as used from public.hi_insurer_credentials where id = ${s3.credentialId}::uuid`;
+  assert.equal(used!.used, true);
+  assert.equal(await as(B, (tx) => readWebserviceCredentialForSendTx(tx, B.clinicId, A.insurerId)), null);
+  assert.equal(await as(B, (tx) => readWebserviceCredentialForSendTx(tx, A.clinicId, A.insurerId)).catch(() => null), null);
+  await as(A, (tx) =>
+    cred.revokeInsurerCredentialTx(tx, { clinicId: A.clinicId, insurerId: A.insurerId, credentialId: s3.credentialId }),
+  );
+  assert.equal(await as(A, (tx) => readWebserviceCredentialForSendTx(tx, A.clinicId, A.insurerId)), null);
+  pass(
+    'leitura para o envio (P6.5): só a credencial ativa de login decifra, marca o uso; outra clínica (RLS) e credencial revogada não devolvem nada',
+  );
+
+  console.log(`\n${passed}/6 provas das credenciais por operadora (P2.5, P6.5) passaram.`);
 } finally {
   await cluster.stop();
 }
