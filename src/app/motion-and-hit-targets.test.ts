@@ -120,4 +120,20 @@ describe('fundação de movimento e alvos de interação', () => {
       .filter((path) => /\bbg-neutral-[1-9]\d{1,2}\b/u.test(readFileSync(path, 'utf8')));
     expect(fixos).toEqual([]);
   });
+
+  // Sidebar (founder, 18/11/2026): mais respiro, sem itens espremidos em telas baixas.
+  it('mantém o ritmo da sidebar: folga entre itens, título perto do próprio grupo, itens ≥ 36 px', () => {
+    const px = (nome: string) => Number(css.match(new RegExp(`${nome}:\\s*(\\d+)px`, 'u'))?.[1]);
+    expect(px('--rail-item-gap')).toBeGreaterThanOrEqual(4);
+    expect(px('--rail-group-gap')).toBeGreaterThanOrEqual(12);
+    expect(px('--rail-top-gap')).toBeGreaterThanOrEqual(12);
+    // Título → primeiro item (padding do título + folga do grupo) menor que o espaço acima dele.
+    const titulo = css.match(/\.qoro-rail-heading \{[^}]*\}/u)?.[0] ?? '';
+    const abaixo = Number(titulo.match(/padding: 0 8px (\d+)px/u)?.[1]) + px('--rail-item-gap');
+    expect(abaixo).toBeLessThanOrEqual(8);
+    expect(abaixo).toBeLessThan(px('--rail-group-gap'));
+    const alturas = [...css.matchAll(/--rail-item-h:\s*(\d+)px/gu)].map((m) => Number(m[1]));
+    expect(Math.min(...alturas)).toBeGreaterThanOrEqual(36);
+    expect(css).toContain("[data-qoro-shell='tenant'] .qoro-rail-group + .qoro-rail-group {");
+  });
 });

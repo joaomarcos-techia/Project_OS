@@ -16,7 +16,9 @@ export type BarChartSeries = {
 
 const TONE_BAR = {
   primary: 'bg-primary',
-  muted: 'bg-surface-inset',
+  // P-26: o preenchimento suave sozinho tinha 1,07:1 contra o cartão (quase invisível, nos dois
+  // temas); o contorno `border-strong` dá ≥ 3:1 à forma (WCAG 1.4.11) sem pesar a série.
+  muted: 'bg-surface-inset ring-1 ring-inset ring-border-strong',
 } as const;
 
 const TONE_DOT = {
