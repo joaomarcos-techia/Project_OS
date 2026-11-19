@@ -523,7 +523,7 @@ export async function runAbacatePayOperationalProof<F extends Fixture>(d: Depend
             .split('\n')
             .find((value) => value.includes('qoro_operational_worker_result'));
           assert.ok(line);
-          return z
+          const observed = z
             .object({
               result: z.object({
                 scanned: z.number(),
@@ -531,8 +531,15 @@ export async function runAbacatePayOperationalProof<F extends Fixture>(d: Depend
                 review: z.number(),
                 deferred: z.boolean(),
               }),
+              failures: z.array(z.object({ code: z.string(), reason: z.string() })),
+              readStatuses: z.array(z.object({ path: z.string(), status: z.number().nullable() })),
             })
-            .parse(JSON.parse(line)).result;
+            .parse(JSON.parse(line));
+          return {
+            ...observed.result,
+            failures: observed.failures,
+            readStatuses: observed.readStatuses,
+          };
         };
         for (let tick = 0; ; tick++) {
           assert.ok(
@@ -689,6 +696,33 @@ export async function runAbacatePayOperationalProof<F extends Fixture>(d: Depend
           : 'dist/abacatepay-operational-http.json',
       JSON.stringify(report, null, 2) + '\n',
     );
+  } catch (error) {
+    const pendingStates = await d.sql`SELECT state,outcome_code,attempts,count(*)::int count
+      FROM billing_gateway.event_inbox GROUP BY state,outcome_code,attempts ORDER BY state,attempts`;
+    await writeFile(
+      'dist/abacatepay-pilot-failure.json',
+      JSON.stringify(
+        {
+          status: 'FAIL',
+          observedAt: new Date().toISOString(),
+          profile,
+          failure:
+            error instanceof assert.AssertionError
+              ? error.message.split('\n')[0]
+              : 'operational_error',
+          results,
+          scheduledTicks,
+          pendingStates,
+          providerStatuses,
+          receiverStatuses,
+          productionWrites: 0,
+          providerMutations: 0,
+        },
+        null,
+        2,
+      ),
+    );
+    throw error;
   } finally {
     if (interrupted) interrupted.kill();
     for (const child of tickWorkers) child.kill();

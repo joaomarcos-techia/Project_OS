@@ -68,21 +68,26 @@ jobs:
           node --conditions=react-server --import tsx scripts/security/abacatepay-renewal-db.ts
           cp dist/abacatepay-pilot-http.json dist/renewal-qualification/
       - name: Trial provisioning, verified payment and operational module gates
+        if: ${{ !cancelled() }}
         run: |
           export SECURITY_PG_BIN="$(pg_config --bindir)"
           node --conditions=react-server --import tsx scripts/security/signup-free-trial-db.ts
           cp dist/signup-free-trial-db.json dist/renewal-qualification/
       - name: Nine trial limits, payment release and permanent plan capacity
+        if: ${{ !cancelled() }}
         run: |
           export SECURITY_PG_BIN="$(pg_config --bindir)"
           node --conditions=react-server --import tsx scripts/security/trial-resource-limits.ts
           cp dist/trial-resource-limits.json dist/renewal-qualification/
       - name: Checkout concurrency, ambiguous responses and payment recovery
+        if: ${{ !cancelled() }}
         run: |
           export SECURITY_PG_BIN="$(pg_config --bindir)"
           node --conditions=react-server --import tsx scripts/security/abacatepay-checkout-recovery-db.ts
           cp dist/abacatepay-checkout-recovery-db.json dist/renewal-qualification/
       - name: Exact frozen 160-entry schema; no functional TISS code
+        id: composed
+        if: ${{ !cancelled() }}
         run: |
           export SECURITY_PG_BIN="$(pg_config --bindir)"
           export QORO_TISS_REF=4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269
@@ -108,6 +113,7 @@ jobs:
           cp "$target/dist/cancellation-candidate-160.json" dist/renewal-qualification/
           cp dist/abacatepay-tiss-composition.json dist/renewal-qualification/schema-composition.json
       - name: Build the exact exported financial source with the frozen composed schema
+        if: ${{ !cancelled() && steps.composed.outcome == 'success' }}
         run: |
           node --import tsx --input-type=module <<'NODE'
           import assert from 'node:assert/strict';
@@ -157,7 +163,7 @@ jobs:
             dist/renewal-qualification/*.json
             dist/abacatepay-renewal-db.json
             dist/abacatepay-operational*.json
-            dist/abacatepay-pilot-http.json
+            dist/abacatepay-pilot*.json
             dist/signup-free-trial-db.json
             dist/trial-resource-limits.json
             dist/abacatepay-checkout-recovery-db.json

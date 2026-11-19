@@ -55,7 +55,14 @@ if (eventId === '--tick') {
     `dist/abacatepay-pilot-worker-${process.pid}.json`,
     JSON.stringify({ result, reads, failures }),
   );
-  console.log(JSON.stringify({ kind: 'qoro_operational_worker_result', result }));
+  console.log(
+    JSON.stringify({
+      kind: 'qoro_operational_worker_result',
+      result,
+      failures,
+      readStatuses: reads.map(({ path, status }) => ({ path, status })),
+    }),
+  );
 } else {
   await reconcileAbacatePayInbox({ eventId });
 }
