@@ -118,9 +118,11 @@ export async function confirmSignupEmailCode(rawToken: string, input: unknown): 
       const confirmed = await admin.auth.admin.updateUserById(account.user.id, {
         email_confirm: true,
       });
+      // O admin confirma o endereço ATUAL da conta: ele precisa ser o mesmo que o código provou.
       if (
         confirmed.error ||
         confirmed.data.user?.id !== account.user.id ||
+        confirmed.data.user.email?.toLowerCase() !== parsed.data.email.toLowerCase() ||
         !confirmed.data.user.email_confirmed_at ||
         !hasInitialSignupPassword(confirmed.data.user, reservation.signupRef)
       ) {

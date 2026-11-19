@@ -317,6 +317,155 @@ describe('same-session signup code orchestration', () => {
   });
 });
 
+/**
+ * Revisão de segurança do P-28 (ciclo 7, 19/11/2026). A confirmação administrativa do e-mail é uma
+ * ação privilegiada: ela só pode acontecer depois do código válido DESTA reserva, para a conta
+ * cujo vínculo (escrito só pela Admin API) aponta para esta mesma sessão e cuja senha inicial foi
+ * criada por ela. Cada caso abaixo afirma que nenhum `email_confirm` foi pedido ao Auth.
+ */
+describe('P-28: a confirmação administrativa não serve a outra conta, sessão ou código', () => {
+  const confirmouPeloAdmin = () =>
+    m.update.mock.calls.some(([, attrs]) => (attrs as Record<string, unknown>).email_confirm);
+
+  it.each([
+    ['código de outra conta ou errado', 'invalid'],
+    ['código expirado', 'expired'],
+    ['código repetido depois de usado', 'conflict'],
+    ['tentativas esgotadas', 'locked'],
+    ['cadastro abandonado ou outra sessão', 'gone'],
+  ] as const)('%s: nenhuma ação privilegiada (%s)', async (_caso, reason) => {
+    m.reserve.mockResolvedValue({ ok: false, reason });
+    await expect(confirmSignupEmailCode(token, input)).resolves.toEqual({ ok: false, reason });
+    expect(confirmouPeloAdmin()).toBe(false);
+    expect(m.generate).not.toHaveBeenCalled();
+    expect(m.client).not.toHaveBeenCalled();
+  });
+
+  it('e-mail trocado entre a validação e a confirmação: falha fechado, sem prova nem sessão', async () => {
+    m.update.mockResolvedValueOnce({
+      error: null,
+      data: {
+        user: {
+          ...user(),
+          email: 'outra@example.test',
+          email_confirmed_at: '2026-11-19T12:00:00Z',
+        },
+      },
+    });
+    await expect(confirmSignupEmailCode(token, input)).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable',
+    });
+    expect(m.generate).not.toHaveBeenCalled();
+    expect(m.verify).not.toHaveBeenCalled();
+    expect(m.claim).not.toHaveBeenCalled();
+    expect(m.finish).toHaveBeenLastCalledWith(ref, 1000, 'uncertain');
+  });
+
+  it('duas sessões: a outra sessão viva bloqueia antes de qualquer ação privilegiada', async () => {
+    m.lookup.mockResolvedValue({
+      kind: 'found',
+      user: { ...user(), app_metadata: createPendingSignupAppMetadata('b'.repeat(64), true) },
+    });
+    m.liveness.mockResolvedValue('live');
+    await expect(confirmSignupEmailCode(token, input)).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable',
+    });
+    expect(confirmouPeloAdmin()).toBe(false);
+    expect(m.generate).not.toHaveBeenCalled();
+  });
+
+  it('cadastro abandonado: a senha da sessão antiga não é confirmada pelo admin (o Auth a apaga)', async () => {
+    m.lookup.mockResolvedValue({
+      kind: 'found',
+      user: { ...user(), app_metadata: createPendingSignupAppMetadata('b'.repeat(64), true) },
+    });
+    m.liveness.mockResolvedValue('gone');
+    await confirmSignupEmailCode(token, input);
+    expect(confirmouPeloAdmin()).toBe(false);
+    // A prova de recovery acontece sem a confirmação prévia: é ela que apaga a senha não confirmada.
+    expect(m.verify).toHaveBeenCalledOnce();
+  });
+
+  it('rebind preserva a referência antiga da senha: a sessão nova não herda a confiança', async () => {
+    const reatado = {
+      ...user(),
+      app_metadata: {
+        qoro_self_service_signup: {
+          version: 1,
+          kind: 'self_service',
+          signup_ref: ref,
+          password_state: 'pending',
+          initial_password_ref: 'b'.repeat(64),
+        },
+      },
+    };
+    m.lookup.mockResolvedValue({ kind: 'found', user: reatado });
+    await confirmSignupEmailCode(token, input);
+    expect(confirmouPeloAdmin()).toBe(false);
+  });
+
+  it('conta legada sem vínculo do cadastro: recusada antes de qualquer ação no Auth', async () => {
+    m.lookup.mockResolvedValue({ kind: 'found', user: { id, email, app_metadata: {} } });
+    await expect(confirmSignupEmailCode(token, input)).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable',
+    });
+    expect(m.update).not.toHaveBeenCalled();
+    expect(m.generate).not.toHaveBeenCalled();
+  });
+
+  it('usuário sem senha inicial: nenhuma confirmação administrativa', async () => {
+    m.lookup.mockResolvedValue({
+      kind: 'found',
+      user: { ...user(), app_metadata: createPendingSignupAppMetadata(ref) },
+    });
+    await confirmSignupEmailCode(token, input);
+    expect(confirmouPeloAdmin()).toBe(false);
+  });
+
+  it('identidade de terceiro já pronta em outra sessão: recusada sem ação privilegiada', async () => {
+    m.lookup.mockResolvedValue({
+      kind: 'found',
+      user: {
+        ...user(),
+        app_metadata: markSignupPasswordSet(
+          { app_metadata: createPendingSignupAppMetadata('b'.repeat(64), true) },
+          'b'.repeat(64),
+        ),
+      },
+    });
+    await expect(confirmSignupEmailCode(token, input)).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable',
+    });
+    expect(m.update).not.toHaveBeenCalled();
+    expect(m.generate).not.toHaveBeenCalled();
+  });
+
+  it('conta inexistente ou de clínica já ativa: nenhuma ação privilegiada', async () => {
+    m.lookup.mockResolvedValue({ kind: 'missing' });
+    await confirmSignupEmailCode(token, input);
+    expect(m.update).not.toHaveBeenCalled();
+    m.lookup.mockResolvedValue({ kind: 'found', user: user() });
+    m.profile.mockResolvedValue({ id });
+    await confirmSignupEmailCode(token, input);
+    expect(m.update).not.toHaveBeenCalled();
+  });
+
+  it('falha da confirmação administrativa não vaza e-mail, código nem token nos logs', async () => {
+    m.update.mockRejectedValueOnce(new Error(`${email} ${input.code} ${token}`));
+    await expect(confirmSignupEmailCode(token, input)).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable',
+    });
+    const logs = JSON.stringify(m.warn.mock.calls);
+    for (const segredo of [email, input.code, token]) expect(logs).not.toContain(segredo);
+    expect(m.generate).not.toHaveBeenCalled();
+  });
+});
+
 describe('continuation resolver', () => {
   it.each(['reserved', 'active', 'creation_unknown'])(
     'returns existing payment reconciliation for %s without creating checkout',
