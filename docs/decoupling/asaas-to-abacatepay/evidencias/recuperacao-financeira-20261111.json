@@ -1,5 +1,363 @@
 {
   "observedAt": "2026-11-11T13:51:12.859Z",
+  "renewalQualification20261119": {
+    "observedAt": "2026-11-19T03:25:14.730Z",
+    "authorization": "937c0c05-5ceb-4496-843d-f4351f2ccc77",
+    "scope": "New synthetic qualification, read-only Sandbox and Production; not GO C3",
+    "qualificationRun": 44449938820,
+    "source": {
+      "startedAt": "2026-11-19T03:14:19.785Z",
+      "sha": "379ca766fb782828757ca739c0e7d7de1748e4e1",
+      "applicationTree": "341a6bc940b5c0de288c00b54784f249856f14e5",
+      "migrationTree": "65fbff1698b6d82fd2d5ad26a08f003b02a71e23",
+      "node": "v22.23.4",
+      "pnpm": "11.17.0",
+      "environment": "disposable_loopback_synthetic",
+      "repositorySecretsProvided": false,
+      "sharedDatabaseWrites": 0,
+      "providerMutations": 0
+    },
+    "reports": [
+      {
+        "name": "renewal_143",
+        "status": "PASS",
+        "checks": 131,
+        "observedAt": "2026-11-19T03:14:41.507Z",
+        "migrations": 143,
+        "sha256": "347261e1df9939daf1a59638ea758b4eef0d57bfbf45af32f04bd9ebfbcd13d6"
+      },
+      {
+        "name": "operational_http_redis",
+        "status": "PASS",
+        "checks": 10,
+        "observedAt": "2026-11-19T03:21:09.068Z",
+        "migrations": null,
+        "sha256": "926b784d0b83f0e138c674557941ff0269758360fc604754900b6af6120c2dcf"
+      },
+      {
+        "name": "trial_143",
+        "status": "PASS",
+        "checks": 51,
+        "observedAt": "2026-11-19T03:21:14.470Z",
+        "migrations": 143,
+        "sha256": "b5a81aea93ee2c289189f29272c8a4196c80812354924785a51b5b9ed5460fce"
+      },
+      {
+        "name": "nine_trial_quotas",
+        "status": "PASS",
+        "checks": 45,
+        "observedAt": "2026-11-19T03:21:17.453Z",
+        "migrations": [
+          "0136_trial_resource_limits",
+          "0137_trial_service_role_privileges"
+        ],
+        "sha256": "ce4b180e7835b713ac468d0a74434d264f08ff0e4427e36376e64c7c5ad9f84f"
+      },
+      {
+        "name": "checkout_recovery",
+        "status": "PASS",
+        "checks": 29,
+        "observedAt": "2026-11-19T03:21:22.830Z",
+        "migrations": 143,
+        "sha256": "35e28e777b749273581e4d239b705d8f3c4d5a07140155edd1a8b031d8bb184d"
+      },
+      {
+        "name": "renewal_transition_159_to_160",
+        "status": "PASS",
+        "checks": 131,
+        "observedAt": "2026-11-19T03:21:38.712Z",
+        "migrations": 143,
+        "sha256": "0c5a95c7deb7df7261ccff7011d865eb30d8e8734e8b3fdb0a7cf3d3c52db8fd"
+      },
+      {
+        "name": "trial_160",
+        "status": "PASS",
+        "checks": 52,
+        "observedAt": "2026-11-19T03:21:45.051Z",
+        "migrations": 160,
+        "sha256": "5642f695060fe71766e0f4eb1b3e167ce4aec0fd4da5d6210a759157061940a3"
+      },
+      {
+        "name": "cancellation_160",
+        "status": "PASS",
+        "checks": 10,
+        "observedAt": "2026-11-19T03:21:48.639Z",
+        "migrations": 160,
+        "sha256": "3b3bdd67887985cb00de57933097ae3398dc8f449d1ad21a70a78128d6755963"
+      },
+      {
+        "name": "exact_export_build_160",
+        "status": "PASS",
+        "checks": null,
+        "observedAt": "2026-11-19T03:24:18.171Z",
+        "migrations": null,
+        "sha256": "0cc6cadfb0e2e654e95a21bed375b5d339b7122f9cb588f0b973de852e3bb04e"
+      }
+    ],
+    "schema": {
+      "financialJournal": 143,
+      "immutablePrefix": 159,
+      "candidateDdlAppliedInScratch": 1,
+      "finalComposedEntries": 160,
+      "functionalTissImported": false
+    },
+    "build": {
+      "status": "PASS",
+      "sha": "379ca766fb782828757ca739c0e7d7de1748e4e1",
+      "startedAt": "2026-11-19T03:21:49.443Z",
+      "finishedAt": "2026-11-19T03:24:18.171Z",
+      "exitCode": 0,
+      "scope": "Exact current financial source exported by git archive plus frozen 160-entry SQL composition; not a build of the historical C2 TAR",
+      "sourceFiles": 1668,
+      "sourceManifestSha256": "b6ade76481f7caab19f7440847723ad3f5627420e73b1c7dc38726a2a82b395c",
+      "memoryBefore": {
+        "freeBytes": 6889865216,
+        "totalBytes": 8154005504,
+        "buildHeapMiB": 4096
+      },
+      "sqlCount": 160,
+      "lastMigration": "0159_saas_period_snapshot",
+      "build": "next build",
+      "transformedApplicationSources": false,
+      "syntheticEnvironmentOnly": true,
+      "productionWrites": 0,
+      "deploys": 0
+    },
+    "paidSandbox": {
+      "observedAt": "2026-11-19T03:03:40.848Z",
+      "checkoutStatus": "PAID",
+      "amountMinor": 39700,
+      "subscriptions": [
+        {
+          "status": "ACTIVE",
+          "devMode": true,
+          "amount": 39700,
+          "currentPeriodStart": "2026-11-18",
+          "currentPeriodEnd": "2026-12-18",
+          "nextChargeAt": "2026-12-18"
+        }
+      ],
+      "invoices": 1,
+      "paymentAttempts": 1,
+      "ledgerGenerations": 1,
+      "operations": 1,
+      "trialReleased": true,
+      "doctors": 2,
+      "staff": 3,
+      "counts": {
+        "patients": 11,
+        "procedures": 16,
+        "active_profiles": 1,
+        "active_whatsapp": 0,
+        "active_asaas": 0
+      }
+    },
+    "ui": {
+      "run": 44419752659,
+      "harnessSha": "2b44f88c60caab3929e3b8f1780e91cc62238224",
+      "appSha": "bd776c15783a3637a1f6053cd53765833a28864f",
+      "observedAt": "2026-11-18T23:23:47.696Z",
+      "status": "PASS",
+      "navigationReloadPairs": 24,
+      "widths": [1440, 390],
+      "timezone": "Asia/Tokyo",
+      "runtimeErrors": 0,
+      "limitation": "No reproduction of old fifteen-write sequence; R51 remains PARTIAL; no application fix claimed",
+      "temporaryActionsSessionRemoved": true
+    },
+    "production": {
+      "infraObservedAt": "2026-11-18T23:23:19.005Z",
+      "databaseObservedAt": "2026-11-19T02:41:36.537Z",
+      "deployment": {
+        "id": "dpl_J5FPbdLDxBwcoBuRMgrkcwJrVbHL",
+        "revision": "25d01b17e9ee950c5760124445e4d1b2d9c0291e",
+        "alias": "app.qoro.dev",
+        "target": "production",
+        "readyState": "READY",
+        "cronCount": 21
+      },
+      "flags": {
+        "SIGNUP_ENABLED": "false",
+        "SAAS_SIGNUP_PROVIDER": "asaas",
+        "ABACATEPAY_NEW_CHECKOUTS_ENABLED": "false",
+        "ABACATEPAY_CHECKOUT_CLINIC_IDS": "",
+        "ABACATEPAY_ENVIRONMENT": "production"
+      },
+      "acquisitionClosed": true,
+      "webhookCount": 1,
+      "webhookEventCount": 8,
+      "liveSubscriptions": 0,
+      "liveCheckouts": 0,
+      "journal": {
+        "applied": 160,
+        "pending": [],
+        "fingerprint": "ed71cb844bc67939f7f667d311e42e8b67f2d54beb77b1f531d4074b0b3d9ddf"
+      },
+      "state": {
+        "asaas_subscriptions": 5,
+        "abacate_subscriptions": 0,
+        "central_accounts": 1,
+        "bindings": 0,
+        "operations": 0,
+        "inbox": 0,
+        "active_inbox": 0,
+        "recurring_observations": 0,
+        "cross_tenant_invoices": 0,
+        "duplicate_asaas_invoice_payment_ids": 0,
+        "invalid_indexes": 0,
+        "unvalidated_foreign_keys": 0
+      },
+      "heartbeats": [
+        {
+          "job": "financial-reconcile",
+          "last_run_at": "2026-11-19T02:30:07.428Z",
+          "last_status": "success"
+        },
+        {
+          "job": "outbox",
+          "last_run_at": "2026-11-19T02:41:27.925Z",
+          "last_status": "success"
+        },
+        {
+          "job": "payments-deposit",
+          "last_run_at": "2026-11-19T02:30:18.453Z",
+          "last_status": "success"
+        }
+      ],
+      "repeatedHistoricalAttemptReferences": 7,
+      "historicalAttemptScope": "Each repeated reference belongs to one invoice, not evidence of a second provider charge; no provider financial mutation",
+      "tls": "verify-full",
+      "readOnly": "on",
+      "clinicalRowsExported": 0
+    },
+    "operational": {
+      "profile": "pilot",
+      "conditions": 10,
+      "coldStart": {
+        "samples": 12,
+        "p50Ms": 2542.885064999995,
+        "p95Ms": 2627.6322239999718,
+        "p99Ms": 2627.6322239999718
+      },
+      "ticks": [
+        {
+          "tick": 0,
+          "before": 10,
+          "remaining": 8,
+          "elapsedMs": 3421.950555000003
+        },
+        {
+          "tick": 1,
+          "before": 8,
+          "remaining": 6,
+          "elapsedMs": 63401.86748900001
+        },
+        {
+          "tick": 2,
+          "before": 6,
+          "remaining": 3,
+          "elapsedMs": 123235.60579399999
+        },
+        {
+          "tick": 3,
+          "before": 3,
+          "remaining": 1,
+          "elapsedMs": 183093.17570799997
+        },
+        {
+          "tick": 4,
+          "before": 1,
+          "remaining": 1,
+          "elapsedMs": 242671.59523799998
+        },
+        { "tick": 5, "before": 1, "remaining": 0, "elapsedMs": 302892.084142 }
+      ],
+      "limitation": "Loopback runner only. Prior eight-minute recovery failure retained; no Production SLA or expansion authorization"
+    },
+    "failuresPreserved": [
+      {
+        "run": 44370553861,
+        "status": "FAIL",
+        "reason": "Incorrect shared-schema argument on raw 143-entry trial harness"
+      },
+      {
+        "run": 44418573687,
+        "status": "FAIL",
+        "reason": "Ten-clinic synthetic recovery exceeded eight-minute budget; six queued events remained"
+      },
+      {
+        "run": 44446021989,
+        "status": "FAIL",
+        "reason": "Security inventory line locations stale after test harness diagnostics"
+      },
+      {
+        "run": 44446015467,
+        "status": "FAIL",
+        "reason": "Missing synthetic env for quota imports and preloading 0159 before N-1 expectations"
+      },
+      {
+        "run": 44448003639,
+        "status": "CANCELLED",
+        "reason": "Superseded incorrect composed harness setup; not counted as PASS"
+      },
+      {
+        "run": 44448484202,
+        "status": "FAIL",
+        "reason": "All eight database/operational proofs passed; exact build exhausted default Node heap. Cloud-only retry uses existing 4096 MiB operator bound"
+      }
+    ],
+    "providerDocs": {
+      "checkedAt": "2026-11-19T03:25:14.731Z",
+      "url": "https://docs.abacatepay.com/pages/cobrar/assinaturas",
+      "claims": [
+        "No Sandbox renewal advancement",
+        "Paid checkout is documented as single-use; external closure still needs observation",
+        "Subscription may return currentPeriodStart/currentPeriodEnd/nextChargeAt; actual Sandbox GET verified"
+      ],
+      "isExternalHomologation": false
+    },
+    "risk": {
+      "R1": "PARTIAL - external checkout closure not observed",
+      "R2": "PARTIAL - natural renewal not observed",
+      "R3": "PARTIAL - synthetic negative-event matrix passed, external cases not observed",
+      "R4": "PARTIAL - bounded runner proof is not live capacity or SLA",
+      "R51": "PARTIAL - old UI incident not reproduced",
+      "B1B": "DEFERRED / RISK ACCEPTED / NOT VERIFIED"
+    },
+    "c3Recommendation": "A - GO C3 RECOMENDADO, PENDENTE DE AUTORIZACAO DO FUNDADOR; one clinic only",
+    "c3Execution": "NOT AUTHORIZED",
+    "c3Conditions": [
+      "Identify real consented beneficiary and contracted plan",
+      "Validate beneficiary-specific restricted provisioning before cohort opening; never redirect Sandbox operator",
+      "Authorize exact corrective deployment and one-clinic acquisition window",
+      "Explicitly decide residual R1-R4 risk; no automatic acceptance"
+    ],
+    "productionWrites": 0,
+    "realPayments": 0,
+    "newSandboxPayments": 0,
+    "providerFinancialMutations": 0,
+    "merge": false,
+    "deploy": false,
+    "validationCi": {
+      "sha": "379ca766fb782828757ca739c0e7d7de1748e4e1",
+      "run": 44449945066,
+      "status": "SUCCESS",
+      "tests": 7339,
+      "testFiles": 648,
+      "e2e": 27,
+      "skipped": 0,
+      "typecheck": "PASS",
+      "lint": "PASS",
+      "build": "PASS",
+      "security": "PASS",
+      "postgresTenantIsolation": "PASS",
+      "snyk": "SUCCESS",
+      "semgrep": "SUCCESS",
+      "preview": "SUCCESS",
+      "dependencyAudit": { "low": 2, "moderate": 5, "high": 0, "critical": 0 }
+    },
+    "finalDocumentCi": "The documentation-only HEAD needs its own checks, recorded in PR53 after push; not inherited from this source CI"
+  },
   "gateC3Preparation20261117": {
     "authorization": "ed459a6b-734d-4d9e-ad3f-2774eaab2dc4",
     "preparedAt": "2026-11-17T08:10:52.455Z",

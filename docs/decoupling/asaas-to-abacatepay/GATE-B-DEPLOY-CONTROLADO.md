@@ -1,5 +1,21 @@
 # Gate B — proposta de deploy técnico com aquisição fechada
 
+## Resultado da homologação — 19/11/2026
+
+[Qualificação44449938820](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44449938820) e [CI44449945066](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44449945066) SUCCESS em379ca766. Oito ensaios de banco/operacionais passaram, incluindo transição159→160, trial/cancelamento na exportação160 e build exato das fontes exportadas, sem harness injetado. Código financeiro/SQL congelados, nenhuma implantação. [Dossiê com resultados e condições do C3](ABACATEPAY-SaaS-GO-NO-GO-FINAL.md#homologação-renovada-e-proposta-c3--19112026). A CI do HEAD documental final deve ser conferida no PR, sem transferir a anterior.
+
+Recomendação técnica de solicitar C3 para uma clínica não reabre B3 ou C3/C4. Beneficiário real/consentimento, plano, janela, execução restrita e decisão de R1–R4 ainda precisam do GO específico. Não há autorização de operação live; C2 e a aquisição fechada permanecem preservados. B1-B adiado/risco aceito/não verificado, conforme decisão já registrada.
+
+## Checkpoint vigente — homologação e preparação, 18/11/2026
+
+O anexo `937c0c05-5ceb-4496-843d-f4351f2ccc77` autoriza simulação, CI e consultas somente leitura. **Não reabre B3, C3/C4, deploy ou migrations Production.** C2 já implantado; não implantar novamente só para repetir a mesma versão. B1-B permanece **DEFERRED/RISK ACCEPTED/NOT VERIFIED**, sem nova exigência de host/cofre neste ciclo. Resultado da nova simulação no [dossiê](ABACATEPAY-SaaS-GO-NO-GO-FINAL.md) e execução futura condicionada no [runbook](../../runbooks/abacatepay-operacao.md#solicitação-c3--campos-e-pré-requisitos-que-não-podem-ser-presumidos).
+
+Infraestrutura relida em18/11 às23:23:19UTC: `app.qoro.dev` continua no C2 `25d01b17e9ee950c5760124445e4d1b2d9c0291e`/`dpl_J5FPbdLDxBwcoBuRMgrkcwJrVbHL`, READY/Production,21crons. Health Auth/profundo200; cadastro fechado; WAFv5 e coorte vazia preservados; novos checkoutsfalse/providerasaas/runtimeproduction. Loja/cinco produtos live e um webhook/oito eventos conferidos por GET; zero checkouts e assinaturas AbacatePay live. Valores sensíveis da Vercel não foram extraídos; atestação criptográfica C1/C2 permanece histórica.
+
+Banco relido em19/11 às02:41:36UTC (**18/11 23:41:36 Brasília**):160 entradas, ordem/hashes históricos reconhecidos pelo validador existente; zero pendentes, índices inválidos/FKs não validadas ou invoices cruzadas/IDs de pagamento Asaas em invoices distintas. Cinco assinaturas Asaas, conta técnica central1; bindings/operações/inbox/recorrências AbacatePay0. Outbox707processed/37skipped, sem trabalho ativo; heartbeats dos três crons financeiros recentes e success. Consulta pelo pooler original após falhas DNS no endpoint direto; TLSverify-full/CA, READONLY, zero writes. Essas falhas locais não foram ocultadas como consultas bem-sucedidas.
+
+O financeiro da branch continua143 migrations; o **pacote composto** continua160, com0143–0158SQL congelado e0159financeira, sem0160+ ou código funcional TISS. Contagens não são intercambiáveis. A candidata tem uma correção de ambiente em mudança de plano ainda ausente do runtime C2; qualquer futuro pacote/promoção precisa ser identificado e aprovado, mesmo sem DDL. Nenhum contrato, preço, cota ou fonte executável do app foi alterado pela nova preparação dos testes.
+
 ## Checkpoint prevalente — C1/C2 executados, 16/11/2026
 
 **C1 PASS. C2 PASS no alcance técnico não monetário observado. Aquisição FECHADA. C3/C4 NÃO AUTORIZADOS.** GO expresso nos anexos 59b0180e-ce97-4ed8-bc36-d0530428c870 e 071cad05-da8b-499d-8759-f1194ecbc3a4; fundador reconfirmou disponibilidade e execução pelo Codex. Janela **2026-11-16T17:53:36.070Z–2026-11-16T18:40:12.813Z**, 46.6min, dentro do limite de 60min. Fundador: operação/incidentes; esta sessão: execução/recuperação. Janela encerrada; continuidade documental/CI não reabre autorização live. Checkpoints divergentes abaixo são históricos.

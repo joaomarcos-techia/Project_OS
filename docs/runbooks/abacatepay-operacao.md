@@ -1,5 +1,56 @@
 # Operação e recuperação AbacatePay
 
+## Resultado vigente — 19/11/2026
+
+**GO C3 recomendado para uma clínica, pendente de identificação/consentimento/plano, decisão dos riscos e autorização expressa. Execução NÃO AUTORIZADA.** [Dossiê e matriz](../decoupling/asaas-to-abacatepay/ABACATEPAY-SaaS-GO-NO-GO-FINAL.md#homologação-renovada-e-proposta-c3--19112026): qualificação44449938820 e CI44449945066 SUCCESS em379ca766, incluindo build exato exportado +160SQL. O HEAD documental deve ter seus próprios checks. Nenhuma alteração live por esse resultado; não reabrir cadastro nem criar clínica/checkout por iniciativa própria.
+
+Sandbox do fundador revalidado sem mutação: uma assinatura/invoice deR$397, trial liberado e limites2médicos/3administrativos mantidos. GET de19/11 03:03UTC informa próxima cobrança18/12, sem provar renovação futura. R1–R4 permanecemPARTIAL; a capacidade de dez clínicas não tem SLA demonstrado. Formulário e sequência abaixo continuam condicionados ao beneficiário real e ao GO, incluindo a implantação corretiva de `account.environment`; não selecionar piloto ou aceitar risco pelo fundador.
+
+## Escopo vigente — homologação financeira e preparação C3, 18/11/2026
+
+O anexo `937c0c05-5ceb-4496-843d-f4351f2ccc77` autoriza nova simulação PostgreSQL/HTTP/Redis, testes e correções DEV, CI e consultas somente leitura de Production. **Não autoriza C3, nova cobrança Sandbox, alteração da assinatura já paga, deploy, merge ou migration Production.** O checkpoint Sandbox anterior continua histórico. Resultado e limites desta rodada no [dossiê](../decoupling/asaas-to-abacatepay/ABACATEPAY-SaaS-GO-NO-GO-FINAL.md).
+
+### Reexecutar a prova sem tocar em contas reais
+
+Workflow `.github/workflows/billing-renewal.yml`, restrito à branch financeira e ao repositório oficial. O job recebe **zero secrets do repositório**. Usa Node22.23.4/pnpm11.17.0, PostgreSQL loopback, identidades sintéticas, Redis Docker próprio e gateway HTTP local. O `fetch` do harness recusa destino externo. Cada processo encerra seu cluster; o runner é descartável. Relatórios sintéticos têm retenção de sete dias; nenhum dump ou credencial é artefato.
+
+```powershell
+gh workflow run billing-renewal.yml --repo joaomarcos-techia/Project_OS --ref feat/billing-abacatepay-20261107
+```
+
+Rodam sequencialmente o simulador de renovação, recuperação operacional com dois processos frios, trial, nove cotas, checkout/recovery e compatibilidade do schema composto/cancelamento. O financeiro isolado tem 143 migrations; a composição congelada tem 160. O modo nativo do simulador importa somente o SQL imutável até 0158, testa o estado N-1 com 159 entradas e aplica a 0159 no ponto previsto do ensaio; as provas posteriores usam esse schema final. Não pré-aplicar a 0159 antes das expectativas de indisponibilidade N-1, nem aplicar seu DDL duas vezes. Em seguida, outro diretório exporta o SHA financeiro exato e substitui **somente o SQL** pelas 160 entradas revisadas `4d0ed1d5` + 0159, para trial, cancelamento e build. Não importa código TISS, não toca no journal da branch e não lê seus worktrees locais. O build exportado usa apenas variáveis sintéticas; não representa build do TAR histórico C2.
+
+O status geral deve continuar FAIL se algum cenário falhar. Etapas independentes ainda executam para não esconder outros resultados. Diagnóstico de worker preserva somente classes/códigos, rotas sem query, status HTTP, tentativas e estados sintéticos. Uma nova tentativa verde não apaga a falha anterior nem comprova renovação natural.
+
+### Solicitação C3 — campos e pré-requisitos que não podem ser presumidos
+
+| Item | Proposta verificável |
+| --- | --- |
+| Alvo | `joaomarcos-techia/Project_OS`, PR53 draft; aplicação financeira e SQL identificados no relatório da rodada; C2 atual `25d01b17`, deployment `dpl_J5FPbdLDxBwcoBuRMgrkcwJrVbHL` |
+| Delta de runtime conhecido | Uma linha em `abacatepay-plan-changes.ts`: encaminhar `account.environment`; blob corrigido SHA256 `d0a98be34a8f46ef759350cf2c1d077b9900fbd6b2bddb025da902ac5e5feb6c`. Não foi publicado neste ciclo |
+| Banco | Mesmas160 migrations0136–0159 já presentes; **nenhuma migration proposta para C3**. SQL0160+ e funcionalidades TISS fora do pacote |
+| Beneficiário | **Não informado/consentido para Production.** A conta do fundador e seu pagamento R$397 pertencem ao Sandbox e não podem ser promovidos ou copiados |
+| Plano/valor | Titular escolhe1–5 médicos: R$197/397/544/691/838 mensais, com até3 administrativos. Nenhum preço real selecionado pela engenharia |
+| Provisionamento | Não há clínica AbacatePay live elegível. Não editar `billing_provider`, migrar um dos cinco contratos Asaas ou redirecionar o operador Sandbox. Preparar e validar o provisionamento restrito do beneficiário identificado antes da execução financeira; enquanto faltar essa prova, parar antes de abrir a coorte |
+| Pessoas | Fundador proposto para operação/incidentes/decisão financeira; sessão técnica para execução e contenção. Reconfirmar disponibilidade no GO; não inventar responsável pagante/consentimento |
+| Janela | Até60min a partir de GO específico e disponibilidade confirmada; sem horário reservado ou janela iniciada por este documento |
+| Riscos | R1–R4 precisam de decisão específica para uma clínica; B1-B permanece **DEFERRED/RISK ACCEPTED/NOT VERIFIED**. O aceite do backup não é aceite dos riscos financeiros |
+
+### Ordem de execução futura — somente depois do GO específico
+
+1. Registrar beneficiário real, consentimento, plano, médicos, preço, pagante, responsáveis e janela. Se algum faltar, não iniciar.
+2. Conferir SHA/checks, manifesto e build do pacote financeiro; comparar o único delta com C2 e preservar dependências/SQL. Revalidar projeto, journal/160 hashes, saúde, backlog e cinco contratos Asaas por leitura TLS. Drift ou falha interrompe.
+3. Confirmar o canal de incidentes com o responsável. A atestação histórica C1/C2 não substitui o acompanhamento da nova janela. Nunca copiar secrets para chat ou relatório.
+4. Manter `SIGNUP_ENABLED=false`, `SAAS_SIGNUP_PROVIDER=asaas`, WAF de contenção e coorte vazia durante a implantação corretiva expressamente aprovada. Build/preview de teste não é deploy Production; não promover se o build/atestação falhar.
+5. Provisionar somente a nova clínica consentida pelo procedimento restrito previamente validado. Exigir Auth verificado, titular, aceite, plano/preço do servidor, trial/política/claim e binding central Production. Não confirmar e-mail artificialmente ou reaproveitar dados clínicos do Sandbox.
+6. Conferir esses vínculos antes de propor `ABACATEPAY_CHECKOUT_CLINIC_IDS=<UUID único>` e `ABACATEPAY_NEW_CHECKOUTS_ENABLED=true`. A configuração deve atingir um deployment identificado; alterar env no painel não altera retroativamente um build. Cadastro público, provider de novos cadastros e WAF permanecem fechados.
+7. O titular autenticado com permissão financeira inicia seu único checkout. Não enviar valor/clinicId pelo browser como autoridade. Operador não paga nem reutiliza checkout de teste. Resultado ambíguo exige GET/reconciliação antes de qualquer comando novo.
+8. Após pagamento pelo cliente, correlacionar provedor, autenticação do webhook, inbox, consumer, assinatura, uma invoice, um pagamento/período, cotas e isolamento. Redirect, ACTIVE ou HTTP2xx isolados não provam quitação.
+9. Observar fechamento do link, consumidores/cron, revisão e alertas. Não dar R1 PASS por testes locais nem R2 PASS pelo primeiro pagamento. Upgrade só muda a cota no próximo ciclo integral pago, sem pró-rata; cancelamento preserva o período conforme política aprovada.
+10. Conter se houver assinatura/invoice/período duplicado, valor/tenant divergente, concessão sem prova, estado externo desconhecido, falha persistente de fechamento, indisponibilidade financeira ou regressão de acesso do legado. Fechar **novas aquisições** e a coorte; manter receiver/consumidores das obrigações existentes. Não emitir outro pagamento para destravar.
+11. Rollback distingue flags/configuração, código e dinheiro: voltar ao código C2 só após conferir compatibilidade e registrar o motivo; conservar SQL160, ledger, invoices, inbox e períodos. Não apagar evidências, executar DOWN ou estornar automaticamente.
+12. Encerrar com readback e relatório. Continuidade1→3→10 depende de outro GO C4. Nenhuma abertura pública é consequência automática deste piloto.
+
 ## Escopo prevalente — ensaio somente Sandbox, 17/11/2026
 
 **O fundador escolheu usar a candidata do PR #53 exclusivamente no Sandbox. Não criar clínica, checkout ou cobrança em Production.** A indicação anterior de “nova clínica” passa a se referir a uma fixture sintética no DEV; não solicitar dados de um titular real para este ensaio. C3/C4 reais continuam não autorizados. O procedimento de C3 abaixo foi preparado, mas não é uma ordem vigente de execução.

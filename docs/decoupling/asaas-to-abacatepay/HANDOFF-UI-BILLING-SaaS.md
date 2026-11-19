@@ -1,5 +1,21 @@
 # Handoff da AbacatePay para a repaginação do Qoro
 
+## Investigação adicional de R51 — 18/11/2026
+
+[Actions 44419752659](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44419752659), harness `2b44f88c60caab3929e3b8f1780e91cc62238224`, aplicativo imutável `bd776c15`: **PASS**. Foram três voltas por quatro telas em duas larguras (1440/390), cada visita seguida de reload: 24 pares de navegação/reload em Dashboard, Pacientes, Procedimentos e Assinatura, além das verificações pagas iniciais/finais. Fuso do navegador `Asia/Tokyo`; zero `pageerror`, nenhum corte horizontal ou retorno indevido dos gates de trial. O registro e o plano continuaram disponíveis na nova sessão. Nenhuma criação de registro, convite, integração, checkout ou pagamento nessa rodada. A credencial temporária do Actions foi removida ao concluir.
+
+**Não reproduzido nesta amostra; causa não determinada; R51 continua PARTIAL.** A rodada antiga falhou após quinze criações sucessivas, sem stack suficiente. O ensaio novo repete leituras/reloads, não aquela sequência de escrita. Não há evidência para atribuir o incidente ao código financeiro ou declarar a UI global corrigida. Ao alterar shell, hidratação ou o formulário de procedimentos, o agente UI deve executar a sequência original em fixture própria, além desta amostra. Nenhuma alteração no PR #56 ou em seu worktree foi feita.
+
+## Observação do trial DEV em 18/11/2026
+
+Após pagamento manual Sandbox, as rodadas [paga 44352088498](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44352088498) e [nova sessão 44353873186](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44353873186) passaram em 1440/390 px, sem erros de navegador: cotas temporárias removidas, integrações e convite disponíveis, pagamento/reload corretos e persistência após logout/nova autenticação. Dois registros além do teto antigo foram criados numa tentativa anterior e preservados; a rodada verde retomou esses dados, sem repetir a sequência de quinze criações. Isso não encerra a ocorrência antiga descrita abaixo. Nenhum componente do aplicativo foi corrigido por estes testes.
+
+Na candidata imutável `bd776c15783a3637a1f6053cd53765833a28864f`, a [rodada Actions 44221156413](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44221156413) criou quinze procedimentos sintéticos, recusou a criação excedente e conferiu a assinatura, mas falhou no gate de runtime: um erro de hidratação e quinze exceções de navegador. O diagnóstico antigo preservou classes, sem stack suficiente para atribuir causa. Não concluir que houve erro financeiro nem declarar o incidente corrigido.
+
+As rodadas [ativa 44222587653](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44222587653) e [vencida 44284271573](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44284271573) passaram em 1440/390 px sem erro de navegador; retomaram os registros já criados, não repetiram a sequência de quinze criações. R51 continua PARTIAL, com causa a investigar pelo responsável da UI compartilhada. Preservar as falhas anteriores e repetir a navegação/criação estrita ao alterar esses componentes. O harness atual registra classe, fase, rota, fingerprint e frames estáticos sanitizados; não registra HTML, dados pessoais, tokens ou payloads financeiros.
+
+Nenhum componente do aplicativo, regra financeira ou worktree UI/TISS foi alterado nesta bateria. O [checkpoint do trial](ABACATEPAY-SaaS-GO-NO-GO-FINAL.md#trial-da-conta-dev--verificações-na-nuvem-concluídas-em-18112026) contém o alcance de cada prova e a pendência de pagamento Sandbox.
+
 Atualizado em 14/11/2026. Documento autocontido para o agente de UI. O PR53 continua draft e não autoriza merge, configuração, migration, pagamento ou deploy Production. O domínio financeiro está congelado; esta integração permite reorganizar a apresentação sem reescrever suas regras. Não depende da conclusão do TISS ou do HEAD do PR55.
 
 ## Responsabilidades e isolamento de trabalho

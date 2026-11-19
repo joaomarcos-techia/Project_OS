@@ -1,5 +1,136 @@
 # AbacatePay SaaS — decisão final de release e piloto
 
+## Homologação renovada e proposta C3 — 19/11/2026
+
+**A — GO C3 RECOMENDADO, PENDENTE DE AUTORIZAÇÃO DO FUNDADOR, para uma única clínica consentida. C3/C4 continuam NÃO AUTORIZADOS e a aquisição permanece FECHADA.** Não foi observado defeito financeiro crítico nos ensaios desta rodada. Esta recomendação não seleciona um cliente, não aceita R1–R4 e não autoriza provisionamento, deploy ou pagamento real. O beneficiário, seu consentimento/plano e o GO específico ainda faltam. Para nova clínica, a execução restrita precisa ser delimitada e conferida antes de abrir a coorte; não reutilizar o operador Sandbox contra Production.
+
+### Baseline e qualidade
+
+- Qualificação: **`379ca766fb782828757ca739c0e7d7de1748e4e1`**, PR #53 OPEN/DRAFT. [Homologação 44449938820](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44449938820) **SUCCESS**; [CI 44449945066](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44449945066) **SUCCESS**: **7.339 testes / 648 arquivos, 27 E2E, zero SKIP**, TypeScript, lint, build, segurança, inventário e isolamento PostgreSQL aprovados. Snyk, Semgrep e Preview também SUCCESS nesse SHA.
+- Auditoria de dependências: **zero high/critical; sete achados remanescentes, dois low e cinco moderate**. O gate high+ passou; não declarar ausência de vulnerabilidades. Avisos de depreciação de Sentry/Actions continuam manutenção futura, sem mudar dependências congeladas para esta prova.
+- **Código financeiro congelado:** nenhuma mudança em `src/`, SQL, journal, preço, contrato, cota ou lockfile desde `bd776c15`. Árvore de aplicação `341a6bc940b5c0de288c00b54784f249856f14e5`; árvore financeira de migrations `65fbff1698b6d82fd2d5ad26a08f003b02a71e23`. Alterações deste ciclo: workflow de prova isolada, diagnóstico sanitizado do worker, mensagem de assert do receiver, posições do inventário e documentação. Não houve correção de runtime financeiro nesta rodada.
+- O commit documental que contém este checkpoint terá seus próprios checks vinculados no PR. **A CI379ca766 não é automaticamente a CI de outro HEAD**; não criar um commit recursivo apenas para registrar sua própria execução. Fonte financeira da qualificação, pacote exportado e HEAD documental são identidades distintas.
+
+### Nova execução real, sem gateway financeiro externo
+
+Ubuntu descartável do Actions, Node22.23.4/pnpm11.17.0, PostgreSQL real com migrations reais, HTTP local, HMAC, Redis Docker e workers reais. **Zero secrets do repositório, zero operações financeiras externas e zero writes Production.** O provedor é uma fixture controlada; o tempo das leases/retentativas é real. As verificações abaixo são execuções, não uma leitura do script nem reaproveitamento do PASS antigo.
+
+| Ensaio | Resultado desta rodada | Alcance |
+| --- | --- | --- |
+| Renovação no financeiro isolado | **131/131 PASS** | Invoice/período únicos; calendário original; atraso, falha, timeout, duplicidade e eventos fora de ordem; 12 aplicações concorrentes; rollback/replay; RLS; upgrades/downgrades e cotas de 3/4/5 médicos; reembolso/disputa sob revisão |
+| Recuperação operacional | **10/10 PASS** | Receiver HTTP, assinatura, falhas de Redis/DB/provedor, circuit breaker, worker interrompido, lease real de60s, retry e recuperação sem duplicar efeitos |
+| Trial no schema financeiro | **51/51 PASS** | Provisionamento real da transação, vínculo/claim, prazo Auth, pagamento e gates de módulos operacionais |
+| Nove cotas e limites do plano | **45/45 PASS** | Limites e concorrência no banco, privilégios mínimos, liberação idempotente somente com invoice paga e preservação de contratos legados |
+| Checkout e recuperação | **29/29 PASS** | Resposta ambígua, reserva persistida, comandos concorrentes e recuperação por GET sem nova criação cega |
+| Transição do schema compartilhado | **131/131 PASS** | Prefixo imutável até0158, estado N-1 de159 entradas e aplicação da0159 no ponto previsto do ensaio; provas seguintes no schema final160 |
+| Trial com160 migrations | **52/52 PASS** | Exportação com as160 entradas completas, gates comerciais/operacionais e isolamento |
+| Cancelamento com160 migrations | **10/10 PASS** | Asaas e AbacatePay sintéticos, direitos pagos, replay e isolamento; não é novo cancelamento externo |
+| Build exato exportado | **PASS, exit0, 148,7s** | `next build` sem injeção do harness, 1.668 fontes/configurações verificadas byte a byte,160 SQL e ambiente exclusivamente sintético |
+
+As duas execuções de131 verificações cobrem bases diferentes; não são262 cenários únicos de negócio. O simulador testa primeiro N-1 e aplica o candidato DDL no próprio cluster; o journal financeiro da branch continua143. Trial/cancelamento/build também foram executados separadamente sobre a exportação já composta de160 entradas. Não foi alterado o manifesto para aceitar0160+, nem importado código funcional TISS.
+
+Build **03:21:49.443–03:24:18.171 UTC**: manifesto das fontes SHA256 `b6ade76481f7caab19f7440847723ad3f5627420e73b1c7dc38726a2a82b395c`. Runner com6,42GiB físicos livres antes do build, heap limitado a4096MiB, conforme operador existente. Não houve build pesado no notebook. Isso valida a exportação financeira atual + SQL160; **não é apresentado como novo build do TAR histórico C2**. Nenhum pacote foi promovido ou publicado em Production.
+
+### Falhas encontradas, corrigidas ou preservadas
+
+1. Preparação dos testes: `--shared-schema` usado indevidamente no trial143, variáveis fictícias ausentes na importação estática de cotas, inventário com linhas antigas e0159 pré-aplicada antes das expectativas N-1. Foram corrigidos somente o workflow e a evidência, usando o modo nativo do harness. Nenhuma expectativa financeira foi relaxada e nenhum teste foi desligado.
+2. Build exportado: a tentativa44448484202 esgotou o heap padrão do Node. A nova execução reutilizou o limite de4096MiB do operador já existente, com preflight físico no runner e fonte intacta; PASS. Não aumentar limites do notebook nem confundir OOM anterior com build aprovado.
+3. Capacidade: a tentativa44418573687 deixou seis eventos na fila ao exceder oito minutos. Rodadas posteriores recuperaram os dez; a última drenou a fila em **302,9s**, dois processos frios e ticks reais de60s, após envelhecimento sintético de72h. Diagnóstico adicional mostrou contenção `rate_limited` e falhas `unavailable` durante uma retomada bem-sucedida. **Não foi estabelecida a causa de cada falha da tentativa antiga nem garantido um prazo repetível para dez clínicas.** Falha preservada, R4 PARTIAL, sem declarar SLA ou autorizar expansão.
+4. Interface: [44419752659](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44419752659) PASS,24 pares de navegação/reload em1440/390px e `Asia/Tokyo`, plano/dados persistentes e zero erros de navegador. Não repetiu as quinze escritas do incidente original. **R51 não reproduzido; causa desconhecida; não há correção de UI alegada.** [Handoff](HANDOFF-UI-BILLING-SaaS.md#investigação-adicional-de-r51--18112026); PR #56/worktrees alheios intactos.
+
+### Conta paga e estado real consultado
+
+Novo GET Sandbox e consulta DEV somente leitura em **19/11 03:03:40 UTC**: R$397 PAID, uma assinatura ACTIVE, uma invoice paga, uma tentativa confirmada, uma geração paga e uma operação de criação. Trial liberado; **dois médicos + três administrativos**;11 pacientes/16 procedimentos sintéticos preservados. Nenhum novo checkout/pagamento, cancelamento ou upgrade nessa conta.
+
+O coletor antigo descartava os campos opcionais de calendário. Corrigida a coleta: o provedor informou **18/11–18/12/2026 e próxima cobrança18/12/2026**, datas sem hora; o reader do aplicativo já suporta esses campos. Não comprova renovação futura. A primeira leitura falhou na cadeia de certificados; a segunda usou a trust store do sistema com verificação TLS mantida. Não houve bypass TLS. As provas anteriores de16 verificações pós-pagamento e logout/nova sessão permanecem históricas, não são apresentadas como repetidas nesta rodada.
+
+Production foi apenas consultada: infraestrutura às **18/11 23:23:19 UTC**, banco às **19/11 02:41:36 UTC**. C2 `25d01b17`, deployment `dpl_J5FPbdLDxBwcoBuRMgrkcwJrVbHL`, health Auth/profundo200,21crons, WAFv5, cadastro fechado, novos checkoutsfalse e coorte vazia.160 hashes/ordem aceitos pelo validador existente, zero migrations pendentes, índices inválidos/FKs não validadas, invoices cruzadas ou IDs Asaas compartilhados por invoices distintas. Cinco contratos Asaas; zero assinaturas/checkouts/bindings/operações/inbox/recorrências AbacatePay live. Conta técnica central1; três heartbeats financeiros success e nenhum backlog ativo. Sete referências históricas repetidas na tabela de tentativas pertencem, cada uma, a uma única invoice; isso não prova segunda cobrança externa e não foi “corrigido” apagando registros. Nenhum novo teste financeiro Asaas externo foi feito.
+
+### Matriz de decisão e condições do C3
+
+| Critério | Resultado |
+| --- | --- |
+| Pagamento Sandbox R$397 / integração DEV | **PASS**, GET/banco revalidados; não repetido |
+| Liberação pós-trial / limite2+3 / sessão | **PASS** no alcance de banco e UI documentado |
+| Trial não pago continua restrito | **PASS**,51/45/52 verificações nos respectivos ensaios |
+| Renovação / invoice / período / falha | **PASS sintético**; nenhuma extensão indevida aceita |
+| Duplicidade / ordem / idempotência / concorrência | **PASS sintético**; um efeito por pagamento/ciclo |
+| Recuperação / upgrade / isolamento | **PASS sintético**, com ressalva de capacidade acima |
+| CI / build / Snyk / Semgrep | **PASS em379ca766**; checks do HEAD documental no PR |
+| Auditoria de dependências | **PARTIAL**, sete low/moderate; zero high/critical |
+| C2 / filas / consumidores | **VERIFIED** no recorte consultado, sem nova alteração |
+| Asaas legado | **PRESERVED** no alcance da consulta/código e teste sintético; não novo pagamento externo |
+| Aquisição pública | **CLOSED** |
+| R1–R4 | **REVIEWED, PARTIAL e sem novo aceite** |
+| Renovação natural externa | **PENDING**, sem antecipação permitida pelo provedor |
+| Clínica piloto real consentida | **NO**; fixture do fundador é Sandbox |
+| Recomendação C3 | **READY TO REQUEST** para uma clínica, com condições abaixo; execução NÃO AUTORIZADA |
+
+**Faltam decisões/dados do fundador, não outra rodada genérica de desenvolvimento:** identificar o beneficiário real e consentimento, escolher1–5 médicos pelo catálogo aprovado, confirmar operação/incidentes/janela e decidir R1–R4 para esse piloto. O futuro pedido deve incluir expressamente a implantação corretiva da linha `account.environment` ainda ausente do C2 e o provisionamento restrito, quando necessário. A transação central tem prova sintética; sua invocação com o beneficiário real exige conferência de Auth verificado, titular, aceite, claim, política e binding antes da abertura da coorte. Não redirecionar o operador Sandbox nem editar provider de contratos Asaas.
+
+R1: fechamento live não observado. R2: renovação natural não observada; a documentação oficial [confirma que não há antecipação no Sandbox](https://docs.abacatepay.com/pages/cobrar/assinaturas#testar-no-modo-teste). R3: eventos negativos/mudanças têm prova sintética, observação externa incompleta; políticas aprovadas preservadas. R4: capacidade live não demonstrada; piloto limitado a uma clínica, monitoramento e interrupção antes de expandir. **O agente não aceita esses riscos.** B1-B continua **DEFERRED/RISK ACCEPTED/NOT VERIFIED**, sem reabrir a exigência de host/cofre. R51 permanece acompanhado pelo handoff, sem bloqueio financeiro crítico comprovado.
+
+[Solicitação e sequência C3](../../runbooks/abacatepay-operacao.md#solicitação-c3--campos-e-pré-requisitos-que-não-podem-ser-presumidos): cadastro público fechado; preflight fresco; implantação corretiva fechada expressamente aprovada; provisionamento elegível; coorte de um UUID; checkout pelo titular; pagamento manual do cliente; correlação provider→inbox→consumer→invoice/período→cotas; fechamento e monitoramento. Valor/tenant divergente, efeito duplicado, falta de prova, estado externo desconhecido ou falha persistente exigem fechar novas aquisições preservando os consumidores/legado. Rollback de código/configuração não apaga dinheiro, ledger ou SQL. C4 depende de novo GO.
+
+Evidência permanente sanitizada: bloco **`renewalQualification20261119`** em [registro financeiro](evidencias/recuperacao-financeira-20261111.json), com hashes dos relatórios, tentativas que falharam, separação das identidades e snapshots somente leitura. Cópias detalhadas ignoradas em `dist/renewal-qualification-20261118`; artefatos sintéticos do Actions com retenção7dias. **Zero writes Production, zero operação financeira externa, zero novo pagamento Sandbox, zero migration/deploy/merge e zero alteração UI/TISS neste ciclo.**
+
+## Pagamento da conta DEV — 18/11/2026
+
+**Pagamento, liberação das cotas e persistência após logout/nova sessão: PASS nesta conta Sandbox. UI global: PARTIAL pelo R51 anterior.** Este checkpoint sucede a bateria anterior ao pagamento, preservada abaixo. O fundador pagou manualmente somente o checkout Sandbox já existente; a automação não efetuou pagamento nem alterou estado financeiro para fabricar a prova.
+
+- Provedor consultado por GET: `bill_GHCsGAQeBPuKcd6rCbhEwtc0`, `devMode=true`, **PAID, amount=paidAmount=39700**, exatamente uma assinatura `subs_WNBWTh4dFsshEx6xPZNcmqTE`, ACTIVE, da mesma contratação. Não pagar novamente esse checkout.
+- Evento `subscription.completed`, `log_C00LUgA2kpDKg3L1Pt6FKSyy`, pagamento `card_b2XQYPHPFRyguApN1MRtEbN3`: recebido às **16:22:26.842 UTC**, aplicado às **16:22:30.416 UTC**, uma tentativa, `initial_payment_applied`. A rota exige segredo e assinatura antes da persistência; os identificadores e o hash registrado foram conferidos. O corpo original não foi coletado para uma nova verificação criptográfica independente.
+- Clínica e assinatura locais ACTIVE; **Clínica, R$ 397/mês, dois médicos e até três administrativos**. Uma invoice paga `040f36a7-d06c-4b9b-8b77-9f0980a716b7`, uma tentativa confirmada, uma geração paga e uma operação de criação de checkout. A política de trial foi liberada pela mesma invoice, sem duplicidade observada.
+- Período de acesso controlado pelo Qoro: **18/11/2026 16:22:23.665 UTC a 18/12/2026 16:22:23.665 UTC**. A coleta inicial não preservava os campos opcionais de calendário remoto, portanto não comprovava sua ausência. Novo GET em **19/11 às 03:03:40 UTC** confirmou `currentPeriodStart=2026-11-18`, `currentPeriodEnd=2026-12-18` e `nextChargeAt=2026-12-18`, datas sem horário fornecidas pelo Sandbox. O reader do aplicativo já aceita esses campos; somente o coletor de evidência foi ajustado. Isso não prova renovação futura. Auth e prazo original do trial preservados.
+- **16 verificações SQL PASS**, com rollback integral dos probes: nove categorias aceitam criações além do antigo limite, integrações/entrada de equipe deixam de ter o gate de trial, terceiro médico/quarto administrativo continuam recusados, contadores históricos não crescem e a leitura autenticada de pacientes permanece no tenant. Sem convite, conexão WhatsApp/Asaas, cobrança externa ou fixture paga artificial.
+- A primeira rodada de UI criou o **11º paciente e o 16º procedimento**, conferiu integrações/convites, assinatura paga, reload e duas recusas `already_paid` para checkout repetido; zero erros de navegador nessa amostra. A rodada falhou na expectativa HTTP303 do harness para logout; o teste passou a verificar o fluxo real da interface, redirecionamento e recusa de acesso posterior. Outra tentativa encontrou uma navegação ausente no roteiro de retomada, corrigida sem alterar o aplicativo. [44348817230](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44348817230), [44350310233](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44350310233). Uma execução intermediária foi cancelada antes do navegador; não contabilizada como PASS.
+- **Chromium pago PASS:** [44352088498](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44352088498), desktop/mobile, registros além do antigo teto, telas de integração e convite disponíveis sem conectar/enviar, assinatura paga, reload, duas recusas de checkout repetido e logout pela interface seguido de recusa de acesso. HTTP303 observado no logout pela UI. A rodada retomou os 11/16 registros já criados, sem repetir sua criação.
+- **Nova sessão após logout PASS:** [44353873186](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44353873186), dados e plano preservados, sem retorno dos contadores/bloqueios do trial. As duas rodadas passaram lint/typecheck no harness `5b8ae35ca06577886a09e0475b35c449e59f69b0`, sem erros de navegador nessa amostra. Nenhum novo build integral do aplicativo foi executado.
+- Leitura final do provedor e banco às **17:01:53 UTC**, após as retentativas de checkout: uma assinatura/invoice/geração paga, 11 pacientes e 16 procedimentos sintéticos, um perfil ativo, zero conexões WhatsApp/Asaas. Contadores históricos em 10/15, sem crescimento após pagamento. A última rodada de nova sessão não criou dados nem chamou checkout. Sessão temporária dos Actions removida após os testes, com os demais secrets preservados.
+
+Aplicativo permanece em `bd776c15783a3637a1f6053cd53765833a28864f`; o PR #53 não recebeu alteração de runtime. Somente o harness da branch isolada `test/billing-trial-cloud-20261118` foi ampliado. A CI integral anterior do aplicativo não é apresentada como uma nova execução do harness. R51 continua aberto; os testes atuais não encerram renovação natural nem R1–R4 live. Fechamento automático de links é restrito a Production no código; a fixture Sandbox continua sob responsabilidade do operador e não foi excluída/cancelada para fabricar R1 PASS. Production, preços, migrations e worktrees UI/TISS permanecem intocados. Consolidação sanitizada em `dist/founder-trial-e2e-20261117/RELATORIO-PAGAMENTO-SANDBOX.md` e `paid-validation.json`.
+
+## Trial da conta DEV — verificações na nuvem concluídas em 18/11/2026
+
+**Verificações anteriores ao pagamento: PASS. Fechamento integral: PARTIAL.** O pagamento manual Sandbox e a prova posterior de liberação ainda não ocorreram. Uma ocorrência intermitente de hidratação da UI também permanece aberta. Não houve operação em Production, migration, merge ou pagamento pela automação.
+
+### Identidade e separação das evidências
+
+- Aplicativo e Preview imutável: `bd776c15783a3637a1f6053cd53765833a28864f`, deployment `dpl_GKmv316LGHCqS822VHtAJXAbgShM`, [Preview DEV](https://project-26afjm4bg-clinic-os-v2-s-projects.vercel.app). PR #53 continua OPEN/DRAFT no mesmo SHA.
+- CI integral **anterior**, [44115899390](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44115899390): 7.339 testes, 27 E2E, zero SKIP, build/typecheck/lint/segurança aprovados. Não foi repetida nem atribuída ao código novo do harness.
+- Harness isolado em `test/billing-trial-cloud-20261118`, worktree próprio. Apenas workflow, configuração e spec de testes foram adicionados; nenhum delta de `src/`, SQL, dependências ou lockfile. SHA do harness de vencimento: `db066639458e5fc2f7b5fef92027d58c1ba742e2`.
+- O DEV compartilhado foi reconhecido explicitamente com 167 entradas: prefixo revisado de 166 e `0166_hi_authorization_alerts`, hash `ccf1639b4eccbdd50e5aa5b2f49a0b55d964ff8092dc47c09d77db61487025c6`. Essa leitura não altera o manifesto SaaS, não aplica SQL e não torna aceitável drift desconhecido.
+
+### Resultados observados
+
+| Camada | Resultado e limite | Evidência |
+| --- | --- | --- |
+| Banco DEV | 25 verificações PASS: nove categorias, última criação permitida, próxima recusada, proteções de integração/convites/liberação e expiração. Fixture transacional integralmente revertida | `database-quotas.json` |
+| HTTP e renderização do servidor | 14 verificações PASS: páginas autenticadas, estado vencido, preço e recusas de payload/origem indevidos | `http-inspection.json` |
+| Chromium com trial ativo | PASS, 1440/390 px: contadores, integrações e convites bloqueados, excesso de pacientes/procedimentos recusado, persistência após reload e assinatura correta | [Actions 44222587653](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44222587653) |
+| Chromium com trial vencido | PASS, 1440/390 px: contratação pendente, escrita recusada e um clique abre o checkout existente; zero erros de navegador nessa rodada | [Actions 44284271573](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44284271573) |
+| Checkout e concorrência | Um checkout Sandbox de R$ 397; duas retentativas concorrentes devolvem o mesmo link e há uma única operação de criação | `checkout-ready.json` |
+| Estado final | Prazo original restaurado, Auth/claim preservados, trial e política ainda limitados, zero invoices e nenhuma assinatura externa | `final-database-readback.json`, 10:22:33 UTC |
+| Provedor, somente GET | `devMode=true`, PENDING, R$ 397, sem pagamento e sem assinatura vinculada | `provider-final.json`, 10:22:52 UTC |
+
+Os nove limites são: pacientes (10); agendamentos, documentos/prescrições na categoria compartilhada, pagamentos, contas a receber, despesas, procedimentos, recursos e modelos de documento (15 por categoria). A prova SQL cobre todas as categorias; a criação real pela UI cobriu pacientes e procedimentos. Dez pacientes e quinze procedimentos **sintéticos** permanecem exclusivamente nessa clínica DEV para a futura prova após pagamento; as outras categorias não foram deixadas preenchidas.
+
+A rodada ativa verde retomou esses registros criados nas tentativas anteriores, sem repetir sua criação. As rodadas Actions executaram lint e TypeScript do harness; não executaram outro build do aplicativo. As correções de seletores de sessão/CTA e da expectativa do erro existente de expiração pertencem ao harness, sem mudança de comportamento do produto. As tentativas que falharam foram preservadas, não reclassificadas como PASS.
+
+### Checkout deixado para pagamento manual
+
+`bill_GHCsGAQeBPuKcd6rCbhEwtc0`, Sandbox, R$ 397/mês, Clínica com dois médicos e até três acessos administrativos. [Link do checkout Sandbox](https://app.abacatepay.com/pay/bill_GHCsGAQeBPuKcd6rCbhEwtc0). O responsável deve avisar antes de pagar; a automação não pagou nem criou estado financeiro artificial. Não criar outro checkout para essa mesma prova.
+
+Trial original restaurado: **02/12/2026 às 01:13:37.670 UTC** (01/12 às 22:13 de Brasília). A simulação mudou temporariamente somente as datas da assinatura DEV; a origem no Auth e o claim de 14 dias não mudaram. A sessão limitada de teste foi removida dos secrets do Actions após o término; segredos administrativos, financeiros e de banco não foram enviados ao runner. Os demais secrets foram preservados.
+
+### Limite de UI e próxima ação exata
+
+A [rodada 44221156413](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44221156413) persistiu os quinze procedimentos e recusou o excesso, mas **FAIL** no gate de runtime: um erro de hidratação e quinze exceções de navegador. A rodada seguinte não os reproduziu, sem repetir a criação dos quinze procedimentos. Causa raiz e correção não comprovadas; não encerrar o R51 compartilhado por essa amostra. [Handoff atualizado para UI](HANDOFF-UI-BILLING-SaaS.md#observação-do-trial-dev-em-18112026).
+
+Quando o fundador autorizar e efetuar manualmente esse pagamento Sandbox: conferir provedor, webhook/autenticidade/deduplicação, assinatura, invoice/período e liberação persistente das nove cotas em nova sessão. Confirmar que continuam os limites contratados de dois médicos/três administrativos. Não conectar WhatsApp/Asaas nem convidar pessoas para fabricar a prova. **Essa liberação ainda é NOT TESTED nesta conta.**
+
+Evidências locais sanitizadas: `dist/founder-trial-e2e-20261117/RELATORIO-TRIAL-SANDBOX.md` e `summary.json`. Relatórios do navegador no Actions têm retenção de um dia; as cópias locais e este checkpoint preservam os resultados. Production e C3/C4 reais permanecem fora do escopo; R1–R4 não foram ratificados por este ensaio.
+
 ## Direção atual — teste exclusivo no Sandbox, 17/11/2026
 
 **O fundador determinou testar a candidata do PR #53 no Sandbox e preservar a cópia exata da main. Não criar a nova clínica em Production. C3/C4 reais NÃO AUTORIZADOS.** A ficha do piloto real abaixo fica suspensa; a fixture do ensaio não comprova contratação real nem ratifica R1–R4. C2 permanece homologado no recorte observado e inalterado.
