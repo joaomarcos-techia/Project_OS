@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 279 actions (0 inline); 69 métodos em 65 handlers; 89 props com referência de action; 884 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
+Contagem: 279 actions (0 inline); 69 métodos em 65 handlers; 89 props com referência de action; 895 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -965,6 +965,17 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/health-insurance-payout-db.ts:32`                          | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                                         |
 | `scripts/security/health-insurance-payout-db.ts:33`                          | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
 | `scripts/security/health-insurance-payout-db.ts:34`                          | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
+| `scripts/security/health-insurance-performance-db.ts:29`                     | `PORT`                                 | `process.env.PORT`                                                          |
+| `scripts/security/health-insurance-performance-db.ts:33`                     | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
+| `scripts/security/health-insurance-performance-db.ts:34`                     | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
+| `scripts/security/health-insurance-performance-db.ts:35`                     | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
+| `scripts/security/health-insurance-performance-db.ts:36`                     | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
+| `scripts/security/health-insurance-performance-db.ts:37`                     | `OUTBOX_CRON_ALLOW_NON_VERCEL`         | `process.env.OUTBOX_CRON_ALLOW_NON_VERCEL`                                  |
+| `scripts/security/health-insurance-performance-db.ts:38`                     | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                                         |
+| `scripts/security/health-insurance-performance-db.ts:39`                     | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
+| `scripts/security/health-insurance-performance-db.ts:40`                     | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
+| `scripts/security/health-insurance-performance-db.ts:41`                     | `LOG_LEVEL`                            | `process.env.LOG_LEVEL`                                                     |
+| `scripts/security/health-insurance-performance-db.ts:314`                    | `<object>`                             | `process.env`                                                               |
 | `scripts/security/health-insurance-permission-matrix-db.ts:34`               | `PORT`                                 | `process.env.PORT`                                                          |
 | `scripts/security/health-insurance-platform-db.ts:25`                        | `PORT`                                 | `process.env.PORT`                                                          |
 | `scripts/security/health-insurance-platform-db.ts:30`                        | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |

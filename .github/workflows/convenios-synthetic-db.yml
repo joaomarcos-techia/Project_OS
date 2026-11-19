@@ -139,6 +139,11 @@ jobs:
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55563           NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-insurer-credentials-db.ts
 
+      - name: Desempenho da H.2 com o código real (P14.4; metas e desvio registrado)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55564           NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-performance-db.ts
+
       # Cada prova roda mesmo se a anterior falhar (evidência independente); o job falha se qualquer uma falhar.
       - name: SP/SADT — solicitação, automação e indicação clínica × D24
         if: ${{ !cancelled() }}

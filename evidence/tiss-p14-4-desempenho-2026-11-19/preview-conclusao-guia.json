@@ -1,0 +1,23 @@
+{
+ "eventos": 13,
+ "porStatus": {
+  "processed": 13
+ },
+ "tentativasMax": 1,
+ "eventoProcessadoMs": {
+  "n": 13,
+  "p50": 7369,
+  "p95": 51679,
+  "max": 51679
+ },
+ "conclusaoParaGuiaMs": {
+  "n": 13,
+  "p50": 2938,
+  "p95": 16402,
+  "max": 16402
+ },
+ "periodo": {
+  "de": "2026-11-13",
+  "ate": "2026-11-18"
+ }
+}

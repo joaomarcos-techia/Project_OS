@@ -1,15 +1,30 @@
-# Decisões humanas pendentes do módulo Convênios (18/11/2026)
+# Decisões humanas pendentes do módulo Convênios (atualizado em 19/11/2026)
 
 Uma ficha por decisão. Nenhuma é presumida a partir de silêncio; cada uma destrava tarefas nomeadas. As alternativas e
 recomendações vêm do plano mestre (seções N e L) e do código atual.
 
 ## R54 — homologar o estorno externo no Asaas Sandbox
 
-- **Questão:** autoriza gerar o checkout de R$ 10,00 no Sandbox e acompanhar o seu pagamento (reCAPTCHA humano)?
-- **Alternativas:** autorizar agora; adiar (R54 fica provado só em banco descartável com o Asaas simulado).
-- **Recomendação:** autorizar. Risco nulo de dinheiro real (Sandbox), cobrança de R$ 45 intocada.
-- **Depois da aprovação:** checkout de R$ 10,00, você paga com o cartão de teste, estorno de R$ 4,00 e do restante pela
-  API do Sandbox, conferência do webhook, da reentrega, do cron e do livro (`homologacao-r54-sandbox.md`).
+- **Situação em 19/11:** **decidida** ("GO R54" e "SIM, TUDO"). Checkout pago e conciliado; os estornos de R$ 4,00 e de
+  R$ 6,00 estão autorizados e aguardam o prazo do Asaas para estorno parcial de cartão (duas recusas: "só pode ser
+  estornada parcialmente no próximo dia"). Próxima tentativa única a partir de 19/11, 09h00 de Brasília
+  (`homologacao-r54-sandbox.md`). Nada a decidir.
+
+## Outbox — lote do cron no pico (P14.4, 19/11)
+
+- **Questão:** aumentar `OUTBOX_BATCH_SIZE` em produção de 50 (padrão) para 200?
+- **Fato medido:** cada conclusão de atendimento publica 3 eventos que vão para o cron (chegada, início, conclusão:
+  prontuário rascunho e recebível do particular), além do evento da guia, que é processado na hora. Com 50 eventos por
+  minuto, um pico de 50 conclusões por minuto durante 3 minutos deixa 6 minutos de fila e o pior atraso chega a 7 minutos
+  (meta da H.2: 5). Com 200, pior atraso de 1 minuto e tick de no máximo 2,2 s (prova em Postgres descartável,
+  `evidence/tiss-p14-4-desempenho-2026-11-19/`). A fila é de todas as clínicas: num dia cheio o efeito soma.
+- **Alternativas:** (a) 200 na variável de ambiente de produção (o código já lê, sem deploy; teto do código 500);
+  (b) manter 50 e aceitar o atraso em pico; (c) processar também os eventos de chegada/início/conclusão logo depois da
+  resposta, como a guia (mudança de código, fora do módulo Convênios).
+- **Recomendação:** (a). Não muda nenhuma regra, só quantos eventos o cron leva por minuto; o tick medido segue muito
+  abaixo do limite da função.
+- **Depois:** você (ou o agente, com GO específico para a configuração de produção) define a variável; o agente confere
+  nas métricas do `worker.tick` que a fila não acumula. **O agente não altera configuração de produção sem esse GO.**
 
 ## P12.6 — alerta do provedor disparando em teste
 
