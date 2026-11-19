@@ -129,6 +129,7 @@ jobs:
           import { spawnSync, execFileSync } from 'node:child_process';
           import { createHash } from 'node:crypto';
           import { readFileSync, mkdtempSync, writeFileSync } from 'node:fs';
+          import { freemem, totalmem } from 'node:os';
           import path from 'node:path';
           import { syntheticBuildEnvironment } from './scripts/gate-b-composed-build.ts';
           import { readFrozenRelease } from './scripts/abacatepay-release-validation.ts';
@@ -148,8 +149,11 @@ jobs:
             sources.push({ file, sha256: createHash('sha256').update(content).digest('hex') });
           }
           const home = mkdtempSync(path.join(process.env.RUNNER_TEMP, 'qoro-build-home-'));
+          const buildHeapMiB = 4096; // Same bound as gate-b-composed-build.ts, cloud runner only.
+          const memoryBefore = { freeBytes: freemem(), totalBytes: totalmem(), buildHeapMiB };
+          assert.ok(memoryBefore.freeBytes >= buildHeapMiB * 1024 * 1024, 'Insufficient runner memory');
           const startedAt = new Date().toISOString();
-          const result = spawnSync(process.execPath, ['node_modules/next/dist/bin/next', 'build'], {
+          const result = spawnSync(process.execPath, [`--max-old-space-size=${buildHeapMiB}`, 'node_modules/next/dist/bin/next', 'build'], {
             cwd: target, env: syntheticBuildEnvironment(process.env, home), stdio: 'inherit', timeout: 600000
           });
           const proof = { status: result.status === 0 && !result.error ? 'PASS' : 'FAIL', sha,
@@ -157,6 +161,7 @@ jobs:
             scope: 'Exact current financial source exported by git archive plus frozen 160-entry SQL composition; not a build of the historical C2 TAR',
             sourceFiles: sources.length,
             sourceManifestSha256: createHash('sha256').update(JSON.stringify(sources)).digest('hex'),
+            memoryBefore,
             sqlCount: plan.migrations.length, lastMigration: plan.migrations.at(-1).tag,
             build: 'next build', transformedApplicationSources: false, syntheticEnvironmentOnly: true,
             productionWrites: 0, deploys: 0 };
