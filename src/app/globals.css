@@ -1020,7 +1020,14 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
   gap: var(--rail-item-gap);
   padding-top: 12px;
 }
-/* Ações secundárias (Fixar, tema, Sair) separadas da navegação por um filete curto, não por caixa. */
+/* Ações secundárias (Fixar, tema, Sair): 4 px mais baixas que os destinos (hierarquia e espaço
+   para a lista caber em 1440 × 900). Só com mouse: no toque o alvo segue o tamanho do item. */
+@media (pointer: fine) {
+  [data-qoro-shell='tenant'] .qoro-rail-foot .qoro-rail-item {
+    height: calc(var(--rail-item-h) - 4px);
+  }
+}
+/* Ações secundárias separadas da navegação por um filete curto, não por caixa. */
 [data-qoro-shell='tenant'] .qoro-rail-foot::before {
   position: absolute;
   top: 0;
@@ -1112,7 +1119,7 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
 /* Telas baixas (founder, 18/11): o espaço entre itens e grupos diminui um degrau, mas os itens
    não passam de 36 px para baixo; quando não cabe, a lista rola. Antes os itens chegavam a 28 px
    e os títulos sumiam para caber tudo, e o menu parecia espremido. */
-@media (min-width: 721px) and (max-height: 895px) {
+@media (min-width: 721px) and (max-height: 960px) {
   body:has([data-qoro-shell='tenant']) {
     --rail-item-h: 36px;
     --rail-heading-h: 26px;
@@ -1121,12 +1128,15 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
     --rail-foot-gap: 12px;
   }
 }
-/* Abaixo de ~750 px a lista rola em vez de espremer os itens (respiro > caber tudo). Os títulos
-   seguem visíveis; rodapé e conta ficam fora da lista e sempre ao alcance. */
-@media (min-width: 721px) and (max-height: 751px) {
+/* Abaixo de 800 px a lista rola em vez de espremer os itens (respiro > caber tudo). Os títulos
+   seguem visíveis; rodapé e conta ficam fora da lista e sempre ao alcance, e o destino atual é
+   rolado para a vista (painel-shell). */
+@media (min-width: 721px) and (max-height: 800px) {
   body:has([data-qoro-shell='tenant']) {
     --rail-heading-h: 24px;
     --rail-group-gap: 10px;
+    --rail-top-gap: 10px;
+    --rail-foot-gap: 10px;
   }
   [data-qoro-shell='tenant'] .qoro-rail-user {
     height: 48px;

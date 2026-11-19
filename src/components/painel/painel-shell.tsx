@@ -120,6 +120,19 @@ export function PainelShell({
   // até a pessoa tirar o ponteiro dali. Volta a abrir quando o ponteiro sai e
   // entra de novo, ou com qualquer tecla dentro do menu.
   const railRef = useRef<HTMLElement>(null);
+
+  // Em telas baixas a lista rola em vez de espremer os itens (sidebar, 18/11): o destino atual
+  // fica sempre à vista, sem animação e só dentro da lista (a página não se move).
+  useEffect(() => {
+    const nav = railRef.current?.querySelector<HTMLElement>('.qoro-rail-nav');
+    const ativo = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!nav || !ativo || nav.scrollHeight <= nav.clientHeight) return;
+    const topo = ativo.offsetTop - nav.offsetTop;
+    if (topo < nav.scrollTop || topo + ativo.offsetHeight > nav.scrollTop + nav.clientHeight) {
+      nav.scrollTop = Math.max(0, topo - (nav.clientHeight - ativo.offsetHeight) / 2);
+    }
+  }, [pathname]);
+
   const [peekOff, setPeekOff] = useState(false);
   const lastPathname = useRef(pathname);
   useEffect(() => {
