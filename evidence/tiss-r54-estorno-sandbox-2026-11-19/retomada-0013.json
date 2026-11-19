@@ -1,0 +1,94 @@
+{
+ "retomada": "19/11/2026 00h13 (America/Sao_Paulo) = 03:13Z",
+ "tentativasAnteriores": [
+  {
+   "at": "2026-11-19T02:59:09Z",
+   "brt": "18/11 23h59",
+   "http": 400,
+   "mensagem": "Esta transação só pode ser estornada parcialmente no próximo dia."
+  },
+  {
+   "at": "2026-11-19T03:06Z",
+   "brt": "19/11 00h06",
+   "http": 400,
+   "mensagem": "Esta transação só pode ser estornada parcialmente no próximo dia."
+  }
+ ],
+ "asaas": {
+  "payment": "pay_0_u1…iroo",
+  "consultadoEm": "2026-11-19T03:13:40.777Z",
+  "campos": {
+   "status": "CONFIRMED",
+   "value": 10,
+   "netValue": 9.32,
+   "billingType": "CREDIT_CARD",
+   "dateCreated": "2026-11-18",
+   "dueDate": "2026-11-19",
+   "originalDueDate": "2026-11-19",
+   "confirmedDate": "2026-11-18",
+   "paymentDate": null,
+   "clientPaymentDate": "2026-11-18",
+   "creditDate": "2026-12-21",
+   "estimatedCreditDate": "2026-12-21",
+   "anticipated": false,
+   "anticipable": false,
+   "deleted": false,
+   "postalService": false
+  },
+  "statusEndpoint": {
+   "http": 200,
+   "status": "CONFIRMED"
+  },
+  "estornos": {
+   "http": 200,
+   "data": []
+  }
+ },
+ "documentacaoOficial": {
+  "estornarCobranca": "https://docs.asaas.com/reference/estornar-cobranca",
+  "guiaEstornos": "https://docs.asaas.com/docs/estornos",
+  "regraTemporalPublicada": "nenhuma; não há endpoint de elegibilidade; a única fonte da regra é a mensagem do provedor"
+ },
+ "qoro": {
+  "cobranca": {
+   "status": "paid",
+   "refundedAt": null,
+   "refundCheckedAt": null,
+   "dispute": null
+  },
+  "evidencias": [],
+  "livro": [
+   {
+    "tipo": "receber",
+    "valor": "10.00",
+    "valorPago": "10.00",
+    "valorGlosado": "0.00",
+    "status": "pago"
+   }
+  ],
+  "transacoes": [
+   {
+    "kind": "payment",
+    "amount": "10.00",
+    "ligadaABaixaOriginal": null,
+    "at": "2026-11-19 02:55:59.11+00"
+   }
+  ],
+  "webhooks": [
+   "02:55:59 PAYMENT_CONFIRMED",
+   "02:56:03 CHECKOUT_PAID"
+  ],
+  "coparticipacao": {
+   "status": "paid",
+   "received_cents": 1000
+  },
+  "auditoria": [],
+  "cobranca45": {
+   "status": "paid",
+   "refunded_at": null
+  }
+ },
+ "decisao": "nenhuma chamada de estorno nesta retomada: a última recusa (19/11 00h06, já no dia seguinte pelo calendário de Brasília) foi há 7 minutos e nenhum campo do pagamento mudou; a virada do dia não liberou o parcial, então a condição é o processamento do provedor, que ainda não tem sinal observável",
+ "proximaCondicao": "a partir de 19/11 09h00 (Brasília), depois de uma janela noturna completa de processamento: ler status (CONFIRMED, estornos vazios) e fazer UMA tentativa de R$ 4,00; nova recusa idêntica encerra as tentativas do dia",
+ "classificacao": "R54 PARTIAL — PROVIDER TIMING BLOCKED"
+}
