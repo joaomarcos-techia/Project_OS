@@ -136,3 +136,27 @@ contorna o captcha e não usa serviço de resolução. O resto é do agente.
 **Critério de conclusão:** "R54 homologado no Sandbox" só com os três estados da tabela do item 5 (antes,
 depois do parcial e depois do total) conferidos no Qoro e no Asaas, a reentrega sem linha nova e a cobrança de
 R$ 45 igual. Até lá: **BLOCKED (participação humana)**.
+
+## Execução de 18–19/11 (GO do fundador para UM checkout de R$ 10,00)
+
+**Checkout:** criado em 18/11 às 23h27 UTC pelo caminho real do Qoro, com a fixture `setup-r54`
+(`scripts/security/hi-dev-e2e-fixture.ts`, lançador `r54-run.mjs` no scratchpad com ambiente limpo: banco/Supabase/cifra do
+DEV, `ASAAS_BASE_URL` conferido como `sandbox.asaas.com`, `APP_BASE_URL` do Preview da branch; nenhuma variável de produção).
+Fluxo: atendimento de convênio concluído → guia → coparticipação conferida e confirmada em R$ 10,00 → recebível pelo handler
+real → `requestCopayCharge` com `paymentsApiV1.createCopayCheckout`. Clínica sintética `e2e-hi-config-*` (a que tem a
+conta Sandbox conectada e o webhook do Preview desta branch). Ajustes só de dados de teste nessa clínica: gestora e médica
+sintéticas (as contas da configuração tinham ido para clínicas mais novas), módulo religado (um teste de "módulo desligado"
+o deixou desligado) e credenciamento da clínica na operadora (regra da P2.2, posterior à cobrança de R$ 45). A fixture é
+idempotente: com cobrança já criada para o atendimento do R54, não cria outra. Validade do checkout: 24 h.
+
+**Verificação de 19/11 (só leitura; `evidence/tiss-r54-estorno-sandbox-2026-11-19/verificacao-pagamento.json`):**
+o Asaas Sandbox não tem pagamento ligado ao checkout (`GET /payments?checkoutSession=<id>` vazio; o pagamento mais recente
+da conta é o de R$ 45 de 13/11) e a página do checkout segue em "Finalizar pagamento". No Qoro: cobrança `pending`, sem
+pagamento do provedor, sem baixa, sem webhook novo; recebível de R$ 10,00 pendente. A cobrança de R$ 45 está igual (paga).
+Estado: **PARTIAL / PAYMENT PENDING** — o pagamento não chegou a ser concluído no provedor; o mesmo link serve até a validade.
+
+**Estornos (preparados, não executados):** só depois de pagamento, webhook, baixa única e livro comprovados, e com GO
+específico. Ordem: `GET /payments/{id}/refunds` (nada) → `POST /payments/{id}/refund` com `value: 4.00` → conferir o item
+`DONE` e o webhook → conferir no Qoro (cobrança `paid`, 1 evidência, refund ligado à baixa original, `valor_pago` 6,00) →
+só então o restante (R$ 6,00) → `refunded`, 2 evidências, baixa original preservada. Nunca repetir uma chamada de estorno
+com resposta ambígua: ler `/refunds` antes.

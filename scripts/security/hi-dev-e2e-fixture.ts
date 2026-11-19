@@ -55,7 +55,7 @@ const outFile = arg('out');
  *   set-active --account <chave> --active true|false perfil ativo/desativado de uma conta e2e-hi-*
  *   guide-state --guide <id>                         status, versão, ajuste e eventos (só leitura)
  */
-const COMMANDS = ['setup', 'setup-config', 'cleanup', 'setup-states', 'setup-authorizations', 'setup-i2', 'deliver-alerts', 'setup-p75', 'setup-sadt', 'complete-sadt', 'set-state', 'set-active', 'guide-state'];
+const COMMANDS = ['setup', 'setup-config', 'cleanup', 'setup-states', 'setup-authorizations', 'setup-i2', 'deliver-alerts', 'setup-p75', 'setup-sadt', 'complete-sadt', 'setup-r54', 'set-state', 'set-active', 'guide-state'];
 if (!COMMANDS.includes(command ?? '') || !expectedRef || !accountsFile || !outFile) {
   throw new Error(`uso: ${COMMANDS.join('|')} --expected-ref <ref> --accounts <arquivo> --out <ids.json>`);
 }
@@ -1199,6 +1199,147 @@ async function completeSadt() {
   console.log(`[hi-dev-e2e-fixture] ok: ${linked.length} sessões concluídas, outbox ${tick.processed}/${tick.failed}, guias SP/SADT ${guides.map((g) => `${g.status}(${g.items})`).join(', ')}`);
 }
 
+/**
+ * R54 (autorização do fundador: UM checkout de R$ 10,00 no Asaas SANDBOX). Na clínica sintética que já tem a conta Asaas
+ * Sandbox conectada (`e2e-hi-config-*`, webhook do Preview desta branch), pelo caminho real: atendimento de convênio
+ * concluído → guia e coparticipação → conferida e confirmada em R$ 10,00 (o recebível nasce pelo handler real) →
+ * `requestCopayCharge` com `paymentsApiV1.createCopayCheckout`. Idempotente: se o atendimento do R54 já tem cobrança,
+ * reaproveita (nunca cria segundo checkout). Só Sandbox: recusa ASAAS_BASE_URL que não seja sandbox.asaas.com.
+ */
+async function setupR54() {
+  const base = process.env.ASAAS_BASE_URL ?? '';
+  if (new URL(base).hostname !== 'sandbox.asaas.com') throw new Error('ASAAS_BASE_URL não é o Sandbox: recusado');
+  if (!/^https:\/\/[a-z0-9-]+\.vercel\.app$/u.test(process.env.APP_BASE_URL ?? '')) throw new Error('APP_BASE_URL do Preview ausente');
+  const [acc] = await exec<{ clinic_id: string; slug: string }>(sql`
+    SELECT a.clinic_id::text AS clinic_id, cl.slug FROM public.clinic_payment_accounts a JOIN public.clinics cl ON cl.id = a.clinic_id
+     WHERE cl.slug LIKE 'e2e-hi-config%' AND a.active ORDER BY a.connected_at DESC LIMIT 1`);
+  if (!acc) throw new Error('nenhuma clínica sintética com conta Sandbox ativa');
+  const c = acc.clinic_id;
+  // Base: o atendimento da coparticipação de R$ 45 (operadora, plano, procedimento e médica); ele NÃO é tocado.
+  const [ref] = await exec<{ procedure_id: string; insurer_id: string; plan_id: string | null }>(sql`
+    SELECT a.procedure_id::text AS procedure_id, cv.insurer_id::text AS insurer_id, cv.plan_id::text AS plan_id
+      FROM public.patient_charges pc JOIN public.appointments a ON a.id = pc.appointment_id
+      JOIN public.hi_appointment_coverages cv ON cv.clinic_id = a.clinic_id AND cv.appointment_id = a.id
+     WHERE pc.clinic_id = ${c}::uuid AND pc.amount = 45 LIMIT 1`);
+  if (!ref) throw new Error('referência da coparticipação de R$ 45 não encontrada');
+  // O módulo da clínica sintética pode ter ficado desligado por um teste de 'módulo desligado': religa (como as outras fixtures).
+  await exec(sql`UPDATE public.hi_clinic_settings SET enabled = true, enabled_at = now(), enabled_by = ${SYS}::uuid WHERE clinic_id = ${c}::uuid AND NOT enabled`);
+  // Contas sintéticas próprias do R54 nesta clínica (as da configuração foram para clínicas mais novas).
+  const gestor = { id: await ensureUser('e2e-hi-r54-gestor@example.com', password()) };
+  await profile(gestor.id, c, 'Gestora R54 Sintética', 'gestor');
+  const doctorId = await ensureUser('e2e-hi-r54-medica@example.com', password());
+  await profile(doctorId, c, 'Dra. R54 Sintética', 'doctor');
+  await exec(sql`
+    INSERT INTO public.hi_professional_profiles (clinic_id, professional_id, council, council_number, council_uf, cbo)
+    VALUES (${c}::uuid, ${doctorId}::uuid, '06', '52345', '35', '225125') ON CONFLICT DO NOTHING`);
+  await exec(sql`
+    INSERT INTO public.hi_credentials (clinic_id, insurer_id, plan_id, professional_id, valid_from, status, created_by)
+    SELECT ${c}::uuid, ${ref.insurer_id}::uuid, NULL, x.pro, '2026-01-01', 'active', ${SYS}::uuid
+      FROM (VALUES (NULL::uuid), (${doctorId}::uuid)) AS x(pro)
+     WHERE NOT EXISTS (SELECT 1 FROM public.hi_credentials k WHERE k.clinic_id = ${c}::uuid AND k.insurer_id = ${ref.insurer_id}::uuid
+                         AND k.plan_id IS NULL AND k.professional_id IS NOT DISTINCT FROM x.pro AND k.status = 'active')`);
+  const tag = 'e2e-hi:r54-sandbox-10';
+  const cpf = cpfOf('271828182');
+  const card = '0081234500054541';
+  let [p] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.patients WHERE clinic_id = ${c}::uuid AND nome = 'Paciente Sintética R54'`);
+  if (!p) {
+    [p] = await exec<{ id: string }>(sql`
+      INSERT INTO public.patients (clinic_id, nome, cpf_encrypted, cpf_hash)
+      VALUES (${c}::uuid, 'Paciente Sintética R54', ${await encryptForTenant(c, cpf)}, ${await hashForLookup(cpf)}) RETURNING id::text AS id`);
+  }
+  const hash = await hashForLookup(`${c}:${card}`);
+  let [m] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.hi_memberships WHERE clinic_id = ${c}::uuid AND card_number_hash = ${hash}`);
+  if (!m) {
+    [m] = await exec<{ id: string }>(sql`
+      INSERT INTO public.hi_memberships (clinic_id, patient_id, insurer_id, plan_id, card_number_encrypted, card_number_hash, card_last4, created_by)
+      VALUES (${c}::uuid, ${p!.id}::uuid, ${ref.insurer_id}::uuid, ${ref.plan_id}::uuid, ${await encryptForTenant(c, card)}, ${hash}, ${card.slice(-4)}, ${gestor.id}::uuid)
+      RETURNING id::text AS id`);
+  }
+  const [today] = await exec<{ d: string }>(sql`SELECT (now() AT TIME ZONE 'America/Sao_Paulo')::date::text AS d`);
+  let [ap] = await exec<{ id: string; status: string }>(sql`SELECT id::text AS id, status::text AS status FROM public.appointments WHERE clinic_id = ${c}::uuid AND observacoes = ${tag}`);
+  for (let hour = 10; !ap && hour <= 22; hour++) {
+    try {
+      [ap] = await exec<{ id: string; status: string }>(sql`
+        INSERT INTO public.appointments (clinic_id, doctor_id, patient_id, procedure_id, scheduled_at, duration_min, status, valor,
+          snapshot_procedure_name, snapshot_procedure_valor, snapshot_procedure_duracao_min, snapshot_doctor_nome, created_via, observacoes, billing_mode)
+        SELECT ${c}::uuid, ${doctorId}::uuid, ${p!.id}::uuid, pr.id, ${`${today!.d}T${String(hour).padStart(2, '0')}:00:00Z`}::timestamptz,
+               pr.duracao_padrao_min, 'agendado'::appointment_status, pr.valor_padrao, pr.descricao, pr.valor_padrao, pr.duracao_padrao_min,
+               'Profissional sintética', 'attendant', ${tag}, 'convenio'
+          FROM public.procedures pr WHERE pr.id = ${ref.procedure_id}::uuid
+        RETURNING id::text AS id, status::text AS status`);
+    } catch (e) {
+      if (pgCode(e) !== '23P01') throw e;
+    }
+  }
+  if (!ap) throw new Error('sem horário livre hoje');
+  const coverage = await import('../../src/contexts/health-insurance/internal/coverage-service');
+  const copay = await import('../../src/contexts/health-insurance/internal/copay-service');
+  const charge = await import('../../src/contexts/health-insurance/internal/copay-charge-service');
+  const { applyTransition } = await import('../../src/contexts/scheduling/internal/appointment-core');
+  const { paymentsApiV1 } = await import('../../src/contexts/payments');
+  await import('../../src/contexts/health-insurance/internal/handlers/insurance-completed');
+  await import('../../src/contexts/financial/internal/handlers/appointment-completed');
+  await import('../../src/contexts/financial/internal/handlers/copay-confirmed');
+  const { runOutboxEventsNow } = await import('../../src/lib/outbox/worker');
+  const [hasCov] = await exec<{ n: number }>(sql`SELECT count(*)::int AS n FROM public.hi_appointment_coverages WHERE appointment_id = ${ap.id}::uuid`);
+  if (Number(hasCov!.n) === 0) {
+    await withTenant(c, (tx) => coverage.recordAppointmentCoverage(tx, {
+      clinicId: c, appointmentId: ap!.id, patientId: p!.id, procedureId: ref.procedure_id, appointmentDate: today!.d, guideType: 'consulta',
+      insurerId: ref.insurer_id, planId: ref.plan_id, membershipId: m!.id, authorizationId: null, actor: { kind: 'user', userId: gestor.id },
+    }), gestor.id);
+  }
+  if (ap.status !== 'atendido') {
+    await exec(sql`UPDATE public.appointments SET status = 'em_atendimento' WHERE id = ${ap.id}::uuid AND status = 'agendado'`);
+    await exec(sql`
+      INSERT INTO public.prontuarios (clinic_id, patient_id, doctor_id, appointment_id, status, signed_at, signed_by, content_encrypted)
+      VALUES (${c}::uuid, ${p!.id}::uuid, ${doctorId}::uuid, ${ap.id}::uuid, 'assinado', now(), ${doctorId}::uuid,
+        ${await encryptForTenant(c, JSON.stringify({ sintetico: 'Registro sintético R54, sem conteúdo clínico' }))})`);
+    await withTenant(c, (tx) => applyTransition(tx, {
+      clinicId: c, appointmentId: ap!.id, target: 'atendido', transitionedBy: doctorId, actorType: 'user', clientKey: `r54-concluir-${ap!.id}`, correlationId: null,
+    }), doctorId);
+    await runOutboxEventsNow([
+      { eventType: 'scheduling.appointment.insurance_completed', idempotencyKeys: [`r54-concluir-${ap.id}:atendido:convenio`] },
+      { eventType: 'scheduling.appointment.completed', idempotencyKeys: [`r54-concluir-${ap.id}:atendido`] },
+    ]);
+  }
+  // Guia em edição (ex.: credenciamento registrado depois): a reconciliação do cron reavalia a MESMA guia e, pronta, calcula a coparticipação.
+  const { processInsuranceBilling } = await import('../../src/contexts/health-insurance/internal/billing-recovery');
+  const [gst] = await exec<{ status: string }>(sql`SELECT g.status FROM public.hi_guides g JOIN public.hi_guide_items i ON i.guide_id = g.id WHERE i.appointment_id = ${ap.id}::uuid AND g.live`);
+  if (gst?.status === 'pending_data') {
+    await withTenant(c, (tx) => processInsuranceBilling(tx, { clinicId: c, appointmentId: ap!.id, detectedBy: 'reconcile', eventState: 'processed', lock: 'wait' }));
+  }
+  const [cp] = await exec<{ id: string; status: string }>(sql`SELECT id::text AS id, status FROM public.hi_copayments WHERE clinic_id = ${c}::uuid AND appointment_id = ${ap.id}::uuid`);
+  if (!cp) throw new Error('coparticipação não nasceu (contrato sem coparticipação?)');
+  if (cp.status === 'calculated' || cp.status === 'estimated') {
+    await withTenant(c, (tx) => copay.checkCopay(tx, { clinicId: c, copaymentId: cp.id, checkedCents: 1000, actorUserId: gestor.id }), gestor.id);
+  }
+  const [cp2] = await exec<{ status: string }>(sql`SELECT status FROM public.hi_copayments WHERE id = ${cp.id}::uuid`);
+  if (cp2!.status === 'checked') {
+    await withTenant(c, (tx) => copay.confirmCopay(tx, {
+      clinicId: c, copaymentId: cp.id, confirmedCents: 1000, chargeableCents: 1000, actorUserId: gestor.id, procedureName: 'Consulta sintética R54',
+    }), gestor.id);
+    await runOutboxEventsNow([{ eventType: 'health_insurance.copay.confirmed', idempotencyKeys: [`copay-confirmed:${cp.id}`] }]);
+  }
+  const [existing] = await exec<{ n: number }>(sql`SELECT count(*)::int AS n FROM public.patient_charges WHERE clinic_id = ${c}::uuid AND appointment_id = ${ap.id}::uuid`);
+  let outcome = 'existing';
+  if (Number(existing!.n) === 0) {
+    const r = await charge.requestCopayCharge(
+      { createCheckout: (i) => paymentsApiV1.createCopayCheckout(i) },
+      { clinicId: c, copaymentId: cp.id, actorUserId: gestor.id },
+    );
+    outcome = r.outcome;
+  }
+  const rows = await exec<{ amount: string; status: string; provider_checkout_id: string | null; invoice_url: string | null }>(sql`
+    SELECT amount::text AS amount, status::text AS status, provider_checkout_id, invoice_url
+      FROM public.patient_charges WHERE clinic_id = ${c}::uuid AND appointment_id = ${ap.id}::uuid`);
+  const out = {
+    clinicSlug: acc.slug, appointmentId: ap.id, copaymentId: cp.id, outcome, charges: rows.length,
+    charge: rows[0] ? { amount: rows[0].amount, status: rows[0].status, checkoutId: rows[0].provider_checkout_id, invoiceUrl: rows[0].invoice_url } : null,
+  };
+  writeFileSync(outFile!, JSON.stringify(out, null, 1));
+  console.log(`[hi-dev-e2e-fixture] R54: ${outcome}; cobranças do atendimento ${rows.length}; valor ${rows[0]?.amount ?? '-'}; host ${rows[0]?.invoice_url ? new URL(rows[0].invoice_url).hostname : '-'}`);
+}
+
 // Comando desconhecido NÃO cai no cleanup (antes era o ramo padrão: um erro de digitação desativava
 // as contas e clínicas e2e-hi-*). O cleanup só roda pelo nome.
 const main =
@@ -1211,6 +1352,7 @@ const main =
   : command === 'setup-p75' ? setupP75
   : command === 'setup-sadt' ? setupSadt
   : command === 'complete-sadt' ? completeSadt
+  : command === 'setup-r54' ? setupR54
   : command === 'set-state' ? setState
   : command === 'set-active' ? setActive
   : command === 'guide-state' ? guideState
