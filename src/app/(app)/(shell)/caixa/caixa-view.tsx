@@ -168,6 +168,16 @@ export function CaixaView({
         return;
       }
       if (!result.ok) {
+        // P-19 (ciclo 7): o servidor recusou porque o lançamento mudou, por exemplo registrado em
+        // outra aba ou aparelho. A recusa desfaz a reserva da chave; descartá-la, fechar o painel e
+        // recarregar mostra o estado atual, em vez de deixar o operador repetir sobre valores
+        // velhos. O mesmo caminho atende o futuro conflito de `valorPagoEsperado` no servidor.
+        if (result.code === 'state' || result.code === 'conflict') {
+          emAberto.delete(resumo);
+          gravarChavesEmAberto(emAberto);
+          setPanel(null);
+          router.refresh();
+        }
         setError(result.code === 'error' ? RESULTADO_DESCONHECIDO : result.message);
         return;
       }

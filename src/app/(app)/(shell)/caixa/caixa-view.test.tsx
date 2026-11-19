@@ -17,7 +17,8 @@ import type {
 } from '@/contexts/financial/types';
 import type { ExcessRefundStatus } from '@/contexts/payments';
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+const nav = vi.hoisted(() => ({ refresh: vi.fn() }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: nav.refresh }) }));
 vi.mock('./actions', () => ({
   confirmPaymentAction: vi.fn(),
   cancelLancamentoAction: vi.fn(),
@@ -302,6 +303,57 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
       const [primeira, mesmaChecagem, outroValor] = chavesDe(confirmPaymentAction);
       expect(mesmaChecagem).toBe(primeira);
       expect(outroValor).not.toBe(primeira);
+    });
+
+    it('P-19: outra aba registrou antes (recusa de situação): fecha o painel, recarrega e descarta a chave', async () => {
+      const mudou =
+        'A situação deste lançamento mudou, talvez em outra aba ou aparelho. A lista foi atualizada; confira os valores antes de registrar de novo.';
+      nav.refresh.mockClear();
+      vi.mocked(confirmPaymentAction)
+        .mockReset()
+        .mockResolvedValueOnce({ ok: false, code: 'state', message: mudou })
+        .mockResolvedValueOnce({ ok: true, data: item({ status: 'parcial', valorPago: 200 }) });
+      render(<CaixaView {...base} pendentes={[item()]} />);
+
+      await abrir('Registrar recebimento');
+      await registrar(/Registrar R\$\s*200,00/);
+      expect(await screen.findByText(mudou)).toBeTruthy();
+      await painelFechado();
+      expect(nav.refresh).toHaveBeenCalledTimes(1);
+      expect(sessionStorage.getItem(PENDING_KEYS_STORAGE_KEY) ?? '').not.toContain(
+        String(chavesDe(confirmPaymentAction)[0]),
+      );
+
+      // Com a lista atualizada, registrar de novo é outra operação, com chave nova.
+      await abrir('Registrar recebimento');
+      await registrar(/Registrar R\$\s*200,00/);
+      await painelFechado();
+      const [antes, depois] = chavesDe(confirmPaymentAction);
+      expect(depois).not.toBe(antes);
+    });
+
+    it('P-19: conflito de chave também recarrega; recusa de validação mantém o painel e a chave', async () => {
+      nav.refresh.mockClear();
+      vi.mocked(confirmPaymentAction)
+        .mockReset()
+        .mockResolvedValueOnce({
+          ok: false,
+          code: 'conflict',
+          message: 'Requisição duplicada detectada.',
+        })
+        .mockResolvedValueOnce({ ok: false, code: 'validation', message: 'Valor acima do saldo.' });
+      render(<CaixaView {...base} pendentes={[item()]} />);
+
+      await abrir('Registrar recebimento');
+      await registrar(/Registrar R\$\s*200,00/);
+      await painelFechado();
+      expect(nav.refresh).toHaveBeenCalledTimes(1);
+
+      await abrir('Registrar recebimento');
+      await registrar(/Registrar R\$\s*200,00/);
+      expect(await screen.findByText('Valor acima do saldo.')).toBeTruthy();
+      expect(screen.getByLabelText('Valor recebido')).toBeTruthy();
+      expect(nav.refresh).toHaveBeenCalledTimes(1);
     });
 
     it('sucesso encerra a operação: o mesmo valor depois dele é um registro novo, com chave nova', async () => {

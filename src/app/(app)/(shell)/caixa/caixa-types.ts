@@ -48,7 +48,9 @@ export function actionErrorLogFields(err: unknown): {
 const MAP: Record<string, { code: string; message: string }> = {
   LancamentoStateError: {
     code: 'state',
-    message: 'Esta ação não é mais possível — a situação do lançamento mudou. Recarregue.',
+    // P-19: a tela recarrega sozinha nesse caso (outra aba ou aparelho registrou antes).
+    message:
+      'A situação deste lançamento mudou, talvez em outra aba ou aparelho. A lista foi atualizada; confira os valores antes de registrar de novo.',
   },
   LancamentoNotFoundError: { code: 'not_found', message: 'Lançamento não encontrado.' },
   IdempotencyInFlightError: {
