@@ -129,6 +129,7 @@
 | Concluídas | P6.5 (teto "Testado"), P12.5 (alcance sem operadora) e P14.4 (6 metas cumpridas, 1 desvio registrado) (83 → **86 de 117**) |
 | Provas novas | adaptador SOAP 18/18 contra o stub (as 7 operações com o XSD do webservice dos dois lados; recusa de negócio, `tissFault`, tempo, circuito, resposta adulterada, DTD, login grande, outra operadora); conectores 29/29; TISS 553; credenciais 6/6 em Postgres 17 (novo passo no job sintético) |
 | Achado do XSD | as consultas novas nasceram com `nomeContratado`/`nomeBeneficiario`, retirados na 4.00.00; a recusa da elegibilidade é só `codigoGlosa` e a situação do protocolo traz número e erro dentro do lote: corrigido antes do commit, provado pelo próprio XSD |
+| Documentação (P15.1) | PARCIAL: runbooks, domínio e known-limitations prontos; falta a central de ajuda ao usuário |
 | Desempenho (P14.4) | H.2 medida: conclusão → guia p95 133 ms no pico (Preview p95 16,4 s); PDF 538 ms; XML de 100 guias 106 ms e 149 MB; demonstrativo de 1.000 guias 149 ms; lista de 10 mil guias p95 23 ms; TUSS 22 em 362 ms. **Desvio:** fila do outbox no pico com o lote de produção (pior atraso 7 min; 1 min com lote 200) |
 | R54 | PARTIAL — PROVIDER TIMING BLOCKED: o Asaas recusou o parcial de R$ 4,00 (18/11 23h59 e 19/11 00h06 de Brasília); na retomada das 00h13 nada mudou e nenhuma chamada foi feita; próxima tentativa única a partir das 09h00 |
 | CI | `1d2b7b07` falhou só no inventário (leituras de ambiente da fixture `setup-r54`); corrigido em `49e15444` |
@@ -198,7 +199,7 @@ Classes: **A** implementável agora · **B** implementada, falta teste/homologa�
 | P14.3 | E2E na Preview de todas as jornadas | C | matriz I.2, P6.3, P7.5, P4.x, P3.2 e **SP/SADT (18/11)** no Preview | jornadas da P11 e do consultório | depois de P11/#56 |
 | P14.4 | desempenho com números reais (H.2) | A | — | **concluída em 19/11** (6 metas cumpridas, 1 desvio registrado) | ficha "Outbox" para o fundador |
 | P14.5 | gates completos | C | CI verde a cada SHA | só no fim | último passo |
-| P15.1 | documentação e runbooks operacionais | A | runbooks parciais (log-search, homologação, R54) | runbooks de faturar, corrigir, reprocessar, rollback e incidente | redigir |
+| P15.1 | documentação e runbooks operacionais | A | **19/11:** runbooks de faturar, corrigir guia, reprocessar, rollback e incidente (`docs/convenios/runbooks-operacionais.md`, conferidos contra as telas); domínio (`docs/domains/health-insurance.md`); `known-limitations` com a declaração de suporte da A.3 | central de ajuda ao usuário (texto de produto, junto da UI do #56) | **PARCIAL** |
 | P15.2 | homologação interna por perfil | C | — | depende da P14.3 | — |
 | P15.3 | homologação com operadora: Consulta | F | roteiro H1–H12 pronto | operadora (B5) | — |
 | P15.4 | homologação com operadora: SP/SADT | F | idem | operadora (B5) | — |
@@ -1332,7 +1333,7 @@ Os números marcados com `*` são provisórios e devem ser reconferidos (E.5). P
 
 | ID (antigo) | Objetivo | Dependências | Aceite | Status |
 | --- | --- | --- | --- | --- |
-| **P15.1** (T11.4) | documentação: domínios, schema, `known-limitations` (declaração de suporte de A.3), central de ajuda, **runbooks operacionais** (faturar, corrigir guia, reprocessar, rollback, incidente) | tudo | links válidos; revisão | Pendente |
+| **P15.1** (T11.4) | documentação: domínios, schema, `known-limitations` (declaração de suporte de A.3), central de ajuda, **runbooks operacionais** (faturar, corrigir guia, reprocessar, rollback, incidente) | tudo | links válidos; revisão | **Parcial (19/11):** runbooks operacionais (faturar, corrigir guia, reprocessar, rollback, incidente) conferidos contra as telas reais; domínio `docs/domains/health-insurance.md`; `known-limitations` com a declaração de suporte de A.3 e o desvio do outbox (P14.4); índice de runbooks aponta para eles. **Falta:** central de ajuda ao usuário (texto de produto, junto da UI do #56) |
 | **P15.2** | homologação interna na Preview com clínica de teste e fluxos reais de clínica (dados sintéticos), roteiro por perfil | P14.3 | roteiro executado com evidência | Pendente |
 | **P15.3** (T11.6) | homologação com operadora: Guia de Consulta | P13, B5 | protocolo de aceite real | **Bloqueado (B5).** Roteiro, perguntas para a operadora, cenários H1–H12 e modelo de registro prontos em [`docs/convenios/homologacao-operadora.md`](docs/convenios/homologacao-operadora.md) (11/11). Nenhum cenário executado |
 | **P15.4** | homologação com operadora: SP/SADT | P13, B5 | idem | **Bloqueado (B5).** Mesmo roteiro (H5, H6, H9–H12) |

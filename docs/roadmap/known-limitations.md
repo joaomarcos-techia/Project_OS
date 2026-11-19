@@ -24,6 +24,10 @@ Canonical — fatos confirmados no código e bordas que não podem ser inferidas
 | Templates Meta | `EXTERNAL_DRIFT` | `cobranca_amigavel` ausente; reminder/follow-up aprovados como `MARKETING`, não `UTILITY` |
 | E-mail | `OPERATIONAL_RISK` | 33 dos 100 envios mais recentes da conta Resend observada estavam `bounced`; vínculo integral com PROD é incerto |
 | Signed URLs | `KNOWN_LIMITATION` | URL já emitida pode continuar válida até TTL/cache expirar |
+| Convênios TISS: escopo (A.3 do plano TISS) | `IMPLEMENTED_WITH_CONSTRAINT` | Suporta Guia de Consulta e Guia SP/SADT (procedimentos da tabela 22), lotes, recurso de glosa e importação de demonstrativos no Padrão TISS 4.03.00. **Não declarar suporte universal ao TISS.** Ficam fora: outras despesas (tabelas 18/19/20), internação, honorários, odontologia, anexos de quimio/radio/OPME. |
+| Convênios TISS: produção | `NOT_RELEASED` | Módulo NO-GO em produção (PR #55 draft); no trial de 14 dias é só demonstração, sem operação real. |
+| Convênios TISS: envio à operadora | `KNOWN_LIMITATION` | Envio, protocolo e retorno pelo portal da operadora, registrados no Qoro. O conector SOAP 4.03.00 está testado só contra stub; nenhuma operadora está homologada (B5). |
+| Outbox no pico | `KNOWN_LIMITATION` | Com `OUTBOX_BATCH_SIZE` = 50 por minuto, um pico de 50 conclusões por minuto acumula fila nos eventos que só o cron trata (pior atraso medido: 7 min; 1 min com 200). Medido na P14.4; correção só de configuração, pendente de decisão. |
 | Cash-flow rollup | `KNOWN_LIMITATION` | janela padrão de três dias pode não recomputar estorno muito antigo sem operação ampliada |
 
 Adicionar o SDK GCP é dependência de produção e requer confirmação explícita; esta refatoração documental não o adiciona.
