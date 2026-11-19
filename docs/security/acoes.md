@@ -1133,9 +1133,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/hi-xsd-queue-bench.ts:16`                                  | `LARGE_N`                              | `process.env.LARGE_N`                                                       |
 | `scripts/security/hi-xsd-queue-bench.ts:17`                                  | `TISS_XMLLINT_WASM_DIR`                | `process.env.TISS_XMLLINT_WASM_DIR`                                         |
 | `scripts/security/hi-xsd-queue-bench.ts:19`                                  | `POOL`                                 | `process.env.POOL`                                                          |
-| `scripts/security/local-build.ts:76`                                         | `<dynamic>`                            | `process.env[key]`                                                          |
-| `scripts/security/local-build.ts:76`                                         | `<dynamic>`                            | `process.env[key]`                                                          |
-| `scripts/security/local-build.ts:101`                                        | `CI`                                   | `process.env.CI`                                                            |
+| `scripts/security/local-build.ts:79`                                         | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/security/local-build.ts:79`                                         | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/security/local-build.ts:104`                                        | `CI`                                   | `process.env.CI`                                                            |
 | `scripts/security/migration-composition-db.ts:53`                            | `PR53_REF`                             | `process.env.PR53_REF`                                                      |
 | `scripts/security/migration-composition-db.ts:54`                            | `PORT`                                 | `process.env.PORT`                                                          |
 | `scripts/security/migration-composition-db.ts:141`                           | `<object>`                             | `process.env`                                                               |
