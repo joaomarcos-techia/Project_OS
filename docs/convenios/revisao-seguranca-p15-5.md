@@ -36,6 +36,21 @@ P12.12) mudarem o código.
 
 Nenhum achado crítico aberto no código revisado.
 
+## Revisão de 19/11: superfícies novas (P6.5, P12.5, P14.4)
+
+| Área | O que foi conferido | Evidência | Resultado |
+| --- | --- | --- | --- |
+| Saída de rede (SSRF) | O endereço vem só da configuração homologada, nunca do usuário: só HTTPS, sem usuário/senha na URL, sem seguir redirecionamento, resposta com teto de 16 MiB lida em partes | `tiss-soap.test.ts` (configuração) | OK, com o reforço abaixo |
+| XML de fora | A resposta passa pelo leitor estrito (sem DTD, entidade, XInclude ou instrução de processamento; limites de nós e profundidade), pelo namespace da ANS, pelo XSD oficial e pelo hash; a origem tem de ser o registro ANS da operadora | stub com DTD, hash errado, outra operadora, fora do XSD e lote trocado: todos `invalid_response` | OK |
+| Credencial | Decifrada só em `tiss-soap/credential.ts`, na hora do envio. Não aparece em resultado, recusa, erro nem recibo; com `md5_hex` a senha em claro não trafega | gate estático (só esse arquivo decifra; nenhum código do app o chama); harness 6/6 com RLS e revogada; teste "a senha não aparece" | OK |
+| Envio duplicado | Lote, solicitação e recurso só são repetidos se a operadora declarar deduplicação; tempo esgotado num envio vira manual com aviso para conferir no portal | teste de tempo (envio 1 tentativa; consulta 3) | OK |
+| Stub e registro | O stub nunca é importado pelo app e o registro de homologados de produção é vazio | gate em `tiss-soap.test.ts` | OK |
+| Medição (P14.4) | O harness carrega volume com `session_replication_role = replica` só no Postgres descartável (loopback conferido); a medição no DEV é só leitura | `health-insurance-performance-db.ts`; `p144-preview-latency` em transação `read only` | OK |
+
+**Reforço feito nesta revisão (baixa):** HTTP em loopback era aceito em qualquer configuração; uma configuração de operadora mal preenchida poderia apontar o adaptador para um serviço local. Agora o loopback em HTTP exige `allowLoopbackHttp`, que só o stub dos testes liga (teste: sem a opção, `http://127.0.0.1` e `http://localhost` são recusados).
+
+**Para quem usar o recibo (P9.4):** a resposta da operadora pode ter dado de paciente (ex.: nome na elegibilidade). O recibo devolvido pelo adaptador tem de ser guardado pelo caminho cifrado de arquivos TISS, nunca em log.
+
 ## Riscos que sobram (não são defeito do código revisado)
 
 - **Perfil de segurança TISS da ANS** (inatividade no servidor, política de senha, auditoria imutável de 180 dias, último

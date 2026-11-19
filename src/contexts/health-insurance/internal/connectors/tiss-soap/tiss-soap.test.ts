@@ -82,6 +82,7 @@ function config(over: Partial<TissSoapConfig> = {}): TissSoapConfig {
     soapVersion: '1.1',
     passwordEncoding: 'md5_hex',
     deduplicatesSubmissions: false,
+    allowLoopbackHttp: true,
     timeoutMs: 5_000,
     retries: 2,
     circuit: { failureThreshold: 3, cooldownMs: 60_000 },
@@ -254,8 +255,10 @@ describe('TissSoapAdapter contra o stub (P6.5)', () => {
     }
   }, 60_000);
 
-  it('configuração: só HTTPS (HTTP só em loopback), sem senha na URL, com ao menos um serviço', () => {
+  it('configuração: só HTTPS (loopback em HTTP só com a opção do stub), sem senha na URL, com ao menos um serviço', () => {
     expect(() => transport({ endpoints: { eligibility: 'http://operadora.example/tiss' } })).toThrow(TissSoapConfigError);
+    expect(() => transport({ endpoints: { eligibility: 'http://127.0.0.1:8080/tiss' }, allowLoopbackHttp: false })).toThrow(TissSoapConfigError);
+    expect(() => createTissSoapTransport({ ...config({ endpoints: { eligibility: 'http://localhost/tiss' } }), allowLoopbackHttp: false }, { credentials: async () => null, xsd: wsXsd })).toThrow(TissSoapConfigError);
     expect(() => transport({ endpoints: { eligibility: 'https://u:p@operadora.example/tiss' } })).toThrow(TissSoapConfigError);
     expect(() => transport({ endpoints: {} })).toThrow(TissSoapConfigError);
     expect(() => transport({ registroANS: '12' })).toThrow(TissSoapConfigError);

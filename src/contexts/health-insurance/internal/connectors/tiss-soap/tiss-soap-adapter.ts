@@ -10,8 +10,8 @@
  *     transação é recusada antes da rede (erro para quem chama, nunca "enviado");
  *   - a credencial vem do provedor injetado (módulo de credenciais, P12.5) e só existe no pedido
  *     em memória: nenhum resultado, erro ou recibo a contém;
- *   - endereço só HTTPS (HTTP apenas em loopback, para o stub), sem usuário/senha na URL e sem
- *     seguir redirecionamento;
+ *   - endereço só HTTPS, sem usuário/senha na URL e sem seguir redirecionamento; HTTP em loopback
+ *     só com `allowLoopbackHttp` explícito (o stub dos testes), nunca numa configuração de operadora;
  *   - tempo, retentativa e circuito por operadora vêm do contrato da P2.5 (`createConnector`):
  *     consultas repetem; envios (lote, solicitação, recurso) só se a operadora deduplica;
  *   - a resposta só vira `accepted`/`rejected` depois de: envelope legível, elemento esperado,
@@ -62,6 +62,8 @@ export interface TissSoapConfig {
   circuit?: CircuitOptions;
   /** Maior resposta aceita (padrão 16 MiB). */
   maxResponseBytes?: number;
+  /** Só para o stub local dos testes: aceita `http://127.0.0.1`. Configuração de operadora nunca liga. */
+  allowLoopbackHttp?: boolean;
 }
 
 export interface TissSoapCredential {
@@ -87,7 +89,7 @@ export class TissSoapConfigError extends Error {
 
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]']);
 
-function checkEndpoint(raw: string): URL {
+function checkEndpoint(raw: string, allowLoopbackHttp: boolean): URL {
   let url: URL;
   try {
     url = new URL(raw);
@@ -95,7 +97,7 @@ function checkEndpoint(raw: string): URL {
     throw new TissSoapConfigError('endereço de webservice inválido');
   }
   if (url.username || url.password) throw new TissSoapConfigError('endereço de webservice com usuário ou senha embutidos');
-  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && LOOPBACK.has(url.hostname))) {
+  if (url.protocol !== 'https:' && !(allowLoopbackHttp && url.protocol === 'http:' && LOOPBACK.has(url.hostname))) {
     throw new TissSoapConfigError('o webservice da operadora precisa de HTTPS');
   }
   return url;
@@ -134,7 +136,7 @@ export function createTissSoapTransport(config: TissSoapConfig, deps: TissSoapDe
   const endpoints = new Map<OperatorOperation, URL>();
   for (const op of OPERATOR_OPERATIONS) {
     const raw = config.endpoints[op];
-    if (raw) endpoints.set(op, checkEndpoint(raw));
+    if (raw) endpoints.set(op, checkEndpoint(raw, config.allowLoopbackHttp === true));
   }
   if (endpoints.size === 0) throw new TissSoapConfigError('nenhuma operação com endereço homologado');
   if (!/^\d{6}$/u.test(config.registroANS)) throw new TissSoapConfigError('registro ANS da operadora inválido');
