@@ -870,7 +870,7 @@ try {
       const f = await seed();
       installHttpFixture(f);
       const response = await webhook(notification(f));
-      assert.equal(response.status, 202);
+      assert.equal(response.status, 202, `Synthetic receiver: ${await response.text()}`);
       assert.equal((await webhook(notification(f))).status, 200);
       await Promise.all([
         webhook(notification(f)),

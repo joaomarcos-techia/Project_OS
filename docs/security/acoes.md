@@ -620,8 +620,8 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/abacatepay-operational-proof.ts:331`     | `<object>`                             | `process.env`                                                               |
 | `scripts/security/abacatepay-operational-proof.ts:447`     | `ABACATEPAY_NEW_CHECKOUTS_ENABLED`     | `process.env.ABACATEPAY_NEW_CHECKOUTS_ENABLED`                              |
 | `scripts/security/abacatepay-operational-proof.ts:497`     | `<object>`                             | `process.env`                                                               |
-| `scripts/security/abacatepay-operational-proof.ts:645`     | `QORO_FINANCIAL_REF`                   | `process.env.QORO_FINANCIAL_REF`                                            |
-| `scripts/security/abacatepay-operational-proof.ts:646`     | `QORO_TISS_REF`                        | `process.env.QORO_TISS_REF`                                                 |
+| `scripts/security/abacatepay-operational-proof.ts:652`     | `QORO_FINANCIAL_REF`                   | `process.env.QORO_FINANCIAL_REF`                                            |
+| `scripts/security/abacatepay-operational-proof.ts:653`     | `QORO_TISS_REF`                        | `process.env.QORO_TISS_REF`                                                 |
 | `scripts/security/abacatepay-operational-worker.ts:4`      | `QORO_ABACATEPAY_OPERATIONAL`          | `process.env.QORO_ABACATEPAY_OPERATIONAL`                                   |
 | `scripts/security/abacatepay-operational-worker.ts:5`      | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/abacatepay-operational-worker.ts:6`      | `ABACATEPAY_ENVIRONMENT`               | `process.env.ABACATEPAY_ENVIRONMENT`                                        |

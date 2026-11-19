@@ -75,6 +75,12 @@ jobs:
           cp dist/signup-free-trial-db.json dist/renewal-qualification/
       - name: Nine trial limits, payment release and permanent plan capacity
         if: ${{ !cancelled() }}
+        env:
+          # Static trial-access imports validate env; all SQL uses the owned scratch cluster.
+          NODE_ENV: test
+          DATABASE_URL: postgres://synthetic:synthetic@127.0.0.1:1/unused?sslmode=require
+          NEXT_PUBLIC_SUPABASE_URL: https://synthetic.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_synthetic
         run: |
           export SECURITY_PG_BIN="$(pg_config --bindir)"
           node --conditions=react-server --import tsx scripts/security/trial-resource-limits.ts
