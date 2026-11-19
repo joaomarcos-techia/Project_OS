@@ -100,6 +100,11 @@ jobs:
           export QORO_TISS_WORKTREE="$RUNNER_TEMP/qoro-frozen-schema-input"
           git worktree add --detach "$QORO_TISS_WORKTREE" "$QORO_TISS_REF"
           node --import tsx scripts/security/abacatepay-tiss-composition.ts
+          # This harness explicitly tests N-1 before applying 0159 in its own cluster.
+          # Its native immutable-input mode starts at 159 entries and tests the
+          # transition to the exact 160-entry schema; do not preload 0159 twice.
+          node --conditions=react-server --import tsx scripts/security/abacatepay-renewal-db.ts
+          cp dist/abacatepay-renewal-tiss-0158-db.json dist/renewal-qualification/renewal-schema-transition160.json
           target="$RUNNER_TEMP/qoro-financial-schema160"
           mkdir "$target"
           git archive HEAD | tar -xf - -C "$target"
@@ -110,11 +115,9 @@ jobs:
           unset QORO_TISS_REF QORO_TISS_WORKTREE
           (
             cd "$target"
-            node --conditions=react-server --import tsx scripts/security/abacatepay-renewal-db.ts
             node --conditions=react-server --import tsx scripts/security/signup-free-trial-db.ts --shared-schema
             node --conditions=react-server --import tsx scripts/security/legacy-cancellation-db.ts candidate-160
           )
-          cp "$target/dist/abacatepay-renewal-db.json" dist/renewal-qualification/renewal-schema160.json
           cp "$target/dist/signup-free-trial-db.json" dist/renewal-qualification/trial-schema160.json
           cp "$target/dist/cancellation-candidate-160.json" dist/renewal-qualification/
           cp dist/abacatepay-tiss-composition.json dist/renewal-qualification/schema-composition.json
@@ -168,6 +171,7 @@ jobs:
           path: |
             dist/renewal-qualification/*.json
             dist/abacatepay-renewal-db.json
+            dist/abacatepay-renewal-tiss-0158-db.json
             dist/abacatepay-operational*.json
             dist/abacatepay-pilot*.json
             dist/signup-free-trial-db.json
