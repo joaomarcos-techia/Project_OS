@@ -124,3 +124,36 @@ export function clinicaPlanFor(catalog: OfferCatalog, doctors: number): SignupPl
     (a, b) => Math.abs(a.doctors - doctors) - Math.abs(b.doctors - doctors),
   )[0]!.plan;
 }
+
+export interface FirstCharge {
+  /** A avaliação já terminou: a primeira mensalidade vence hoje. */
+  expired: boolean;
+  /** Dias de avaliação que ainda restam (arredondado para cima). */
+  remainingDays: number;
+  /** Vencimento da primeira mensalidade, AAAA-MM-DD (UTC), como o servidor envia ao provedor. */
+  dueDate: string;
+}
+
+/**
+ * Mesma regra do servidor (`resolveSignupTrialTerms`, oferta 2026): a primeira mensalidade vence no
+ * dia UTC seguinte ao fim da avaliação; se o checkout acontece depois do fim, vence hoje. Serve só
+ * para a tela dizer o que vai acontecer; quem decide a cobrança é o servidor.
+ */
+export function firstChargeFor(offerTrialEndsAt: string, now: Date): FirstCharge | null {
+  const endsAt = Date.parse(offerTrialEndsAt);
+  if (!Number.isFinite(endsAt) || !Number.isFinite(now.getTime())) return null;
+  const expired = now.getTime() >= endsAt;
+  return {
+    expired,
+    remainingDays: expired ? 0 : Math.ceil((endsAt - now.getTime()) / 86_400_000),
+    dueDate: expired
+      ? now.toISOString().slice(0, 10)
+      : new Date(endsAt + 86_400_000).toISOString().slice(0, 10),
+  };
+}
+
+/** AAAA-MM-DD → DD/MM/AAAA, sem passar por fuso. */
+export function formatIsoDate(isoDate: string): string {
+  const [ano, mes, dia] = isoDate.split('-');
+  return `${dia}/${mes}/${ano}`;
+}

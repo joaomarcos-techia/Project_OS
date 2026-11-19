@@ -86,3 +86,36 @@ describe('resumo do checkout (desenho aprovado)', () => {
     expect(clinicaPlanFor(catalogo, 4)?.code).toBe('clinica_2026_4');
   });
 });
+
+// O texto da tela precisa dizer a mesma data que o servidor manda ao provedor.
+import { resolveSignupTrialTerms } from '@/contexts/onboarding/internal/signup-trial';
+
+import { firstChargeFor, formatIsoDate } from './checkout-summary';
+
+describe('primeira mensalidade (mesma regra do servidor)', () => {
+  const criada = new Date('2026-11-18T03:00:00.000Z');
+  const fim = new Date(criada.getTime() + 14 * 86_400_000).toISOString();
+
+  it.each([
+    ['no dia da criação', '2026-11-18T03:05:00.000Z'],
+    ['no meio da avaliação', '2026-11-25T18:00:00.000Z'],
+    ['minutos antes do fim', '2026-12-02T02:59:00.000Z'],
+    ['depois do fim', '2026-12-03T10:00:00.000Z'],
+  ])('%s', (_rotulo, agora) => {
+    const servidor = resolveSignupTrialTerms({
+      planCode: 'clinica_2026_3',
+      attemptedAt: new Date(agora),
+      authCreatedAt: criada,
+    })!;
+    const tela = firstChargeFor(fim, new Date(agora))!;
+    expect(tela.dueDate).toBe(servidor.firstDueDate);
+    expect(tela.expired).toBe(servidor.expiredAtCheckout);
+  });
+
+  it('conta os dias que restam e formata a data sem fuso', () => {
+    expect(firstChargeFor(fim, criada)?.remainingDays).toBe(14);
+    expect(firstChargeFor(fim, new Date('2026-11-29T03:00:00.000Z'))?.remainingDays).toBe(3);
+    expect(formatIsoDate('2026-12-03')).toBe('03/12/2026');
+    expect(firstChargeFor('não é data', criada)).toBeNull();
+  });
+});

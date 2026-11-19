@@ -215,8 +215,14 @@ describe('seleção de plano O-4', () => {
     );
     render(<PlanSelectionForm />);
     fireEvent.click(await screen.findByRole('button', { name: /^Consultório/u }));
-    expect(screen.getByText('01/10/2026, 10:45 (Brasília)')).toBeTruthy();
-    expect(screen.getByText(/Após esse horário, acesso só com pagamento confirmado/u)).toBeTruthy();
+    expect(
+      screen.getByText(/A avaliação terminou em 01\/10\/2026, 10:45 \(Brasília\)/u),
+    ).toBeTruthy();
+    expect(screen.getByText(/O acesso continua só com o pagamento confirmado/u)).toBeTruthy();
+    expect(screen.getByText(/R\$\s197,00 · primeira mensalidade/u)).toBeTruthy();
+    expect(screen.getByText('Primeira mensalidade').nextElementSibling?.textContent).toBe('hoje');
+    expect(screen.getByText(/a primeira mensalidade é cobrada hoje/u)).toBeTruthy();
+    expect(screen.queryByText(/R\$\s0,00/u)).toBeNull();
   });
 
   it('mostra preço anual e envia plano mais ciclo sem aceitar preço do browser', async () => {
@@ -453,7 +459,8 @@ describe('seleção de plano O-4', () => {
     fireEvent.submit(form);
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(screen.getByRole('radio', { name: /Essencial/u })).toHaveProperty('disabled', true);
-    expect(screen.getByRole('button', { name: /Continuar para o checkout/u })).toHaveProperty(
+    // Estado "processando" da prancha: o pagamento seguro está sendo aberto.
+    expect(screen.getByRole('button', { name: 'Abrindo o pagamento seguro…' })).toHaveProperty(
       'disabled',
       true,
     );
@@ -514,6 +521,15 @@ describe('seleção de plano O-4', () => {
 
 // Checkout no desenho aprovado no Claude Design ("Cadastro · 3. Checkout"), 18/11/2026.
 describe('checkout do cadastro no desenho aprovado', () => {
+  // O painel "Hoje / Primeira mensalidade" depende do relógio: fixa a data (só o Date).
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-18T15:00:00.000Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   const OFERTA = [
     { id: 'consultorio', code: 'consultorio_2026', name: 'Consultório', priceCents: 19_700 },
     ...[2, 3, 4, 5].map((doctors) => ({
@@ -550,7 +566,11 @@ describe('checkout do cadastro no desenho aprovado', () => {
     );
     expect(texto(screen.getByText('Total mensal').nextElementSibling)).toBe('R$ 544,00/mês');
     expect(screen.getByText('R$ 0,00 · 14 dias grátis')).toBeTruthy();
-    expect(screen.getByText('02/12/2026, 12:00 (Brasília)')).toBeTruthy();
+    expect(texto(screen.getByText('Primeira mensalidade').nextElementSibling)).toBe('03/12/2026');
+    expect(screen.getByText(/Grátis até 02\/12\/2026, 12:00 \(Brasília\)/u)).toBeTruthy();
+    expect(
+      screen.getByText(/Nada é cobrado hoje; a primeira mensalidade vence em 03\/12\/2026/u),
+    ).toBeTruthy();
     expect(screen.getByText('O cartão é informado na página segura do Asaas.')).toBeTruthy();
     // No carregamento o plano já está no resumo; o aviso só vem depois de salvar.
     expect(screen.queryByText('Plano salvo')).toBeNull();
@@ -604,6 +624,32 @@ describe('checkout do cadastro no desenho aprovado', () => {
     ).toBe(true);
     expect(screen.getByText('Amplie depois, na assinatura.')).toBeTruthy();
     expect(screen.queryByText(/médico extra/u)).toBeNull();
+  });
+
+  it('conta os dias que restam da avaliação, sem prometer 14 quando já passaram alguns', async () => {
+    vi.setSystemTime(new Date('2026-11-29T15:00:00.000Z'));
+    fetchMock.mockResolvedValueOnce(json(200, estado('clinica-3')));
+    render(<PlanSelectionForm />);
+    expect(await screen.findByText('R$ 0,00 · 3 dias grátis')).toBeTruthy();
+  });
+
+  it('cartão recusado pelo provedor: aviso no topo do pagamento, nada cobrado, nova tentativa limpa', async () => {
+    fetchMock
+      .mockResolvedValueOnce(json(200, estado('clinica-3')))
+      .mockResolvedValueOnce(json(402, { error: 'declined' }))
+      .mockResolvedValueOnce(json(200, { state: 'pending' }));
+    render(<PlanSelectionForm />);
+    // Plano já salvo: o clique vai direto ao checkout.
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar para o checkout' }));
+    const alerta = await screen.findByText('O provedor recusou o pagamento. Nada foi cobrado.');
+    const pagamento = screen.getByRole('region', { name: 'Cartão de crédito' });
+    expect(pagamento.contains(alerta)).toBe(true);
+    expect(assignMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar para o checkout' }));
+    await waitFor(() =>
+      expect(assignMock).toHaveBeenCalledWith('/cadastro/pagamento?resultado=pending'),
+    );
+    expect(screen.queryByText('O provedor recusou o pagamento. Nada foi cobrado.')).toBeNull();
   });
 
   it('sem plano escolhido, pede a família e não deixa seguir sem escolha', async () => {

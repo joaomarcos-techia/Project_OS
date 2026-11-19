@@ -26,6 +26,8 @@ import {
   formatPrice,
   offerCatalog,
   summaryLines,
+  firstChargeFor,
+  formatIsoDate,
   type PlanFamily,
 } from './checkout-summary';
 import styles from './plano.module.css';
@@ -125,6 +127,8 @@ export function PlanSelectionForm() {
   const [saving, setSaving] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [finishError, setFinishError] = useState<string | null>(null);
+  // Estado "cartão recusado" da prancha: o provedor recusou (402) e nada foi cobrado.
+  const [declined, setDeclined] = useState(false);
   const started = useRef(false);
   const submitting = useRef(false);
   const finishingRef = useRef(false);
@@ -298,6 +302,7 @@ export function PlanSelectionForm() {
     finishingRef.current = true;
     setFinishing(true);
     setFinishError(null);
+    setDeclined(false);
     try {
       const response = await fetch('/api/signup/checkout', {
         method: 'POST',
@@ -329,9 +334,7 @@ export function PlanSelectionForm() {
         return;
       }
       if (response.status === 402) {
-        setFinishError(
-          'O provedor de pagamento recusou a assinatura. Nenhuma cobrança foi feita — revise os dados e tente novamente.',
-        );
+        setDeclined(true);
         return;
       }
       if (response.status === 409) {
@@ -455,7 +458,6 @@ export function PlanSelectionForm() {
   const minDoctors = catalog?.clinica[0]?.doctors ?? 2;
   const maxDoctors = catalog?.clinica.at(-1)?.doctors ?? 2;
   const perCycle = selectedCycle === 'annual' ? 'ano' : 'mês';
-  const offerTrialDays = PROPOSED_OFFER.proposedTrialDays;
 
   function choose(planId: string | undefined) {
     setSelectedPlanId(planId);
@@ -463,6 +465,7 @@ export function PlanSelectionForm() {
     setSavedNow(false);
     setMessage(null);
     setFinishError(null);
+    setDeclined(false);
   }
 
   const cycleToggle = state.plans.some((plan) => plan.cycle === 'annual') ? (
@@ -543,7 +546,13 @@ export function PlanSelectionForm() {
     </div>
   );
 
-  const actions = (
+  const declinedAlert = declined ? (
+    <Alert variant="danger" title="O provedor recusou o pagamento. Nada foi cobrado.">
+      Confira os dados do cartão na página segura ou use outro cartão, e tente de novo.
+    </Alert>
+  ) : null;
+
+  const actionsWith = (nota: string) => (
     <>
       <div className={cn(signupFrame.actions, styles.actionsBottom)}>
         <a
@@ -554,15 +563,16 @@ export function PlanSelectionForm() {
           <ArrowLeft aria-hidden="true" className="size-[18px]" />
           Voltar
         </a>
+        {/* Estado "processando" da prancha: aqui é a abertura do pagamento seguro. */}
         <Button type="submit" loading={busy} className={styles.grow}>
-          Continuar para o checkout
+          {finishing ? 'Abrindo o pagamento seguro…' : 'Continuar para o checkout'}
         </Button>
       </div>
-      <p className={signupFrame.fine}>
-        Ao continuar, a página segura do Asaas abre para você informar o cartão. Nada é cobrado
-        hoje; a mensalidade segue o resumo do plano.
-      </p>
+      <p className={signupFrame.fine}>{nota}</p>
     </>
+  );
+  const actions = actionsWith(
+    'Ao continuar, a página segura do Asaas abre para você informar o cartão. Nada é cobrado hoje; a mensalidade segue o resumo do plano.',
   );
 
   if (!catalog) {
@@ -570,6 +580,7 @@ export function PlanSelectionForm() {
       <form onSubmit={submit} className={signupFrame.checkout}>
         <section className={signupFrame.pay}>
           <h2 className={signupFrame.subtitle}>Planos disponíveis</h2>
+          {declinedAlert}
           {trialQuotas ? (
             <Alert variant="info" title="O que você pode testar">
               {trialQuotas}
@@ -647,6 +658,16 @@ export function PlanSelectionForm() {
           timeZone: 'America/Sao_Paulo',
         }).format(new Date(state.offerTrialEndsAt))
       : null;
+  // A tela diz o que vai acontecer pela mesma regra do servidor (ver `firstChargeFor`).
+  const charge =
+    selectedPlan && isOffer2026PlanCode(selectedPlan.code) && state.offerTrialEndsAt
+      ? firstChargeFor(state.offerTrialEndsAt, new Date())
+      : null;
+  const footer = !charge
+    ? 'Ao continuar, a página segura do Asaas abre para você informar o cartão.'
+    : charge.expired
+      ? 'Ao continuar, a página segura do Asaas abre para você informar o cartão. A avaliação terminou: a primeira mensalidade é cobrada hoje.'
+      : `Ao continuar, a página segura do Asaas abre para você informar o cartão. Nada é cobrado hoje; a primeira mensalidade vence em ${formatIsoDate(charge.dueDate)}.`;
 
   return (
     <form onSubmit={submit} className={signupFrame.checkout}>
@@ -654,6 +675,7 @@ export function PlanSelectionForm() {
         <h2 id="signup-payment-title" className={signupFrame.subtitle}>
           Cartão de crédito
         </h2>
+        {declinedAlert}
         {cycleToggle}
         {selectedCycle === 'annual' ? (
           <p className={signupFrame.note}>
@@ -675,7 +697,7 @@ export function PlanSelectionForm() {
           </div>
         ) : null}
         {live}
-        {actions}
+        {actionsWith(footer)}
       </section>
 
       <aside className={signupFrame.summary} aria-labelledby="signup-plan-summary">
@@ -790,18 +812,35 @@ export function PlanSelectionForm() {
               </b>
             </div>
             <div className={signupFrame.panel}>
-              <p className={signupFrame.row}>
-                <span>Hoje</span>
-                <b className={styles.okValue}>R$ 0,00 · {offerTrialDays} dias grátis</b>
-              </p>
-              <p className={signupFrame.row}>
-                <span>Fim da avaliação</span>
-                <b>{deadline ? `${deadline} (Brasília)` : 'Prazo indisponível'}</b>
-              </p>
-              <p className={styles.panelNote}>
-                O prazo conta desde a criação da conta. Após esse horário, acesso só com pagamento
-                confirmado.
-              </p>
+              {charge ? (
+                <>
+                  <p className={signupFrame.row}>
+                    <span>Hoje</span>
+                    {charge.expired ? (
+                      <b>{formatPrice(selectedPlan.priceCents)} · primeira mensalidade</b>
+                    ) : (
+                      <b className={styles.okValue}>
+                        R$ 0,00 · {charge.remainingDays}{' '}
+                        {charge.remainingDays === 1 ? 'dia grátis' : 'dias grátis'}
+                      </b>
+                    )}
+                  </p>
+                  <p className={signupFrame.row}>
+                    <span>Primeira mensalidade</span>
+                    <b>{charge.expired ? 'hoje' : formatIsoDate(charge.dueDate)}</b>
+                  </p>
+                  <p className={styles.panelNote}>
+                    {charge.expired
+                      ? `A avaliação terminou em ${deadline} (Brasília). O acesso continua só com o pagamento confirmado.`
+                      : `Grátis até ${deadline} (Brasília); a avaliação conta desde a criação da conta. Depois desse horário, o acesso continua só com o pagamento confirmado.`}
+                  </p>
+                </>
+              ) : (
+                <p className={signupFrame.row}>
+                  <span>Avaliação</span>
+                  <b>Prazo indisponível</b>
+                </p>
+              )}
             </div>
           </>
         ) : null}
