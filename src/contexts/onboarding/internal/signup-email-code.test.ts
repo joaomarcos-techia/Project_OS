@@ -90,10 +90,16 @@ beforeEach(() => {
   m.claim.mockResolvedValue({ ok: true });
   m.bind.mockResolvedValue({ ok: true });
   m.getUser.mockResolvedValue({ error: null, data: { user: user() } });
-  m.update.mockResolvedValue({
-    error: null,
-    data: { user: { ...user(), app_metadata: markSignupPasswordSet(user(), ref) } },
-  });
+  // P-28: a confirmação do e-mail pelo admin devolve o usuário confirmado, com o vínculo intacto;
+  // a marcação da senha devolve o vínculo `set`.
+  m.update.mockImplementation(async (_id: string, attrs: Record<string, unknown>) =>
+    attrs.email_confirm === true
+      ? { error: null, data: { user: { ...user(), email_confirmed_at: '2026-11-18T12:00:00Z' } } }
+      : {
+          error: null,
+          data: { user: { ...user(), app_metadata: markSignupPasswordSet(user(), ref) } },
+        },
+  );
   m.finish.mockResolvedValue(true);
   m.plan.mockResolvedValue({ ok: true });
   m.owned.mockResolvedValue({ ok: true, signupRef: ref, credentialState: 'completed' });
@@ -112,10 +118,62 @@ describe('same-session signup code orchestration', () => {
       type: 'recovery',
     });
     expect(m.claim).toHaveBeenCalledWith(id, email, ref);
-    expect(m.update).toHaveBeenCalledOnce();
-    expect(m.update.mock.calls[0]?.[1]).not.toHaveProperty('password');
+    // P-28: 1) confirma o e-mail pelo admin; 2) marca a senha inicial como definida. Nenhuma
+    // chamada leva senha: o Auth guardou o hash na criação.
+    expect(m.update).toHaveBeenCalledTimes(2);
+    expect(m.update.mock.calls[0]).toEqual([id, { email_confirm: true }]);
+    expect(m.update.mock.calls[1]?.[1]).toHaveProperty('app_metadata');
+    for (const [, attrs] of m.update.mock.calls) expect(attrs).not.toHaveProperty('password');
     expect(m.finish).toHaveBeenCalledWith(ref, 1000, 'verified');
     expect(m.signOut).not.toHaveBeenCalled();
+  });
+  // P-28 (18/11/2026): o Supabase Auth apaga na prova de recovery a senha de quem ainda não está
+  // confirmado. A confirmação pelo admin precisa vir ANTES da prova, só para a senha desta sessão.
+  it('confirma o e-mail pelo admin antes da prova de recovery quando a senha inicial é desta sessão', async () => {
+    await confirmSignupEmailCode(token, input);
+    const confirmou = m.update.mock.invocationCallOrder[0]!;
+    expect(confirmou).toBeLessThan(m.generate.mock.invocationCallOrder[0]!);
+    expect(confirmou).toBeLessThan(m.verify.mock.invocationCallOrder[0]!);
+  });
+  it('não confirma pelo admin um usuário que já está confirmado', async () => {
+    m.lookup.mockResolvedValue({
+      kind: 'found',
+      user: { ...user(), email_confirmed_at: '2026-11-18T11:00:00Z' },
+    });
+    await expect(confirmSignupEmailCode(token, input)).resolves.toEqual({
+      ok: true,
+      next: '/cadastro/plano',
+    });
+    expect(m.update).toHaveBeenCalledOnce();
+    expect(m.update.mock.calls[0]?.[1]).not.toHaveProperty('email_confirm');
+  });
+  it('falha fechado se a confirmação pelo admin não volta confirmada: sem prova, sem claim', async () => {
+    m.update.mockResolvedValueOnce({ error: null, data: { user: user() } });
+    await expect(confirmSignupEmailCode(token, input)).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable',
+    });
+    expect(m.generate).not.toHaveBeenCalled();
+    expect(m.verify).not.toHaveBeenCalled();
+    expect(m.claim).not.toHaveBeenCalled();
+    expect(m.update).toHaveBeenCalledOnce();
+  });
+  it('falha fechado se a senha inicial mudou de dono durante a confirmação', async () => {
+    m.update.mockResolvedValueOnce({
+      error: null,
+      data: {
+        user: {
+          ...user(),
+          email_confirmed_at: '2026-11-18T12:00:00Z',
+          app_metadata: createPendingSignupAppMetadata('b'.repeat(64), true),
+        },
+      },
+    });
+    await expect(confirmSignupEmailCode(token, input)).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable',
+    });
+    expect(m.verify).not.toHaveBeenCalled();
   });
   it.each(['invalid', 'expired', 'locked', 'conflict', 'gone'])(
     'does not touch Auth after repository rejection %s',
@@ -190,7 +248,9 @@ describe('same-session signup code orchestration', () => {
         ok: false,
         reason: 'unavailable',
       });
-      expect(m.update).not.toHaveBeenCalled();
+      // Só a confirmação do e-mail (P-28) aconteceu; nada marca a senha como definida.
+      expect(m.update).toHaveBeenCalledOnce();
+      expect(m.update.mock.calls[0]).toEqual([id, { email_confirm: true }]);
       expect(m.finish).toHaveBeenLastCalledWith(ref, 1000, 'uncertain');
       expect(m.signOut).toHaveBeenCalled();
     },
