@@ -1,0 +1,98 @@
+diff --git a/e2e/signup-confirmation.spec.ts b/e2e/signup-confirmation.spec.ts
+--- a/e2e/signup-confirmation.spec.ts
++++ b/e2e/signup-confirmation.spec.ts
+@@ -1304,13 +1304,23 @@
+   return { context, page };
+ }
+ 
++/**
++ * A aba original depois da confirmação pelo link em outro aparelho.
++ *
++ * P-29 (19/11/2026): desde o #47 (04/11), `startSignup` emula um cliente v1 já aberto pela API e
++ * RECARREGA a aba. O e-mail do cadastro vive só na memória da aba (`continuationCredentials`, que
++ * só o formulário v1 preenchia), então a aba recarregada precisa pedir o e-mail, como depois do F5
++ * em `completeHandoffAfterRefresh`. A prova exigida não muda: e-mail + senha nova + código do corpo
++ * da mensagem; o link sozinho continua sem autorizar a aba.
++ */
+ async function waitForOriginalHandoff(page: Page): Promise<void> {
+   await expect(page).toHaveURL(/\/cadastro$/u, { timeout: 120_000 });
+   await expect(page.getByRole('heading', { name: 'E-mail confirmado' })).toBeVisible({
+     timeout: 120_000,
+   });
+   await expect(page.getByLabel('Código do e-mail')).toBeVisible();
+-  await expect(page.getByLabel('E-mail usado no cadastro')).toHaveCount(0);
++  await expect(page.getByLabel('E-mail usado no cadastro')).toBeVisible();
++  await expect(page.getByLabel('E-mail usado no cadastro')).toHaveValue('');
+   await expect(page.getByLabel('Crie sua senha')).toBeVisible();
+   await expect(page.getByRole('heading', { name: 'Confirme o plano e o pagamento' })).toHaveCount(
+     0,
+@@ -1763,7 +1773,12 @@
+ 
+       await choosePlanFamily(signup.page, 'Consultório');
+       await savePlanFixtureWithoutCheckout(signup.page, 'consultorio_2026');
+-      await expect(signup.page.getByText('Plano salvo')).toBeVisible();
++      // #56 (prancha "Cadastro · 3. Checkout", 18/11/2026): o aviso "Plano salvo" só aparece logo
++      // depois de salvar nesta visita; após o reload, o plano salvo está no resumo
++      // (`savePlanFixtureWithoutCheckout` confere a família) e a próxima ação está disponível.
++      await expect(
++        signup.page.getByRole('button', { name: 'Continuar para o checkout' }),
++      ).toBeVisible();
+       await expect(signup.page).toHaveURL(/\/cadastro\/plano$/u);
+     } finally {
+       await Promise.allSettled([phone?.close(), desktop?.close()]);
+@@ -1864,8 +1879,10 @@
+       await verified.page.getByLabel('Sua senha', { exact: true }).fill(signup.password);
+       await verified.page.getByRole('button', { name: 'Confirmar senha e continuar' }).click();
+       await expect(verified.page).toHaveURL(/\/cadastro\/plano$/u, { timeout: 120_000 });
++      // P-29 (19/11/2026): desde o #47 (04/11), `/cadastro/confirmado` com a conta pronta
++      // redireciona para a continuação em vez de mostrar o link "Escolher plano".
+       await verified.page.goto('/cadastro/confirmado');
+-      await expect(verified.page.getByRole('link', { name: 'Escolher plano' })).toBeVisible();
++      await expect(verified.page).toHaveURL(/\/cadastro\/plano$/u, { timeout: 60_000 });
+       await expect(verified.page.locator('input[name="password"]')).toHaveCount(0);
+       // A second submission cannot replace the installed password, even with a live OTP session.
+       const replay = await verified.page.evaluate(async () => {
+@@ -2804,8 +2821,13 @@
+       if (await passwordSignInSucceeds(email, signup.password)) {
+         throw new Error('a senha nova funcionou antes do handoff explícito');
+       }
+-      if (!(await passwordSignInSucceeds(email, legacyPassword))) {
+-        throw new Error('o callback sobrescreveu a senha legada antes do handoff');
++      // P-29 (19/11/2026): desde o Supabase Auth v2.198.0 (`recoverVerify` →
++      // `ClearUnconfirmedPassword`), a prova de recovery numa conta ainda não confirmada apaga a
++      // senha anterior: ela pode ter sido criada por quem não é dono do e-mail. O app não escreve
++      // senha no callback (a senha nova acima continua recusada); a legada, de origem desconhecida,
++      // não pode mais autenticar depois que o dono do e-mail confirmou.
++      if (await passwordSignInSucceeds(email, legacyPassword)) {
++        throw new Error('a senha legada de origem desconhecida sobreviveu à confirmação do dono');
+       }
+ 
+       await waitForOriginalHandoff(signup.page);
+@@ -2920,6 +2942,7 @@
+       // O segundo draft não recebeu nem rotacionou mensagem. O código que só o
+       // dono do e-mail conhece transfere o ownership para os dados preenchidos
+       // nessa sessão; conhecer apenas o endereço continua insuficiente.
++      await second.page.getByLabel('E-mail usado no cadastro').fill(email);
+       await second.page.getByLabel('Crie sua senha').fill(second.password);
+       await second.page.getByLabel('Código do e-mail').fill(firstProof.verificationCode);
+       await second.page.getByRole('button', { name: 'Continuar', exact: true }).click();
+@@ -2971,6 +2994,11 @@
+           new URL(request.url()).pathname === '/api/signup/sessions/resend',
+       );
+       await signup.page.getByRole('button', { name: 'Reenviar o e-mail' }).click();
++      // P-29: sem o e-mail na memória da aba recarregada, o reenvio pede o endereço antes de enviar.
++      const resendEmail = signup.page.getByLabel('E-mail usado no cadastro');
++      await expect(resendEmail).toBeVisible();
++      await resendEmail.fill(email);
++      await signup.page.getByRole('button', { name: 'Reenviar o e-mail' }).click();
+       const resendRequest = await resendRequestPromise;
+       const resendBody = resendRequest.postDataJSON() as Record<string, unknown>;
+       const resendKeys = Object.keys(resendBody).sort();
+@@ -3028,6 +3056,7 @@
+         throw new Error('a senha funcionou antes do código mais recente');
+       }
+ 
++      await signup.page.getByLabel('E-mail usado no cadastro').fill(email);
+       await signup.page.getByLabel('Crie sua senha').fill(signup.password);
+       await signup.page.getByLabel('Código do e-mail').fill(oldProof.verificationCode);
+       await signup.page.getByRole('button', { name: 'Continuar', exact: true }).click();

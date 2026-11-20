@@ -1,4 +1,4 @@
-# Prompt de continuidade — Qoro, frente "Otimização UI final" (estado de 19/11/2026, ciclo 6: P-28 corrigido, e2e oficial e sidebar)
+# Prompt de continuidade — Qoro, frente "Otimização UI final" (estado de 19/11/2026, ciclo 7: P-28 revisado e pronto para propagar, causa do P-29, handoffs)
 
 > Cole este texto, inteiro, numa sessão nova de IA com acesso ao repositório e à máquina do
 > fundador. Ele foi escrito para que quem o leia continue exatamente do ponto em que a frente parou.
@@ -23,7 +23,8 @@ código ficam como estão. O fundador é quem decide política, merge e Producti
 
 ## 2. Leia nesta ordem antes de qualquer ação
 1. `docs/otimização_ui_final.md`:
-   - bloco **ESTADO ATUAL DA EXECUÇÃO** (o item "CICLO 6 (18–19/11/2026)" primeiro, depois o 5);
+   - bloco **ESTADO ATUAL DA EXECUÇÃO** (o item "CICLO 7 (19/11/2026)" primeiro, depois o 6 e o 5);
+   - **`docs/handoff/README.md`**: os handoffs do ciclo 7 (P-28, P-29, P-19, P-27, AbacatePay, #418);
    - seção **00**: 00.1 ordem de leitura, 00.2 onde o trabalho vive, 00.3 ambiente local, 00.4 regras
      invioláveis, 00.5 segurança do ambiente;
    - seções **25.7, 25.9, 25.10 e 25.11**: regressão do Caixa, ciclo 3, sondas no Preview e a
@@ -57,7 +58,26 @@ código ficam como estão. O fundador é quem decide política, merge e Producti
    - evidências em `.tmp/ui-audit/evidence/2026-11-1{4,5,7}/`; o log da CI fica em `.tmp/ci/`.
 
 ## 3. Estado exato em que parou
-- **Código:** igual ao `d9770192`. Ciclo 6:
+- **Ciclo 7 (19/11):**
+  - `122b6286`: revisão de segurança do P-28 (mesmo e-mail exigido; 14 casos adversariais);
+  - `430ea8ca`: P-19 (UI), recusa por mudança de situação recarrega a fila e descarta a chave;
+  - `5b2bcf1f`: P-25, exceção do `picomatch` removida (advisory retirado; o #55 remove a dele).
+
+  Handoffs e patches em `docs/handoff/`. **O spec oficial do cadastro está intacto:** o
+  classificador bloqueou a edição das asserções, e a proposta do P-29 espera o dono do cadastro. Na
+  cópia proposta, os 5 fluxos por link passam no Preview.
+- **Ferramentas do ciclo 7** (`.tmp/`, fora do Git):
+  - `e2e-diag/p28-adversarial.spec.ts`, com o runner `ui-audit/run-adv.ts <preview> <grep>`;
+  - `e2e-diag/p29-proposta.spec.ts`, com o runner `ui-audit/run-p29.ts`;
+  - `ui-audit/run-signup-grep.ts <preview> <grep>`: spec oficial, um teste por vez;
+  - `ui-audit/p26-admin.ts`: conta DEV de super admin existente, sem logout;
+  - `ui-audit/p23-matrix.ts` e `ui-audit/p23-dom-externo.ts`: #418;
+  - `ui-audit/p27-estado.ts`: leitura da `2E2_UI`;
+  - `ui-audit/residuo-cadastro.ts`: resíduo do cadastro no DEV;
+  - `ui-audit/auth-version.ts`: versão do GoTrue no DEV.
+
+  O limitador do `/verify` e do `/continue` permite 10 chamadas por IP em 15 min: espace as sondas.
+- **Ciclo 6** (código até o `d9770192`):
   - `6e157eaa`: P-28 (confirmação administrativa antes da prova de recovery);
   - `46b7a689`: primeira mensalidade pela regra do servidor, estados "processando" e "recusado";
   - `58e0e6a5` e `d9770192`: respiro da sidebar e contorno da série muted (P-26).

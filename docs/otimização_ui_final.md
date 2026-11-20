@@ -12,7 +12,59 @@
 
 ## ESTADO ATUAL DA EXECUÇÃO
 
-- **CICLO 6 (18–19/11/2026) — P-28 CORRIGIDO, E2E OFICIAL VERDE, SIDEBAR. LEIA PRIMEIRO.**
+- **CICLO 7 (19/11/2026) — REVISÃO DE SEGURANÇA DO P-28, CAUSA RAIZ DO P-29, HANDOFFS. LEIA PRIMEIRO.**
+  - **Handoff autônomo em `docs/handoff/README.md`**, com dois patches: P-28 (pronto para o #53 e a
+    `main`) e a proposta de premissas do spec de cadastro (P-29, **não aplicada**). Também traz o
+    contrato do P-19, a recuperação da `2E2_UI`, a pergunta à AbacatePay e o mecanismo do #418.
+  - **P-28, revisão de segurança** (`122b6286`): a confirmação administrativa passou a exigir também
+    o mesmo e-mail provado. São 14 casos adversariais unitários (mutação reprova 1, 6 e 5).
+    A sonda adversarial no Preview, contra o banco real, deu:
+    - outra conta 422;
+    - terceiro 410;
+    - expirado 422;
+    - **duas submissões simultâneas [200, 409], com uma confirmação** (2 de 2 execuções);
+    - replay 200 sem nova mutação, ou recusa pelo limitador;
+    - login depois do logout.
+
+    O comportamento foi conferido no código-fonte do GoTrue **v2.198.0**, a versão do DEV.
+    Composição descartável: patch aplicado limpo sobre a `main` `5620a098` (1513/1513, `tsc` 0) e
+    sobre o #53 `837709ff` (1581/1581). Sem a correção, 9 testes reprovam.
+  - **P-29, causa raiz** (não é defeito do app):
+    1. o #47 (04/11, na `main`) passou a emular o cliente v1 pela API com `page.reload()`. O e-mail
+       só existe na memória da aba, então a aba recarregada sempre o pede;
+    2. o #47 também passou a redirecionar `/cadastro/confirmado` para a continuação;
+    3. o Auth v2.198.0 apaga a senha legada de origem desconhecida (hash de 60 caracteres → vazio,
+       medido).
+
+    O spec oficial ficou **intacto**: o classificador de permissões bloqueou a edição das
+    asserções, e a decisão é do dono do cadastro. Resultado da cópia proposta (não oficial):
+    na cópia, os 5 fluxos por link passam no Preview `122b6286` (telefone, destinatário, conta legada, link vivo e reenvio); no spec oficial intacto, os 5 seguem FAIL.
+  - **P-27:** a cronologia foi corrigida. A `2E2_UI` foi recriada pelo cadastro self-service em
+    18/11 às 01:13:37 UTC e confirmada às 01:14:23 pela prova de recovery, sem a correção do P-28;
+    foi aí que a senha sumiu. O #56 não depende dela.
+  - **P-26:** `/admin/config` e `/admin` foram abertos com a conta DEV de super admin já existente
+    do spec oficial, sem criar conta. Resultado:
+    - tema claro e escuro (pelo mecanismo real), 1440 e 390 px;
+    - 0 rolagem lateral e 0 erro;
+    - pontos de legenda do admin ≥ 3:1.
+
+    Não há aviso ativo no DEV, então o ponto cinza do P-26 não aparece; publicar um aviso global
+    exige autorização. **PARTIAL só nesse ponto.**
+  - **P-23 (#418) reproduzido:** um `<div>` estranho no topo do `<body>` antes da hidratação colide
+    com o `<div hidden>` do metadata em streaming do Next e gera `#418 args[]=HTML` em 6 de 6
+    cargas. Fuso, idioma, rede lenta e navegação concorrente não reproduzem (60 cargas). É gatilho
+    externo, então não houve supressão; os critérios de reabertura estão no handoff.
+  - **P-19:** recusa por mudança de situação ou conflito agora fecha o painel, recarrega e descarta
+    a chave (`430ea8ca`). O contrato de servidor e os testes de integração estão no handoff.
+  - **P-25:** o GHSA-fc5q-39xc-vjpf foi **retirado** (18/11, 15:38 UTC), e o registro npm não
+    acusa nada para as versões do lockfile. Exceção removida (`5b2bcf1f`); o TISS foi avisado.
+  - **AbacatePay:** conclusão **B**, sem cartão incorporado em assinatura pela documentação
+    oficial. A página do provedor continua; a pergunta formal está no handoff.
+  - **Correções do ciclo 6:**
+    - o teste de reenvio estourou 420 s, e não só a checagem do `afterAll`;
+    - a hora do P-27 era 01:14, e não 23:18.
+
+- **CICLO 6 (18–19/11/2026) — P-28 CORRIGIDO, E2E OFICIAL VERDE, SIDEBAR.**
   - **P-28 (causa raiz comprovada):** o Supabase Auth passou a apagar a senha de um usuário **ainda
     não confirmado** quando um token de recovery ou magic link é verificado. A função
     `recoverVerify` chama `ClearUnconfirmedPassword`, com o comentário: "a password set before the
@@ -30,7 +82,8 @@
     **`@code-flow` oficial, sem nenhuma alteração no spec: PASS** (Preview `6e157eaa`, 57,7 s).
     **Afeta também o #53 e a `main`/Production** quando a mesma versão do Auth chegar lá: o arquivo
     é o mesmo e a correção entra limpa (handoff na seção 32).
-  - **P-27:** a conta `2E2_UI` também está com o hash de senha vazio (tocada em 18/11 23:18 UTC
+  - **P-27:** a conta `2E2_UI` também está com o hash de senha vazio ([corrigido no ciclo 7: a
+    senha sumiu na confirmação de 18/11 às 01:14 UTC; 23:18 foi um login posterior] tocada em 18/11 23:18 UTC
     por um fluxo de recuperação ou código), o mesmo mecanismo. Não foi redefinida. As sondas
     logadas passaram a usar uma conta sintética própria (`.tmp/ui-audit/ui-fixture.ts`: usuário
     confirmado pela Admin API, clínica, assinatura Pro e perfil `owner`, com limpeza e readback).
@@ -2256,7 +2309,7 @@ salvo indicação):
 | O destinatário confirma e cria a senha no telefone (P-29) | FAIL, mesmo sintoma |
 | O código do link vivo recupera o segundo draft (P-29) | FAIL, mesmo sintoma |
 | Conta legada não confirmada (P-29) | FAIL ("o callback sobrescreveu a senha legada"), também no `afaaf5cb` |
-| Reenvio entrega um link novo | só a checagem de limpeza do `afterAll` acusou a fixture local; a limpeza do próprio spec na execução seguinte removeu tudo |
+| Reenvio entrega um link novo | **FAIL por estouro de 420 s** (corrigido no ciclo 7: a aba recarregada pede o e-mail antes de reenviar, e o teste espera o envio direto); a limpeza do `afterAll` acusou a fixture que sobrou |
 | Fluxos de oferta com pagamento manual (`@prepare`, `@inspect`, `@retire`, `@verify`) | não executados: exigem flags e pagamento manual no sandbox |
 
 Resíduo no DEV ao fim: 0 contas e 0 rascunhos abertos do cadastro; a conta sintética de UI foi
@@ -2281,6 +2334,60 @@ coerente. 1 passed.
   criei um super admin sintético no DEV compartilhado, porque ele enxerga todas as clínicas;
 - as 2ª e 3ª fatias da pilha medem 2,29:1 no escuro. A legenda traz rótulo e valor em texto, então
   não é bloqueio; fica registrado como resíduo.
+
+### 25.14 Ciclo 7 — P-28 revisado, P-29, P-27, P-26, P-23 (19/11/2026)
+
+Detalhes, tabelas e patches em `docs/handoff/README.md`. Evidências em
+`.tmp/ui-audit/evidence/2026-11-19/`.
+
+**P-28, sonda adversarial** (`p28-adv-122b6286-3.log`, Preview `122b6286`, banco DEV real, fixtures
+descartáveis, resíduo 0):
+
+| Caso | HTTP | Efeito no Auth e no rascunho |
+| --- | --- | --- |
+| Código de outra conta | 422 `invalid` | conta não confirmada; tentativas +1 |
+| Identidade de terceiro (sessão A, e-mail e código de B) | 410 `gone` | nada |
+| Código expirado (injeção só na fixture) | 422 `expired` | nada |
+| Duas submissões simultâneas do código certo | 200 + 409 `conflict` | uma confirmação; vínculo `set`; senha válida |
+| Replay na mesma aba | 200 | reaproveita, sem nova mutação |
+| Replay só com o cookie do rascunho | 429 (limitador) | estado intacto |
+| Logout e login | `/login` → `/cadastro/continuar` | rota de retomada do login, por desenho |
+
+O limitador do `/continue` e do `/verify` permite 10 chamadas por IP em 15 min, 5/h por rascunho e
+5/h por e-mail. Execuções seguidas da sonda esbarram nele.
+
+**P-29.** Os 5 testes oficiais por link falham no spec intacto: 4 na premissa do #47 e 1 na mudança
+do Auth. Diagnóstico observacional da conta legada (`p29-legacy-diag-122b6286.log`):
+
+| Etapa | Hash | Confirmada | Senha legada | Senha nova |
+| --- | --- | --- | --- | --- |
+| Legada criada | bcrypt, 60 caracteres | não | – | – |
+| Depois do callback | vazio | sim | recusada | recusada |
+
+Cópia proposta (`.tmp/e2e-diag/p29-proposta.spec.ts`, **não oficial**):
+na cópia, os 5 fluxos por link passam no Preview `122b6286` (telefone, destinatário, conta legada, link vivo e reenvio); no spec oficial intacto, os 5 seguem FAIL.
+
+**P-26** (`p26-admin/`): conta DEV de super admin já existente, com AAL2 por TOTP lido do banco
+como no spec oficial; sem logout (ele revogaria as sessões de outros agentes).
+
+- `/admin/config` (aba Broadcast) e `/admin`, nos temas claro e escuro, em 1440 e 390 px: 0
+  rolagem lateral, 0 erro de página;
+- legenda "Ativas/Trial" do `/admin`: 4,94 e 3,76:1 no claro, 7,52 e 4,69:1 no escuro;
+- sem aviso ativo no DEV, o `HealthDot` cinza não renderiza;
+- a primeira captura "escura" saiu mista porque a sonda forçou só o `data-theme`. O app aplica
+  `data-theme` e `.dark`; pelo mecanismo real (`clinicaos-theme`) o tema escuro do admin está
+  coerente.
+
+**P-23** (`p23/`):
+
+| Sonda | Escopo | #418 | Erro de página |
+| --- | --- | --- | --- |
+| `matriz.json` | 10 cenários, 60 cargas | 0 | 0 |
+| `dom-externo.json`, `<div>` no topo do `<body>` antes da hidratação | `/dashboard` e `/agenda` | 6 de 6 | – |
+
+Na segunda sonda, `<span>`, elemento customizado, `<div>` no fim e `<div>` depois da carga ficaram
+em 0. O primeiro filho do `<body>` em todas as rotas é o `<div hidden>` do metadata em streaming
+(Next 15.5.28, React 19.2.6).
 
 ## 26. Riscos e decisões
 
@@ -2346,6 +2453,9 @@ coerente. 1 passed.
 | 18–19/11/2026 | P-28 | Causa raiz comprovada no Auth (`ClearUnconfirmedPassword` na prova de recovery); confirmação administrativa antes da prova só para a senha da mesma sessão; `@code-flow` oficial verde | email-code 28/28 (mutação reprova 7); onboarding e cadastro 1108/1108 | `6e157eaa`; 25.13 |
 | 19/11/2026 | Checkout comercial e estados | Primeira mensalidade pela regra do servidor (paridade); "processando" e "recusado" | cadastro 182/182 | `46b7a689` |
 | 19/11/2026 | Sidebar, P-26 | 4 tokens de ritmo; telas baixas sem espremer; rodapé separado; contorno da série muted | contratos 9/9; UI 108/108 | `58e0e6a5`; 25.13 |
+| 19/11/2026 | P-28 (revisão) | Mesmo e-mail exigido na confirmação administrativa; 14 casos adversariais; sonda adversarial no Preview; composição com `main` e #53 | email-code 42/42 (mutação 1/6/5); composições 1513 e 1581 | `122b6286`; 25.14; handoff |
+| 19/11/2026 | P-19 (UI) | Recusa por mudança de situação ou conflito recarrega a fila e descarta a chave | Caixa 67/67 (mutação reprova 2) | `430ea8ca` |
+| 19/11/2026 | P-25 | Exceção removida: advisory retirado e registro sem acusação | gate da CI | `5b2bcf1f` |
 
 ## 28. Pendências e bloqueios
 
@@ -2387,6 +2497,13 @@ coerente. 1 passed.
 | P-27 (status 19/11) | Mecanismo identificado: a conta `2E2_UI` está com o hash vazio (recovery ou código em 18/11 23:18 UTC). Não foi redefinida. A conta sintética de UI substitui a compartilhada nas sondas. Restaurar a `2E2_UI` exige coordenação com o #53 (redefinir a senha pela Admin API e atualizar os `.env.local`) | ambiente | fundador / #53 |
 | P-29 | No spec oficial do cadastro, **"o link confirma no telefone, mas só o código libera a aba original"** falha: depois da confirmação pelo link no telefone, a aba original pede de novo o e-mail ("E-mail usado no cadastro"), e o teste espera que não peça. **Anterior a este ciclo**: reproduz igual no Preview `afaaf5cb`, antes da correção do P-28. A lógica das credenciais da aba (`continuationCredentials`) é idêntica à da `main`. A hipótese é a mesma mudança do Auth (prova de recovery numa conta não confirmada), não comprovada. Como o spec é serial, os testes seguintes foram rodados à parte (25.13) | cadastro | dono do cadastro (#53/main) |
 | P-26 (status 19/11) | Bancada nos dois temas: tokens com ≥ 3:1. Os gráficos não são usados por telas; o `admin/config` exige super admin, que não foi criado por política. PARTIAL só nesse ponto | design system | conta autorizada de super admin |
+| P-28 (status ciclo 7) | **Revisado e pronto para propagar.** Patch em `docs/handoff/p28-signup-email-confirmation.patch`, testado em composição com a `main` e o #53. A aquisição em Production está fechada: entra antes de reabrir | cadastro | dono do cadastro (#53) / integração |
+| P-29 (status ciclo 7) | Causa raiz: premissas do spec quebradas pelo #47 (reload da emulação v1; redirecionamento do confirmado) e senha legada apagada pelo Auth v2.198.0. **FAIL no spec oficial intacto**; proposta não aplicada em `docs/handoff/p29-spec-premissas-PROPOSTA.patch`. Uma linha da proposta é do #56 ("Plano salvo" só depois de salvar nesta visita, pela prancha) | cadastro | dono do cadastro |
+| P-27 (status ciclo 7) | A senha sumiu na confirmação de 18/11 às 01:14 UTC (recriada pelo cadastro às 01:13). Dependentes: `offer-legacy-account-preview.spec.ts` (aceita `E2E_LEGACY_*`) e `probe-pricing-preview-browser.ts`. Recuperação coordenada no handoff | ambiente | fundador / #53 |
+| P-26 (status ciclo 7) | Admin aberto e medido nos dois temas; o ponto cinza só aparece com aviso ativo (exige publicar aviso global no DEV) | design system | fundador (autorizar aviso sintético) |
+| P-23 (status ciclo 7) | Mecanismo reproduzido (DOM alterado por fora no topo do `<body>`); sem defeito do app; critérios de reabertura no handoff | observabilidade | — |
+| P-19 (status ciclo 7) | UI pronta (mesma aba, reload, resposta perdida, duplo clique, recusa recarrega). Falta o servidor (`valorPagoEsperado`), não PASS | Caixa | domínio financeiro |
+| P-25 (status ciclo 7) | **Fechado:** advisory retirado, exceção removida (`5b2bcf1f`); o #55 decide a dele | CI / segurança | TISS (no #55) |
 | P-25 (status 18/11) | Sem versão corrigida (`picomatch` 4.0.7; advisory sem `first_patched_version`); a exceção temporária continua | CI / segurança | — |
 | P-25 (status 17/11) | **Exceção temporária aplicada** (`8d328fec` = `7e74f0cb` do #55, aprovada pelo fundador): só a GHSA-fc5q-39xc-vjpf. **Remover** assim que sair o `picomatch` corrigido, fixando a versão nova em `overrides` (como no `sharp`), nos dois PRs | CI / segurança | quem vir a versão corrigida primeiro |
 | P-25 | **Gate de auditoria da CI reprova em toda branch:** GHSA-fc5q-39xc-vjpf (`picomatch` ≤ 4.0.7, alta), atualizada em 17/11 15:56 UTC, sem versão corrigida. Caminho: `@sentry/nextjs` → `@rollup/plugin-commonjs` (e `fdir`, `@rollup/pluginutils`). Uso real: só no `config/loaders/wrappingLoader.js` do Sentry, loader de **build** com `ignore()` fixo e sem padrão vindo de usuário, então não há ReDoS alcançável em execução. Opções: (a) esperar a correção upstream e rodar a CI de novo; (b) exceção temporária e datada (`auditConfig.ignoreGhsas` no `pnpm-workspace.yaml`), o que muda a política V14 e exige decisão; (c) override não resolve, porque não há versão boa | CI / segurança | fundador |
@@ -2538,6 +2655,10 @@ checkout, entitlements, webhooks) não foram alterados.
   billing e migration ainda não aprovados. Ordem segura: #53 → `main`; a UI rebaseia (os 3 commits
   saem por já estarem na `main`); depois o #55 rebaseia sobre a UI.
 - **Ciclo 4 (17/11): UI `82f98aab` × #53 `75b41401` = 7 conflitos.** São o `acoes.md` (regenerar) e as telas de plano e de cadastro: `cadastro/plano/page.tsx` (18 linhas), `plan-selection-form.tsx` (25), o teste dele (5) e `signup-frame.tsx` (46), `.module.css` (6) e o teste (15). A base v5 e o #53 partiram dos mesmos arquivos e divergiram em detalhe. Regra de resolução: prevalece a lógica do #53 (planos, preços, trial, checkout, textos de estado); da UI fica só o visual que não muda comportamento. Testar no Preview depois.
+- **Ciclo 7 (19/11):** handoff completo em `docs/handoff/README.md`. A seção 1 traz o P-28 (patch,
+  revisão de segurança, composição e sequência) e a seção 5 o AbacatePay (conclusão B e pergunta ao
+  suporte). Conflitos com as heads de 19/11 (#53 `837709ff`, TISS `aee20c31`): **8 e 9 arquivos,
+  as mesmas listas do `5035e7f1`**.
 - **Ciclo 6 (19/11):**
   - **P-28 para o #53 e a `main`:** aplicar o bloco de `signup-email-code.ts` do `6e157eaa`
     (confirmação administrativa antes da prova de recovery, só com `hasInitialSignupPassword`) e os
