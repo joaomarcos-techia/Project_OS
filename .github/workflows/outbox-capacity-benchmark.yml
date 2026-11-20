@@ -1,0 +1,67 @@
+name: Outbox — benchmark de capacidade (sintético)
+
+# Benchmark controlado do outbox compartilhado (desvio da P14.4): worker real, handlers reais da
+# conclusão do atendimento, Postgres DESCARTÁVEL criado no runner e latência de rede emulada por
+# um proxy local. Roda no runner do GitHub, não no notebook (diretriz do fundador para carga).
+#
+# Limites (os mesmos das provas sintéticas):
+#   - dados 100% sintéticos; nenhum banco compartilhado (DEV ou produção), nenhuma migration fora
+#     do cluster descartável, nenhum deploy;
+#   - nenhum segredo (`secrets.*`/`vars.*` não são referenciados); nenhuma chamada a Asaas,
+#     AbacatePay, operadora ou Supabase;
+#   - nada de configuração de produção muda: lote e paralelismo são parâmetros do tick no harness.
+# O resultado (só números sintéticos) sai como artefato.
+
+on:
+  push:
+    branches: [feat/convenios-tiss-20261110]
+    paths:
+      - 'scripts/security/outbox-capacity-db.ts'
+      - 'e2e/outbox-benchmark-run.json'
+      - '.github/workflows/outbox-capacity-benchmark.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: outbox-capacity-benchmark-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    name: Outbox — capacidade por lote (50/100/150/200)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Retirada do token do git
+        run: git config --local --unset-all http.https://github.com/.extraheader || true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Benchmark completo
+        run: |
+          mkdir -p outbox-benchmark
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55565 OUTBOX_BENCH=full \
+          NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs" \
+            ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/outbox-capacity-db.ts \
+            --out outbox-benchmark/resultado.json 2>&1 | grep -vE '^\{"ts"'
+
+      - name: Resultado (artefato, só números sintéticos)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: outbox-capacity-benchmark
+          path: outbox-benchmark/resultado.json
+          if-no-files-found: warn
+          retention-days: 14

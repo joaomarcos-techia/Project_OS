@@ -10,11 +10,3 @@ allowBuilds:
   '@sentry/cli': true
   esbuild: true
   unrs-resolver: true
-# Exceção TEMPORÁRIA do gate `pnpm audit --prod --audit-level high`, aprovada pelo fundador em 17/11/2026.
-# GHSA-fc5q-39xc-vjpf: ReDoS no picomatch <= 4.0.7, publicado SEM versão corrigida (first_patched_version
-# nulo; a 4.0.7 é a última no registro). Entra só por @sentry/nextjs > @rollup/plugin-commonjs, usado no
-# loader de build do Sentry com padrões fixos: nenhum glob vem de usuário. REVISAR e remover esta linha
-# assim que sair o picomatch corrigido (fixar a versão nova em `overrides`, como no sharp).
-auditConfig:
-  ignoreGhsas:
-    - GHSA-fc5q-39xc-vjpf
