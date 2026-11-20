@@ -12,7 +12,42 @@
 
 ## ESTADO ATUAL DA EXECUÇÃO
 
-- **CICLO 7 (19/11/2026) — REVISÃO DE SEGURANÇA DO P-28, CAUSA RAIZ DO P-29, HANDOFFS. LEIA PRIMEIRO.**
+- **CICLO 8 (20/11/2026) — P-29 CORRIGIDO NO APP E NO SPEC OFICIAL, P-26 FECHADO. LEIA PRIMEIRO.**
+  - **Handoff atualizado em `docs/handoff/README.md`** (seção "Ciclo 8"): prioridade do #53 antes
+    do C3, patch da recuperação, P-27 para o #53, matriz do P-19, integração.
+  - **P-29, defeito real corrigido** (`26cb73ff`): a conta confirmada que nunca concluiu a senha
+    do cadastro ficava sem saída self-service.
+    - Caso típico: confirmou pelo link e saiu, ou é a conta legada cuja senha não confirmada o Auth
+      v2.198.0 apagou.
+    - "Esqueci a senha" dava "Link inválido", e recomeçar o cadastro era mudo.
+    - Agora o recovery dá o grant à conta confirmada `pending` (mesma referência, nunca `reserved`,
+      ou órfão de uso único), e o aviso de conta existente chega a ela.
+    - Provado no Preview pelo novo teste oficial.
+  - **Spec oficial do cadastro corrigido** (`947426b1`, autorização do fundador):
+    - 5 linhas de premissa obsoleta trocadas por asserções mais fortes;
+    - regressões novas: "Plano salvo" no salvamento real, recuperação da conta legada abandonada,
+      links adulterado, de outro draft e consumido.
+
+    Resultado no Preview: **14 de 14 PASS** no spec oficial corrigido (Preview `947426b1`; o `@code-checkout` final com o spec do `49c432bd`): link no telefone, destinatário, conta legada, conta legada que abandona (novo), links negativos (novo), link vivo, reenvio, `@code-checkout` (com o aviso do salvamento real), `@code-flow`, `@recovery-flow` ×2, confirmado sem sessão e cadastro expirado; resíduo 0. Duas tentativas anteriores do `@code-checkout` falharam por causas identificadas: o limitador de criação de sessão (10/IP/15 min) e um 401 causado pela retenção da requisição no próprio teste (técnica trocada no `49c432bd`). Os fluxos de oferta com pagamento manual não foram executados (exigem flags manuais).
+  - **P-28:** já está no #53 (`a7931315`); falta a `main`. Composições de 20/11:
+    - `main` + P-28 + P-29: 1554/1554, `tsc` 0;
+    - #53 + P-29: 1663/1663, `tsc` 0.
+  - **P-26 fechado sem aviso global:**
+    - página real com fonte de avisos simulada, dentro do CSS e do layout reais do Preview;
+    - cinza 3,30/3,86:1;
+    - o âmbar tinha 2,26:1 no claro e passou para `warning-600` (`a1a128fb`): 6,33:1 no claro e
+      10,51:1 no escuro, medido no Preview do `a1a128fb`.
+  - **P-23 delimitado:**
+    - o gatilho exige DOM alterado por fora;
+    - a recuperação funciona;
+    - a marca no Sentry não distingue a causa, porque o React refaz o `<body>` antes da captura.
+  - **CI:** os runs do `947426b1` e do `a1a128fb` (20/11, 18:37 UTC) não iniciaram por bloqueio de
+    cobrança da conta no GitHub Actions ("recent account payments have failed or your spending limit
+    needs to be increased"). Não é falha de código; os runs seguintes rodaram normalmente.
+  - **Ambiente:** no Preview, o `APP_BASE_URL` aponta para outro deploy, e os links de redefinição
+    saem com essa origem (o teste abre o mesmo caminho no deploy sob teste).
+
+- **CICLO 7 (19/11/2026) — REVISÃO DE SEGURANÇA DO P-28, CAUSA RAIZ DO P-29, HANDOFFS.**
   - **Handoff autônomo em `docs/handoff/README.md`**, com dois patches: P-28 (pronto para o #53 e a
     `main`) e a proposta de premissas do spec de cadastro (P-29, **não aplicada**). Também traz o
     contrato do P-19, a recuperação da `2E2_UI`, a pergunta à AbacatePay e o mecanismo do #418.
@@ -2389,6 +2424,35 @@ Na segunda sonda, `<span>`, elemento customizado, `<div>` no fim e `<div>` depoi
 em 0. O primeiro filho do `<body>` em todas as rotas é o `<div hidden>` do metadata em streaming
 (Next 15.5.28, React 19.2.6).
 
+### 25.15 Ciclo 8 — P-29 no app e no spec oficial, P-26, P-23 (20/11/2026)
+
+Evidências em `.tmp/ui-audit/evidence/2026-11-20/` e handoff em `docs/handoff/README.md`.
+
+**Conta legada antes da correção** (sondas `legacy-reset*-884cc42d.log`):
+
+| Etapa | Senha legada | Hash | Saída |
+| --- | --- | --- | --- |
+| Criada, não confirmada | `email_not_confirmed` (confere, sem acesso) | 60 caracteres | — |
+| Depois do link | `invalid_credentials` | vazio | confirmada, marker `pending` |
+| "Esqueci a senha" | — | — | `/auth/auth-error?reason=invalid_token` |
+| Recomeçar o cadastro | — | — | tela "Confirme seu e-mail aqui"; nenhum e-mail |
+
+**Spec oficial corrigido no Preview `947426b1`:** **14 de 14 PASS** no spec oficial corrigido (Preview `947426b1`; o `@code-checkout` final com o spec do `49c432bd`): link no telefone, destinatário, conta legada, conta legada que abandona (novo), links negativos (novo), link vivo, reenvio, `@code-checkout` (com o aviso do salvamento real), `@code-flow`, `@recovery-flow` ×2, confirmado sem sessão e cadastro expirado; resíduo 0. Duas tentativas anteriores do `@code-checkout` falharam por causas identificadas: o limitador de criação de sessão (10/IP/15 min) e um 401 causado pela retenção da requisição no próprio teste (técnica trocada no `49c432bd`). Os fluxos de oferta com pagamento manual não foram executados (exigem flags manuais).
+
+**P-26** (`p26-isolado/`):
+
+| Tema | Ponto cinza `border-strong` | Ponto âmbar `warning-500` |
+| --- | --- | --- |
+| Claro (1440 e 390 px) | 3,30:1 | 2,26:1 |
+| Escuro (1440 e 390 px) | 3,86:1 | 7,82:1 |
+
+0 rolagem lateral e 0 erro. Depois da troca para `warning-600` (Preview `a1a128fb`, `p26-isolado-depois/`): âmbar
+6,33:1 no claro e 10,51:1 no escuro; cinza inalterado.
+
+**P-23** (`p23-heuristica.ts`): no controle, 0 erro. Com o `<div>` estranho, o #418 é reportado
+quando o primeiro filho do `<body>` já é um `<script>` (o React refez o `<body>`). Nos dois
+casos, painel, sidebar (12 links) e navegação funcionam.
+
 ## 26. Riscos e decisões
 
 | ID | Decisão | Motivo | Alternativa descartada |
@@ -2456,6 +2520,9 @@ em 0. O primeiro filho do `<body>` em todas as rotas é o `<div hidden>` do meta
 | 19/11/2026 | P-28 (revisão) | Mesmo e-mail exigido na confirmação administrativa; 14 casos adversariais; sonda adversarial no Preview; composição com `main` e #53 | email-code 42/42 (mutação 1/6/5); composições 1513 e 1581 | `122b6286`; 25.14; handoff |
 | 19/11/2026 | P-19 (UI) | Recusa por mudança de situação ou conflito recarrega a fila e descarta a chave | Caixa 67/67 (mutação reprova 2) | `430ea8ca` |
 | 19/11/2026 | P-25 | Exceção removida: advisory retirado e registro sem acusação | gate da CI | `5b2bcf1f` |
+| 20/11/2026 | P-29 (app) | Conta confirmada `pending` recupera pela redefinição; aviso de conta existente chega a ela | onboarding, cadastro, auth, reset, login 1276/1276; mutação 5/5 | `26cb73ff` |
+| 20/11/2026 | P-29 (spec) | Premissas obsoletas corrigidas com autorização; 2 testes novos e o salvamento real no `@code-checkout` | spec oficial no Preview (25.15) | `947426b1` |
+| 20/11/2026 | P-26 | Ponto âmbar com `warning-600`; prova isolada sem aviso global | contratos 18/18 | `a1a128fb` |
 
 ## 28. Pendências e bloqueios
 
@@ -2497,6 +2564,12 @@ em 0. O primeiro filho do `<body>` em todas as rotas é o `<div hidden>` do meta
 | P-27 (status 19/11) | Mecanismo identificado: a conta `2E2_UI` está com o hash vazio (recovery ou código em 18/11 23:18 UTC). Não foi redefinida. A conta sintética de UI substitui a compartilhada nas sondas. Restaurar a `2E2_UI` exige coordenação com o #53 (redefinir a senha pela Admin API e atualizar os `.env.local`) | ambiente | fundador / #53 |
 | P-29 | No spec oficial do cadastro, **"o link confirma no telefone, mas só o código libera a aba original"** falha: depois da confirmação pelo link no telefone, a aba original pede de novo o e-mail ("E-mail usado no cadastro"), e o teste espera que não peça. **Anterior a este ciclo**: reproduz igual no Preview `afaaf5cb`, antes da correção do P-28. A lógica das credenciais da aba (`continuationCredentials`) é idêntica à da `main`. A hipótese é a mesma mudança do Auth (prova de recovery numa conta não confirmada), não comprovada. Como o spec é serial, os testes seguintes foram rodados à parte (25.13) | cadastro | dono do cadastro (#53/main) |
 | P-26 (status 19/11) | Bancada nos dois temas: tokens com ≥ 3:1. Os gráficos não são usados por telas; o `admin/config` exige super admin, que não foi criado por política. PARTIAL só nesse ponto | design system | conta autorizada de super admin |
+| P-29 (status ciclo 8) | **Corrigido**: defeito de recuperação da conta confirmada sem senha (`26cb73ff`) e premissas do spec (`947426b1`). Resultado oficial em 25.15 | cadastro | — |
+| P-28 (status ciclo 8) | No #53 desde `a7931315`; falta a `main` antes de reabrir a aquisição | cadastro | integração na `main` |
+| P-26 (status ciclo 8) | **Fechado** com prova isolada; âmbar corrigido (`a1a128fb`) | design system | — |
+| P-23 (status ciclo 8) | **Delimitado**: gatilho externo, recuperação ok, sem marca possível no Sentry; critérios de reabertura no handoff | observabilidade | — |
+| P-27 (status ciclo 8) | Recuperação coordenada pelo #53 (decisão do fundador); handoff C8.3 | ambiente | #53 |
+| P-19 (status ciclo 8) | Matriz de integração no handoff C8.4; PARTIAL até o servidor | Caixa | domínio financeiro |
 | P-28 (status ciclo 7) | **Revisado e pronto para propagar.** Patch em `docs/handoff/p28-signup-email-confirmation.patch`, testado em composição com a `main` e o #53. A aquisição em Production está fechada: entra antes de reabrir | cadastro | dono do cadastro (#53) / integração |
 | P-29 (status ciclo 7) | Causa raiz: premissas do spec quebradas pelo #47 (reload da emulação v1; redirecionamento do confirmado) e senha legada apagada pelo Auth v2.198.0. **FAIL no spec oficial intacto**; proposta não aplicada em `docs/handoff/p29-spec-premissas-PROPOSTA.patch`. Uma linha da proposta é do #56 ("Plano salvo" só depois de salvar nesta visita, pela prancha) | cadastro | dono do cadastro |
 | P-27 (status ciclo 7) | A senha sumiu na confirmação de 18/11 às 01:14 UTC (recriada pelo cadastro às 01:13). Dependentes: `offer-legacy-account-preview.spec.ts` (aceita `E2E_LEGACY_*`) e `probe-pricing-preview-browser.ts`. Recuperação coordenada no handoff | ambiente | fundador / #53 |
@@ -2655,6 +2728,10 @@ checkout, entitlements, webhooks) não foram alterados.
   billing e migration ainda não aprovados. Ordem segura: #53 → `main`; a UI rebaseia (os 3 commits
   saem por já estarem na `main`); depois o #55 rebaseia sobre a UI.
 - **Ciclo 4 (17/11): UI `82f98aab` × #53 `75b41401` = 7 conflitos.** São o `acoes.md` (regenerar) e as telas de plano e de cadastro: `cadastro/plano/page.tsx` (18 linhas), `plan-selection-form.tsx` (25), o teste dele (5) e `signup-frame.tsx` (46), `.module.css` (6) e o teste (15). A base v5 e o #53 partiram dos mesmos arquivos e divergiram em detalhe. Regra de resolução: prevalece a lógica do #53 (planos, preços, trial, checkout, textos de estado); da UI fica só o visual que não muda comportamento. Testar no Preview depois.
+- **Ciclo 8 (20/11):** seção "Ciclo 8" do handoff. Heads de 20/11:
+  - #53 `fad3d5d3`: 9 conflitos (+`cadastro/signup-identity.tsx`);
+  - #55 `ed2fd056`: 9, a mesma lista;
+  - #57 `93a79601`: 0.
 - **Ciclo 7 (19/11):** handoff completo em `docs/handoff/README.md`. A seção 1 traz o P-28 (patch,
   revisão de segurança, composição e sequência) e a seção 5 o AbacatePay (conclusão B e pergunta ao
   suporte). Conflitos com as heads de 19/11 (#53 `837709ff`, TISS `aee20c31`): **8 e 9 arquivos,

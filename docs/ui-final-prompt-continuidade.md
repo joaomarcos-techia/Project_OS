@@ -1,4 +1,4 @@
-# Prompt de continuidade — Qoro, frente "Otimização UI final" (estado de 19/11/2026, ciclo 7: P-28 revisado e pronto para propagar, causa do P-29, handoffs)
+# Prompt de continuidade — Qoro, frente "Otimização UI final" (estado de 20/11/2026, ciclo 8: P-29 corrigido no app e no spec oficial, P-26 fechado, handoffs)
 
 > Cole este texto, inteiro, numa sessão nova de IA com acesso ao repositório e à máquina do
 > fundador. Ele foi escrito para que quem o leia continue exatamente do ponto em que a frente parou.
@@ -23,7 +23,7 @@ código ficam como estão. O fundador é quem decide política, merge e Producti
 
 ## 2. Leia nesta ordem antes de qualquer ação
 1. `docs/otimização_ui_final.md`:
-   - bloco **ESTADO ATUAL DA EXECUÇÃO** (o item "CICLO 7 (19/11/2026)" primeiro, depois o 6 e o 5);
+   - bloco **ESTADO ATUAL DA EXECUÇÃO** (o item "CICLO 8 (20/11/2026)" primeiro, depois o 7, o 6 e o 5);
    - **`docs/handoff/README.md`**: os handoffs do ciclo 7 (P-28, P-29, P-19, P-27, AbacatePay, #418);
    - seção **00**: 00.1 ordem de leitura, 00.2 onde o trabalho vive, 00.3 ambiente local, 00.4 regras
      invioláveis, 00.5 segurança do ambiente;
@@ -58,6 +58,17 @@ código ficam como estão. O fundador é quem decide política, merge e Producti
    - evidências em `.tmp/ui-audit/evidence/2026-11-1{4,5,7}/`; o log da CI fica em `.tmp/ci/`.
 
 ## 3. Estado exato em que parou
+- **Ciclo 8 (20/11):**
+  - `26cb73ff`: recuperação da conta confirmada sem senha (P-29, defeito real);
+  - `947426b1`: premissas do spec oficial corrigidas, com autorização do fundador, e regressões
+    novas;
+  - `a1a128fb`: ponto âmbar do admin com `warning-600` (P-26).
+
+  O spec oficial do cadastro passa no Preview (25.15). O P-28 já está no #53; a `main` ainda não
+  tem nem o P-28 nem o P-29. Ferramentas novas:
+  - `.tmp/p26/` (renderização isolada da página real) e `ui-audit/p26-isolado.ts`;
+  - `ui-audit/p23-heuristica.ts`;
+  - `ui-audit/rodada-ciclo8.sh <lote>`, para o spec oficial em lotes.
 - **Ciclo 7 (19/11):**
   - `122b6286`: revisão de segurança do P-28 (mesmo e-mail exigido; 14 casos adversariais);
   - `430ea8ca`: P-19 (UI), recusa por mudança de situação recarrega a fila e descarta a chave;
