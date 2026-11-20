@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   writeLimit: vi.fn(),
   readPlan: vi.fn(),
   writePlan: vi.fn(),
+  pilotPlan: vi.fn(),
+  pilotAllowed: vi.fn(),
 }));
 vi.mock('@/lib/env', () => ({ env: mocks.env }));
 vi.mock('@/lib/auth/signup-user-hash', () => ({ hashSignupUserId: mocks.hashUser }));
@@ -27,8 +29,8 @@ vi.mock('@/contexts/onboarding', async () => {
   return {
     signupPlanMutationSchema,
     readSignupPlan: mocks.readPlan,
-    readPilotSignupPlan: vi.fn().mockResolvedValue(null),
-    pilotPlanSelectionAllowed: vi.fn().mockResolvedValue(true),
+    readPilotSignupPlan: mocks.pilotPlan,
+    pilotPlanSelectionAllowed: mocks.pilotAllowed,
     writeSignupPlan: mocks.writePlan,
     resolveReadyOwnedSignupOnboarding: mocks.resolve,
   };
@@ -71,6 +73,8 @@ function request(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.pilotPlan.mockResolvedValue(null);
+  mocks.pilotAllowed.mockResolvedValue(true);
   Object.assign(mocks.env, {
     SIGNUP_AUTH_ENABLED: true,
     SIGNUP_IDENTITY_ENABLED: true,
@@ -96,6 +100,15 @@ beforeEach(() => {
 });
 
 describe('GET /api/signup/plan', () => {
+  it('uses only the server-pinned pilot catalog when a restricted grant exists', async () => {
+    const pinned = { ...state, pilot: true, plans: [{ ...state.plans[0], priceCents: 19700 }] };
+    mocks.pilotPlan.mockResolvedValue({ ok: true, state: pinned });
+    const response = await GET(request('GET'));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(pinned);
+    expect(mocks.readPlan).not.toHaveBeenCalled();
+  });
+
   it('revalida owner, limita por HMAC e retorna catálogo resolvido no servidor', async () => {
     const response = await GET(request('GET'));
     expect(response.status).toBe(200);
@@ -216,5 +229,19 @@ describe('PUT /api/signup/plan', () => {
     mocks.writeLimit.mockResolvedValue({ ok: true });
     mocks.writePlan.mockRejectedValue(new Error('raw DB'));
     expect((await PUT(request('PUT'))).status).toBe(503);
+  });
+});
+
+describe('restricted pilot plan writes', () => {
+  it('rejects a different plan before the normal draft writer', async () => {
+    mocks.pilotAllowed.mockResolvedValue(false);
+    const response = await PUT(request('PUT'));
+    expect(response.status).toBe(422);
+    expect(mocks.writePlan).not.toHaveBeenCalled();
+  });
+  it('does not fall back to an unrestricted write if the pilot lookup fails', async () => {
+    mocks.pilotAllowed.mockRejectedValue(new Error('unavailable'));
+    expect((await PUT(request('PUT'))).status).toBe(503);
+    expect(mocks.writePlan).not.toHaveBeenCalled();
   });
 });

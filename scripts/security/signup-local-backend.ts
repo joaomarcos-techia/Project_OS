@@ -143,17 +143,17 @@ try {
         assert.ok(configured[key], `Missing development rate limiter: ${key}`);
         childEnv[key] = configured[key];
       }
+      if (mailMode) {
+        for (const key of ['RESEND_API_KEY_DEV', 'EMAIL_FROM_DEV', 'E2E_RESEND_INBOX_ADDRESS'])
+          assert.ok(configured[key], `Missing authorized development email configuration: ${key}`);
+        childEnv.RESEND_API_KEY = configured.RESEND_API_KEY_DEV;
+        childEnv.EMAIL_FROM = configured.EMAIL_FROM_DEV;
+        childEnv.E2E_RESEND_INBOX_ADDRESS = configured.E2E_RESEND_INBOX_ADDRESS;
+        childEnv.SIGNUP_LOCAL_MAIL = 'true';
+      }
     }
     childEnv.VERCEL_ENV = 'development';
     childEnv.SIGNUP_LOCAL_BROWSER = 'true';
-    if (mailMode) {
-      for (const key of ['RESEND_API_KEY_DEV', 'EMAIL_FROM_DEV', 'E2E_RESEND_INBOX_ADDRESS'])
-        assert.ok(configured[key], `Missing authorized development email configuration: ${key}`);
-      childEnv.RESEND_API_KEY = configured.RESEND_API_KEY_DEV;
-      childEnv.EMAIL_FROM = configured.EMAIL_FROM_DEV;
-      childEnv.E2E_RESEND_INBOX_ADDRESS = configured.E2E_RESEND_INBOX_ADDRESS;
-      childEnv.SIGNUP_LOCAL_MAIL = 'true';
-    }
     assert.equal(
       await fetch('http://localhost:3210/api/signup/runtime-fingerprint').catch(() => null),
       null,
