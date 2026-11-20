@@ -18,6 +18,8 @@ globalThis.fetch = async (input, init) => {
     url.origin === 'https://api.pwnedpasswords.com' &&
     /^\/range\/[A-F0-9]{5}$/u.test(url.pathname)
   )
-    return new Response('', { status: 200 });
+    // A valid padded k-anonymity response, not an empty provider failure.
+    // Zero occurrences is a synthetic safe result; no password leaves the runner.
+    return new Response(`${'0'.repeat(35)}:0\r\n`, { status: 200 });
   throw new Error('External network forbidden in synthetic pilot proof');
 };
