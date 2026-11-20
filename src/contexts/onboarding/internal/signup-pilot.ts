@@ -63,7 +63,13 @@ export async function bootstrapPilotSignup(input: {
           throw new PilotSignupError('conflict');
         const state = await readSignupSession(input.existingSession, { tx });
         if (!state) throw new PilotSignupError('expired');
-        return { ok: true as const, rawToken: input.existingSession, state, identity };
+        return {
+          ok: true as const,
+          rawToken: input.existingSession,
+          state,
+          identity,
+          resumed: true,
+        };
       }
       const session = await createSignupSession(input.request, { tx });
       if (!session.ok) return session;
@@ -76,7 +82,7 @@ export async function bootstrapPilotSignup(input: {
           metadata: { ...grant.metadata, signupRef: hashSignupToken(session.rawToken) },
         })
         .where(eq(clinicInvites.id, grant.id));
-      return { ...session, identity };
+      return { ...session, identity, resumed: false };
     })
     .catch((error: unknown) => {
       const cause = error instanceof Error && error.cause ? error.cause : error;

@@ -311,8 +311,9 @@ export function SignupQuestions({
           }
           // Um 201 identifica uma sessão nova. Respostas locais da sessão
           // anterior não podem atravessar esse limite silenciosamente.
-          clearLocalDraft();
-          hydrateSession(createdBody.session, false);
+          const resumedPilot = pilot && createdBody?.resumed === true;
+          if (!resumedPilot) clearLocalDraft();
+          hydrateSession(createdBody.session, resumedPilot);
           return;
         }
         if (created.status === 401 && createdBody?.error === 'challenge_required') {

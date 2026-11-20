@@ -69,7 +69,10 @@ export async function POST(req: Request) {
               ? 429
               : 503,
       );
-    const response = json({ session: result.state, identity: result.identity }, 201);
+    const response = json(
+      { session: result.state, identity: result.identity, resumed: result.resumed },
+      201,
+    );
     response.cookies.set(SIGNUP_SESSION_COOKIE, result.rawToken, SIGNUP_COOKIE_OPTIONS);
     response.cookies.set(PILOT_INVITE_COOKIE, inviteToken, SIGNUP_COOKIE_OPTIONS);
     return response;

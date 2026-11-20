@@ -139,6 +139,10 @@ describe('restricted pilot with real local Auth', () => {
           exact: true,
         })
         .click();
+      if (index === 0) {
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await page.getByText('Pergunta 2 de 4', { exact: true }).waitFor();
+      }
     }
     phase = 'initial identity and password / synthetic email';
     await page.getByLabel('Crie sua senha').waitFor();

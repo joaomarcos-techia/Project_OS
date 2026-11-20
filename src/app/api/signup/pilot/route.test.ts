@@ -81,7 +81,16 @@ describe('private admission HTTP boundary', () => {
     expect(r.headers.get('cache-control')).toContain('no-store');
   });
   it('can resume using its HttpOnly invitation instead of putting the token in a URL', async () => {
-    expect((await bootstrap(request({}, { cookie: true }))).status).toBe(201);
+    m.bootstrap.mockResolvedValue({
+      ok: true,
+      rawToken: 'b'.repeat(43),
+      state: { status: 'initiated' },
+      identity: {},
+      resumed: true,
+    });
+    const response = await bootstrap(request({}, { cookie: true }));
+    expect(response.status).toBe(201);
+    expect((await response.json()).resumed).toBe(true);
     expect(m.bootstrap.mock.calls[0]?.[0].inviteToken).toBe(token);
   });
   it('preserves a conflict without issuing another session', async () => {
