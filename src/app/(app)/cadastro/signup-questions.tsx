@@ -295,6 +295,13 @@ export function SignupQuestions({
         const createdBody = await responseBody(created);
         if (created.status === 201 && isSession(createdBody?.session)) {
           if (pilot) {
+            if (pilotToken.current) {
+              // The invite has become a Secure/HttpOnly cookie. Start from a
+              // clean document so the router cannot restore its initial hash.
+              pilotToken.current = null;
+              window.location.replace(window.location.pathname + window.location.search);
+              return;
+            }
             const identity = createdBody?.identity;
             if (
               !isRecord(identity) ||

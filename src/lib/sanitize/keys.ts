@@ -16,6 +16,8 @@ export const SENSITIVE_KEYS: ReadonlySet<string> = new Set([
   'passwordhash',
   'secret',
   'token',
+  'invitetoken',
+  'invite_token',
   'api_key',
   'apikey',
   // ADR-049: a chave Asaas da clínica trafega como `apiKeyEncrypted`/`apiKeyHash`

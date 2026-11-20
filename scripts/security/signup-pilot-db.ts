@@ -96,7 +96,7 @@ try {
               );
             else if (scenario === 'existing clinic name')
               await tx.execute(
-                statement`INSERT INTO public.clinics(id,nome) VALUES(${randomUUID()}::uuid,${identity.clinicName})`,
+                statement`INSERT INTO public.clinics(id,slug,nome) VALUES(${randomUUID()}::uuid,${'synthetic-' + randomUUID()},${identity.clinicName})`,
               );
             else
               await tx.execute(

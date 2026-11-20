@@ -124,6 +124,7 @@ describe('cadastro — quatro perguntas impessoais', () => {
     const path = window.location.pathname + window.location.search;
     window.history.replaceState({ __NA: true }, '', path + '#invite=' + 'a'.repeat(64));
     const replace = vi.spyOn(window.history, 'replaceState');
+    const navigate = vi.spyOn(window.location, 'replace').mockImplementation(() => undefined);
     fetchMock.mockResolvedValueOnce(
       json(201, {
         session: EMPTY_SESSION,
@@ -137,7 +138,7 @@ describe('cadastro — quatro perguntas impessoais', () => {
     );
     try {
       render(<SignupQuestions identityEnabled pilot />);
-      await screen.findByRole('heading', { name: 'Quantos médicos atendem na clínica?' });
+      await waitFor(() => expect(navigate).toHaveBeenCalledWith(path));
       expect(replace).toHaveBeenCalledWith(null, '', path);
       expect(window.location.hash).toBe('');
       expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['/api/signup/pilot']);
