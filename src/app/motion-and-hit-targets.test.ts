@@ -121,6 +121,16 @@ describe('fundação de movimento e alvos de interação', () => {
     expect(fixos).toEqual([]);
   });
 
+  // P-26 (ciclo 8, 20/11/2026): medido no Preview (página real, CSS real, dois temas): o ponto
+  // cinza `border-strong` tem 3,30:1 / 3,86:1; o âmbar `warning-500` tinha 2,26:1 no claro.
+  it('o ponto de status dos avisos do admin usa tons com contraste de elemento gráfico', () => {
+    const pagina = readFileSync(resolve(root, 'src/app/(admin)/admin/config/page.tsx'), 'utf8');
+    const ponto = pagina.match(/function HealthDot[\s\S]*?\n\}/u)?.[0] ?? '';
+    expect(ponto).toContain("'bg-border-strong'");
+    expect(ponto).toContain("'bg-warning-600'");
+    expect(ponto).not.toContain("'bg-warning-500'");
+  });
+
   // Sidebar (founder, 18/11/2026): mais respiro, sem itens espremidos em telas baixas.
   it('mantém o ritmo da sidebar: folga entre itens, título perto do próprio grupo, itens ≥ 36 px', () => {
     const px = (nome: string) => Number(css.match(new RegExp(`${nome}:\\s*(\\d+)px`, 'u'))?.[1]);
