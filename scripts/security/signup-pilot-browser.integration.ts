@@ -175,7 +175,7 @@ describe('restricted pilot with real local Auth', () => {
     const [before] =
       await sql`SELECT id, length(encrypted_password)>0 AS has_password, md5(encrypted_password) AS fingerprint FROM auth.users WHERE email=${identity.email}`;
     assert.ok(before?.has_password);
-    phase = 'OTP wrong / correct / replay';
+    phase = 'OTP wrong / correct / password login';
     const mailResponse = await fetch(
       `${process.env.PILOT_MAIL_URL}/code?email=${encodeURIComponent(identity.email)}`,
       {
@@ -209,6 +209,8 @@ describe('restricted pilot with real local Auth', () => {
       null,
     );
     await direct.auth.signOut({ scope: 'local' });
+    phase = 'server-pinned plan';
+    await page.getByRole('radiogroup', { name: 'Planos disponíveis', exact: true }).waitFor();
     assert.equal(await page.getByRole('radio').count(), 1);
     const [other] = await sql`SELECT id FROM plans WHERE code='clinica_2026_2'`;
     const plan = await ctx.request.get(`${origin}/api/signup/plan`);
