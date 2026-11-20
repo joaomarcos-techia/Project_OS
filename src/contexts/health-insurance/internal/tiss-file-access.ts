@@ -81,7 +81,13 @@ export type TissFileRead =
   | { outcome: 'integrity_failed' | 'missing' | 'storage_unavailable'; fileId: string };
 
 /** Para que a pessoa abriu o arquivo (vai para a auditoria). */
-export type TissFilePurpose = 'download_arquivo' | 'envio_manual' | 'conferencia_retorno' | 'consulta_administrativa';
+export type TissFilePurpose =
+  | 'download_arquivo'
+  | 'envio_manual'
+  /** P9.4: o XML do lote lido para o envio pelo webservice homologado (em nome de quem pediu). */
+  | 'envio_conector'
+  | 'conferencia_retorno'
+  | 'consulta_administrativa';
 
 export interface TissFileReadArgs {
   clinicId: string;
@@ -194,7 +200,7 @@ export async function readTissFile(
 export async function readBatchXmlInTx(
   tx: Tx,
   store: TissObjectStore,
-  args: { clinicId: string; batchId: string; userId: string | null; requestContext: RequestContext },
+  args: { clinicId: string; batchId: string; userId: string | null; requestContext: RequestContext; purpose?: 'envio_manual' | 'envio_conector' },
 ): Promise<{ fileId: string; bytes: Buffer; contentSha256: string } | null> {
   const [batch] = await tx
     .select({ fileId: hiBatches.fileId })
@@ -206,7 +212,7 @@ export async function readBatchXmlInTx(
     clinicId: args.clinicId,
     fileId: batch.fileId,
     userId: args.userId,
-    purpose: 'envio_manual',
+    purpose: args.purpose ?? 'envio_manual',
     requestContext: args.requestContext,
     action: BATCH_FILE_READ_ACTION,
   });

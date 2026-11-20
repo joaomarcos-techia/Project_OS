@@ -13,6 +13,7 @@ import { sql } from 'drizzle-orm';
 
 import { withTenant } from '@/lib/db/tenant';
 
+import { batchSendKey, connectorSendAvailableTx } from './internal/batch-connector-send';
 import { insurerRules, type InsurerRules } from './internal/insurer-rules';
 import type { GuideScope } from './rights';
 
@@ -865,6 +866,26 @@ export async function getBatchExportJob(
       processedAt: iso(r.processed_at),
     };
   });
+}
+
+/** P9.4: o job de envio pelo webservice da versão atual do lote (chave `hi-batch-send:<lote>:v<versão>`). */
+export async function getBatchSendJob(clinicId: string, batchId: string, version: number): Promise<BatchExportJob | null> {
+  return withTenant(clinicId, async (tx) => {
+    const [r] = await rows(
+      tx,
+      sql`SELECT status::text AS status, attempts, error_code, created_at, processed_at FROM public.outbox
+           WHERE clinic_id = ${clinicId}::uuid AND event_type = 'health_insurance.batch.send_requested'
+             AND idempotency_key = ${batchSendKey(batchId, version)}
+           ORDER BY created_at DESC LIMIT 1`,
+    );
+    if (!r) return null;
+    return { status: String(r.status), attempts: n(r.attempts), errorCode: s(r.error_code), createdAt: iso(r.created_at), processedAt: iso(r.processed_at) };
+  });
+}
+
+/** P9.4: a tela oferece o envio eletrônico? Só com operadora homologada e credencial ativa (produção: nunca). */
+export async function isBatchConnectorSendAvailable(clinicId: string, batchId: string): Promise<boolean> {
+  return withTenant(clinicId, (tx) => connectorSendAvailableTx(tx, clinicId, batchId));
 }
 
 // ── Busca nas tabelas oficiais (TUSS 22, CBO 24) ─────────────────────────

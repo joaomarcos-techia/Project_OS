@@ -21,6 +21,12 @@ export const HEALTH_INSURANCE_EVENTS = {
    */
   BATCH_EXPORT_REQUESTED: 'health_insurance.batch.export_requested',
   /**
+   * P9.4: envio do lote exportado pelo webservice HOMOLOGADO da operadora. Uma chave por lote e
+   * versão: o mesmo lote nunca sai duas vezes por pedido repetido. Sem operadora homologada
+   * (produção hoje), ninguém publica este evento.
+   */
+  BATCH_SEND_REQUESTED: 'health_insurance.batch.send_requested',
+  /**
    * P6.6 — entrega dos avisos de autorização à clínica (e-mail a quem opera Convênios). Só o lote e
    * a contagem: o handler lê os avisos do lote na hora e não manda dado de paciente.
    */
@@ -54,6 +60,11 @@ export const BatchExportRequestedSchema = z.object({
 export type BatchExportRequestedPayload = z.infer<typeof BatchExportRequestedSchema>;
 
 registerEventSchema(HEALTH_INSURANCE_EVENTS.BATCH_EXPORT_REQUESTED, BatchExportRequestedSchema);
+
+export const BatchSendRequestedSchema = BatchExportRequestedSchema;
+export type BatchSendRequestedPayload = z.infer<typeof BatchSendRequestedSchema>;
+
+registerEventSchema(HEALTH_INSURANCE_EVENTS.BATCH_SEND_REQUESTED, BatchSendRequestedSchema);
 
 export const AuthorizationAlertsDeliverySchema = z.object({
   clinicId: uuid,

@@ -12,6 +12,8 @@
  *     em memória: nenhum resultado, erro ou recibo a contém;
  *   - endereço só HTTPS, sem usuário/senha na URL e sem seguir redirecionamento; HTTP em loopback
  *     só com `allowLoopbackHttp` explícito (o stub dos testes), nunca numa configuração de operadora;
+ *   - destino só PÚBLICO: o IP é conferido na conexão (`guarded-post.ts`), então rede interna,
+ *     metadados da nuvem e DNS trocado depois da conferência são recusados antes de sair um byte;
  *   - tempo, retentativa e circuito por operadora vêm do contrato da P2.5 (`createConnector`):
  *     consultas repetem; envios (lote, solicitação, recurso) só se a operadora deduplica;
  *   - a resposta só vira `accepted`/`rejected` depois de: envelope legível, elemento esperado,
@@ -20,6 +22,8 @@
  *     manda conferir no portal antes de reenviar.
  */
 import { createHash } from 'node:crypto';
+import type { lookup as dnsLookup } from 'node:dns';
+import { isIP } from 'node:net';
 
 import {
   createConnector,
@@ -32,6 +36,7 @@ import { child, textAt, type XmlNode } from '../../../tiss/xml/reader';
 import type { TissXsdEngine } from '../../../tiss/xml/xsd-engine';
 import { OPERATOR_OPERATIONS, type OperatorOperation, type OperatorRequest } from '../operator-connector';
 import type { HomologatedTransport } from '../resolve-connector';
+import { guardedPost, isBlockedAddress } from './guarded-post';
 import { TISS_FAULTS, TISS_WS_OPERATIONS } from './operations';
 import {
   buildWsRequest,
@@ -76,7 +81,13 @@ export interface TissSoapDeps {
   credentials(): Promise<TissSoapCredential | null>;
   /** Motor XSD do webservice (`getTissWsXsdEngine()`). */
   xsd: TissXsdEngine;
-  fetch?: typeof fetch;
+  /**
+   * Transporte HTTP (padrão: `guardedPost`, que só conecta a endereço público conferido na
+   * conexão). Substituível só nos testes.
+   */
+  post?: typeof guardedPost;
+  /** Resolução de nomes do `guardedPost` (padrão: DNS do sistema); os testes simulam respostas. */
+  resolve?: typeof dnsLookup;
   now?: () => number;
 }
 
@@ -100,6 +111,11 @@ function checkEndpoint(raw: string, allowLoopbackHttp: boolean): URL {
   if (url.protocol !== 'https:' && !(allowLoopbackHttp && url.protocol === 'http:' && LOOPBACK.has(url.hostname))) {
     throw new TissSoapConfigError('o webservice da operadora precisa de HTTPS');
   }
+  // IP literal de rede interna é recusado já na configuração; nomes são conferidos na conexão.
+  const literal = url.hostname.replace(/^\[|\]$/gu, '');
+  if (isIP(literal) && isBlockedAddress(literal) && !(allowLoopbackHttp && LOOPBACK.has(url.hostname))) {
+    throw new TissSoapConfigError('o webservice da operadora não pode apontar para rede interna');
+  }
   return url;
 }
 
@@ -112,26 +128,6 @@ function nodeAt(n: XmlNode | undefined, path: string): XmlNode | undefined {
 }
 const INVALID: ConnectorOutcome = { kind: 'unavailable', reason: 'invalid_response' };
 
-async function readCapped(res: Response, max: number): Promise<Uint8Array | null> {
-  const declared = Number(res.headers.get('content-length') ?? '0');
-  if (declared > max) return null;
-  if (!res.body) return new Uint8Array(0);
-  const reader = res.body.getReader();
-  const parts: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > max) {
-      await reader.cancel();
-      return null;
-    }
-    parts.push(value);
-  }
-  return Buffer.concat(parts);
-}
-
 export function createTissSoapTransport(config: TissSoapConfig, deps: TissSoapDeps): HomologatedTransport {
   const endpoints = new Map<OperatorOperation, URL>();
   for (const op of OPERATOR_OPERATIONS) {
@@ -140,7 +136,7 @@ export function createTissSoapTransport(config: TissSoapConfig, deps: TissSoapDe
   }
   if (endpoints.size === 0) throw new TissSoapConfigError('nenhuma operação com endereço homologado');
   if (!/^\d{6}$/u.test(config.registroANS)) throw new TissSoapConfigError('registro ANS da operadora inválido');
-  const doFetch = deps.fetch ?? fetch;
+  const post = deps.post ?? guardedPost;
   const maxResponseBytes = config.maxResponseBytes ?? 16 * 1024 * 1024;
   // Por pedido: o que conferir na resposta (lote enviado). Nunca guarda o envelope.
   const pending = new WeakMap<ConnectorRequest, { operation: OperatorOperation; numeroLote: string | null }>();
@@ -222,16 +218,17 @@ export function createTissSoapTransport(config: TissSoapConfig, deps: TissSoapDe
           config.soapVersion === '1.1'
             ? { 'Content-Type': 'text/xml; charset=ISO-8859-1', SOAPAction: `"${action}"` }
             : { 'Content-Type': `application/soap+xml; charset=ISO-8859-1${action ? `; action="${action}"` : ''}` };
-        const res = await doFetch(url, {
-          method: 'POST',
+        // Destino recusado (rede interna) vira falha de transporte: nada sai e o manual segue valendo.
+        const res = await post(url, {
           headers,
-          body: new Uint8Array(request.xml),
+          body: request.xml,
           signal,
-          redirect: 'error',
+          maxBytes: maxResponseBytes,
+          allowLoopback: config.allowLoopbackHttp === true,
+          ...(deps.resolve ? { resolve: deps.resolve } : {}),
         });
-        const bytes = await readCapped(res, maxResponseBytes);
-        if (bytes === null) return INVALID;
-        return interpret(meta.operation, meta.numeroLote, res.status, bytes);
+        if (res.bytes === null) return INVALID;
+        return interpret(meta.operation, meta.numeroLote, res.status, res.bytes);
       },
     },
   });

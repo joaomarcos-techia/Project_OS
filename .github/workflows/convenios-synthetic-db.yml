@@ -139,6 +139,11 @@ jobs:
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55563           NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-insurer-credentials-db.ts
 
+      - name: Envio do lote pelo conector homologado contra a operadora stub (P9.4, teto "Testado")
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55566           NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-batch-connector-db.ts
+
       - name: Desempenho da H.2 com o código real (P14.4; metas e desvio registrado)
         if: ${{ !cancelled() }}
         run: |

@@ -198,10 +198,15 @@ describe('acesso à credencial cifrada (P12.5)', () => {
       'utf8',
     );
     expect(credentialsSource).not.toMatch(/decryptForTenant/u);
-    // Sem operadora homologada (B5), nenhum código do app chama a leitura em claro.
+    // Só o envio do lote pelo webservice (P9.4) chama a leitura em claro — e só roda para operadora
+    // homologada (lista de produção vazia: gate em tiss-soap.test.ts).
     const callers = walk(join(root, 'src'))
       .filter((f) => /tiss-soap\/credential['"]|readWebserviceCredentialForSendTx/u.test(readFileSync(f, 'utf8')))
-      .map((f) => relative(root, f).split(sep).join('/'));
-    expect(callers).toEqual(['src/contexts/health-insurance/internal/connectors/tiss-soap/credential.ts']);
+      .map((f) => relative(root, f).split(sep).join('/'))
+      .sort();
+    expect(callers).toEqual([
+      'src/contexts/health-insurance/internal/connectors/tiss-soap/credential.ts',
+      'src/contexts/health-insurance/internal/handlers/batch-send-requested.ts',
+    ]);
   }, 60_000);
 });

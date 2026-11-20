@@ -51,11 +51,36 @@ Nenhum achado crítico aberto no código revisado.
 
 **Para quem usar o recibo (P9.4):** a resposta da operadora pode ter dado de paciente (ex.: nome na elegibilidade). O recibo devolvido pelo adaptador tem de ser guardado pelo caminho cifrado de arquivos TISS, nunca em log.
 
+## Revisão de 19/11 (2º ciclo): destino do conector e envio do lote
+
+| Área | O que foi conferido | Evidência | Resultado |
+| --- | --- | --- | --- |
+| Destino configurável (SSRF) | HTTPS não basta: o conector só conecta a endereço PÚBLICO, conferido no momento da conexão (`guarded-post.ts`, `lookup` do socket). Rede privada, loopback, link-local (inclui 169.254.169.254, metadados da nuvem), CGNAT, multicast, reservados e IPv4 mapeado em IPv6 são recusados; IP literal interno é recusado já na configuração; nome que resolve para rede interna (DNS trocado depois da conferência) ou resposta mista é recusado antes de sair um byte | `tiss-soap.test.ts` (3 provas novas) | OK |
+| Envio do lote (P9.4) | UM envio por lote e versão (chave única do outbox); nunca reenvia sozinho (segunda tentativa sem deduplicação pede conferência no portal); recusa e indisponibilidade não viram "enviado"; recibo conferido e guardado cifrado; credencial decifrada só no envio; nada de senha, MD5 ou login no banco | `health-insurance-batch-connector-db.ts` 7/7 | OK |
+| Fronteira | só o handler do envio monta o adaptador e chama a leitura da credencial; a lista de produção de operadoras homologadas é vazia | gates em `tiss-soap.test.ts` e `insurer-credential-actions.test.ts` | OK |
+
+Nenhum achado crítico aberto no código revisado neste ciclo.
+
+## Critérios para fechar a P15.5 depois das decisões S1–S8
+
+A P15.5 só fecha em definitivo depois que as decisões do perfil de segurança ANS (`decisoes-pendentes.md`, B10) mudarem o código. Para cada uma aprovada:
+
+| Decisão | Conferir no código | Prova exigida |
+| --- | --- | --- |
+| S1 (alcance do perfil) | o perfil `tiss` liga só nas clínicas do alcance decidido; as demais seguem iguais | E2E com uma clínica de cada lado |
+| S2 (inatividade 10 min) | expiração no servidor (não só no cliente) e a tela de volta ao login sem perder o que já foi salvo | teste de sessão expirada no servidor + E2E |
+| S3, S4 (senha) | símbolo, 90 dias e histórico de 10 só no perfil decidido; a carência não tranca ninguém de repente | unitários da política + E2E de troca de senha |
+| S5 (auditoria 180 dias) | trilha sem UPDATE/DELETE pelo app, retenção de 180 dias e o runbook de retenção atualizado | harness de banco tentando apagar ou editar a trilha |
+| S6 (CPF e inativar) | inativar em vez de excluir no perfil decidido; CPF cifrado | harness + E2E |
+| S7 (rodapé) | fornecedor e versão nas telas e PDFs do perfil (com a UI do #56) | teste de render + PDF |
+| S8 (último acesso, login, Upstash) | último acesso mostrado; sem memorização no login se decidido; limite fechado quando o Upstash cai | unitários do limitador com o Upstash fora + E2E |
+
+Depois disso: refazer esta revisão sobre o SHA final e repetir o `/security-review` dirigido nas superfícies alteradas.
+
 ## Riscos que sobram (não são defeito do código revisado)
 
 - **Perfil de segurança TISS da ANS** (inatividade no servidor, política de senha, auditoria imutável de 180 dias, último
   acesso): depende das decisões S1–S8 (P12.8–P12.12). Até lá o perfil não está ligado para clínicas reais.
-- **Picomatch (GHSA-fc5q-39xc-vjpf)**: sem versão corrigida publicada (afeta até 4.0.7, a última); exceção temporária
-  aprovada no `pnpm-workspace.yaml`.
+- ~~**Picomatch (GHSA-fc5q-39xc-vjpf)**~~ **resolvido em 19/11:** o GitHub retirou o advisory (`withdrawn_at` 2026-11-18T15:38:56Z, conferido pela API); a exceção temporária saiu do `pnpm-workspace.yaml` e o gate `pnpm audit --prod --audit-level high` da CI volta a valer por inteiro (igual no #56).
 - **Middleware**: o redirecionamento 307 de POST de server action sem cookie (handoff S-02) segue como proposta para o
   fundador; Convênios contorna na própria página.

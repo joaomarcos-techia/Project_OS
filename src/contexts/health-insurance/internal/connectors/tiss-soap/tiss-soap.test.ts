@@ -25,6 +25,7 @@ import type { OperatorOperation } from '../operator-connector';
 import { resolveOperatorConnector } from '../resolve-connector';
 import { TISS_WS_OPERATIONS } from './operations';
 import { startStubOperator, type StubOperator } from './stub-operator';
+import { isBlockedAddress } from './guarded-post';
 import { createTissSoapTransport, TissSoapConfigError, type TissSoapConfig } from './tiss-soap-adapter';
 import { buildWsRequest, parseSoapResponse, tissWsHash, TissSoapRequestError } from './ws-message';
 
@@ -280,8 +281,42 @@ describe('TissSoapAdapter contra o stub (P6.5)', () => {
   }, 60_000);
 });
 
+describe('destino do webservice: só endereço público (P15.5, SSRF)', () => {
+  it('rede interna, loopback, link-local (metadados da nuvem), CGNAT e reservados são recusados; público passa', () => {
+    for (const a of ['10.0.0.5', '172.16.3.4', '192.168.1.1', '127.0.0.1', '169.254.169.254', '100.64.1.1', '0.0.0.0', '224.0.0.1', '::1', 'fe80::1', 'fc00::1', '::ffff:10.0.0.1', '::ffff:127.0.0.1']) {
+      expect(isBlockedAddress(a), a).toBe(true);
+    }
+    for (const a of ['8.8.8.8', '1.1.1.1', '2001:4860:4860::8888']) expect(isBlockedAddress(a), a).toBe(false);
+    expect(isBlockedAddress('nao-e-ip')).toBe(true);
+  });
+
+  it('IP literal de rede interna é recusado já na configuração', () => {
+    for (const u of ['https://10.0.0.5/tiss', 'https://169.254.169.254/latest/meta-data', 'https://[::1]/tiss', 'https://127.0.0.1/tiss']) {
+      expect(() => transport({ endpoints: { eligibility: u }, allowLoopbackHttp: false }), u).toThrow(TissSoapConfigError);
+    }
+  });
+
+  it('nome que resolve para rede interna na hora da conexão (DNS trocado) é recusado antes de sair um byte', async () => {
+    const answers: Record<string, Array<{ address: string; family: number }>> = {
+      'interna.example': [{ address: '10.0.0.7', family: 4 }],
+      'metadados.example': [{ address: '169.254.169.254', family: 4 }],
+      'mista.example': [{ address: '8.8.8.8', family: 4 }, { address: '192.168.0.10', family: 4 }],
+    };
+    const resolve = ((host: string, _opts: unknown, cb: (e: Error | null, a: unknown) => void) => cb(null, answers[host] ?? [])) as never;
+    for (const host of Object.keys(answers)) {
+      const t = createTissSoapTransport(config({ endpoints: { eligibility: `https://${host}/tiss` }, allowLoopbackHttp: false, retries: 0 }), {
+        credentials: async () => ({ login: LOGIN, password: PASSWORD }),
+        xsd: wsXsd,
+        resolve,
+      });
+      expect(await t.submit(req('eligibility')), host).toEqual({ kind: 'unavailable', reason: 'network' });
+    }
+    expect(stub.received).toHaveLength(0);
+  }, 60_000);
+});
+
 describe('fronteira do stub e do registro (P6.5)', () => {
-  it('nenhum código do app importa o stub; o adaptador só entra pelo registro de homologados (vazio em produção)', async () => {
+  it('nenhum código do app importa o stub; o adaptador só é montado pelo envio do lote (P9.4), com o registro de produção vazio', async () => {
     const { readdirSync, readFileSync, statSync } = await import('node:fs');
     const { join, relative, sep } = await import('node:path');
     const walk = (dir: string): string[] =>
@@ -296,9 +331,13 @@ describe('fronteira do stub e do registro (P6.5)', () => {
       .filter(({ s }) => /createTissSoapTransport/u.test(s))
       .map(({ f }) => f)
       .filter((f) => !f.endsWith('tiss-soap/tiss-soap-adapter.ts'));
-    expect(adapterUsers).toEqual([]);
+    // Só o envio do lote pelo webservice (P9.4) monta o adaptador, e só para operadora homologada.
+    expect(adapterUsers).toEqual(['src/contexts/health-insurance/internal/handlers/batch-send-requested.ts']);
     const { NO_HOMOLOGATED_OPERATORS } = await import('../resolve-connector');
     expect(NO_HOMOLOGATED_OPERATORS.size).toBe(0);
+    const { PRODUCTION_HOMOLOGATIONS, homologationRuntime } = await import('../homologated-operators');
+    expect(PRODUCTION_HOMOLOGATIONS.size).toBe(0);
+    expect(homologationRuntime.registry()).toBe(PRODUCTION_HOMOLOGATIONS);
   }, 60_000);
 });
 

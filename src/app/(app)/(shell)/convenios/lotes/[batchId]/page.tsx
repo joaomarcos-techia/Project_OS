@@ -12,12 +12,13 @@ import {
   markBatchSentAction,
   markBatchUnderReviewAction,
 } from '@/contexts/health-insurance/actions';
-import { getBatchExportJob } from '@/contexts/health-insurance/config-queries';
+import { getBatchExportJob, getBatchSendJob, isBatchConnectorSendAvailable } from '@/contexts/health-insurance/config-queries';
 import { getBatchDetail } from '@/contexts/health-insurance/queries';
 
 import { brl, ConveniosHeader, conveniosAccess, shortDate } from '../../_lib/access';
 import { ActionButton, Actions, TextAction } from '../../_lib/action-ui';
 import { requestBatchExportAction } from '../../_lib/batch-export-actions';
+import { requestBatchConnectorSendAction } from '../../_lib/batch-send-actions';
 import { GlossForm, PaymentForm, ProtocolForm } from '../../_lib/batch-ui';
 import { BatchStatusBadge, GuideStatusBadge } from '../../_lib/status';
 
@@ -28,6 +29,21 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 /** Estado do XML pedido em segundo plano (R45); o motivo vem por código, nunca o erro técnico. */
+/** P9.4: envio pelo webservice homologado (o resultado é o próprio job; sem estado falso). */
+const SEND_JOB: Record<string, string> = {
+  pending: 'envio pelo webservice na fila',
+  processing: 'enviando pelo webservice',
+  failed: 'o webservice não confirmou',
+};
+const SEND_ERROR: Record<string, string> = {
+  operator_rejected: 'a operadora recusou o lote; corrija e gere o XML de novo',
+  connector_unavailable: 'confira no portal da operadora antes de reenviar',
+  needs_portal_check: 'o envio pode ter chegado: confira no portal antes de reenviar',
+  record_failed: 'a operadora confirmou, mas o registro falhou: registre pelo recibo',
+  premium_denied: 'assinatura inativa',
+  module_disabled: 'módulo Convênios desligado',
+  not_homologated: 'operadora sem webservice homologado',
+};
 const EXPORT_JOB: Record<string, string> = {
   pending: 'na fila',
   processing: 'gerando',
@@ -64,6 +80,9 @@ export default async function LotePage({ params }: { params: Promise<{ batchId: 
   const b = await getBatchDetail(access.clinicId, batchId);
   const job = b && b.status === 'prepared' ? await getBatchExportJob(access.clinicId, b.id, b.version) : null;
   if (!b) notFound();
+  // P9.4: sem operadora homologada (produção hoje) o envio eletrônico nem aparece.
+  const connector = b.status === 'exported' ? await isBatchConnectorSendAvailable(access.clinicId, b.id) : false;
+  const sendJob = b.status === 'exported' ? await getBatchSendJob(access.clinicId, b.id, b.version) : null;
   const m = access.rights.bill;
   const ref = { batchId: b.id, version: b.version };
   const atOperator = ['sent', 'received', 'under_review', 'processed'].includes(b.status);
@@ -89,7 +108,7 @@ export default async function LotePage({ params }: { params: Promise<{ batchId: 
         <dl className="grid grid-cols-2 gap-(--sp-2) text-(length:--fs-sm) md:grid-cols-4">
           <div><dt className="text-fg-muted">Etapa</dt><dd><BatchStatusBadge status={b.status} /></dd></div>
           <div><dt className="text-fg-muted">XML</dt><dd data-testid="batch-export-job" data-job={job?.status ?? 'none'}>{job && !b.fileId ? (EXPORT_JOB[job.status] ?? job.status) + (job.errorCode ? ' — ' + (EXPORT_ERROR[job.errorCode] ?? job.errorCode) : '') + ' · ' : null}{b.fileId ? `validado no XSD oficial${xsd ? ` (${xsd})` : ''}` : 'ainda não gerado'}</dd></div>
-          <div><dt className="text-fg-muted">Envio</dt><dd>{b.sentOn ? `${shortDate(b.sentOn)}${b.sendEvidence ? ` — ${b.sendEvidence}` : ''}` : '—'}</dd></div>
+          <div><dt className="text-fg-muted">Envio</dt><dd data-testid="batch-send-job" data-job={sendJob?.status ?? 'none'}>{b.sentOn ? `${shortDate(b.sentOn)}${b.sendEvidence ? ` — ${b.sendEvidence}` : ''}` : sendJob ? (SEND_JOB[sendJob.status] ?? sendJob.status) + (sendJob.errorCode ? ` — ${SEND_ERROR[sendJob.errorCode] ?? sendJob.errorCode}` : '') : '—'}</dd></div>
           <div><dt className="text-fg-muted">Protocolo</dt><dd>{b.protocolNumber ? `${b.protocolNumber} (${shortDate(b.receivedOn)})` : '—'}</dd></div>
         </dl>
         {b.cancelReason ? <p className="mt-(--sp-2) text-(length:--fs-sm)">Cancelado: {b.cancelReason}</p> : null}
@@ -106,6 +125,9 @@ export default async function LotePage({ params }: { params: Promise<{ batchId: 
               ) : null}
               {b.status === 'prepared' && (!job || job.status === 'failed') ? (
                 <ActionButton label="Gerar XML em segundo plano" success="XML do lote na fila" action={requestBatchExportAction.bind(null, { batchId: b.id, version: b.version })} />
+              ) : null}
+              {b.status === 'exported' && connector && !sendJob ? (
+                <ActionButton label="Enviar pelo webservice da operadora" success="Envio na fila" variant="primary" action={requestBatchConnectorSendAction.bind(null, ref)} />
               ) : null}
               {b.status === 'exported' ? (
                 <TextAction
