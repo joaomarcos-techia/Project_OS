@@ -108,7 +108,8 @@ jobs:
           docker cp .tmp/pilot-supabase/tls.crt "$container:/tmp/qoro-pilot.crt"
           docker exec --user root "$container" chown postgres:postgres /tmp/qoro-pilot.key /tmp/qoro-pilot.crt
           docker exec --user root "$container" chmod 600 /tmp/qoro-pilot.key
-          docker exec "$container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c "ALTER SYSTEM SET ssl_cert_file='/tmp/qoro-pilot.crt'" -c "ALTER SYSTEM SET ssl_key_file='/tmp/qoro-pilot.key'" -c "ALTER SYSTEM SET ssl='on'" -c 'SELECT pg_reload_conf()'
+          test "$(docker exec "$container" psql -U supabase_admin -d postgres -Atc 'SELECT rolsuper FROM pg_roles WHERE rolname=current_user')" = t
+          docker exec "$container" psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 -c "ALTER SYSTEM SET ssl_cert_file='/tmp/qoro-pilot.crt'" -c "ALTER SYSTEM SET ssl_key_file='/tmp/qoro-pilot.key'" -c "ALTER SYSTEM SET ssl='on'" -c 'SELECT pg_reload_conf()'
           sleep 1
           test "$(PGHOST=127.0.0.1 PGPORT=55442 PGUSER=postgres PGPASSWORD=postgres PGSSLMODE=verify-full PGSSLROOTCERT="$PWD/.tmp/pilot-supabase/tls.crt" psql -d postgres -Atc 'SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()')" = t
       - name: Real browser, code, password, owner and tenant claims
