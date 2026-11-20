@@ -967,6 +967,31 @@ async function assertScannerGetDoesNotConsume(
   }
 }
 
+/** Código de recusa do password grant (`null` quando autentica). */
+async function passwordSignInError(email: string, password: string): Promise<string | null> {
+  const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: {
+      apikey: supabasePublicKey!,
+      Authorization: `Bearer ${supabasePublicKey!}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ email, password }),
+    cache: 'no-store',
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (response.ok) {
+    await response.body?.cancel().catch(() => undefined);
+    return null;
+  }
+  const body = (await response.json().catch(() => ({}))) as {
+    error_code?: unknown;
+    code?: unknown;
+  };
+  const code = typeof body.error_code === 'string' ? body.error_code : body.code;
+  return typeof code === 'string' ? code : `http_${response.status}`;
+}
+
 async function passwordSignInSucceeds(email: string, password: string): Promise<boolean> {
   const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
     method: 'POST',
@@ -1304,13 +1329,25 @@ async function openOnPhone(
   return { context, page };
 }
 
+/**
+ * A aba original depois da confirmação pelo link em outro aparelho.
+ *
+ * P-29 (ciclo 8, 20/11/2026): desde o #47 (04/11), `startSignup` emula um cliente v1 já aberto
+ * pela API e RECARREGA a aba. O e-mail do cadastro vive só na memória da aba
+ * (`continuationCredentials`, que só o formulário v1 preenchia; não vai para URL nem storage),
+ * então a aba recarregada pede o e-mail, vazio, como depois do F5 em `completeHandoffAfterRefresh`.
+ * A aba lembrar o e-mail sem reload continua coberto em `signup-questions.test.tsx` ("após
+ * confirmar exige o código…" e "após refresh pede e-mail…"). A prova
+ * exigida não muda: e-mail + senha nova + código do corpo; o link sozinho não autoriza a aba.
+ */
 async function waitForOriginalHandoff(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/cadastro$/u, { timeout: 120_000 });
   await expect(page.getByRole('heading', { name: 'E-mail confirmado' })).toBeVisible({
     timeout: 120_000,
   });
   await expect(page.getByLabel('Código do e-mail')).toBeVisible();
-  await expect(page.getByLabel('E-mail usado no cadastro')).toHaveCount(0);
+  await expect(page.getByLabel('E-mail usado no cadastro')).toBeVisible();
+  await expect(page.getByLabel('E-mail usado no cadastro')).toHaveValue('');
   await expect(page.getByLabel('Crie sua senha')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Confirme o plano e o pagamento' })).toHaveCount(
     0,
@@ -1762,8 +1799,17 @@ test.describe('cadastro — confirmação real via Resend', () => {
       }
 
       await choosePlanFamily(signup.page, 'Consultório');
+      // Prancha "Cadastro · 3. Checkout" (decisão do fundador, 20/11/2026): o aviso "Plano salvo"
+      // aparece logo depois do salvamento feito nesta visita (provado no `@code-checkout`), não a
+      // cada carga. Antes de salvar e depois do reload não há confirmação de um salvamento que não
+      // aconteceu; o plano persistido volta no resumo (`savePlanFixtureWithoutCheckout` confere a
+      // família) e a próxima ação fica disponível.
+      await expect(signup.page.getByText('Plano salvo')).toHaveCount(0);
       await savePlanFixtureWithoutCheckout(signup.page, 'consultorio_2026');
-      await expect(signup.page.getByText('Plano salvo')).toBeVisible();
+      await expect(
+        signup.page.getByRole('button', { name: 'Continuar para o checkout' }),
+      ).toBeVisible();
+      await expect(signup.page.getByText('Plano salvo')).toHaveCount(0);
       await expect(signup.page).toHaveURL(/\/cadastro\/plano$/u);
     } finally {
       await Promise.allSettled([phone?.close(), desktop?.close()]);
@@ -1864,8 +1910,13 @@ test.describe('cadastro — confirmação real via Resend', () => {
       await verified.page.getByLabel('Sua senha', { exact: true }).fill(signup.password);
       await verified.page.getByRole('button', { name: 'Confirmar senha e continuar' }).click();
       await expect(verified.page).toHaveURL(/\/cadastro\/plano$/u, { timeout: 120_000 });
+      // P-29: desde o #47 (04/11), `/cadastro/confirmado` com a conta pronta redireciona para a
+      // continuação em vez de mostrar o link "Escolher plano". Nenhuma senha é pedida de novo.
       await verified.page.goto('/cadastro/confirmado');
-      await expect(verified.page.getByRole('link', { name: 'Escolher plano' })).toBeVisible();
+      await expect(verified.page).toHaveURL(/\/cadastro\/plano$/u, { timeout: 60_000 });
+      await expect(
+        verified.page.getByRole('heading', { name: 'Confirme o plano e o pagamento' }),
+      ).toBeVisible();
       await expect(verified.page.locator('input[name="password"]')).toHaveCount(0);
       // A second submission cannot replace the installed password, even with a live OTP session.
       const replay = await verified.page.evaluate(async () => {
@@ -1947,7 +1998,28 @@ test.describe('cadastro — confirmação real via Resend', () => {
       await expect(signup.page.getByRole('group', { name: 'Médicos na clínica' })).toContainText(
         '2',
       );
+      // Antes de salvar: sem confirmação. "Continuar para o checkout" salva o plano e abre o
+      // pagamento seguro numa ação só; a criação do checkout espera o aviso "Plano salvo"
+      // aparecer (a requisição segue intacta), para provar o retorno do salvamento sem corrida
+      // com o redirecionamento.
+      await expect(signup.page.getByText('Plano salvo')).toHaveCount(0);
+      let releaseCheckout: () => void = () => undefined;
+      const savedNoticeSeen = new Promise<void>((resolve) => {
+        releaseCheckout = resolve;
+      });
+      await signup.page.route('**/api/signup/checkout', async (route) => {
+        await savedNoticeSeen;
+        await route.continue();
+      });
+      const planSaved = signup.page.waitForResponse(
+        (response) =>
+          response.request().method() === 'PUT' &&
+          new URL(response.url()).pathname === '/api/signup/plan',
+      );
       await signup.page.getByRole('button', { name: 'Continuar para o checkout' }).click();
+      expect((await planSaved).status()).toBe(200);
+      await expect(signup.page.getByRole('alert').filter({ hasText: 'Plano salvo' })).toBeVisible();
+      releaseCheckout();
       await signup.page.waitForURL(
         (url) =>
           url.protocol === 'https:' &&
@@ -2765,6 +2837,8 @@ test.describe('cadastro — confirmação real via Resend', () => {
       if (legacy.email_confirmed_at || hasSelfServiceMarker(legacy)) {
         throw new Error('fixture legada não nasceu markerless e não confirmada');
       }
+      // A senha legada confere, mas nunca deu acesso: o e-mail não estava confirmado.
+      expect(await passwordSignInError(email, legacyPassword)).toBe('email_not_confirmed');
 
       const signup = await startSignup(browser, email);
       desktop = signup.context;
@@ -2804,8 +2878,12 @@ test.describe('cadastro — confirmação real via Resend', () => {
       if (await passwordSignInSucceeds(email, signup.password)) {
         throw new Error('a senha nova funcionou antes do handoff explícito');
       }
-      if (!(await passwordSignInSucceeds(email, legacyPassword))) {
-        throw new Error('o callback sobrescreveu a senha legada antes do handoff');
+      // P-29: desde o Supabase Auth v2.198.0 (`recoverVerify` → `ClearUnconfirmedPassword`), a
+      // prova de recovery numa conta ainda não confirmada apaga a senha anterior: ela pode ter sido
+      // criada por quem não é dono do e-mail. O app não escreve senha no callback (a nova acima
+      // continua recusada); a legada, de origem desconhecida, não autentica depois da confirmação.
+      if (await passwordSignInSucceeds(email, legacyPassword)) {
+        throw new Error('a senha legada de origem desconhecida sobreviveu à confirmação do dono');
       }
 
       await waitForOriginalHandoff(signup.page);
@@ -2920,6 +2998,7 @@ test.describe('cadastro — confirmação real via Resend', () => {
       // O segundo draft não recebeu nem rotacionou mensagem. O código que só o
       // dono do e-mail conhece transfere o ownership para os dados preenchidos
       // nessa sessão; conhecer apenas o endereço continua insuficiente.
+      await second.page.getByLabel('E-mail usado no cadastro').fill(email);
       await second.page.getByLabel('Crie sua senha').fill(second.password);
       await second.page.getByLabel('Código do e-mail').fill(firstProof.verificationCode);
       await second.page.getByRole('button', { name: 'Continuar', exact: true }).click();
@@ -2970,6 +3049,11 @@ test.describe('cadastro — confirmação real via Resend', () => {
           request.method() === 'POST' &&
           new URL(request.url()).pathname === '/api/signup/sessions/resend',
       );
+      await signup.page.getByRole('button', { name: 'Reenviar o e-mail' }).click();
+      // P-29: sem o e-mail na memória da aba recarregada, o primeiro clique revela o campo.
+      const resendEmail = signup.page.getByLabel('E-mail usado no cadastro');
+      await expect(resendEmail).toBeVisible();
+      await resendEmail.fill(email);
       await signup.page.getByRole('button', { name: 'Reenviar o e-mail' }).click();
       const resendRequest = await resendRequestPromise;
       const resendBody = resendRequest.postDataJSON() as Record<string, unknown>;
@@ -3028,6 +3112,7 @@ test.describe('cadastro — confirmação real via Resend', () => {
         throw new Error('a senha funcionou antes do código mais recente');
       }
 
+      await signup.page.getByLabel('E-mail usado no cadastro').fill(email);
       await signup.page.getByLabel('Crie sua senha').fill(signup.password);
       await signup.page.getByLabel('Código do e-mail').fill(oldProof.verificationCode);
       await signup.page.getByRole('button', { name: 'Continuar', exact: true }).click();
@@ -3048,6 +3133,226 @@ test.describe('cadastro — confirmação real via Resend', () => {
     } finally {
       await Promise.allSettled([phone?.close(), oldPhone?.close(), desktop?.close()]);
       await cleanupFixture(fixture);
+    }
+  });
+  test('conta legada que abandona depois do link recupera o acesso pelo aviso e pela redefinição', async ({
+    browser,
+  }) => {
+    const reason = skipReason();
+    test.skip(!writeEnabled, 'E2E_SIGNUP_WRITE != 1');
+    if (reason) throw new Error(`guard recusou a escrita: ${reason}`);
+    test.setTimeout(420_000);
+
+    const email = `delivered+qoro-legacy-reset-${Date.now()}-${randomBytes(4).toString('hex')}@resend.dev`;
+    const legacyPassword = `LegacyE2e7${randomBytes(12).toString('base64url')}`;
+    const retryPassword = `RetryE2e7${randomBytes(12).toString('base64url')}`;
+    const recoveredPassword = `ResetE2e7${randomBytes(12).toString('base64url')}`;
+    const contexts: BrowserContext[] = [];
+    let fixture: Fixture = { projectRef: expectedProjectRef!, email };
+    try {
+      await saveFixture(fixture);
+      await createLegacyUnconfirmedUser(email, legacyPassword);
+      expect(await passwordSignInError(email, legacyPassword)).toBe('email_not_confirmed');
+      const signup = await startSignup(browser, email);
+      contexts.push(signup.context);
+      fixture = signup.fixture;
+      const message = await waitForMessage({
+        email,
+        subject: INITIAL_SUBJECT,
+        after: signup.startedAt,
+      });
+      if (!fixture.tokenHash) throw new Error('fixture legada sem hash do draft');
+      const proof = confirmationProof(message, fixture.tokenHash);
+      const phone = await openOnPhone(browser, proof.url);
+      contexts.push(phone.context);
+      expect(await passwordSignInSucceeds(email, legacyPassword)).toBe(false);
+      const confirmed = await findUser(email);
+      expect(confirmed?.email_confirmed_at).toBeTruthy();
+      expect(selfServiceBinding(confirmed)?.state).toBe('pending');
+      // Abandona antes de criar a senha: fecha o telefone e a aba original.
+      await Promise.allSettled(contexts.splice(0).map((context) => context.close()));
+
+      // Recomeçar o cadastro com o mesmo e-mail não revela a conta na tela; só o dono recebe o
+      // aviso, e a senha digitada aqui não é instalada.
+      const again = await browser.newContext({
+        baseURL: baseUrl!,
+        storageState: { cookies: [], origins: [] },
+      });
+      contexts.push(again);
+      await installVercelBypassForOrigin(again, new URL(baseUrl!).origin);
+      const page = await again.newPage();
+      await page.goto('/cadastro');
+      await rememberCookie(again, fixture);
+      await answerQuestions(page);
+      await page.getByLabel('Seu nome', { exact: true }).fill('Ana E2E');
+      await page.getByLabel('Nome da clínica', { exact: true }).fill('Clínica E2E Confirmação');
+      await page.getByLabel('E-mail', { exact: true }).fill(email);
+      await page.getByLabel('Crie sua senha', { exact: true }).fill(retryPassword);
+      await page.getByRole('checkbox').click();
+      const retriedAt = Date.now();
+      await page.getByRole('button', { name: 'Enviar confirmação por e-mail' }).click();
+      await expect(page.getByRole('heading', { name: 'Confirme seu e-mail aqui' })).toBeVisible({
+        timeout: 120_000,
+      });
+      const notice = await waitForMessage({
+        email,
+        subject: 'Você já tem uma conta na Qoro',
+        after: retriedAt,
+      });
+      expect(notice.text ?? '').toContain('Esqueci a senha');
+      expect(await passwordSignInSucceeds(email, retryPassword)).toBe(false);
+
+      // "Esqueci a senha": o link de recovery prova o e-mail e instala a primeira senha.
+      await page.goto('/login');
+      await page.getByText('Esqueci a senha').click();
+      await page.locator('#recovery-email').fill(email);
+      const resetAt = Date.now();
+      await page.getByRole('button', { name: 'Enviar link' }).click();
+      await expect(page.getByText('Confira o seu e-mail')).toBeVisible({ timeout: 120_000 });
+      const reset = await waitForMessage({
+        email,
+        subject: 'Redefinir senha — Qoro',
+        after: resetAt,
+      });
+      const href = /href="([^"]+)"[^>]*>Redefinir minha senha</u.exec(reset.html ?? '')?.[1];
+      if (!href) throw new Error('e-mail de redefinição sem o botão');
+      const resetLink = new URL(href.replaceAll('&amp;', '&'));
+      expect(resetLink.pathname).toBe('/auth/confirm');
+      expect(resetLink.search).toBe('');
+      const fragment = new URLSearchParams(resetLink.hash.slice(1));
+      expect(fragment.get('type')).toBe('recovery');
+      expect(fragment.get('next')).toBe('/reset-password');
+      // O link usa o APP_BASE_URL do ambiente (no Preview, outro deploy). O token é do Auth DEV e
+      // é aberto no deploy sob teste, pelo mesmo caminho e fragmento.
+      await page.goto(new URL(`${resetLink.pathname}${resetLink.hash}`, baseUrl!).toString());
+      await expect(page).toHaveURL(/\/reset-password$/u, { timeout: 90_000 });
+      await expect(page.getByText('Link inválido ou expirado')).toHaveCount(0);
+      await page.locator('input[type="password"]').first().fill(recoveredPassword);
+      await page.getByRole('button', { name: 'Atualizar senha' }).click();
+      await expect(page).toHaveURL(/\/login\?reason=password_updated$/u, { timeout: 90_000 });
+      expect(await passwordSignInSucceeds(email, recoveredPassword)).toBe(true);
+      expect(await passwordSignInSucceeds(email, legacyPassword)).toBe(false);
+      expect(await passwordSignInSucceeds(email, retryPassword)).toBe(false);
+      expect(selfServiceBinding(await findUser(email))?.state).toBe('set');
+
+      await page.locator('#email').fill(email);
+      await page.getByLabel('Senha', { exact: true }).fill(recoveredPassword);
+      await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+      await expect(page).toHaveURL(/\/cadastro\/continuar$/u, { timeout: 60_000 });
+    } finally {
+      await Promise.allSettled(contexts.map((context) => context.close()));
+      await cleanupFixture(fixture);
+    }
+  });
+
+  test('link adulterado, de outro cadastro ou já usado não confirma, não abre sessão nem toca outro draft', async ({
+    browser,
+  }) => {
+    const reason = skipReason();
+    test.skip(!writeEnabled, 'E2E_SIGNUP_WRITE != 1');
+    if (reason) throw new Error(`guard recusou a escrita: ${reason}`);
+    test.setTimeout(420_000);
+
+    const stamp = `${Date.now()}-${randomBytes(4).toString('hex')}`;
+    const emailA = `delivered+qoro-link-a-${stamp}@resend.dev`;
+    const emailB = `delivered+qoro-link-b-${stamp}@resend.dev`;
+    const contexts: BrowserContext[] = [];
+    let fixtureA: Fixture = { projectRef: expectedProjectRef!, email: emailA };
+    let fixtureB: Fixture = { projectRef: expectedProjectRef!, email: emailB };
+
+    const openBridge = async (url: string) => {
+      const context = await browser.newContext({
+        ...devices['iPhone 13'],
+        baseURL: baseUrl!,
+        storageState: { cookies: [], origins: [] },
+      });
+      contexts.push(context);
+      await installVercelBypassForOrigin(context, new URL(baseUrl!).origin);
+      const page = await context.newPage();
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90_000 });
+      await page.waitForURL((current) => current.pathname === '/auth/auth-error', {
+        timeout: 90_000,
+      });
+      const authCookies = (await context.cookies()).filter(
+        (cookie) =>
+          cookie.name.startsWith('sb-') && cookie.name.includes('auth-token') && cookie.value,
+      );
+      return {
+        reason: new URL(page.url()).searchParams.get('reason'),
+        authCookies: authCookies.length,
+      };
+    };
+    const draftStatus = async (tokenHash: string) => {
+      const sql = postgres(databaseUrl!, { max: 1, ssl: 'require', prepare: false });
+      try {
+        const [row] = await sql<{ status: string }[]>`
+          select status from signup_sessions where token_hash = ${tokenHash}
+        `;
+        return row?.status ?? null;
+      } finally {
+        await sql.end({ timeout: 5 });
+      }
+    };
+
+    try {
+      const a = await startSignup(browser, emailA);
+      contexts.push(a.context);
+      fixtureA = a.fixture;
+      const b = await startSignup(browser, emailB);
+      contexts.push(b.context);
+      fixtureB = b.fixture;
+      if (!fixtureA.tokenHash || !fixtureB.tokenHash) throw new Error('fixtures sem hash do draft');
+      const message = await waitForMessage({
+        email: emailA,
+        subject: INITIAL_SUBJECT,
+        after: a.startedAt,
+      });
+      const proof = confirmationProof(message, fixtureA.tokenHash);
+      const original = new URL(proof.url);
+      const fragment = new URLSearchParams(original.hash.slice(1));
+      const token = fragment.get('token_hash')!;
+
+      // 1. Token adulterado: recusado; a conta continua não confirmada e o draft intacto.
+      const tampered = new URLSearchParams(fragment);
+      tampered.set('token_hash', `${token.slice(0, -1)}${token.endsWith('0') ? '1' : '0'}`);
+      const first = await openBridge(
+        `${original.origin}${original.pathname}#${tampered.toString()}`,
+      );
+      expect(first.reason).toMatch(/^(?:invalid_token|expired)$/u);
+      expect(first.authCookies).toBe(0);
+      expect((await findUser(emailA))?.email_confirmed_at).toBeFalsy();
+      expect(await draftStatus(fixtureA.tokenHash)).toBe('email_pending');
+
+      // 2. Token legítimo de A apontado para o draft de B: nenhuma sessão, e o draft e a conta de B
+      // não mudam.
+      const foreign = new URLSearchParams(fragment);
+      foreign.set('signup_ref', fixtureB.tokenHash);
+      const second = await openBridge(
+        `${original.origin}${original.pathname}#${foreign.toString()}`,
+      );
+      expect(second.reason).toBe('invalid_token');
+      expect(second.authCookies).toBe(0);
+      expect(await draftStatus(fixtureB.tokenHash)).toBe('email_pending');
+      const userB = await findUser(emailB);
+      expect(userB?.email_confirmed_at).toBeFalsy();
+      expect(selfServiceBinding(userB)).toEqual({
+        signupRef: fixtureB.tokenHash,
+        state: 'pending',
+      });
+
+      // 3. O link original, cujo token já foi consumido na tentativa anterior, não abre sessão.
+      const third = await openBridge(proof.url);
+      expect(third.reason).toMatch(/^(?:invalid_token|expired)$/u);
+      expect(third.authCookies).toBe(0);
+    } finally {
+      await Promise.allSettled(contexts.map((context) => context.close()));
+      const cleanups = await Promise.allSettled([
+        cleanupFixture(fixtureA),
+        cleanupFixture(fixtureB),
+      ]);
+      if (cleanups.some((result) => result.status === 'rejected')) {
+        throw new Error('cleanup exato de uma das fixtures falhou');
+      }
     }
   });
 });
