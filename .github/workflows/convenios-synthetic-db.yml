@@ -26,6 +26,8 @@ on:
       - 'src/lib/premium-access/**'
       - 'scripts/security/health-insurance-*-db.ts'
       - 'scripts/security/hi-fixtures.ts'
+      - 'src/lib/outbox/**'
+      - 'scripts/security/outbox-budget-db.ts'
       - 'scripts/security/scratch-schema.ts'
       - 'scripts/security/dev-order-chain.ts'
       - 'drizzle/migrations/**'
@@ -143,6 +145,11 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55566           NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-batch-connector-db.ts
+
+      - name: Worker do outbox — prazo de reserva e descarte em bloco (R61, 6 provas)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55567           NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/outbox-budget-db.ts
 
       - name: Desempenho da H.2 com o código real (P14.4; metas e desvio registrado)
         if: ${{ !cancelled() }}

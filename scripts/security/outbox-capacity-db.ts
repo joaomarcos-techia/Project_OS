@@ -193,8 +193,26 @@ async function measuredRttMs(oneWayMs: number): Promise<number> {
   return r1(pct(xs, 50)!);
 }
 
+/**
+ * O que o cron faria em cada invocação. `reserveMs`: prazo de reserva (R61) a partir do início do
+ * tick; `skipUnhandled`: descarte em bloco dos eventos sem consumidor (R61). Sem os dois = atual.
+ */
+interface Strategy {
+  label: string;
+  batchSize: number;
+  parallelism: number;
+  reserveMs?: number;
+  skipUnhandled?: boolean;
+}
+const strategyOpts = (st: Strategy) => ({
+  batchSize: st.batchSize,
+  parallelism: st.parallelism,
+  ...(st.reserveMs !== undefined ? { reserveUntil: Date.now() + st.reserveMs } : {}),
+  ...(st.skipUnhandled ? { skipUnhandledInBulk: true } : {}),
+});
+
 /** Um tick com a latência ligada e amostragem de conexões e locks esperando. */
-async function tick(batchSize: number, parallelism: number, oneWayMs: number) {
+async function tick(st: Strategy, oneWayMs: number) {
   let maxConn = 0;
   let maxWaiting = 0;
   let sampling = true;
@@ -209,12 +227,16 @@ async function tick(batchSize: number, parallelism: number, oneWayMs: number) {
   })();
   proxyState.oneWayMs = oneWayMs;
   const t0 = performance.now();
-  const summary = await runOutboxOnce({ batchSize, parallelism });
+  const summary = await runOutboxOnce(strategyOpts(st));
   const ms = performance.now() - t0;
   proxyState.oneWayMs = 0;
   sampling = false;
   await sampler;
-  return { ms: r1(ms), handled: summary.processed + summary.skipped + summary.failed, processed: summary.processed, skipped: summary.skipped, failed: summary.failed, maxConn, maxWaiting };
+  const bulk = summary.skipped_bulk ?? 0;
+  return {
+    ms: r1(ms), handled: summary.processed + summary.skipped + summary.failed + bulk, processed: summary.processed,
+    skipped: summary.skipped, skippedBulk: bulk, failed: summary.failed, deferred: summary.deferred ?? 0, maxConn, maxWaiting,
+  };
 }
 
 interface Scenario {
@@ -227,7 +249,9 @@ interface Scenario {
   flakyPerMinute?: number;
   poisonPerMinute?: number;
 }
-async function runScenario(s: Scenario, batchSize: number, oneWayMs: number, parallelism = 5) {
+async function runScenario(s: Scenario, st: Strategy, oneWayMs: number) {
+  const batchSize = st.batchSize;
+  const parallelism = st.parallelism;
   // Fila limpa antes (o que sobrou de outra rodada sai sem latência, fora da medição) e as linhas já
   // tratadas saem da tabela: tudo o que estiver no outbox depois disso é desta rodada.
   for (let i = 0; i < 200 && (await pendingNow()) > 0; i++) {
@@ -247,7 +271,7 @@ async function runScenario(s: Scenario, batchSize: number, oneWayMs: number, par
   };
   dayOffset += 3;
   const clinics: Clinic[] = [];
-  for (let i = 0; i < s.clinics; i++) clinics.push(await newClinic(`${s.name}-${batchSize}-${i}`));
+  for (let i = 0; i < s.clinics; i++) clinics.push(await newClinic(`${s.name}-${st.label}-${i}`));
   // Agenda de cada minuto: atendimentos distribuídos entre as clínicas, convênio na proporção pedida.
   const plan: Array<Array<{ c: Clinic; id: string; convenio: boolean }>> = [];
   for (let m = 0; m < s.minutes; m++) {
@@ -261,6 +285,8 @@ async function runScenario(s: Scenario, batchSize: number, oneWayMs: number, par
   }
   const ticks: Array<Awaited<ReturnType<typeof tick>>> = [];
   let maxBacklog = 0;
+  // Regime: fila pendente depois de cada tick do período de entrada (tendência = sustentável ou não).
+  const backlogAfterTick: number[] = [];
   for (let m = 0; m < s.minutes; m++) {
     for (const it of plan[m]!) await complete(it.c, it.id, it.convenio);
     if (s.slowPerMinute) await insertSynthetic(clinics[0]!.clinicId, SLOW, s.slowPerMinute.n, s.slowPerMinute.ms);
@@ -269,13 +295,14 @@ async function runScenario(s: Scenario, batchSize: number, oneWayMs: number, par
     await markBorn(m);
     maxBacklog = Math.max(maxBacklog, await pendingNow());
     if (m > 0) await advanceMinute();
-    ticks.push(await tick(batchSize, parallelism, oneWayMs));
+    ticks.push(await tick(st, oneWayMs));
     await markHandled(m);
+    backlogAfterTick.push(await pendingNow());
   }
   let extra = 0;
   while ((await pendingNow()) > 0 && extra < 60) {
     await advanceMinute();
-    ticks.push(await tick(batchSize, parallelism, oneWayMs));
+    ticks.push(await tick(st, oneWayMs));
     await markHandled(s.minutes + extra);
     extra += 1;
   }
@@ -324,8 +351,24 @@ async function runScenario(s: Scenario, batchSize: number, oneWayMs: number, par
   const produced = byStatus.reduce((acc, r) => acc + Number(r.n), 0);
   const failedNonPoison = byStatus.filter((r) => r.status === 'failed' && r.event_type !== POISON).reduce((a, r) => a + Number(r.n), 0);
   const flaky = byStatus.filter((r) => r.event_type === FLAKY);
+  // Taxas do período de entrada: o que chega ao cron por minuto × o que o cron trata por tick.
+  const cronEvents = byStatusForRate(events);
+  const half = Math.floor(backlogAfterTick.length / 2);
+  const tail = backlogAfterTick.slice(half);
+  const slope = tail.length > 1 ? (tail[tail.length - 1]! - tail[0]!) / (tail.length - 1) : 0;
   return {
-    cenario: s.name, lote: batchSize, paralelismo: parallelism, latenciaIdaMs: oneWayMs, idaEVoltaMedidaMs: await measuredRttMs(oneWayMs),
+    cenario: s.name, estrategia: st.label, orcamentoReservaMs: st.reserveMs ?? null, descarteEmBloco: Boolean(st.skipUnhandled),
+    lote: batchSize, paralelismo: parallelism, latenciaIdaMs: oneWayMs, idaEVoltaMedidaMs: await measuredRttMs(oneWayMs),
+    regime: {
+      minutosDeEntrada: s.minutes,
+      entradaNoCronPorMin: r1(cronEvents / s.minutes),
+      saidaMediaPorTick: r1(ticks.slice(0, s.minutes).reduce((a, t) => a + t.handled, 0) / s.minutes),
+      filaDepoisDeCadaTick: backlogAfterTick,
+      tendenciaPorMinuto: r1(slope),
+      sustentado: slope <= 0 && (delays.length ? Math.max(...delays) : 0) <= 5,
+    },
+    vagasAdiadasPeloPrazo: ticks.reduce((a, t) => a + t.deferred, 0),
+    descartadosEmBloco: ticks.reduce((a, t) => a + t.skippedBulk, 0),
     conclusoes: ids.length, clinicas: s.clinics,
     eventosProduzidos: produced,
     backlogMaximo: maxBacklog,
@@ -341,6 +384,11 @@ async function runScenario(s: Scenario, batchSize: number, oneWayMs: number, par
   };
 }
 
+/** Eventos que chegam ao cron (sem o da guia, processado na hora). */
+function byStatusForRate(events: Array<Record<string, unknown>>): number {
+  return events.filter((e) => e.event_type !== INSURANCE_COMPLETED).length;
+}
+
 const results: Array<Record<string, unknown>> = [];
 const scenarios: Record<string, Scenario> = {
   normal: { name: 'normal', minutes: 3, perMinute: 10, clinics: 2, convenioShare: 0.6 },
@@ -349,11 +397,32 @@ const scenarios: Record<string, Scenario> = {
   lentos: { name: 'pico_com_lentos', minutes: 3, perMinute: 50, clinics: 3, convenioShare: 0.6, slowPerMinute: { n: 20, ms: 1500 } },
   falha: { name: 'falha_e_recuperacao', minutes: 2, perMinute: 10, clinics: 2, convenioShare: 0.6, flakyPerMinute: 15, poisonPerMinute: 2 },
 };
-const BATCHES = MODE === 'smoke' ? [50, 200] : [50, 100, 150, 200];
-const matrix: Array<[Scenario, number]> =
+// Orçamento de reserva de 30 s: 60 s de `maxDuration` − até 5 s de partida da função − o maior
+// timeout de UMA chamada externa de um handler já iniciado (Resend 20 s; Asaas e Meta 10 s; IA 15 s)
+// − 5 s de folga. Configurável; o benchmark mede o efeito real.
+const ATUAL50: Strategy = { label: 'atual-50', batchSize: 50, parallelism: 5 };
+const LOTE150: Strategy = { label: 'lote-150', batchSize: 150, parallelism: 5 };
+const LOTE200: Strategy = { label: 'lote-200', batchSize: 200, parallelism: 5 };
+const PROT150: Strategy = { label: 'lote-150+orcamento+descarte', batchSize: 150, parallelism: 5, reserveMs: 30_000, skipUnhandled: true };
+const PROT200: Strategy = { label: 'lote-200+orcamento+descarte', batchSize: 200, parallelism: 5, reserveMs: 30_000, skipUnhandled: true };
+Object.assign(scenarios, {
+  sustentado50: { name: 'sustentado_50_por_min', minutes: 15, perMinute: 50, clinics: 3, convenioShare: 0.6 },
+  sustentado100: { name: 'sustentado_100_por_min', minutes: 10, perMinute: 100, clinics: 3, convenioShare: 0.6 },
+});
+const matrix: Array<[Scenario, Strategy, number]> =
   MODE === 'smoke'
-    ? [[{ ...scenarios.pico!, minutes: 1 }, 1], [scenarios.falha!, 1]]
-    : [[scenarios.normal!, 1], [scenarios.pico!, 1], [scenarios.acima!, 1], [scenarios.lentos!, 1], [scenarios.falha!, 1], [scenarios.pico!, 5]];
+    ? [
+        [{ ...scenarios.pico!, minutes: 2 }, ATUAL50, 1],
+        [{ ...scenarios.pico!, minutes: 2 }, PROT200, 1],
+        [scenarios.falha!, PROT200, 1],
+      ]
+    : [
+        ...[ATUAL50, LOTE150, LOTE200, PROT150, PROT200].map((st) => [scenarios.sustentado50!, st, 1] as [Scenario, Strategy, number]),
+        ...[LOTE200, PROT150, PROT200].map((st) => [scenarios.sustentado100!, st, 1] as [Scenario, Strategy, number]),
+        ...[LOTE200, PROT200].map((st) => [scenarios.lentos!, st, 1] as [Scenario, Strategy, number]),
+        ...[LOTE200, PROT200].map((st) => [scenarios.pico!, st, 5] as [Scenario, Strategy, number]),
+        [scenarios.falha!, PROT200, 1],
+      ];
 const outIdx = process.argv.indexOf('--out');
 const outFile = outIdx >= 0 ? process.argv[outIdx + 1] : null;
 const save = () => {
@@ -361,14 +430,14 @@ const save = () => {
 };
 
 try {
-  for (const [s, oneWay] of matrix) {
-    for (const b of BATCHES) {
+  for (const [s, st, oneWay] of matrix) {
+    {
       const t0 = performance.now();
-      const r = await runScenario(s, b, oneWay);
+      const r = await runScenario(s, st, oneWay);
       results.push({ ...r, duracaoRodadaS: Math.round((performance.now() - t0) / 1000) });
       save();
       const i = r.integridade as Record<string, number>;
-      console.log(`${s.name} lote=${b} lat=${oneWay}ms (ida e volta medida ${r.idaEVoltaMedidaMs} ms): backlog máx ${r.backlogMaximo}, drena em ${r.minutosAteDrenar} min, atraso p95/máx ${r.atrasoMin.p95}/${r.atrasoMin.max} min, recebível particular máx ${r.recebivelParticularAtrasoMin.max} min, pior tick ${r.tick.piorMs} ms, conexões ${r.tick.maxConexoesAtivas}, locks esperando ${r.tick.maxLocksEsperando}`);
+      console.log(`${s.name} [${st.label}] lat=${oneWay}ms (ida e volta ${r.idaEVoltaMedidaMs} ms): entrada ${r.regime.entradaNoCronPorMin}/min, saída ${r.regime.saidaMediaPorTick}/tick, tendência ${r.regime.tendenciaPorMinuto}/min (${r.regime.sustentado ? 'SUSTENTADO' : 'não sustentado'}), fila máx ${r.backlogMaximo}, drena em ${r.minutosAteDrenar} min, atraso p95/máx ${r.atrasoMin.p95}/${r.atrasoMin.max} min, recebível máx ${r.recebivelParticularAtrasoMin.max} min, pior tick ${r.tick.piorMs} ms, adiadas ${r.vagasAdiadasPeloPrazo}, descartados em bloco ${r.descartadosEmBloco}, conexões ${r.tick.maxConexoesAtivas}, locks ${r.tick.maxLocksEsperando}`);
       // Integridade é obrigatória em toda rodada; o atraso é o que se compara.
       assert.equal(i.recebiveis_duplicados, 0, 'recebível duplicado');
       assert.equal(i.particular_sem_recebivel, 0, 'recebível perdido');
@@ -387,16 +456,17 @@ try {
   // Pane de um consumidor de rede (ex.: provedor fora, cada chamada até o timeout): 60 eventos de 6 s
   // pendentes num tick só. Mede quanto o tick duraria contra o `maxDuration` de 60 s da função.
   const pane: Array<Record<string, unknown>> = [];
-  for (const b of MODE === 'smoke' ? [50] : [50, 200]) {
+  for (const st of MODE === 'smoke' ? [ATUAL50, PROT200] : [ATUAL50, LOTE200, PROT200]) {
     for (let i = 0; i < 200 && (await pendingNow()) > 0; i++) {
       await advanceMinute();
       await runOutboxOnce({ batchSize: 500, parallelism: 10 });
     }
-    const c = await newClinic(`pane-${b}`);
+    const c = await newClinic(`pane-${st.label}`);
     await insertSynthetic(c.clinicId, SLOW, 60, MODE === 'smoke' ? 600 : 6000);
-    const t = await tick(b, 5, 1);
-    pane.push({ lote: b, eventosLentos: 60, msPorEvento: MODE === 'smoke' ? 600 : 6000, tickMs: t.ms, tratados: t.handled, excede60s: t.ms > 60_000 });
-    console.log(`pane lote=${b}: tick ${t.ms} ms (${t.handled} tratados)${t.ms > 60_000 ? ' — EXCEDE o maxDuration de 60 s' : ''}`);
+    const t = await tick(st, 1);
+    const left = await pendingNow();
+    pane.push({ estrategia: st.label, lote: st.batchSize, eventosLentos: 60, msPorEvento: MODE === 'smoke' ? 600 : 6000, tickMs: t.ms, tratados: t.handled, adiadas: t.deferred, ficaramNaFila: left, excede60s: t.ms > 60_000 });
+    console.log(`pane [${st.label}]: tick ${t.ms} ms (${t.handled} tratados, ${t.deferred} vagas adiadas, ${left} na fila para o próximo)${t.ms > 60_000 ? ' — EXCEDE o maxDuration de 60 s' : ''}`);
   }
   results.push({ cenario: 'pane_de_consumidor', rodadas: pane });
   save();
