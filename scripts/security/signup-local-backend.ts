@@ -113,7 +113,7 @@ try {
         'true',
         'Synthetic pilot stack runs only on Actions',
       );
-      redis = await startOperationalRedis();
+      redis = await startOperationalRedis({ rateLimitScripts: true });
       mailbox = await startPilotMail();
       Object.assign(childEnv, {
         UPSTASH_REDIS_REST_URL: redis.url,

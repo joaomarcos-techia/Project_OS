@@ -7,6 +7,7 @@ import net from 'node:net';
 import { z } from 'zod';
 
 type Reply = number | string | null | Reply[];
+class MissingRedisScript extends Error {}
 function parse(buffer: Buffer, offset = 0): { value: Reply; next: number } | undefined {
   const end = buffer.indexOf('\r\n', offset);
   if (end < 0) return;
@@ -14,7 +15,10 @@ function parse(buffer: Buffer, offset = 0): { value: Reply; next: number } | und
   const text = buffer.toString('utf8', offset + 1, end);
   if (prefix === ':') return { value: Number(text), next: end + 2 };
   if (prefix === '+') return { value: text, next: end + 2 };
-  if (prefix === '-') throw new Error('Isolated Redis command rejected');
+  if (prefix === '-') {
+    if (text.startsWith('NOSCRIPT ')) throw new MissingRedisScript();
+    throw new Error('Isolated Redis command rejected');
+  }
   if (prefix === '$') {
     const length = Number(text);
     if (length === -1) return { value: null, next: end + 2 };
@@ -42,7 +46,7 @@ const docker = (...args: string[]) =>
     stdio: ['ignore', 'pipe', 'pipe'],
   }).trim();
 
-export async function startOperationalRedis() {
+export async function startOperationalRedis(options: { rateLimitScripts?: boolean } = {}) {
   const name = `qoro-billing-operational-${randomUUID()}`;
   const label = 'qoro.synthetic=billing-operational';
   const token = randomUUID();
@@ -104,8 +108,12 @@ export async function startOperationalRedis() {
             socket.destroy();
             resolve(reply.value);
           }
-        } catch {
-          fail();
+        } catch (error) {
+          if (error instanceof MissingRedisScript && !settled) {
+            settled = true;
+            socket.destroy();
+            reject(error);
+          } else fail();
         }
       });
     });
@@ -141,9 +149,18 @@ export async function startOperationalRedis() {
         : [commandSchema.parse(body)];
       const replies = await Promise.all(
         batch.map(async (args) => {
-          assert.equal(String(args[0]).toUpperCase(), 'EVAL');
+          const kind = String(args[0]).toUpperCase();
+          assert.ok(kind === 'EVAL' || (options.rateLimitScripts === true && kind === 'EVALSHA'));
           commands++;
-          return { result: await command(args) };
+          try {
+            return { result: await command(args) };
+          } catch (error) {
+            // Preserve only the standard machine condition needed by the SDK's
+            // EVALSHA -> EVAL fallback. Never return keys, Lua or other server messages.
+            if (error instanceof MissingRedisScript)
+              return { error: 'NOSCRIPT No matching script. Please use EVAL.' };
+            throw error;
+          }
         }),
       );
       res
