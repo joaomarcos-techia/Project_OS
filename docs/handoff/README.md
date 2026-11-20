@@ -66,7 +66,8 @@ Com o código **sem** a correção e os testes novos, 9 testes reprovam: as regr
 
 **Sequência segura:**
 
-1. O dono do #53 aplica o patch: `git apply docs/handoff/p28-signup-email-confirmation.patch`.
+1. O dono do #53 aplica o patch a partir da branch do #56, sem trazer outros arquivos:
+   `git fetch origin ui/otimizacao-ui-final-20261114 && git show origin/ui/otimizacao-ui-final-20261114:docs/handoff/p28-signup-email-confirmation.patch | git apply --check && git show origin/ui/otimizacao-ui-final-20261114:docs/handoff/p28-signup-email-confirmation.patch | git apply`.
 2. Roda os testes acima e o `@code-flow` oficial num Preview do #53. No #56 ele passou sem
    alterar o spec, nos Previews `6e157eaa` e `d9770192`.
 3. Na `main`, entra junto com o #53 (ordem de integração #53 → #56 → #55) ou, se o fundador
