@@ -258,8 +258,10 @@ describe('restricted pilot with real local Auth', () => {
     }
     const logout = await ctx.request.post(`${origin}/logout`, { headers, maxRedirects: 0 });
     assert.ok([303, 307].includes(logout.status()));
+    const signedOut = await ctx.request.get(`${origin}/dashboard`, { maxRedirects: 0 });
+    assert.ok([303, 307].includes(signedOut.status()));
     await page.goto(`${origin}/login`);
-    await page.getByLabel('E-mail', { exact: true }).fill(identity.email);
+    await page.getByRole('textbox', { name: 'E-mail', exact: true }).fill(identity.email);
     await page.getByLabel('Senha', { exact: true }).fill(password);
     await page.getByRole('button', { name: 'Entrar', exact: true }).click();
     await page.waitForURL('**/dashboard');
