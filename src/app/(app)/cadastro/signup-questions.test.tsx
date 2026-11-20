@@ -120,6 +120,31 @@ afterEach(() => {
 });
 
 describe('cadastro — quatro perguntas impessoais', () => {
+  it('synchronizes the private fragment removal without reusing Next internal history state', async () => {
+    const path = window.location.pathname + window.location.search;
+    window.history.replaceState({ __NA: true }, '', path + '#invite=' + 'a'.repeat(64));
+    const replace = vi.spyOn(window.history, 'replaceState');
+    fetchMock.mockResolvedValueOnce(
+      json(201, {
+        session: EMPTY_SESSION,
+        identity: {
+          ownerName: 'Synthetic owner',
+          clinicName: 'Synthetic clinic',
+          email: 'owner@example.test',
+        },
+        resumed: false,
+      }),
+    );
+    try {
+      render(<SignupQuestions identityEnabled pilot />);
+      await screen.findByRole('heading', { name: 'Quantos médicos atendem na clínica?' });
+      expect(replace).toHaveBeenCalledWith(null, '', path);
+      expect(window.location.hash).toBe('');
+      expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['/api/signup/pilot']);
+    } finally {
+      window.history.replaceState(null, '', path);
+    }
+  });
   it('abre uma única sessão no StrictMode e não renderiza campos de PII', async () => {
     fetchMock
       .mockResolvedValueOnce(json(410, { error: 'gone' }))

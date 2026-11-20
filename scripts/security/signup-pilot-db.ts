@@ -40,6 +40,7 @@ globalThis.fetch = async () => {
   throw new Error('External network forbidden in pilot SQL proof');
 };
 const { dbAdmin } = await import('../../src/lib/db');
+const { sql: statement } = await import('drizzle-orm');
 const { hashEmail } = await import('../../src/lib/auth/email-hash');
 const { issuePilotInviteTx, pilotIdentityCondition } =
   await import('../../src/contexts/onboarding/internal/signup-pilot-repository');
@@ -78,6 +79,40 @@ try {
     dbAdmin.transaction((tx) =>
       issuePilotInviteTx(tx, { identity, createdBy: adminId, tokenHash: hashToken(raw) }),
     );
+  for (const scenario of [
+    'existing Auth email',
+    'existing clinic name',
+    'pending conventional invite',
+  ] as const) {
+    await check(
+      `authorization refuses ${scenario} without adopting or duplicating it`,
+      async () => {
+        const rollback = new Error('owned_fixture_rollback');
+        await assert.rejects(
+          dbAdmin.transaction(async (tx) => {
+            if (scenario === 'existing Auth email')
+              await tx.execute(
+                statement`INSERT INTO auth.users(id,email) VALUES(${randomUUID()}::uuid,${identity.email})`,
+              );
+            else if (scenario === 'existing clinic name')
+              await tx.execute(
+                statement`INSERT INTO public.clinics(id,nome) VALUES(${randomUUID()}::uuid,${identity.clinicName})`,
+              );
+            else
+              await tx.execute(
+                statement`INSERT INTO public.clinic_invites(token_hash,created_by,email,expires_at,plan_snapshot,metadata) VALUES(${randomBytes(32).toString('hex')},${adminId}::uuid,${identity.email},now()+interval '1 hour','{}'::jsonb,'{}'::jsonb)`,
+              );
+            await assert.rejects(
+              issuePilotInviteTx(tx, { identity, createdBy: adminId, tokenHash: hashToken(raw) }),
+              /conflict/,
+            );
+            throw rollback;
+          }),
+          (error) => error === rollback,
+        );
+      },
+    );
+  }
   let inviteId = '';
   await check('twelve concurrent authorizations persist one invitation', async () => {
     const rows = await Promise.all(Array.from({ length: 12 }, issue));

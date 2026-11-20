@@ -260,7 +260,7 @@ export function SignupQuestions({
           pilotToken.current = readOnboardingInviteToken(window.location.hash);
           if (window.location.hash)
             window.history.replaceState(
-              window.history.state,
+              null,
               '',
               window.location.pathname + window.location.search,
             );

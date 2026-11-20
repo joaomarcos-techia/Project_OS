@@ -116,6 +116,7 @@ describe('restricted pilot with real local Auth', () => {
     await page.goto(`${origin}/cadastro/piloto#invite=${inviteToken}`);
     await page.getByRole('radio', { name: '1 médico', exact: true }).waitFor();
     phase = 'bootstrap: remove fragment';
+    await page.waitForURL((url) => url.hash === '', { timeout: 5_000 });
     assert.equal(new URL(page.url()).hash, '');
     const cookies = await ctx.cookies();
     const invite = cookies.find((c) => c.name === '__Host-qoro_pilot');
