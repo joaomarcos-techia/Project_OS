@@ -22,7 +22,7 @@ export default async function SignupPlanPage() {
           title="Escolha seu plano"
           lead={
             trialFirst
-              ? 'Escolha o plano que deseja conhecer. Comece a avaliação sem cartão e sem cobrança inicial; a contratação ficará disponível ao final dos 14 dias desde a criação da sua conta.'
+              ? 'Conheça o sistema por até 14 dias desde a criação da conta, sem cartão e sem cobrança inicial. Se optar por contratar durante a avaliação, confira o valor antes de pagar: o período pago começa após a confirmação do pagamento.'
               : 'O plano fica salvo no seu cadastro. O pagamento será iniciado somente na próxima etapa, com o valor confirmado no checkout.'
           }
         />

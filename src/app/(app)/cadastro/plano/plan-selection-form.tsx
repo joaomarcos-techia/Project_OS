@@ -547,7 +547,7 @@ export function PlanSelectionForm() {
             <div className={signupFrame.total}>
               <span className={signupFrame.totalLabel}>
                 {state.signupFlow === 'trial_first'
-                  ? 'Mensalidade após a avaliação'
+                  ? 'Mensalidade do plano'
                   : selectedCycle === 'annual'
                     ? 'Total anual'
                     : 'Total mensal'}

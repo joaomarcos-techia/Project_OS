@@ -7,6 +7,8 @@ on:
       - .github/workflows/billing-pilot.yml
       - src/contexts/onboarding/**
       - src/app/api/signup/**
+      - src/app/(app)/cadastro/**
+      - src/app/(admin)/admin/actions/saas-pilot*
       - scripts/security/signup-pilot-db.ts
       - scripts/security/signup-pilot-*
       - scripts/security/signup-local*

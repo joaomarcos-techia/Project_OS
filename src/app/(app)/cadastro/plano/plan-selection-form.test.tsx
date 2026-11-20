@@ -69,6 +69,39 @@ afterEach(() => {
 });
 
 describe('seleção de plano O-4', () => {
+  it('uses only the restricted provisioning endpoint for the approved pilot', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        json(200, {
+          ...STATE,
+          pilot: true,
+          signupFlow: 'trial_first',
+          selectedPlanId: CONSULTORIO_2026_ID,
+          trialDays: 14,
+          offerTrialEndsAt: '2026-11-30T12:00:00.000Z',
+          plans: [
+            {
+              id: CONSULTORIO_2026_ID,
+              code: 'consultorio_2026',
+              name: 'Consultório',
+              priceCents: 19700,
+              cycle: 'monthly',
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(json(200, { state: 'provisioned' }));
+    render(<PlanSelectionForm />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Começar avaliação gratuita' }));
+    await waitFor(() =>
+      expect(assignMock).toHaveBeenCalledWith('/auth/session-refresh?next=/dashboard'),
+    );
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/api/signup/plan',
+      '/api/signup/pilot/provision',
+    ]);
+    expect(assignMock).toHaveBeenCalledTimes(1);
+  });
   it.each([2, 3, 4, 5])(
     'preserva resumo e seleção de %i médicos no redesign sem cobrança inicial',
     async (doctors) => {
@@ -99,7 +132,7 @@ describe('seleção de plano O-4', () => {
       fireEvent.click(await screen.findByRole('radio', { name: new RegExp(`Clínica ${doctors}`) }));
       const summary = within(screen.getByRole('complementary'));
       expect(summary.getByRole('heading', { name: `Clínica ${doctors}` })).toBeTruthy();
-      expect(summary.getByText('Mensalidade após a avaliação')).toBeTruthy();
+      expect(summary.getByText('Mensalidade do plano')).toBeTruthy();
       expect(
         summary.getByText(new RegExp(`R\\$\\s*${(amount / 100).toFixed(2).replace('.', ',')}`)),
       ).toBeTruthy();

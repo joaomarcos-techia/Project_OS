@@ -30,6 +30,7 @@ let browser: Browser;
 let ctx: BrowserContext;
 let phase = 'setup';
 let passed = false;
+let legacyPasswordCleared: boolean | null = null;
 const http: { method: string; path: string; status: number }[] = [];
 let browserErrors = 0;
 beforeAll(async () => {
@@ -63,6 +64,7 @@ afterAll(async () => {
         status: passed ? 'PASS' : 'FAIL',
         phase,
         browserErrors,
+        legacyPasswordCleared,
         http,
         scope:
           'real local GoTrue password, OTP, browser cookies and tenant provisioning; memory-only mail stub; no external financial operation',
@@ -77,6 +79,31 @@ afterAll(async () => {
 });
 
 describe('restricted pilot with real local Auth', () => {
+  it('measures the old recovery primitive against a synthetic unconfirmed account', async () => {
+    const email = `legacy-probe-${randomUUID()}@example.test`;
+    const account = await admin.auth.admin.createUser({ email, password, email_confirm: false });
+    assert.equal(account.error, null);
+    assert.ok(account.data.user);
+    const generated = await admin.auth.admin.generateLink({ type: 'recovery', email });
+    assert.equal(generated.error, null);
+    assert.ok(generated.data.properties?.hashed_token);
+    const client = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
+    const verified = await client.auth.verifyOtp({
+      type: 'recovery',
+      token_hash: generated.data.properties.hashed_token,
+    });
+    assert.equal(verified.error, null);
+    const [row] =
+      await sql`SELECT length(encrypted_password)=0 AS cleared FROM auth.users WHERE id=${account.data.user.id}::uuid`;
+    assert.ok(row);
+    legacyPasswordCleared = row.cleared === true;
+    await client.auth.signOut({ scope: 'local' });
+    // Observation of this isolated version, not a new login or mutation in Production.
+  });
   it('preserves one initial password through code proof, tenant creation and another login', async () => {
     const page = await ctx.newPage();
     page.setDefaultTimeout(60_000);
