@@ -800,3 +800,29 @@ clínica em avaliação recusada; desligar sempre possível). Sem isso a P1.13 f
 - **Conflitos:** #56 em `afaaf5cb` contra o #55 neste ciclo: os mesmos 9 arquivos do §15, nenhum novo; `tabs.tsx` mescla
   sem conflito. Arquivos compartilhados do TISS preservados no resultado simulado.
 - **#57 (P1.13):** o contrato de `platform.ts` não mudou desde o §15 (#57 ainda em `93a79601`).
+
+## 17. 19/11: central de ajuda (P15.1) e envio pelo webservice (P9.4)
+
+**Central de ajuda: sem central nova.** O conteúdo do TISS entrou na central que já existe (`src/app/(app)/(shell)/documentacao/content.ts`), na categoria **Financeiro**, que já existe. Assim o índice do #56 não precisa mudar. O #56 altera `help-index.tsx`, `page.tsx`, `[topic]/page.tsx` e `help.module.css`, mas **não** altera o `content.ts`: não há conflito.
+
+| Slug (rota `/documentacao/<slug>`) | Título |
+| --- | --- |
+| `convenios` | Convênios: do atendimento ao pagamento |
+| `convenios-guias` | Guias de convênio: conferir, corrigir e emitir |
+| `convenios-lotes` | Lotes e envio à operadora |
+| `convenios-retorno` | Retorno da operadora: demonstrativos, glosas e pagamentos |
+| `convenios-duvidas` | Convênios: dúvidas e problemas comuns |
+
+- **Leitura:** o conteúdo é estático e igual para todas as clínicas, como os outros tópicos. Ele diz que o módulo exige assinatura paga e o módulo ativado, e que o trial é só demonstração.
+- **Textos:** citam os rótulos reais das telas ("Marcar como conferida", "Aprovar e emitir", "Registrar protocolo" etc.). Se o #56 renomear um botão, o texto do tópico muda junto. O `content.test.ts` prende as frases de disponibilidade, os limites e o envio pelo portal.
+- **Proposta para o #56 (navegação, decisão de vocês):** no cabeçalho das telas de Convênios, um link discreto "Ajuda" para `/documentacao/convenios`. O #55 não mexe no cabeçalho, para não abrir conflito novo.
+- **Critérios E2E sugeridos:**
+  - `/documentacao` lista "Convênios: do atendimento ao pagamento" em Financeiro;
+  - `/documentacao/convenios` abre com o título como `h1`;
+  - slug desconhecido dá 404.
+- **Acessibilidade:** mesma estrutura dos outros tópicos (um `h1`, seções com `h2`, listas reais em passos e itens), contraste dos tokens atuais e foco visível nos links.
+
+**Lote: botão novo, invisível hoje.** Em `convenios/lotes/[batchId]/page.tsx` entrou "Enviar pelo webservice da operadora" (P9.4).
+- **Quando aparece:** só com lote exportado, operadora homologada e credencial ativa da clínica. Em produção a lista de homologadas é vazia (há teste), então o botão não aparece para ninguém.
+- **Situação do envio:** aparece no campo "Envio" (`data-testid="batch-send-job"`).
+- **Pedido para o #56:** se o card "Situação" mudar de estrutura, preservar esse campo e a ordem (botão do webservice antes de "Marcar como enviado").
