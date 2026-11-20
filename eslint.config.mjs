@@ -244,6 +244,9 @@ const config = [
       'src/contexts/billing/internal/abacatepay-processing.ts',
       'src/contexts/billing/internal/deferred-checkout.ts',
       'src/contexts/onboarding/internal/signup-free-trial.ts',
+      // ADR-069 C3: exact pre-tenant invitation/identity seams, locked and pinned.
+      'src/contexts/onboarding/internal/signup-pilot-repository.ts',
+      'src/contexts/onboarding/internal/signup-pilot.ts',
       // C14: read-models de "candidatos" (Scheduling/Financial são donos da regra
       // de "quem recebe") + repository da fila proativa fazem scan cross-tenant
       // read-only (sem PII, bound por LIMIT); writes per-clínica seguem em

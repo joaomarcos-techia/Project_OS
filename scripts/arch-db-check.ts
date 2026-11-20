@@ -129,6 +129,9 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     'src/contexts/onboarding/internal/signup-provision.ts',
     // ADR-069: exact GLOBAL PROTECTED seams; scope checked before any grant/POST.
     'src/contexts/onboarding/internal/signup-free-trial.ts',
+    // ADR-069 C3: private pre-tenant invitation/identity; no tenant exists yet.
+    'src/contexts/onboarding/internal/signup-pilot-repository.ts',
+    'src/contexts/onboarding/internal/signup-pilot.ts',
     'src/contexts/billing/internal/deferred-checkout.ts',
     'src/contexts/billing/internal/abacatepay-processing.ts',
     'src/app/api/webhooks/abacatepay/route.ts',
