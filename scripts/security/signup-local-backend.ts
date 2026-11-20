@@ -223,6 +223,39 @@ try {
     child.once('exit', (value) => resolve(value ?? 1));
   });
   process.exitCode = code;
+  if (pilotMode) {
+    // Raw test errors may contain synthetic active codes from Playwright call
+    // logs. Publish only fixed test names, error kinds and source coordinates.
+    const report = z
+      .object({
+        testResults: z.array(
+          z.object({
+            assertionResults: z.array(
+              z.object({
+                status: z.string(),
+                fullName: z.string(),
+                failureMessages: z.array(z.string()).optional(),
+              }),
+            ),
+          }),
+        ),
+      })
+      .parse(JSON.parse(await readFile('dist/signup-pilot-browser-integration.json', 'utf8')));
+    const failures = report.testResults.flatMap((r) =>
+      r.assertionResults
+        .filter((a) => a.status === 'failed')
+        .map((a) => {
+          const detail = a.failureMessages?.join('\n') ?? '';
+          return {
+            test: a.fullName,
+            kind: detail.match(/\b(AssertionError|TimeoutError|TypeError)\b/u)?.[1] ?? 'Error',
+            sourceLine:
+              detail.match(/signup-pilot-browser\.integration\.ts:(\d+):\d+/u)?.[1] ?? null,
+          };
+        }),
+    );
+    console.log(JSON.stringify({ syntheticPilotExit: code, failures }));
+  }
 } finally {
   if (server && server.exitCode === null) {
     // Exact child tree only; never kill unrelated Node/Next processes.

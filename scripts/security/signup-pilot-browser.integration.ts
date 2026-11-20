@@ -115,12 +115,15 @@ describe('restricted pilot with real local Auth', () => {
     assert.equal(closed.status(), 503);
     await page.goto(`${origin}/cadastro/piloto#invite=${inviteToken}`);
     await page.getByRole('radio', { name: '1 médico', exact: true }).waitFor();
+    phase = 'bootstrap: remove fragment';
     assert.equal(new URL(page.url()).hash, '');
     const cookies = await ctx.cookies();
     const invite = cookies.find((c) => c.name === '__Host-qoro_pilot');
+    phase = 'bootstrap: HttpOnly Secure cookie';
     assert.ok(invite?.httpOnly && invite.secure);
     assert.equal(await page.evaluate(() => document.cookie.includes('qoro_pilot')), false);
     const stranger = await browser.newContext();
+    phase = 'bootstrap: foreign browser';
     try {
       const conflict = await stranger.request.post(`${origin}/api/signup/pilot`, {
         headers,
@@ -132,6 +135,7 @@ describe('restricted pilot with real local Auth', () => {
     }
     await page.reload({ waitUntil: 'domcontentloaded' });
     for (const [index, name] of ['1 médico', 'Até 20', 'Nada ou papel', 'Outro'].entries()) {
+      phase = `question ${index + 1}`;
       await page.getByRole('radio', { name, exact: true }).check();
       await page
         .getByRole('button', {
