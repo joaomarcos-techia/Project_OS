@@ -107,7 +107,7 @@ for (const width of [1440, 390]) {
         .click();
       const summary = page.getByRole('complementary');
       await expect(summary.getByRole('heading', { name: chosen.name })).toBeVisible();
-      await expect(summary.getByText('Mensalidade após a avaliação')).toBeVisible();
+      await expect(summary.getByText('Mensalidade do plano', { exact: true })).toBeVisible();
       await expect(summary).toContainText(
         new RegExp(`R\\$\\s*${(chosen.priceCents / 100).toFixed(2).replace('.', ',')}`),
       );

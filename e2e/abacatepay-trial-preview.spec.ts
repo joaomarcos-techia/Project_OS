@@ -145,7 +145,7 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
             .filter({ has: page.locator(`input[value="${offered.id}"]`) })
             .click();
           const summary = page.getByRole('complementary');
-          await expect(summary.getByText('Mensalidade após a avaliação')).toBeVisible();
+          await expect(summary.getByText('Mensalidade do plano', { exact: true })).toBeVisible();
           await expect(summary).toContainText(
             new RegExp(`R\\$\\s*${(expectedAmount(code) / 100).toFixed(2).replace('.', ',')}`),
           );

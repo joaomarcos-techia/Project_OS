@@ -1,5 +1,13 @@
 # AbacatePay SaaS — decisão final de release e piloto
 
+## Retomada da CI — 20/11/2026, expectativa E2E desatualizada
+
+O fundador liberou o orçamento do Actions. A tentativa 2 da [CI 44792495911](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44792495911/attempts/2), SHA `fad3d5d3`, executou e aprovou 7.405 testes em 652 arquivos, cobertura, TypeScript, lint, arquitetura, inventário de segurança, isolamento PostgreSQL, build e fronteiras HTTP/bundle. O E2E terminou com 19 PASS e 8 FAIL, zero SKIP: todos os oito cenários desktop/mobile de 2–5 médicos pararam na expectativa textual antiga `Mensalidade após a avaliação`. A aplicação e seu teste de componente já usam `Mensalidade do plano`, para não prometer que a contratação antecipada só cobra depois do trial.
+
+Correção localizada somente nos dois specs que ainda usavam o rótulo antigo, com correspondência exata do rótulo atual. Permanecem as verificações de valor, quantidade, persistência, uma ação e duplicidade de requisições. Nenhum teste foi desativado; nenhuma alteração de aplicação, finanças, SQL, dependências, preços ou cotas. O novo HEAD exige CI própria; seu resultado ficará vinculado no fechamento do PR #53, sem atribuir os 19 E2E ou a falha antiga como aprovação final. **Gate A/C3 continuam sem autorização de execução.**
+
+A auditoria desta tentativa reportou **10 achados: 2 low/8 moderate, nenhum high/critical**. A contagem anterior de sete permanece apenas histórica; não houve mudança do lockfile ou supressão de advisories. O gate high+ passou, mas isso não significa ausência de vulnerabilidades. PR #53 segue draft, sem merge ou mudança em Production.
+
 ## C3 — 20/11/2026, preparação técnica qualificada
 
 **APTO A PEDIR GO CORRETIVO A depois de CI verde do HEAD final; C3/B condicionado às decisões humanas. Production NÃO AUTORIZADA nesta rodada, PR53 draft, sem merge.** A admissão privada está implementada e passou no ensaio real de navegador/GoTrue/PostgreSQL/Redis. Não há necessidade de outra funcionalidade financeira para pedir a decisão. Não confundir essa prontidão com contrato real, aceite de riscos ou abertura pública.

@@ -2,6 +2,8 @@
 
 ## C3 — 20/11/2026, provas controladas concluídas e GO separado
 
+**Retomada do Actions em 20/11:** orçamento liberado pelo fundador. CI 44792495911/tentativa 2 no SHA `fad3d5d3` aprovou 7.405 testes e os gates até HTTP/bundle, mas terminou com 19/27 E2E aprovados: oito expectativas ainda buscavam o rótulo anterior à correção de cobrança antecipada. Ajustados somente os dois specs para `Mensalidade do plano`, mantendo preço, cotas, persistência e idempotência. A CI do novo HEAD precisa passar antes do pedido de execução do Gate A; conferir resultado e SHA no PR #53. Auditoria atual: 2 low/8 moderate, zero high/critical; os sete achados dos checkpoints anteriores são históricos. Sem alteração de aplicação, SQL, lockfile, configuração ou ação em Production.
+
 **Preparação técnica apta a ser submetida ao fundador depois da CI verde do HEAD final. Execução em Production continua NÃO AUTORIZADA.** Os resultados abaixo substituem os checkpoints de desenvolvimento em andamento. PR53 permanece draft. Nenhum cadastro, e-mail, convite, configuração, migration, checkout ou pagamento real foi executado nesta rodada.
 
 | Evidência | Resultado e alcance |
