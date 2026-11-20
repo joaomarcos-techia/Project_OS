@@ -41,8 +41,9 @@ export function PilotInviteForm() {
           <Label htmlFor="pilot-link">Link individual — guarde em local protegido</Label>
           <Input id="pilot-link" value={state.link} readOnly autoComplete="off" />
           <p className="text-sm text-fg-muted">
-            O link é mostrado uma vez. Abra no mesmo domínio e navegador em que fará o cadastro.
-            Nenhum e-mail foi enviado automaticamente.
+            Entregue o link ao titular, que deve iniciar em uma janela sem outra conta conectada e
+            continuar nesse navegador. Antes do primeiro acesso, emitir novamente substitui o link
+            anterior na mesma reserva. Nenhum e-mail foi enviado automaticamente.
           </p>
         </div>
       ) : null}

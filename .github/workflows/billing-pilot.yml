@@ -19,7 +19,8 @@ permissions:
 
 concurrency:
   group: billing-pilot-synthetic
-  cancel-in-progress: false
+  # Every stack belongs to one disposable runner. Superseded runs stop their own resources.
+  cancel-in-progress: true
 
 jobs:
   admission:

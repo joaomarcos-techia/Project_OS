@@ -54,6 +54,12 @@ describe('pilot invitation administrative authority', () => {
       existing: true,
     });
   });
+  it('returns the rotated link after a lost response only for an unclaimed reservation', async () => {
+    m.audit.mockResolvedValue({ created: false, reissued: true, id: 'existing' });
+    expect((await createSaasPilotInviteAction({ error: null }, form())).link).toBe(
+      '/cadastro/piloto#invite=' + 'a'.repeat(64),
+    );
+  });
   it('rejects invalid identity without entering the audit transaction', async () => {
     const f = form();
     f.set('email', 'bad');

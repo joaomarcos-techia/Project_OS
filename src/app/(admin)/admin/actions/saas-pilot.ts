@@ -37,7 +37,7 @@ export async function createSaasPilotInviteAction(
       },
       (tx) => issuePilotInviteTx(tx, { identity: parsed.data, createdBy: user.userId, tokenHash }),
     );
-    return result.created
+    return result.created || result.reissued === true
       ? { error: null, link: `/cadastro/piloto#invite=${rawToken}` }
       : { error: null, existing: true };
   } catch (error) {

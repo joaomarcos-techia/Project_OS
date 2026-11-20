@@ -86,7 +86,25 @@ try {
     inviteId = rows[0]!.id;
   });
   await check('repeat authorization does not generate another invitation', async () =>
-    assert.deepEqual(await issue(), { id: inviteId, created: false }),
+    assert.deepEqual(await issue(), { id: inviteId, created: false, reissued: true }),
+  );
+  await check(
+    'lost response rotates only the unclaimed link without a second reservation',
+    async () => {
+      const replacement = 'd'.repeat(64);
+      const renewed = await dbAdmin.transaction((tx) =>
+        issuePilotInviteTx(tx, {
+          identity,
+          createdBy: adminId,
+          tokenHash: hashToken(replacement),
+        }),
+      );
+      assert.equal(renewed.id, inviteId);
+      const [row] =
+        await sql`SELECT count(*)::int n FROM clinic_invites WHERE token_hash=${hashToken(raw)}`;
+      assert.equal(row?.n, 0);
+      await issue();
+    },
   );
   await check('another beneficiary cannot enter the single pilot cohort', async () => {
     await assert.rejects(
@@ -101,6 +119,24 @@ try {
     );
   });
   await sql`UPDATE public.clinic_invites SET status='started',metadata=jsonb_set(metadata,'{signupRef}',to_jsonb(${ref}::text)) WHERE id=${inviteId}::uuid`;
+  await check(
+    'reissuing never invalidates the link of an account already in progress',
+    async () => {
+      assert.deepEqual(
+        await dbAdmin.transaction((tx) =>
+          issuePilotInviteTx(tx, {
+            identity,
+            createdBy: adminId,
+            tokenHash: hashToken('e'.repeat(64)),
+          }),
+        ),
+        { id: inviteId, created: false },
+      );
+      const [row] =
+        await sql`SELECT count(*)::int n FROM clinic_invites WHERE token_hash=${hashToken(raw)}`;
+      assert.equal(row?.n, 1);
+    },
+  );
   const [price] = await sql<
     { id: string; price_id: string }[]
   >`SELECT p.id::text,pr.id::text price_id FROM plans p JOIN prices pr ON pr.plan_id=p.id

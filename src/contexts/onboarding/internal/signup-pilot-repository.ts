@@ -109,6 +109,23 @@ export async function issuePilotInviteTx(
       grant.metadata.ownerName !== identity.ownerName
     )
       throw new PilotSignupError('conflict');
+    // A lost administrative response must not strand an unused reservation.
+    // Rotate only before any browser claims it; never invalidate an in-progress account.
+    if (grant.status === 'pending' && !grant.metadata.signupRef && !grant.metadata.authUserId) {
+      const occupied = await tx.execute(
+        sql`SELECT 1 FROM auth.users WHERE lower(email)=${identity.email} LIMIT 1`,
+      );
+      if (occupied.length) throw new PilotSignupError('conflict');
+      await tx
+        .update(clinicInvites)
+        .set({
+          tokenHash: input.tokenHash,
+          expiresAt: sql`now()+interval '24 hours'`,
+          version: sql`${clinicInvites.version}+1`,
+        })
+        .where(eq(clinicInvites.id, grant.id));
+      return { id: grant.id, created: false, reissued: true };
+    }
     return { id: grant.id, created: false };
   }
   const occupied = await tx.execute(
