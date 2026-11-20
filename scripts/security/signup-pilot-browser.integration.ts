@@ -4,7 +4,6 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { chromium, type Browser, type BrowserContext } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
-import postgres from 'postgres';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import { dbAdmin } from '@/lib/db';
 import { createAdminClient } from '@/lib/auth/supabase-admin';
@@ -13,11 +12,7 @@ import { hashToken } from '@/contexts/onboarding/internal/token';
 
 const origin = 'http://localhost:3210';
 const headers = { origin, 'sec-fetch-site': 'same-origin' };
-const sql = postgres(process.env.DATABASE_URL!, {
-  ssl: 'require',
-  max: 2,
-  onnotice: () => undefined,
-});
+const sql = dbAdmin.$client;
 const admin = createAdminClient();
 const identity = {
   ownerName: 'Synthetic pilot owner',
@@ -74,7 +69,6 @@ afterAll(async () => {
       2,
     ),
   );
-  await sql.end({ timeout: 2 });
   await dbAdmin.$client.end({ timeout: 2 });
 });
 
