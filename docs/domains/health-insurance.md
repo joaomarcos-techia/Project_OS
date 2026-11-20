@@ -48,6 +48,7 @@ As transições do faturamento são funções `SECURITY DEFINER` presas à clín
 | `scheduling.appointment.insurance_completed` | Agenda, ao concluir um atendimento de convênio | Gera a guia, processada logo depois da resposta, com o cron como reserva. |
 | `health_insurance.copay.confirmed` | Gestão, ao confirmar a coparticipação | O financeiro cria o recebível do paciente. |
 | `health_insurance.batch.export_requested` | Lote, em "Gerar XML em segundo plano" | O worker gera e valida o XML; uma chave por lote e versão. |
+| `health_insurance.batch.send_requested` | Lote, em "Enviar pelo webservice da operadora" (só com operadora homologada; em produção, nenhuma) | Envia pelo conector SOAP e registra envio e protocolo só com o recibo conferido; nunca reenvia sozinho. |
 | `health_insurance.authorization_alerts.delivery_requested` | Manutenção | Avisos de autorização a vencer, sem dado de paciente no evento. |
 
 O `financial-reconcile` varre "convênio sem guia" e a sincronização da coparticipação.

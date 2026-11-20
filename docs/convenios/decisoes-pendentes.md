@@ -13,6 +13,7 @@ recomendações vêm do plano mestre (seções N e L) e do código atual.
 ## Outbox — lote do cron no pico (P14.4, 19/11)
 
 - **Questão:** aumentar `OUTBOX_BATCH_SIZE` em produção de 50 (padrão) para 200?
+- **Benchmark controlado de 20/11 (runner do GitHub, 25 rodadas, integridade conferida em todas):** atraso máximo no pico 8 / 3 / 2 / 1 min com lote 50 / 100 / 150 / 200; acima do pico (100/min) 12 / 6 / 4 / 3 min; tick de 1 a 14 s conforme a latência; conexões e locks iguais. Pane de consumidor (eventos de 6 s): o tick passa de 60 s já com o lote 50 (60,3 s) e mais com 200 (73,2 s). Proposta completa, riscos, monitoramento, critérios de interrupção e retorno em `outbox-capacidade.md`.
 - **Fato medido:** cada conclusão de atendimento publica 3 eventos que vão para o cron (chegada, início, conclusão:
   prontuário rascunho e recebível do particular), além do evento da guia, que é processado na hora. Com 50 eventos por
   minuto, um pico de 50 conclusões por minuto durante 3 minutos deixa 6 minutos de fila e o pior atraso chega a 7 minutos
@@ -21,8 +22,7 @@ recomendações vêm do plano mestre (seções N e L) e do código atual.
 - **Alternativas:** (a) 200 na variável de ambiente de produção (o código já lê, sem deploy; teto do código 500);
   (b) manter 50 e aceitar o atraso em pico; (c) processar também os eventos de chegada/início/conclusão logo depois da
   resposta, como a guia (mudança de código, fora do módulo Convênios).
-- **Recomendação:** (a). Não muda nenhuma regra, só quantos eventos o cron leva por minuto; o tick medido segue muito
-  abaixo do limite da função.
+- **Recomendação:** (a) `OUTBOX_BATCH_SIZE=200`, com a operação controlada do §5 de `outbox-capacidade.md`. À parte, para decisão com o dono da plataforma e o #53: orçamento de tempo dentro do tick (o risco de passar de 60 s com consumidor lento já existe hoje).
 - **Depois:** você (ou o agente, com GO específico para a configuração de produção) define a variável; o agente confere
   nas métricas do `worker.tick` que a fila não acumula. **O agente não altera configuração de produção sem esse GO.**
 
