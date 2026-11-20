@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 201 actions (0 inline); 68 métodos em 64 handlers; 19 props com referência de action; 558 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
+Contagem: 201 actions (0 inline); 68 métodos em 64 handlers; 19 props com referência de action; 571 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -266,7 +266,7 @@ O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase
 | `src/app/api/signup/password/route.ts:39#POST`                       | NEW                     | origin-verified-pretenant-owner-hmac-limit-strict-password-epoch-cas            | `src/app/api/signup/password/route.ts:128#advanceSignupCredentialEpoch`                                                                                                      |
 | `src/app/api/signup/pilot/provision/route.ts:13#POST`                | NEW                     | REVIEW_REQUIRED                                                                 |                                                                                                                                                                              |
 | `src/app/api/signup/pilot/route.ts:24#POST`                          | NEW                     | REVIEW_REQUIRED                                                                 |                                                                                                                                                                              |
-| `src/app/api/signup/plan/route.ts:58#GET`                            | NEW                     | verified-pretenant-user-hmac-read-limit                                         | `src/app/api/signup/plan/route.ts:72#readSignupPlan` → `src/contexts/onboarding/internal/signup-pilot.ts:93#readSignupPlan`                                                  |
+| `src/app/api/signup/plan/route.ts:58#GET`                            | NEW                     | verified-pretenant-user-hmac-read-limit                                         | `src/app/api/signup/plan/route.ts:72#readSignupPlan` → `src/contexts/onboarding/internal/signup-pilot.ts:99#readSignupPlan`                                                  |
 | `src/app/api/signup/plan/route.ts:82#PUT`                            | NEW                     | origin-verified-pretenant-user-hmac-write-limit-cas                             | `src/app/api/signup/plan/route.ts:112#writeSignupPlan`                                                                                                                       |
 | `src/app/api/signup/recovery/consume/route.ts:22#POST`               | NEW                     | origin-limit-single-use-mail-proof-http-only-continuation                       | `src/app/api/signup/recovery/consume/route.ts:55#consumeSignupRecovery`                                                                                                      |
 | `src/app/api/signup/recovery/request/route.ts:59#POST`               | NEW                     | origin-resend-limit-obfuscated-existing-account-only                            | `src/app/api/signup/recovery/request/route.ts:50#requestSignupRecovery`                                                                                                      |
@@ -725,10 +725,12 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/signup-free-trial-db.ts:1095`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
 | `scripts/security/signup-free-trial-db.ts:1158`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
 | `scripts/security/signup-kill-switch-browser.ts:54`        | `<object>`                             | `process.env`                                                               |
-| `scripts/security/signup-local-backend.ts:85`              | `<dynamic>`                            | `process.env[key]`                                                          |
-| `scripts/security/signup-local-backend.ts:85`              | `<dynamic>`                            | `process.env[key]`                                                          |
-| `scripts/security/signup-local.config.ts:7`                | `SIGNUP_LOCAL_MAIL`                    | `process.env.SIGNUP_LOCAL_MAIL`                                             |
-| `scripts/security/signup-local.config.ts:9`                | `SIGNUP_LOCAL_BROWSER`                 | `process.env.SIGNUP_LOCAL_BROWSER`                                          |
+| `scripts/security/signup-local-backend.ts:87`              | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/security/signup-local-backend.ts:87`              | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/security/signup-local-backend.ts:112`             | `GITHUB_ACTIONS`                       | `process.env.GITHUB_ACTIONS`                                                |
+| `scripts/security/signup-local.config.ts:7`                | `SIGNUP_LOCAL_PILOT`                   | `process.env.SIGNUP_LOCAL_PILOT`                                            |
+| `scripts/security/signup-local.config.ts:9`                | `SIGNUP_LOCAL_MAIL`                    | `process.env.SIGNUP_LOCAL_MAIL`                                             |
+| `scripts/security/signup-local.config.ts:11`               | `SIGNUP_LOCAL_BROWSER`                 | `process.env.SIGNUP_LOCAL_BROWSER`                                          |
 | `scripts/security/signup-local.integration.ts:15`          | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
 | `scripts/security/signup-local.integration.ts:16`          | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
 | `scripts/security/signup-local.integration.ts:53`          | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
@@ -742,9 +744,20 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/signup-mail.integration.ts:37`           | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/signup-mail.integration.ts:125`          | `RESEND_API_KEY`                       | `process.env.RESEND_API_KEY`                                                |
 | `scripts/security/signup-mail.integration.ts:142`          | `RESEND_API_KEY`                       | `process.env.RESEND_API_KEY`                                                |
+| `scripts/security/signup-pilot-browser.integration.ts:32`  | `SIGNUP_LOCAL_PILOT`                   | `process.env.SIGNUP_LOCAL_PILOT`                                            |
+| `scripts/security/signup-pilot-browser.integration.ts:33`  | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
+| `scripts/security/signup-pilot-browser.integration.ts:85`  | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
+| `scripts/security/signup-pilot-browser.integration.ts:86`  | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
+| `scripts/security/signup-pilot-browser.integration.ts:167` | `PILOT_MAIL_URL`                       | `process.env.PILOT_MAIL_URL`                                                |
+| `scripts/security/signup-pilot-browser.integration.ts:169` | `PILOT_MAIL_TOKEN`                     | `process.env.PILOT_MAIL_TOKEN`                                              |
+| `scripts/security/signup-pilot-browser.integration.ts:190` | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
+| `scripts/security/signup-pilot-browser.integration.ts:191` | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
 | `scripts/security/signup-pilot-db.ts:10`                   | `<object>`                             | `process.env`                                                               |
 | `scripts/security/signup-pilot-db.ts:34`                   | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/security/signup-pilot-db.ts:35`                   | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
+| `scripts/security/signup-pilot-fetch.mjs:3`                | `SIGNUP_LOCAL_PILOT`                   | `process.env.SIGNUP_LOCAL_PILOT`                                            |
+| `scripts/security/signup-pilot-fetch.mjs:9`                | `PILOT_MAIL_URL`                       | `process.env.PILOT_MAIL_URL`                                                |
+| `scripts/security/signup-pilot-fetch.mjs:12`               | `PILOT_MAIL_TOKEN`                     | `process.env.PILOT_MAIL_TOKEN`                                              |
 | `scripts/security/signup-provision-db.ts:81`               | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/signup-provision-db.ts:82`               | `DATABASE_URL_DEV`                     | `process.env.DATABASE_URL_DEV`                                              |
 | `scripts/security/signup-provision-db.ts:83`               | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |

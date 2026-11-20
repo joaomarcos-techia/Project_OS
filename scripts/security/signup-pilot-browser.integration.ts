@@ -26,6 +26,7 @@ let ctx: BrowserContext;
 let phase = 'setup';
 let passed = false;
 let legacyPasswordCleared: boolean | null = null;
+let localAuthVersion: string | null = null;
 const http: { method: string; path: string; status: number }[] = [];
 let browserErrors = 0;
 beforeAll(async () => {
@@ -33,6 +34,16 @@ beforeAll(async () => {
   const target = new URL(process.env.DATABASE_URL!);
   assert.equal(target.hostname, '127.0.0.1');
   assert.equal(target.port, '55442');
+  const health: unknown = await (
+    await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/health`)
+  ).json();
+  if (
+    health &&
+    typeof health === 'object' &&
+    'version' in health &&
+    typeof health.version === 'string'
+  )
+    localAuthVersion = health.version;
   const created = await admin.auth.admin.createUser({
     email: `fixture-admin-${randomUUID()}@example.test`,
     email_confirm: true,
@@ -60,6 +71,7 @@ afterAll(async () => {
         phase,
         browserErrors,
         legacyPasswordCleared,
+        localAuthVersion,
         http,
         scope:
           'real local GoTrue password, OTP, browser cookies and tenant provisioning; memory-only mail stub; no external financial operation',
@@ -137,7 +149,8 @@ describe('restricted pilot with real local Auth', () => {
     await page.reload({ waitUntil: 'domcontentloaded' });
     for (const [index, name] of ['1 médico', 'Até 20', 'Nada ou papel', 'Outro'].entries()) {
       phase = `question ${index + 1}`;
-      await page.getByRole('radio', { name, exact: true }).check();
+      await page.getByText(name, { exact: true }).click();
+      assert.equal(await page.getByRole('radio', { name, exact: true }).isChecked(), true);
       await page
         .getByRole('button', {
           name: index === 3 ? 'Salvar e continuar' : 'Continuar',

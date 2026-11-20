@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
-import { readFile, open } from 'node:fs/promises';
+import { readFile, open, writeFile } from 'node:fs/promises';
 import { parse } from 'dotenv';
 import postgres from 'postgres';
 import { z } from 'zod';
@@ -228,6 +228,9 @@ try {
     // logs. Publish only fixed test names, error kinds and source coordinates.
     const report = z
       .object({
+        success: z.boolean(),
+        numPassedTests: z.number(),
+        numFailedTests: z.number(),
         testResults: z.array(
           z.object({
             assertionResults: z.array(
@@ -255,6 +258,23 @@ try {
         }),
     );
     console.log(JSON.stringify({ syntheticPilotExit: code, failures }));
+    const summary = z
+      .record(z.string(), z.unknown())
+      .parse(JSON.parse(await readFile('dist/signup-pilot-browser-summary.json', 'utf8')));
+    await writeFile(
+      'dist/signup-pilot-browser-summary.json',
+      JSON.stringify(
+        {
+          ...summary,
+          status: code === 0 && report.success ? 'PASS' : 'FAIL',
+          passedTests: report.numPassedTests,
+          failedTests: report.numFailedTests,
+          failures,
+        },
+        null,
+        2,
+      ),
+    );
   }
 } finally {
   if (server && server.exitCode === null) {
