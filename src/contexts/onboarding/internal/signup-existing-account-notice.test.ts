@@ -107,22 +107,39 @@ describe('notifyExistingSignupAccount', () => {
     expect(seams.send).toHaveBeenCalledOnce();
   });
 
+  const pendente = {
+    qoro_self_service_signup: {
+      version: 1,
+      kind: 'self_service',
+      signup_ref: 'b'.repeat(64),
+      password_state: 'pending',
+    },
+  };
+
+  // P-29 (20/11/2026): cadastro confirmado que não concluiu a senha. O "Esqueci a senha" do
+  // aviso instala a primeira senha; sem o aviso o novo cadastro ficava mudo e o status
+  // "pendente" para sempre denunciava a conta.
+  it('avisa cadastro confirmado que ainda não concluiu a senha, e registra o recibo', async () => {
+    await notify(user({ app_metadata: pendente }));
+    expect(seams.send).toHaveBeenCalledOnce();
+    expect(seams.record).toHaveBeenCalledOnce();
+  });
+
   it.each([
     ['e-mail não confirmado', user({ email_confirmed_at: '' })],
     ['conta bloqueada', user({ banned_until: '2999-01-01T00:00:00Z' } as Partial<User>)],
     ['e-mail divergente', user({ email: 'outra@example.test' })],
+    ['cadastro pendente não confirmado', user({ app_metadata: pendente, email_confirmed_at: '' })],
     [
-      'cadastro pendente sem senha nem perfil',
+      'cadastro pendente de conta convidada',
+      user({ app_metadata: pendente, invited_at: '2026-11-05T03:41:03Z' } as Partial<User>),
+    ],
+    [
+      'cadastro pendente bloqueado',
       user({
-        app_metadata: {
-          qoro_self_service_signup: {
-            version: 1,
-            kind: 'self_service',
-            signup_ref: 'b'.repeat(64),
-            password_state: 'pending',
-          },
-        },
-      }),
+        app_metadata: pendente,
+        banned_until: '2999-01-01T00:00:00Z',
+      } as Partial<User>),
     ],
   ])('não avisa: %s', async (_case, u) => {
     await notify(u);

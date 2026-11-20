@@ -17,15 +17,25 @@ import { recordSignupCodeDelivery } from './signup-email-code-repository';
 type Stage = 'initial' | 'resend';
 
 /**
- * Só quem consegue entrar hoje recebe o aviso: e-mail confirmado, sem bloqueio,
- * e senha definida pelo cadastro ou perfil ativo com convite aceito. Conta
- * pendente de outro cadastro em andamento não recebe nada, como antes.
+ * Recebe o aviso quem tem e-mail confirmado e sem bloqueio, com senha definida pelo
+ * cadastro, perfil ativo com convite aceito ou (P-29) cadastro confirmado que ainda
+ * não concluiu a senha, que agora a instala pelo "Esqueci a senha". Conta não
+ * confirmada ou convidada não recebe nada.
  */
 async function canSignIn(user: User, email: string): Promise<boolean> {
   if (user.email?.trim().toLowerCase() !== email.trim().toLowerCase()) return false;
   if (!user.email_confirmed_at) return false;
   if (typeof user.banned_until === 'string' && user.banned_until.length > 0) return false;
   if (readSignupAuthBinding(user)?.passwordState === 'set') return true;
+  // P-29 (20/11/2026): conta confirmada que nunca concluiu a senha do cadastro. O "Esqueci a
+  // senha" do aviso agora instala a primeira senha; sem o aviso, o novo cadastro ficava mudo e o
+  // status de entrega "pendente" denunciava a conta (o mesmo vazamento que o recibo evita).
+  if (
+    readSignupAuthBinding(user)?.passwordState === 'pending' &&
+    !(typeof user.invited_at === 'string' && user.invited_at.length > 0)
+  ) {
+    return true;
+  }
   const profile = await readAuthoritativeProfile(user.id);
   return Boolean(
     profile && profile.deletedAt === null && profile.ativo && profile.inviteAcceptedAt !== null,

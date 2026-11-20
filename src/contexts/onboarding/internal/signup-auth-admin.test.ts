@@ -410,10 +410,27 @@ describe('ensureReadyOwnedSignupAuthBinding', () => {
     expect(mocks.updateUserById).not.toHaveBeenCalled();
   });
 
+  // P-29 (20/11/2026): quem confirmou pelo link e abandonou antes de criar a senha (ou a conta
+  // legada cuja senha não confirmada o Auth apagou) fica com marker `pending` e DB `completed`.
+  // O link de recovery prova o e-mail de novo; o grant curto deixa instalar a primeira senha.
+  it('emite recovery sem promover marker para pending exato com DB completed', async () => {
+    mocks.readOwnedSignupReference.mockResolvedValue({
+      ok: true,
+      signupRef: oldRef,
+      credentialState: 'completed',
+    });
+
+    await expect(ensureReadyOwnedSignupAuthBinding({ userId, email })).resolves.toEqual({
+      ok: true,
+      signupRef: oldRef,
+    });
+    expect(mocks.updateUserById).not.toHaveBeenCalled();
+  });
+
   it.each([
-    ['completed', oldRef],
     ['reserved', oldRef],
     ['uncertain', newRef],
+    ['completed', newRef],
   ])('recusa recovery para marker pending com DB %s/ref %s', async (credentialState, signupRef) => {
     mocks.readOwnedSignupReference.mockResolvedValue({
       ok: true,
@@ -474,10 +491,26 @@ describe('ensureReadyOwnedSignupAuthBinding', () => {
     expect(mocks.updateUserById).not.toHaveBeenCalled();
   });
 
-  it('não promove marker pending quando o draft já expirou', async () => {
+  it('pending com draft expirado recebe o grant órfão de uso único, sem promover o marker', async () => {
+    const updatedAt = '2026-09-23T12:34:56.000Z';
     mocks.readOwnedSignupReference.mockResolvedValueOnce({ ok: false, reason: 'gone' });
     mocks.getUserById.mockResolvedValueOnce({
-      data: { user: { ...user(), updated_at: '2026-09-23T12:34:56.000Z' } },
+      data: { user: { ...user(), updated_at: updatedAt } },
+      error: null,
+    });
+
+    await expect(ensureReadyOwnedSignupAuthBinding({ userId, email })).resolves.toEqual({
+      ok: true,
+      signupRef: oldRef,
+      orphanEpoch: Date.parse(updatedAt),
+    });
+    expect(mocks.updateUserById).not.toHaveBeenCalled();
+  });
+
+  it('pending com draft expirado e epoch do Auth inválido falha fechado', async () => {
+    mocks.readOwnedSignupReference.mockResolvedValueOnce({ ok: false, reason: 'gone' });
+    mocks.getUserById.mockResolvedValueOnce({
+      data: { user: { ...user(), updated_at: 'não é data' } },
       error: null,
     });
 
@@ -486,6 +519,32 @@ describe('ensureReadyOwnedSignupAuthBinding', () => {
       reason: 'obfuscated',
     });
   });
+
+  it.each([
+    ['não confirmada', { email_confirmed_at: null }],
+    ['convidada', { invited_at: '2026-09-23T12:00:00Z' }],
+    ['banida', { banned_until: '2099-01-01T00:00:00Z' }],
+    ['de outro e-mail', { email: 'outra@example.test' }],
+  ] as const)(
+    'P-29: conta pending %s continua sem grant, com draft vivo ou expirado',
+    async (_caso, override) => {
+      for (const owned of [
+        { ok: true, signupRef: oldRef, credentialState: 'completed' },
+        { ok: false, reason: 'gone' },
+      ]) {
+        mocks.readOwnedSignupReference.mockResolvedValueOnce(owned);
+        mocks.getUserById.mockResolvedValueOnce({
+          data: { user: { ...user(), updated_at: '2026-09-23T12:34:56.000Z', ...override } },
+          error: null,
+        });
+        await expect(ensureReadyOwnedSignupAuthBinding({ userId, email })).resolves.toEqual({
+          ok: false,
+          reason: 'obfuscated',
+        });
+      }
+      expect(mocks.updateUserById).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe('ensureVerifiedSignupAuthBinding', () => {
