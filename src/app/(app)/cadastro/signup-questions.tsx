@@ -18,6 +18,7 @@ import { SignupEmailPending } from './signup-email-pending';
 import { SignupCodeConfirmation } from './signup-code-confirmation';
 import { SignupEmailVerified } from './signup-email-verified';
 import { SignupIdentity } from './signup-identity';
+import { readOnboardingInviteToken } from '@/lib/auth/onboarding-invite-fragment';
 
 type ProfessionalsBand = SignupAnswerValues['professionalsBand'];
 type WeeklyAppointmentsBand = SignupAnswerValues['weeklyAppointmentsBand'];
@@ -190,7 +191,17 @@ async function responseBody(response: Response): Promise<Record<string, unknown>
   }
 }
 
-export function SignupQuestions({ identityEnabled = false }: { identityEnabled?: boolean }) {
+export function SignupQuestions({
+  identityEnabled = false,
+  pilot = false,
+}: {
+  identityEnabled?: boolean;
+  pilot?: boolean;
+}) {
+  const pilotToken = useRef<string | null>(null);
+  const [pilotIdentity, setPilotIdentity] = useState<
+    { ownerName: string; clinicName: string; email: string } | undefined
+  >();
   const [phase, setPhase] = useState<Phase>('loading');
   const [session, setSession] = useState<SignupSessionState | null>(null);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
@@ -245,31 +256,59 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
       setPhase('loading');
       setMessage(null);
       try {
-        const current = await fetch('/api/signup/sessions/me', { cache: 'no-store' });
-        const currentBody = await responseBody(current);
-        if (current.ok && isSession(currentBody?.session)) {
-          hydrateSession(currentBody.session);
-          return;
+        if (pilot && !pilotToken.current) {
+          pilotToken.current = readOnboardingInviteToken(window.location.hash);
+          if (window.location.hash)
+            window.history.replaceState(
+              window.history.state,
+              '',
+              window.location.pathname + window.location.search,
+            );
         }
-        if (current.status !== 410) {
-          if (current.status === 429) {
-            setMessage('Muitas consultas em pouco tempo. Aguarde um minuto e tente novamente.');
-            setMessageKind('warning');
-          } else {
-            setMessage('Não foi possível consultar seu cadastro agora. Tente novamente.');
-            setMessageKind('danger');
+        if (!pilot) {
+          const current = await fetch('/api/signup/sessions/me', { cache: 'no-store' });
+          const currentBody = await responseBody(current);
+          if (current.ok && isSession(currentBody?.session)) {
+            hydrateSession(currentBody.session);
+            return;
           }
-          setPhase('unavailable');
-          return;
+          if (current.status !== 410) {
+            if (current.status === 429) {
+              setMessage('Muitas consultas em pouco tempo. Aguarde um minuto e tente novamente.');
+              setMessageKind('warning');
+            } else {
+              setMessage('Não foi possível consultar seu cadastro agora. Tente novamente.');
+              setMessageKind('danger');
+            }
+            setPhase('unavailable');
+            return;
+          }
         }
-
-        const created = await fetch('/api/signup/sessions', {
+        const created = await fetch(pilot ? '/api/signup/pilot' : '/api/signup/sessions', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(turnstileToken ? { turnstileToken } : {}),
+          body: JSON.stringify({
+            ...(turnstileToken ? { turnstileToken } : {}),
+            ...(pilot && pilotToken.current ? { inviteToken: pilotToken.current } : {}),
+          }),
         });
         const createdBody = await responseBody(created);
         if (created.status === 201 && isSession(createdBody?.session)) {
+          if (pilot) {
+            const identity = createdBody?.identity;
+            if (
+              !isRecord(identity) ||
+              typeof identity.ownerName !== 'string' ||
+              typeof identity.clinicName !== 'string' ||
+              typeof identity.email !== 'string'
+            )
+              throw new Error('Invalid pilot response');
+            setPilotIdentity({
+              ownerName: identity.ownerName,
+              clinicName: identity.clinicName,
+              email: identity.email,
+            });
+          }
           // Um 201 identifica uma sessão nova. Respostas locais da sessão
           // anterior não podem atravessar esse limite silenciosamente.
           clearLocalDraft();
@@ -281,6 +320,16 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
           setMessageKind('warning');
           setChallengeAttempt((attempt) => attempt + (turnstileToken ? 1 : 0));
           setPhase('challenge');
+          return;
+        }
+        if (pilot && [403, 409, 410].includes(created.status)) {
+          setMessage(
+            created.status === 409
+              ? 'Este convite já iniciou um cadastro. Continue no navegador original; se não tiver acesso a ele, fale com o responsável pelo convite.'
+              : 'O convite está indisponível ou expirou. Peça ao responsável para conferir o cadastro antes de iniciar outra tentativa.',
+          );
+          setMessageKind('warning');
+          setPhase('unavailable');
           return;
         }
         if (created.status === 429) {
@@ -303,7 +352,7 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
         setPhase('unavailable');
       }
     },
-    [hydrateSession],
+    [hydrateSession, pilot],
   );
 
   useEffect(() => {
@@ -620,6 +669,7 @@ export function SignupQuestions({ identityEnabled = false }: { identityEnabled?:
           rowVersion={session.rowVersion}
           saved={session.status === 'identity_pending'}
           initialEmail={emailPendente}
+          pilotIdentity={pilotIdentity}
           onCredentialsPrepared={(email) => {
             continuationCredentials.current = { email };
             setEmailPendente(email);

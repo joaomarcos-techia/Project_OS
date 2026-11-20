@@ -1,0 +1,67 @@
+name: Billing pilot — isolated admission qualification
+
+on:
+  push:
+    branches: [feat/billing-abacatepay-20261107]
+    paths:
+      - .github/workflows/billing-pilot.yml
+      - src/contexts/onboarding/**
+      - src/app/api/signup/**
+      - scripts/security/signup-pilot-db.ts
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: billing-pilot-synthetic
+  cancel-in-progress: false
+
+jobs:
+  admission:
+    if: github.repository == 'joaomarcos-techia/Project_OS' && github.ref == 'refs/heads/feat/billing-abacatepay-20261107'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.4
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Generate reviewable mutation inventory on the isolated runner
+        run: |
+          pnpm exec tsx scripts/security/inventory.ts --write
+          mkdir -p dist
+          cp docs/security/acoes.md dist/pilot-inventory.md
+      - name: Real PostgreSQL pilot admission, rollback, replay and paid rights
+        run: |
+          export SECURITY_PG_BIN="$(pg_config --bindir)"
+          node --conditions=react-server --import tsx scripts/security/signup-pilot-db.ts
+          cp dist/signup-pilot-db.json dist/signup-pilot-financial.json
+      - name: Frozen shared SQL composition without TISS application code
+        env:
+          QORO_FINANCIAL_REF: ${{ github.sha }}
+        run: |
+          node --import tsx scripts/abacatepay-saas-release.ts --output-suffix pilot
+          target="dist/abacatepay-saas-${GITHUB_SHA:0:8}-pilot"
+          ln -s "$GITHUB_WORKSPACE/node_modules" "$target/node_modules"
+          export SECURITY_PG_BIN="$(pg_config --bindir)"
+          (cd "$target" && node --conditions=react-server --import tsx scripts/security/signup-pilot-db.ts)
+          cp "$target/dist/signup-pilot-db.json" dist/signup-pilot-shared.json
+      - name: Preserve synthetic reports only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: billing-pilot-${{ github.sha }}
+          path: |
+            dist/signup-pilot-*.json
+            dist/pilot-inventory.md
+          retention-days: 7
+          if-no-files-found: error

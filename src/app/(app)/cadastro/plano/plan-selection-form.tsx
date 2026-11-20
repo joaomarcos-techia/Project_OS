@@ -53,6 +53,7 @@ function isPlanState(value: unknown): value is SignupPlanState {
         value.offerTrialEndsAt.endsWith('Z') &&
         Number.isFinite(Date.parse(value.offerTrialEndsAt)))) &&
     (value.signupFlow === undefined || value.signupFlow === 'trial_first') &&
+    (value.pilot === undefined || typeof value.pilot === 'boolean') &&
     (value.plans.every((plan) => !isOffer2026PlanCode(plan.code)) ||
       value.offerTrialEndsAt !== null)
   );
@@ -293,11 +294,14 @@ export function PlanSelectionForm() {
     setFinishing(true);
     setFinishError(null);
     try {
-      const response = await fetch('/api/signup/checkout', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({}),
-      });
+      const response = await fetch(
+        state?.pilot ? '/api/signup/pilot/provision' : '/api/signup/checkout',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({}),
+        },
+      );
       const body = await responseJson(response);
       if (response.ok && isRecord(body)) {
         if (body.state === 'provisioned') {

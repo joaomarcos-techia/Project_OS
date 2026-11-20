@@ -3,6 +3,8 @@ import { PanelCard } from '@/components/ui/panel-card';
 import { guardAdminAccess } from '../../_lib/guard';
 import { getAbacatePayOperations } from '../../_lib/repositories/abacatepay-operations.repo';
 import { ReplayForm } from './replay-form';
+import { PilotInviteForm } from './pilot-invite-form';
+import { env } from '@/lib/env';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +17,11 @@ export default async function BillingOperationsPage() {
         title="Conciliação AbacatePay"
         description="Revisão operacional restrita. Uma nova leitura não substitui a comprovação do pagamento."
       />
+      {env.ABACATEPAY_PILOT_PROVISIONING_ENABLED ? (
+        <PanelCard title="Clínica piloto autorizada">
+          <PilotInviteForm />
+        </PanelCard>
+      ) : null}
       {!operations ? (
         <p>Operação financeira indisponível neste ambiente ou sem configuração autorizada.</p>
       ) : (

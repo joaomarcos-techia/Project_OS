@@ -16,6 +16,7 @@ type Props = {
   rowVersion: number;
   saved: boolean;
   initialEmail?: string | undefined;
+  pilotIdentity?: { ownerName: string; clinicName: string; email: string } | undefined;
   /**
    * O e-mail vai junto porque a tela de espera precisa dele para reenviar, e
    * NINGUÉM mais tem: o servidor guarda só o HMAC. Passá-lo em memória, entre
@@ -47,6 +48,7 @@ export function SignupIdentity({
   rowVersion,
   saved,
   initialEmail,
+  pilotIdentity,
   onCredentialsPrepared,
   onCredentialsCleared,
   onEmailPending,
@@ -57,7 +59,7 @@ export function SignupIdentity({
   const [accepted, setAccepted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [emailAddress, setEmailAddress] = useState(initialEmail ?? '');
+  const [emailAddress, setEmailAddress] = useState(pilotIdentity?.email ?? initialEmail ?? '');
   const [acknowledgedEmail, setAcknowledgedEmail] = useState<string | null>(null);
   const suggestion = suggestEmailDomain(emailAddress);
   const formRef = useRef<HTMLFormElement>(null);
@@ -246,6 +248,8 @@ export function SignupIdentity({
                 <Input
                   id="signup-owner"
                   name="ownerName"
+                  defaultValue={pilotIdentity?.ownerName}
+                  readOnly={Boolean(pilotIdentity)}
                   autoComplete="name"
                   required
                   maxLength={SIGNUP_INPUT_LIMITS.personName}
@@ -256,6 +260,8 @@ export function SignupIdentity({
                 <Input
                   id="signup-clinic"
                   name="clinicName"
+                  defaultValue={pilotIdentity?.clinicName}
+                  readOnly={Boolean(pilotIdentity)}
                   autoComplete="organization"
                   required
                   maxLength={SIGNUP_INPUT_LIMITS.clinicName}
@@ -268,6 +274,7 @@ export function SignupIdentity({
             <Input
               id="signup-email"
               name="email"
+              readOnly={Boolean(pilotIdentity)}
               type="email"
               autoComplete="email"
               required

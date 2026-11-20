@@ -27,6 +27,8 @@ vi.mock('@/contexts/onboarding', async () => {
   return {
     signupPlanMutationSchema,
     readSignupPlan: mocks.readPlan,
+    readPilotSignupPlan: vi.fn().mockResolvedValue(null),
+    pilotPlanSelectionAllowed: vi.fn().mockResolvedValue(true),
     writeSignupPlan: mocks.writePlan,
     resolveReadyOwnedSignupOnboarding: mocks.resolve,
   };

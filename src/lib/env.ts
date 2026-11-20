@@ -147,6 +147,14 @@ const EnvSchema = z
     ),
     // An explicitly empty cohort must fail closed, not become an omitted cohort.
     ABACATEPAY_CHECKOUT_CLINIC_IDS: z.string().max(4096).optional(),
+    // Independent admission gate: enabling billing must never open account creation.
+    ABACATEPAY_PILOT_PROVISIONING_ENABLED: z.preprocess(
+      emptyToUndefined,
+      z
+        .enum(['true', 'false'])
+        .default('false')
+        .transform((value) => value === 'true'),
+    ),
     ABACATEPAY_STORE_ID: z.preprocess(
       emptyToUndefined,
       z

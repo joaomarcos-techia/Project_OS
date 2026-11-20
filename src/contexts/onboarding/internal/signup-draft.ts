@@ -85,6 +85,7 @@ export interface SignupPlanState {
   offerTrialEndsAt: string | null;
   /** Optional additive field: older deployments keep their existing checkout. */
   signupFlow?: 'trial_first';
+  pilot?: boolean;
 }
 
 /** Sem `gone`: criar não depende de linha anterior; o que falha é disputa ou gate. */

@@ -90,10 +90,16 @@ beforeEach(() => {
   m.claim.mockResolvedValue({ ok: true });
   m.bind.mockResolvedValue({ ok: true });
   m.getUser.mockResolvedValue({ error: null, data: { user: user() } });
-  m.update.mockResolvedValue({
-    error: null,
-    data: { user: { ...user(), app_metadata: markSignupPasswordSet(user(), ref) } },
-  });
+  // P-28: a confirmação do e-mail pelo admin devolve o usuário confirmado, com o vínculo intacto;
+  // a marcação da senha devolve o vínculo `set`.
+  m.update.mockImplementation(async (_id: string, attrs: Record<string, unknown>) =>
+    attrs.email_confirm === true
+      ? { error: null, data: { user: { ...user(), email_confirmed_at: '2026-11-18T12:00:00Z' } } }
+      : {
+          error: null,
+          data: { user: { ...user(), app_metadata: markSignupPasswordSet(user(), ref) } },
+        },
+  );
   m.finish.mockResolvedValue(true);
   m.plan.mockResolvedValue({ ok: true });
   m.owned.mockResolvedValue({ ok: true, signupRef: ref, credentialState: 'completed' });
@@ -112,10 +118,62 @@ describe('same-session signup code orchestration', () => {
       type: 'recovery',
     });
     expect(m.claim).toHaveBeenCalledWith(id, email, ref);
-    expect(m.update).toHaveBeenCalledOnce();
-    expect(m.update.mock.calls[0]?.[1]).not.toHaveProperty('password');
+    // P-28: 1) confirma o e-mail pelo admin; 2) marca a senha inicial como definida. Nenhuma
+    // chamada leva senha: o Auth guardou o hash na criação.
+    expect(m.update).toHaveBeenCalledTimes(2);
+    expect(m.update.mock.calls[0]).toEqual([id, { email_confirm: true }]);
+    expect(m.update.mock.calls[1]?.[1]).toHaveProperty('app_metadata');
+    for (const [, attrs] of m.update.mock.calls) expect(attrs).not.toHaveProperty('password');
     expect(m.finish).toHaveBeenCalledWith(ref, 1000, 'verified');
     expect(m.signOut).not.toHaveBeenCalled();
+  });
+  // P-28 (18/11/2026): o Supabase Auth apaga na prova de recovery a senha de quem ainda não está
+  // confirmado. A confirmação pelo admin precisa vir ANTES da prova, só para a senha desta sessão.
+  it('confirma o e-mail pelo admin antes da prova de recovery quando a senha inicial é desta sessão', async () => {
+    await confirmSignupEmailCode(token, input);
+    const confirmou = m.update.mock.invocationCallOrder[0]!;
+    expect(confirmou).toBeLessThan(m.generate.mock.invocationCallOrder[0]!);
+    expect(confirmou).toBeLessThan(m.verify.mock.invocationCallOrder[0]!);
+  });
+  it('não confirma pelo admin um usuário que já está confirmado', async () => {
+    m.lookup.mockResolvedValue({
+      kind: 'found',
+      user: { ...user(), email_confirmed_at: '2026-11-18T11:00:00Z' },
+    });
+    await expect(confirmSignupEmailCode(token, input)).resolves.toEqual({
+      ok: true,
+      next: '/cadastro/plano',
+    });
+    expect(m.update).toHaveBeenCalledOnce();
+    expect(m.update.mock.calls[0]?.[1]).not.toHaveProperty('email_confirm');
+  });
+  it('falha fechado se a confirmação pelo admin não volta confirmada: sem prova, sem claim', async () => {
+    m.update.mockResolvedValueOnce({ error: null, data: { user: user() } });
+    await expect(confirmSignupEmailCode(token, input)).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable',
+    });
+    expect(m.generate).not.toHaveBeenCalled();
+    expect(m.verify).not.toHaveBeenCalled();
+    expect(m.claim).not.toHaveBeenCalled();
+    expect(m.update).toHaveBeenCalledOnce();
+  });
+  it('falha fechado se a senha inicial mudou de dono durante a confirmação', async () => {
+    m.update.mockResolvedValueOnce({
+      error: null,
+      data: {
+        user: {
+          ...user(),
+          email_confirmed_at: '2026-11-18T12:00:00Z',
+          app_metadata: createPendingSignupAppMetadata('b'.repeat(64), true),
+        },
+      },
+    });
+    await expect(confirmSignupEmailCode(token, input)).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable',
+    });
+    expect(m.verify).not.toHaveBeenCalled();
   });
   it.each(['invalid', 'expired', 'locked', 'conflict', 'gone'])(
     'does not touch Auth after repository rejection %s',
@@ -190,7 +248,9 @@ describe('same-session signup code orchestration', () => {
         ok: false,
         reason: 'unavailable',
       });
-      expect(m.update).not.toHaveBeenCalled();
+      // Só a confirmação do e-mail (P-28) aconteceu; nada marca a senha como definida.
+      expect(m.update).toHaveBeenCalledOnce();
+      expect(m.update.mock.calls[0]).toEqual([id, { email_confirm: true }]);
       expect(m.finish).toHaveBeenLastCalledWith(ref, 1000, 'uncertain');
       expect(m.signOut).toHaveBeenCalled();
     },
@@ -254,6 +314,155 @@ describe('same-session signup code orchestration', () => {
       next: '/cadastro/plano',
     });
     expect(m.update).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Revisão de segurança do P-28 (ciclo 7, 19/11/2026). A confirmação administrativa do e-mail é uma
+ * ação privilegiada: ela só pode acontecer depois do código válido DESTA reserva, para a conta
+ * cujo vínculo (escrito só pela Admin API) aponta para esta mesma sessão e cuja senha inicial foi
+ * criada por ela. Cada caso abaixo afirma que nenhum `email_confirm` foi pedido ao Auth.
+ */
+describe('P-28: a confirmação administrativa não serve a outra conta, sessão ou código', () => {
+  const confirmouPeloAdmin = () =>
+    m.update.mock.calls.some(([, attrs]) => (attrs as Record<string, unknown>).email_confirm);
+
+  it.each([
+    ['código de outra conta ou errado', 'invalid'],
+    ['código expirado', 'expired'],
+    ['código repetido depois de usado', 'conflict'],
+    ['tentativas esgotadas', 'locked'],
+    ['cadastro abandonado ou outra sessão', 'gone'],
+  ] as const)('%s: nenhuma ação privilegiada (%s)', async (_caso, reason) => {
+    m.reserve.mockResolvedValue({ ok: false, reason });
+    await expect(confirmSignupEmailCode(token, input)).resolves.toEqual({ ok: false, reason });
+    expect(confirmouPeloAdmin()).toBe(false);
+    expect(m.generate).not.toHaveBeenCalled();
+    expect(m.client).not.toHaveBeenCalled();
+  });
+
+  it('e-mail trocado entre a validação e a confirmação: falha fechado, sem prova nem sessão', async () => {
+    m.update.mockResolvedValueOnce({
+      error: null,
+      data: {
+        user: {
+          ...user(),
+          email: 'outra@example.test',
+          email_confirmed_at: '2026-11-19T12:00:00Z',
+        },
+      },
+    });
+    await expect(confirmSignupEmailCode(token, input)).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable',
+    });
+    expect(m.generate).not.toHaveBeenCalled();
+    expect(m.verify).not.toHaveBeenCalled();
+    expect(m.claim).not.toHaveBeenCalled();
+    expect(m.finish).toHaveBeenLastCalledWith(ref, 1000, 'uncertain');
+  });
+
+  it('duas sessões: a outra sessão viva bloqueia antes de qualquer ação privilegiada', async () => {
+    m.lookup.mockResolvedValue({
+      kind: 'found',
+      user: { ...user(), app_metadata: createPendingSignupAppMetadata('b'.repeat(64), true) },
+    });
+    m.liveness.mockResolvedValue('live');
+    await expect(confirmSignupEmailCode(token, input)).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable',
+    });
+    expect(confirmouPeloAdmin()).toBe(false);
+    expect(m.generate).not.toHaveBeenCalled();
+  });
+
+  it('cadastro abandonado: a senha da sessão antiga não é confirmada pelo admin (o Auth a apaga)', async () => {
+    m.lookup.mockResolvedValue({
+      kind: 'found',
+      user: { ...user(), app_metadata: createPendingSignupAppMetadata('b'.repeat(64), true) },
+    });
+    m.liveness.mockResolvedValue('gone');
+    await confirmSignupEmailCode(token, input);
+    expect(confirmouPeloAdmin()).toBe(false);
+    // A prova de recovery acontece sem a confirmação prévia: é ela que apaga a senha não confirmada.
+    expect(m.verify).toHaveBeenCalledOnce();
+  });
+
+  it('rebind preserva a referência antiga da senha: a sessão nova não herda a confiança', async () => {
+    const reatado = {
+      ...user(),
+      app_metadata: {
+        qoro_self_service_signup: {
+          version: 1,
+          kind: 'self_service',
+          signup_ref: ref,
+          password_state: 'pending',
+          initial_password_ref: 'b'.repeat(64),
+        },
+      },
+    };
+    m.lookup.mockResolvedValue({ kind: 'found', user: reatado });
+    await confirmSignupEmailCode(token, input);
+    expect(confirmouPeloAdmin()).toBe(false);
+  });
+
+  it('conta legada sem vínculo do cadastro: recusada antes de qualquer ação no Auth', async () => {
+    m.lookup.mockResolvedValue({ kind: 'found', user: { id, email, app_metadata: {} } });
+    await expect(confirmSignupEmailCode(token, input)).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable',
+    });
+    expect(m.update).not.toHaveBeenCalled();
+    expect(m.generate).not.toHaveBeenCalled();
+  });
+
+  it('usuário sem senha inicial: nenhuma confirmação administrativa', async () => {
+    m.lookup.mockResolvedValue({
+      kind: 'found',
+      user: { ...user(), app_metadata: createPendingSignupAppMetadata(ref) },
+    });
+    await confirmSignupEmailCode(token, input);
+    expect(confirmouPeloAdmin()).toBe(false);
+  });
+
+  it('identidade de terceiro já pronta em outra sessão: recusada sem ação privilegiada', async () => {
+    m.lookup.mockResolvedValue({
+      kind: 'found',
+      user: {
+        ...user(),
+        app_metadata: markSignupPasswordSet(
+          { app_metadata: createPendingSignupAppMetadata('b'.repeat(64), true) },
+          'b'.repeat(64),
+        ),
+      },
+    });
+    await expect(confirmSignupEmailCode(token, input)).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable',
+    });
+    expect(m.update).not.toHaveBeenCalled();
+    expect(m.generate).not.toHaveBeenCalled();
+  });
+
+  it('conta inexistente ou de clínica já ativa: nenhuma ação privilegiada', async () => {
+    m.lookup.mockResolvedValue({ kind: 'missing' });
+    await confirmSignupEmailCode(token, input);
+    expect(m.update).not.toHaveBeenCalled();
+    m.lookup.mockResolvedValue({ kind: 'found', user: user() });
+    m.profile.mockResolvedValue({ id });
+    await confirmSignupEmailCode(token, input);
+    expect(m.update).not.toHaveBeenCalled();
+  });
+
+  it('falha da confirmação administrativa não vaza e-mail, código nem token nos logs', async () => {
+    m.update.mockRejectedValueOnce(new Error(`${email} ${input.code} ${token}`));
+    await expect(confirmSignupEmailCode(token, input)).resolves.toEqual({
+      ok: false,
+      reason: 'unavailable',
+    });
+    const logs = JSON.stringify(m.warn.mock.calls);
+    for (const segredo of [email, input.code, token]) expect(logs).not.toContain(segredo);
+    expect(m.generate).not.toHaveBeenCalled();
   });
 });
 

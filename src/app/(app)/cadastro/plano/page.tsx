@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 
 import { PublicHeading, PublicPage, SignupStage } from '@/components/shared/signup-frame';
-import { resolveReadyOwnedSignupOnboarding } from '@/contexts/onboarding';
+import { resolveReadyOwnedSignupOnboarding, readPilotSignupPlan } from '@/contexts/onboarding';
 import { deferredSaasSignupEnabled } from '@/lib/payments/saas/acquisition';
 
 import { PlanSelectionForm } from './plan-selection-form';
@@ -12,7 +12,8 @@ export default async function SignupPlanPage() {
   const onboarding = await resolveReadyOwnedSignupOnboarding();
   if (!onboarding.ok) redirect('/login');
   if (onboarding.kind === 'redirect') redirect(onboarding.route);
-  const trialFirst = deferredSaasSignupEnabled();
+  const trialFirst =
+    deferredSaasSignupEnabled() || Boolean(await readPilotSignupPlan(onboarding.userId));
 
   return (
     <PublicPage>
