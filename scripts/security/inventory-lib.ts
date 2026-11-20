@@ -254,6 +254,17 @@ export function collectInventory(root: string): Inventory {
       guard: 'origin-limit-cookie-email-code-expiry-attempts-cas',
       call: 'confirmSignupEmailCode',
     },
+    // Pre-tenant admission is not requireUser(): the email/code proof happens
+    // before a tenant exists. Route rejection tests and the real Auth/SQL
+    // harness verify these exact services; never grant a generic signup bypass.
+    'src/app/api/signup/pilot/route.ts#POST': {
+      guard: 'private-flag-origin-limit-invitation-expiry-and-single-browser-session',
+      call: 'bootstrapPilotSignup',
+    },
+    'src/app/api/signup/pilot/provision/route.ts#POST': {
+      guard: 'private-flag-origin-limit-cookie-verified-auth-bound-identity-and-transaction',
+      call: 'provisionPilotSignup',
+    },
     'src/app/api/webhooks/resend/route.ts#POST': {
       guard: 'svix-hmac-expiry-body-cap-and-event-deduplication',
       call: 'verifyResendWebhook',
