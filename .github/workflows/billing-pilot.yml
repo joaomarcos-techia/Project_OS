@@ -96,6 +96,21 @@ jobs:
             echo 'Isolated Auth startup failed; no credential-bearing CLI output published.'
             exit 1
           fi
+      - name: Enable and verify TLS on the owned synthetic database
+        run: |
+          container="$(docker inspect --format '{{.Id}}' supabase_db_qoro-pilot-synthetic)"
+          [[ "$container" =~ ^[0-9a-f]{64}$ ]]
+          test "$(docker inspect --format '{{index .Config.Labels "com.supabase.cli.project"}}' "$container")" = qoro-pilot-synthetic
+          docker exec "$container" psql -U postgres -d postgres -Atc 'SHOW ssl'
+          umask 077
+          openssl req -x509 -newkey rsa:2048 -nodes -keyout .tmp/pilot-supabase/tls.key -out .tmp/pilot-supabase/tls.crt -days 1 -subj '/CN=localhost' -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' > /dev/null 2>&1
+          docker cp .tmp/pilot-supabase/tls.key "$container:/tmp/qoro-pilot.key"
+          docker cp .tmp/pilot-supabase/tls.crt "$container:/tmp/qoro-pilot.crt"
+          docker exec --user root "$container" chown postgres:postgres /tmp/qoro-pilot.key /tmp/qoro-pilot.crt
+          docker exec --user root "$container" chmod 600 /tmp/qoro-pilot.key
+          docker exec "$container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c "ALTER SYSTEM SET ssl_cert_file='/tmp/qoro-pilot.crt'" -c "ALTER SYSTEM SET ssl_key_file='/tmp/qoro-pilot.key'" -c "ALTER SYSTEM SET ssl='on'" -c 'SELECT pg_reload_conf()'
+          sleep 1
+          test "$(PGHOST=127.0.0.1 PGPORT=55442 PGUSER=postgres PGPASSWORD=postgres PGSSLMODE=verify-full PGSSLROOTCERT="$PWD/.tmp/pilot-supabase/tls.crt" psql -d postgres -Atc 'SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()')" = t
       - name: Real browser, code, password, owner and tenant claims
         run: |
           set -o pipefail
