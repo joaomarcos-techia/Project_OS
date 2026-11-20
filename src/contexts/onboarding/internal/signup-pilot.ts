@@ -158,81 +158,79 @@ export async function provisionPilotSignupTx(
     readSignupAuthBinding(user)?.passwordState !== 'set'
   )
     throw new PilotSignupError('forbidden');
-  {
-    const [row] = await tx
+  const [row] = await tx
+    .select()
+    .from(clinicInvites)
+    .where(eq(clinicInvites.tokenHash, hashToken(inviteToken)))
+    .for('update')
+    .limit(1);
+  if (!row) throw new PilotSignupError('forbidden');
+  const grant = parsePilot(row);
+  if (
+    grant.metadata.emailHash !== hashEmail(user.email) ||
+    grant.metadata.signupRef !== readSignupAuthBinding(user)?.signupRef
+  )
+    throw new PilotSignupError('forbidden');
+  if (grant.status === 'completed') {
+    if (grant.metadata.authUserId !== user.id || !grant.provisionedClinicId)
+      throw new PilotSignupError('forbidden');
+  } else {
+    assertLivePilot(grant);
+    const [draft] = await tx
       .select()
-      .from(clinicInvites)
-      .where(eq(clinicInvites.tokenHash, hashToken(inviteToken)))
+      .from(signupSessions)
+      .where(
+        and(
+          eq(signupSessions.authUserId, user.id),
+          eq(signupSessions.tokenHash, grant.metadata.signupRef),
+        ),
+      )
       .for('update')
       .limit(1);
-    if (!row) throw new PilotSignupError('forbidden');
-    const grant = parsePilot(row);
     if (
-      grant.metadata.emailHash !== hashEmail(user.email!) ||
-      grant.metadata.signupRef !== readSignupAuthBinding(user)?.signupRef
+      !draft ||
+      draft.clinicName !== grant.metadata.clinicName ||
+      draft.ownerName !== grant.metadata.ownerName ||
+      draft.emailHash !== grant.metadata.emailHash ||
+      draft.selectedPlanId !== grant.price.planId ||
+      draft.selectedBillingCycle !== 'monthly'
     )
       throw new PilotSignupError('forbidden');
-    if (grant.status === 'completed') {
-      if (grant.metadata.authUserId !== user.id || !grant.provisionedClinicId)
-        throw new PilotSignupError('forbidden');
-    } else {
-      assertLivePilot(grant);
-      const [draft] = await tx
-        .select()
-        .from(signupSessions)
-        .where(
-          and(
-            eq(signupSessions.authUserId, user.id),
-            eq(signupSessions.tokenHash, grant.metadata.signupRef),
-          ),
-        )
-        .for('update')
-        .limit(1);
-      if (
-        !draft ||
-        draft.clinicName !== grant.metadata.clinicName ||
-        draft.ownerName !== grant.metadata.ownerName ||
-        draft.emailHash !== grant.metadata.emailHash ||
-        draft.selectedPlanId !== grant.price.planId ||
-        draft.selectedBillingCycle !== 'monthly'
-      )
-        throw new PilotSignupError('forbidden');
-      const current =
-        await tx.execute(sql`SELECT 1 FROM public.prices WHERE id=${grant.price.priceId}::uuid
-        AND plan_id=${grant.price.planId}::uuid AND amount*100=${grant.price.amountMinor}
-        AND currency='BRL' AND billing_cycle='monthly' AND campaign_code IS NULL AND active_until IS NULL AND active_from<=now() FOR SHARE`);
-      if (current.length !== 1) throw new PilotSignupError('unavailable');
-    }
-    const outcome = await provisionFreeSignupTrialTx(tx, {
-      userId: user.id,
-      email: user.email!,
-      authCreatedAt: new Date(user.created_at),
-      storeId: env.ABACATEPAY_STORE_ID!,
-    });
-    if (!outcome.ok)
-      throw new PilotSignupError(outcome.reason === 'forbidden' ? 'forbidden' : 'conflict');
-    if (grant.status !== 'completed') {
-      const consistent = await tx.execute(sql`SELECT 1 FROM public.subscriptions s
-        JOIN public.prices pr ON pr.id=s.price_id JOIN public.plan_seat_limits sl ON sl.plan_id=s.plan_id
-        WHERE s.clinic_id=${outcome.clinicId}::uuid AND s.plan_id=${grant.price.planId}::uuid
-          AND s.price_id=${grant.price.priceId}::uuid AND s.billing_provider='abacatepay'
-          AND s.asaas_subscription_id IS NULL AND s.billing_status='trial'
-          AND pr.amount*100=${grant.price.amountMinor} AND sl.doctors=1 AND sl.staff=3`);
-      if (consistent.length !== 1) throw new PilotSignupError('conflict');
-    }
-    if (grant.status === 'completed' && grant.provisionedClinicId !== outcome.clinicId)
-      throw new PilotSignupError('conflict');
-    if (grant.status !== 'completed')
-      await tx
-        .update(clinicInvites)
-        .set({
-          status: 'completed',
-          completedAt: sql`now()`,
-          provisionedClinicId: outcome.clinicId,
-          version: sql`${clinicInvites.version}+1`,
-          metadata: { ...grant.metadata, authUserId: user.id },
-        })
-        .where(eq(clinicInvites.id, grant.id));
-    return { state: 'provisioned' as const };
+    const current =
+      await tx.execute(sql`SELECT 1 FROM public.prices WHERE id=${grant.price.priceId}::uuid
+      AND plan_id=${grant.price.planId}::uuid AND amount*100=${grant.price.amountMinor}
+      AND currency='BRL' AND billing_cycle='monthly' AND campaign_code IS NULL AND active_until IS NULL AND active_from<=now() FOR SHARE`);
+    if (current.length !== 1) throw new PilotSignupError('unavailable');
   }
+  const outcome = await provisionFreeSignupTrialTx(tx, {
+    userId: user.id,
+    email: user.email,
+    authCreatedAt: new Date(user.created_at),
+    storeId: env.ABACATEPAY_STORE_ID,
+  });
+  if (!outcome.ok)
+    throw new PilotSignupError(outcome.reason === 'forbidden' ? 'forbidden' : 'conflict');
+  if (grant.status !== 'completed') {
+    const consistent = await tx.execute(sql`SELECT 1 FROM public.subscriptions s
+      JOIN public.prices pr ON pr.id=s.price_id JOIN public.plan_seat_limits sl ON sl.plan_id=s.plan_id
+      WHERE s.clinic_id=${outcome.clinicId}::uuid AND s.plan_id=${grant.price.planId}::uuid
+        AND s.price_id=${grant.price.priceId}::uuid AND s.billing_provider='abacatepay'
+        AND s.asaas_subscription_id IS NULL AND s.billing_status='trial'
+        AND pr.amount*100=${grant.price.amountMinor} AND sl.doctors=1 AND sl.staff=3`);
+    if (consistent.length !== 1) throw new PilotSignupError('conflict');
+  }
+  if (grant.status === 'completed' && grant.provisionedClinicId !== outcome.clinicId)
+    throw new PilotSignupError('conflict');
+  if (grant.status !== 'completed')
+    await tx
+      .update(clinicInvites)
+      .set({
+        status: 'completed',
+        completedAt: sql`now()`,
+        provisionedClinicId: outcome.clinicId,
+        version: sql`${clinicInvites.version}+1`,
+        metadata: { ...grant.metadata, authUserId: user.id },
+      })
+      .where(eq(clinicInvites.id, grant.id));
+  return { state: 'provisioned' as const };
 }

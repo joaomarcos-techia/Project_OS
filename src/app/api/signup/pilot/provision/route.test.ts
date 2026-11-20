@@ -80,7 +80,8 @@ describe('restricted provisioning HTTP boundary', () => {
     const r = await POST(req());
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual({ state: 'provisioned' });
-    expect(m.provision).toHaveBeenCalledExactlyOnceWith('a'.repeat(64));
+    expect(m.provision).toHaveBeenCalledTimes(1);
+    expect(m.provision).toHaveBeenCalledWith('a'.repeat(64));
   });
   it('reports unexpected failure with no sensitive details', async () => {
     m.provision.mockRejectedValue(new Error('secret'));

@@ -625,20 +625,24 @@ export function SignupQuestions({
             rowVersion={session.rowVersion}
             email={emailPendente}
             deliveryStatus={session.emailDelivery}
-            onEmailCorrected={(rowVersion, email) => {
-              continuationCredentials.current = null;
-              setEmailPendente(email);
-              setSession({
-                ...session,
-                status: 'identity_pending',
-                rowVersion,
-                emailDelivery: 'pending',
-              });
-              setMessage(
-                'Endereço corrigido. Nome, clínica e respostas foram preservados. Informe a senha para continuar com este endereço.',
-              );
-              setMessageKind('success');
-            }}
+            onEmailCorrected={
+              pilot
+                ? undefined
+                : (rowVersion, email) => {
+                    continuationCredentials.current = null;
+                    setEmailPendente(email);
+                    setSession({
+                      ...session,
+                      status: 'identity_pending',
+                      rowVersion,
+                      emailDelivery: 'pending',
+                    });
+                    setMessage(
+                      'Endereço corrigido. Nome, clínica e respostas foram preservados. Informe a senha para continuar com este endereço.',
+                    );
+                    setMessageKind('success');
+                  }
+            }
             onUpdated={(rowVersion) => setSession({ ...session, rowVersion })}
             onReconcile={reconcileSession}
             onGone={expireSession}

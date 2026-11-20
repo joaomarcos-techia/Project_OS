@@ -107,7 +107,8 @@ describe('private admission HTTP boundary', () => {
   });
   it('delegates authentication and transactional provisioning without creating a checkout', async () => {
     expect((await provision(request({}, { cookie: true }))).status).toBe(200);
-    expect(m.provision).toHaveBeenCalledExactlyOnceWith(token);
+    expect(m.provision).toHaveBeenCalledTimes(1);
+    expect(m.provision).toHaveBeenCalledWith(token);
     expect(m.bootstrap).not.toHaveBeenCalled();
   });
 });
