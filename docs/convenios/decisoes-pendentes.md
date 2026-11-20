@@ -1,97 +1,148 @@
-# Decisões humanas pendentes do módulo Convênios (atualizado em 19/11/2026)
+# Decisões humanas pendentes do módulo Convênios (atualizado em 20/11/2026)
 
-Uma ficha por decisão. Nenhuma é presumida a partir de silêncio; cada uma destrava tarefas nomeadas. As alternativas e
-recomendações vêm do plano mestre (seções N e L) e do código atual.
+Cada linha é um **pedido de aprovação separado**. Nenhuma decisão é presumida a partir de silêncio, e um GO de uma não vale para outra. As alternativas e recomendações vêm do plano mestre (seções N e L), das provas e do código atual.
 
-## R54 — homologar o estorno externo no Asaas Sandbox
+## Resumo
 
-- **Situação em 19/11:** **decidida** ("GO R54" e "SIM, TUDO"). Checkout pago e conciliado; os estornos de R$ 4,00 e de
-  R$ 6,00 estão autorizados e aguardam o prazo do Asaas para estorno parcial de cartão (duas recusas: "só pode ser
-  estornada parcialmente no próximo dia"). Próxima tentativa única a partir de 19/11, 09h00 de Brasília
-  (`homologacao-r54-sandbox.md`). Nada a decidir.
+| Decisão | O que decidir | Bloqueia | Recomendação |
+| --- | --- | --- | --- |
+| **GO R61** (outbox) | ligar a proteção de tempo no cron e mudar `OUTBOX_BATCH_SIZE` em produção | **produção** (condição de liberação) | ver a ficha; a sequência de gates é R61-A a R61-E |
+| P12.6 | quem cria a regra de alerta no Sentry (ou entrega o acesso com escopo de alertas, fora do chat) | produção (observabilidade) | você cria pela tela, em 5 minutos |
+| B5 | operadora e clínica piloto para a homologação real | P9.4, P2.5, P13.6, P15.3, P15.4 | a operadora em que a piloto já fatura |
+| B6 | prazos legais de retenção e descarte | produção (LGPD) | orientação jurídica formal |
+| B7 | terceira camada de validação (Validador TISS para Windows) | P13.5 | VM isolada só com corpus sintético |
+| S1–S9 | perfil de segurança TISS da ANS | produção (P15.5 definitiva) | ficha detalhada em `perfil-seguranca-s1-s9.md` |
+| P4.7-b | importação histórica com convênio | P4.7 | registra forma e cobertura, sem gerar guia |
+| P15.6 | revisão financeira comigo, numa sessão | P15.8 | sessão sobre a clínica sintética |
+| P15.8 | aprovação final e piloto por flag | publicação | depois das anteriores |
 
-## Outbox — lote do cron no pico (P14.4, 19/11)
+## GO R61 — capacidade do outbox compartilhado
 
-- **Questão:** aumentar `OUTBOX_BATCH_SIZE` em produção de 50 (padrão) para 200?
-- **Benchmark controlado de 20/11 (runner do GitHub, 25 rodadas, integridade conferida em todas):** atraso máximo no pico 8 / 3 / 2 / 1 min com lote 50 / 100 / 150 / 200; acima do pico (100/min) 12 / 6 / 4 / 3 min; tick de 1 a 14 s conforme a latência; conexões e locks iguais. Pane de consumidor (eventos de 6 s): o tick passa de 60 s já com o lote 50 (60,3 s) e mais com 200 (73,2 s). Proposta completa, riscos, monitoramento, critérios de interrupção e retorno em `outbox-capacidade.md`.
-- **Fato medido:** cada conclusão de atendimento publica 3 eventos que vão para o cron (chegada, início, conclusão:
-  prontuário rascunho e recebível do particular), além do evento da guia, que é processado na hora. Com 50 eventos por
-  minuto, um pico de 50 conclusões por minuto durante 3 minutos deixa 6 minutos de fila e o pior atraso chega a 7 minutos
-  (meta da H.2: 5). Com 200, pior atraso de 1 minuto e tick de no máximo 2,2 s (prova em Postgres descartável,
-  `evidence/tiss-p14-4-desempenho-2026-11-19/`). A fila é de todas as clínicas: num dia cheio o efeito soma.
-- **Alternativas:** (a) 200 na variável de ambiente de produção (o código já lê, sem deploy; teto do código 500);
-  (b) manter 50 e aceitar o atraso em pico; (c) processar também os eventos de chegada/início/conclusão logo depois da
-  resposta, como a guia (mudança de código, fora do módulo Convênios).
-- **Recomendação:** (a) `OUTBOX_BATCH_SIZE=200`, com a operação controlada do §5 de `outbox-capacidade.md`. À parte, para decisão com o dono da plataforma e o #53: orçamento de tempo dentro do tick (o risco de passar de 60 s com consumidor lento já existe hoje).
-- **Depois:** você (ou o agente, com GO específico para a configuração de produção) define a variável; o agente confere
-  nas métricas do `worker.tick` que a fila não acumula. **O agente não altera configuração de produção sem esse GO.**
+- **O que decidir:** cinco gates, cada um com aprovação própria:
+  - **R61-A:** homologação técnica (já autorizada e em andamento no #55).
+  - **R61-B:** revisão conjunta com o #53 (handoff `handoff-53-outbox-r61.md`).
+  - **R61-C:** sua aprovação explícita.
+  - **R61-D:** mudança controlada em produção.
+  - **R61-E:** observação operacional.
+- **Por que:** com o lote atual (50), 50 atendimentos por minuto mantidos por 15 min fazem a fila crescer 106 eventos/min e atrasam em até 33 min o recebível do particular e as tarefas de todas as clínicas. Num pico curto, o atraso chega a 8 min. Um consumidor externo em pane já leva o tick além dos 60 s da função.
+- **Recomendação (benchmark de decisão de 20/11, 14 rodadas, integridade conferida em todas): opção B.** Lote 200 **com** o prazo de reserva de 30 s e o descarte em bloco dos eventos sem consumidor.
+  - Sustenta 50 atendimentos/min indefinidamente: fila zero a cada minuto, atraso de 1 min.
+  - A pane de consumidor fica em 30,5 s (hoje passa de 60 s).
+  - Capacidade sustentada de cerca de 83 atendimentos/min na plataforma. A configuração atual sustenta cerca de 15.
+  - Detalhes, riscos, monitoramento e retorno em `outbox-capacidade.md` (§4, §5 e §8).
+- **Bloqueia:** produção (condição de liberação do TISS). Não bloqueia DEV nem a integração.
+- **Depois do GO R61-C:**
+  - aplicar a ligação no cron (com o #53, na integração);
+  - registrar o valor anterior da variável, mudar só o lote e redeployar o mesmo commit;
+  - monitorar com os critérios de interrupção;
+  - em problema, voltar à configuração anterior.
+- **Independente** do GO do C3 da AbacatePay.
+
+## R54 — estorno externo no Asaas Sandbox
+
+- **Situação:** decidida ("SIM, TUDO"). O pagamento de R$ 10,00 está conciliado.
+- **Estornos:** o parcial foi recusado três vezes pelo prazo do Asaas; nenhum foi criado.
+- **Próxima tentativa:** uma única, em 23/11 a partir das 09h, se alguém retomar a sessão. Não há agendamento automático.
+- **Se recusar de novo:** enviar a pergunta ao suporte do Asaas (rascunho em `homologacao-r54-sandbox.md`).
+- **Nada a decidir agora.**
 
 ## P12.6 — alerta do provedor disparando em teste
 
-- **Questão:** quem cria a regra de alerta no Sentry (ou entrega um acesso com permissão de alertas, fora do chat)?
-- **Alternativas:** (a) você cria pela tela do Sentry, em 5 minutos, com os dados abaixo; (b) um token com escopo de
-  alertas guardado como segredo do repositório, para o agente criar e provar; (c) outro provedor (Better Stack), que
-  exigiria conta nova.
-- **Recomendação:** (a). Regra de issue alert no projeto do app, ambiente `preview`, filtro pela tag `flow` começando
-  por `cron.insurance-maintenance`, ação: e-mail para o endereço de teste que você escolher.
-- **Depois:** o agente provoca uma falha sintética controlada da manutenção no Preview, confere o evento, a regra e a
-  entrega, e marca a P12.6.
+- **O que decidir:** quem cria a regra de alerta no Sentry, ou entrega um acesso com permissão de alertas, fora do chat. O token local é inválido e não é reutilizado.
+- **Por que:** a P12.6 exige alerta disparando em teste; hoje a manutenção só registra métricas.
+- **Alternativas:**
+  - (a) você cria pela tela do Sentry;
+  - (b) token com escopo de alertas guardado como segredo do repositório;
+  - (c) outro provedor (conta nova).
+- **Recomendação:** (a). Regra de issue alert no projeto do app:
+  - ambiente `preview`;
+  - filtro pela tag `flow` começando por `cron.insurance-maintenance`;
+  - ação: e-mail para o endereço de teste que você escolher.
+- **Risco sem a decisão:** falha da manutenção TISS sem alerta ativo.
+- **Bloqueia:** produção.
+- **Depois:** o agente provoca uma falha sintética controlada no Preview, confere o evento, a regra e a entrega, e marca a P12.6.
 
-## B5 — operadora e clínica piloto
+## B5 — operadora e clínica piloto (homologação real da P9.4)
 
-- **Questão:** qual operadora e qual clínica homologam a Consulta e a SP/SADT?
-- **Alternativas:** operadora regional com portal de homologação; operadora em que a clínica piloto já fatura.
-- **Recomendação:** a operadora em que a clínica piloto já fatura (há volume real para comparar) — escolha sua.
-- **Destrava:** P2.5 (checklist C1–C10), P6.5 (homologação do conector), P13.6, P15.3, P15.4.
+| Campo | Pedido |
+| --- | --- |
+| Operadora | a sua escolha. Não inventamos operadora: indique uma com ambiente de homologação TISS 4.03.00 |
+| Clínica piloto | uma clínica real com assinatura paga e ativa, que já fature essa operadora |
+| Responsável | quem fala com a operadora e assina o aceite |
+| Contrato | contrato vigente da clínica com a operadora (valores e regras de autorização) |
+| Ambiente de homologação | WSDL, endereços, SOAPAction, versão SOAP, codificação da senha e deduplicação, conforme `conector-soap-homologacao.md` |
+| Dados permitidos | só sintéticos combinados com a operadora (carteirinha de teste); nada real de paciente |
+| Protocolo esperado | protocolo real devolvido pelo webservice, com recibo conferido no XSD e no hash |
+| Critério de PASS | cenários H22 a H25 de `homologacao-operadora.md`, com evidência real |
+| Critério de interrupção | recusa de login, resposta sem hash conferível, protocolo de outro lote ou dado real fora do combinado |
+
+- **Por que:** a P9.4 e as homologações P15.3 e P15.4 só fecham com recibo real.
+- **Bloqueia:** P9.4, P2.5 (C1–C10), P13.6, P15.3, P15.4.
+- **Depois:**
+  - o agente preenche a configuração da operadora no registro de homologadas, só no ambiente de homologação;
+  - roda H22 a H26;
+  - a operadora entra no registro de produção só com o seu GO (P15.8).
 
 ## B6 — retenção legal (P12.3, P12.13)
 
-- **Questão:** prazos de guarda de guias, carteirinhas e autorizações; descarte; texto ao titular.
-- **Alternativas:** seguir a recomendação jurídica formal; adotar o prazo mais longo conhecido como conservador.
-- **Recomendação:** orientação jurídica formal (o técnico já anonimiza o paciente e preserva a guia).
-- **Depois:** prazos no runbook de retenção, rotina de descarte e o texto ao titular; testes LGPD.
-
-## B10 — perfil de segurança TISS da ANS (S1–S9)
-
-| Decisão | Questão | Recomendação do plano | Destrava |
-| --- | --- | --- | --- |
-| S1 | perfil só para clínicas com convênio ou para toda a base | só com convênio (separação segura já investigada) | P12.8, P12.9 |
-| S2 | inatividade de 10 min no servidor e no cliente (R83) | aprovar o desenho de N.3 | P12.9 |
-| S3 | símbolo obrigatório na senha (R67) | só no perfil `tiss` | P12.9 |
-| S4 | expiração de 90 dias e histórico de 10 senhas (R81, R82) | aprovar, com 90 dias de carência | P12.9 |
-| S5 | auditoria imutável 180 dias e retenção de tentativas 90 → 180 dias (R84, R85) | aprovar (global; muda o runbook) | P12.10 |
-| S6 | CPF do usuário e inativar em vez de excluir (R41) | só no perfil `tiss` | P12.8 |
-| S7 | rodapé com fornecedor e versão (R36) | aprovar, com a UI | P12.11 |
-| S8 | último acesso (R42), sem memorização no login (R43), limite fechado na queda do Upstash (R69) | aprovar R42; decidir R43 e R69 | P12.12 |
-| S9 | consulta formal à ANS sobre o alcance (N.1) e o R77 | recomendada antes de publicar | P12.8 |
-
-- **Depois:** cada aprovação liga a política já preparada em `security-profile` e ganha E2E (N.9).
+- **O que decidir:** prazos de guarda de guias, carteirinhas e autorizações; o descarte; o texto ao titular.
+- **Alternativas:** seguir a recomendação jurídica formal, ou adotar o prazo mais longo conhecido, como conservador.
+- **Recomendação:** orientação jurídica formal. O técnico já anonimiza o paciente e preserva a guia.
+- **Risco:** guardar além do necessário (LGPD), ou descartar antes de uma obrigação contratual.
+- **Bloqueia:** produção.
+- **Depois:** prazos no runbook de retenção, rotina de descarte, texto ao titular e testes LGPD.
 
 ## B7 — Validador TISS para Windows (P13.5)
 
-- **Questão:** como obter a terceira camada de validação sem instalar o programa na máquina principal.
+- **O que decidir:** como obter a terceira camada de validação sem instalar o programa na máquina principal.
 - **Alternativas:** licença comercial; VM isolada sem dado real; autorização expressa do fornecedor.
 - **Recomendação:** VM isolada só com o corpus sintético. Hoje o substituto é o motor XSD da Microsoft (38/38).
+- **Risco:** uma divergência de validação só aparecer na operadora.
+- **Bloqueia:** P13.5 (não bloqueia produção, que já usa o XSD oficial).
+- **Depois:** rodar o corpus na VM e registrar as divergências (P13.6).
+
+## S1–S9 — perfil de segurança TISS da ANS (B10)
+
+Ficha detalhada, com requisito, situação, risco, opções, recomendação, impacto, critério de segurança, teste, dependências e autorização de cada item: **`perfil-seguranca-s1-s9.md`**.
+
+- **Pedidos específicos, na ordem sugerida:**
+  - S9: quem faz a consulta formal e como;
+  - S1: alcance só nas clínicas com convênio;
+  - S2 a S4: ligar no Preview, numa clínica de teste, depois dos E2E;
+  - S5: auditoria imutável global de 180 dias;
+  - S7: com o #56;
+  - S8: R42 e o fallback do R69;
+  - S6: depois da S9.
+- **Bloqueia:** produção e o fechamento definitivo da P15.5.
 
 ## P4.7 (parte b) — importação de agenda com convênio
 
-- **Questão:** a importação de atendimentos HISTÓRICOS deve aceitar convênio? Se sim, ela registra só a forma de
-  atendimento e a cobertura, ou também gera guia?
-- **Alternativas:** (a) histórico entra como particular (hoje), fora do faturamento TISS; (b) registra forma e cobertura
-  sem gerar guia (histórico faturado fora do Qoro); (c) gera guia como uma conclusão nova.
+- **O que decidir:** se a importação de atendimentos HISTÓRICOS aceita convênio; se sim, se registra só a forma de atendimento e a cobertura, ou também gera guia.
+- **Alternativas:**
+  - (a) o histórico entra como particular (hoje), fora do faturamento TISS;
+  - (b) registra forma e cobertura sem gerar guia (histórico faturado fora do Qoro);
+  - (c) gera guia, como uma conclusão nova.
 - **Recomendação:** (b). Gerar guia para atendimento antigo arrisca faturar duas vezes o que a clínica já cobrou.
+- **Bloqueia:** P4.7.
 - **Depois:** coluna de convênio no arquivo, cobertura por linha sem guia, prova de banco e E2E da importação.
 
 ## P15.6 — revisão financeira com você
 
-- **Questão:** conferir comigo, numa sessão, a conciliação ponta a ponta (faturado, recebido, glosado, pendente, repasse,
-  coparticipação) sobre a clínica sintética.
-- **Evidência pronta:** relatório por operadora (P9.10) com as somas conferidas contra o livro; conciliação e repasse
-  validados no Preview.
-- **Depois:** registro da aprovação (ou dos ajustes pedidos) no plano.
+- **O que decidir:** marcar uma sessão para conferir a conciliação ponta a ponta sobre a clínica sintética: faturado, recebido, glosado, pendente, repasse e coparticipação.
+- **Evidência pronta:**
+  - relatório por operadora (P9.10), com as somas conferidas contra o livro;
+  - conciliação e repasse validados no Preview;
+  - benchmark do outbox com integridade financeira em todas as rodadas.
+- **Bloqueia:** P15.8.
+- **Depois:** registro da aprovação, ou dos ajustes pedidos, no plano.
 
 ## P15.8 — aprovação final e piloto
 
-- **Questão:** aprovação de release e ativação por flag numa clínica piloto (contrato da P1.13 pronto).
-- **Pré-condições:** B5, B6, B10 (no mínimo S1–S4), P15.6, P12.6, integração #53 → #56 → #55 e o painel do #57.
+- **O que decidir:** a aprovação de release e a ativação por flag numa clínica piloto (o contrato da P1.13 está pronto).
+- **Pré-condições:**
+  - GO R61 executado e observado;
+  - B5, B6 e B10 (no mínimo S1 a S4);
+  - P15.6 e P12.6;
+  - integração #53 → #56 → #55;
+  - o painel do #57.
 - **Depois:** gates T2 (pré-voo de produção só leitura), T3 e T4, cada um com autorização própria.

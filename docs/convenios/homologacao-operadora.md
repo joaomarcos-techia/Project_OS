@@ -117,6 +117,24 @@ continua sendo a prova interna e de validadores (P13).
 | H20 | XML de recurso de glosa gerado pelo Qoro aceito pela operadora (P9.7) | glosa contestada com justificativa da clínica | a operadora aceita o `recursoGlosa` (protocolo real) e responde | XML enviado (SHA-256) + protocolo + resposta |
 | H21 | Recebível no financeiro da clínica (0153) igual ao extrato da operadora | 0144–0154 aplicadas no ambiente, guias pagas e glosadas | faturado, recebido e glosa definitiva no Caixa e nos relatórios batem com o demonstrativo; nada cobrado do paciente | conferência do financeiro × demonstrativo |
 
+### 4.0 Envio pelo webservice da operadora (P9.4; só com a B5 decidida)
+
+O conector está pronto e testado contra a operadora simulada (7/7, `health-insurance-batch-connector-db.ts`).
+- Estes cenários só rodam no **ambiente de homologação da operadora piloto**, com dados sintéticos combinados com ela e com GO específico.
+- Antes deles, preencher a configuração de `conector-soap-homologacao.md` (endereços, SOAPAction, versão SOAP, codificação da senha, deduplicação) a partir do WSDL e do manual da operadora.
+
+| ID | Cenário | Pré-condição | Esperado | Evidência |
+| --- | --- | --- | --- | --- |
+| H22 | Consulta de elegibilidade e de status de protocolo pelo webservice (sem efeito na operadora) | credencial de homologação cadastrada pela clínica piloto | respostas válidas no XSD, hash conferido, origem igual ao registro ANS | recibos guardados (SHA-256) |
+| H23 | Envio de lote de homologação pelo webservice | lote sintético combinado com a operadora, exportado e validado no XSD | protocolo real; lote "enviado" pelo canal `connector` e "recebido" com o recibo guardado cifrado | protocolo, recibo e trilha `sent_via_connector` |
+| H24 | Recusa pelo webservice (erro combinado, como carteirinha inexistente no ambiente de teste) | combinado com a operadora | lote segue exportado; o job termina com "a operadora recusou" e o código; nada vira "enviado" | código da recusa e trilha `connector_rejected` |
+| H25 | Indisponibilidade (operadora fora ou lenta) | janela combinada ou endereço de teste lento | sem reenvio automático; o job pede conferência no portal; a contingência manual segue valendo | trilha `connector_unavailable` e registro manual |
+| H26 | Destino de rede | endereço da operadora resolvido | conexão só a IP público, conferido na conexão; endereço interno recusado | teste do conector e log de conexão sem segredo |
+
+**Critério de PASS da P9.4:** H22 a H25 com evidência real na operadora piloto, nenhuma senha em log, resultado ou recibo, e a contingência manual exercitada (H25).
+
+**Critério de interrupção:** recusa de login, resposta sem hash conferível, protocolo de outro lote ou qualquer dado real fora do combinado. Nesse caso, parar e voltar ao manual.
+
 ### 4.1 O que já pode ser testado sem operadora (12/11)
 
 | Item | Onde | Situação |

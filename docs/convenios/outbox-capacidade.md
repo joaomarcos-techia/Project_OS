@@ -1,6 +1,6 @@
 # Capacidade do outbox compartilhado: diagnóstico, benchmark e proposta para produção
 
-Estado em 20/11/2026. **Nada mudou em produção.** A alteração de `OUTBOX_BATCH_SIZE` em produção depende de GO específico do fundador.
+Estado em 20/11/2026 (2º ciclo). **Nada mudou em produção.** Recomendação atual: **opção B** (§4); ficha do GO no §5. A alteração de `OUTBOX_BATCH_SIZE` em produção depende de GO específico do fundador.
 
 O outbox é a fila de eventos de **todo** o Qoro, não só do módulo Convênios. Um atraso nele atrasa:
 - o recebível do atendimento particular;
@@ -20,7 +20,7 @@ O outbox é a fila de eventos de **todo** o Qoro, não só do módulo Convênios
 | Falhas | backoff 0 → 30 s → 5 min → 30 min → 6 h → `failed`; disjuntor por tipo (≥ 10 falhas em 5 min pausam o tipo por 5 min) | `backoff.ts`, `circuit.ts` |
 | Retomada | evento preso em `processing` volta à fila depois de 5 min (janitor); finalização com guarda contra corrida | `worker.ts` |
 
-**Eventos por atendimento concluído:** 4. A guia de convênio (`insurance_completed`) é processada **logo depois da resposta**, sem esperar o cron. Os outros 3 vão para o cron:
+**Eventos por atendimento concluído:** 4 (5 no particular, que publica também o `financial.lancamento.created` ao criar o recebível). A guia de convênio (`insurance_completed`) é processada **logo depois da resposta**, sem esperar o cron. Os outros 3 vão para o cron:
 - `checked_in` não tem consumidor e é descartado, mas ocupa vaga no lote;
 - `started` é a reserva do prontuário rascunho;
 - `completed` gera o recebível do particular.
@@ -91,7 +91,90 @@ Os dois passam do limite: o risco já existe hoje.
 
 **Recuperação:** com falha, o tipo afetado espera cerca de 10 min, por causa do disjuntor e do backoff. Isso independe do lote; os outros tipos seguem.
 
-## 4. Proposta
+## 4. Decisão recomendada (20/11): opção B
+
+**B — lote 200 seguro somente depois da proteção adicional de tempo**, com o descarte em bloco dos eventos sem consumidor. Evidência no §8 (benchmark de decisão no runner, 14 rodadas, integridade conferida em todas).
+
+| Opção | Por que sim ou não |
+| --- | --- |
+| A — lote 200 só com as proteções existentes | **não**: sustenta o pico de 50/min, mas uma pane de consumidor leva o tick a 73 s (passa dos 60 s, junto com a AbacatePay depois do #53) |
+| **B — lote 200 + prazo de reserva (30 s) + descarte em bloco** | **sim**: sustenta 50/min indefinidamente (fila zero a cada minuto, atraso de 1 min); a pane fica em 30,5 s; nada se perde nem duplica; capacidade sustentada de cerca de 83 atendimentos/min |
+| C — lote 150 com as mesmas proteções | aceitável como etapa intermediária: também sustenta 50/min (fila zero), mas com folga menor (cerca de 62 atendimentos/min) |
+| D — mudar arquitetura ou frequência antes de produção | **não é necessário** para o pico de referência; vira necessário se a carga sustentada passar de cerca de 80 atendimentos/min em toda a plataforma |
+
+**Capacidade sustentada** (eventos por minuto que o cron trata ÷ eventos por atendimento; com 40% de particular são 3,4 eventos de cron por atendimento, ou 2,4 sem o `checked_in`):
+
+| Configuração | Atendimentos/min sustentados | Conferido no benchmark |
+| --- | :-: | --- |
+| Atual (50) | **cerca de 15** | 50/min: fila cresce 106/min |
+| Lote 150 | cerca de 44 | 50/min: fila cresce 18/min |
+| Lote 200 | cerca de 59 | 50/min: fila zero |
+| 150 + descarte em bloco | cerca de 62 | 50/min: fila zero |
+| **200 + descarte em bloco** | **cerca de 83** | 50/min: fila zero; 100/min: fila cresce 35/min (não sustentado) |
+
+**Não declaramos capacidade sustentada para 100 atendimentos/min:** nenhuma configuração testada sustenta. Esse total é da plataforma inteira, não por clínica; os outros eventos do Qoro (mensagens, IA, cobrança) entram na mesma conta.
+
+**O que muda em código:** nada além do que já está no #55, com as opções desligadas por padrão. A ligação é uma chamada no `route.ts` do cron, que o #53 também altera. Fica com o #53 na integração (`handoff-53-outbox-r61.md`, §4).
+
+**Risco residual:**
+- carga sustentada acima de cerca de 83 atendimentos/min (plataforma inteira);
+- o disjuntor segura por cerca de 10 min um tipo de evento que falha em massa (é o desenho atual, não muda);
+- um handler que demore mais que o próprio timeout (não deve acontecer; os clientes externos têm `AbortSignal.timeout`).
+
+## 5. Ficha executiva do GO R61 (produção)
+
+| Item | Conteúdo |
+| --- | --- |
+| Configuração atual | `OUTBOX_BATCH_SIZE` = 50 (padrão do código); cron sem prazo de reserva nem descarte em bloco |
+| Configuração proposta | `OUTBOX_BATCH_SIZE=200` **e** o cron chamando `runOutboxOnce({ reserveUntil: início + 30_000, skipUnhandledInBulk: true })` |
+| Código necessário | as opções do worker já estão no #55 (`ed2fd056`); a ligação no `route.ts` entra na integração com o #53 (sem SHA próprio ainda) |
+| Testes | `outbox-budget-db.ts` 6/6; benchmark de decisão 14/14 com integridade; CI verde |
+| Impacto na AbacatePay | **positivo**: o outbox deixa de poder levar a invocação compartilhada além dos 60 s; as tarefas da AbacatePay não mudam |
+| Responsáveis | #53 (ligação no cron), #55 (opções do worker e provas), fundador (GO e variável de produção) |
+
+**Gates:**
+
+| Gate | O que é | Situação |
+| --- | --- | --- |
+| R61-A | homologação técnica DEV/Preview | **cumprido em ambiente sintético** (6/6 e 14/14) |
+| R61-B | revisão conjunta com o #53 | preparada (`handoff-53-outbox-r61.md`) |
+| R61-C | sua aprovação explícita | pendente |
+| R61-D | alteração controlada de produção | só depois da integração (#53 → #56 → #55) e do C |
+| R61-E | observação e validação operacional | 24 h com os critérios abaixo |
+
+**Condições para o rollout (R61-D), na ordem:**
+1. A integração com a ligação no cron está em produção (deploy aprovado à parte).
+2. Registrar o valor atual de `OUTBOX_BATCH_SIZE`.
+3. Mudar só para 200.
+4. Redeployar o mesmo commit.
+5. Conferir o primeiro `worker.tick` com fila.
+
+**Monitoramento (R61-E):**
+- `worker.tick`: `duration_ms` abaixo de 35 s, `deferred` só em pane, `skipped_bulk` coerente com as chegadas;
+- fila pendente sem tendência de alta;
+- nenhum timeout da rota;
+- `outbox.lost_race` e `worker.tick.skipped_overlap` zerados;
+- financeiro: um recebível por particular concluído, nenhum duplicado, conciliação sem divergência nova (Asaas e AbacatePay).
+
+**Critérios de interrupção:**
+- `duration_ms` acima de 45 s;
+- timeout da rota;
+- `lost_race` ou `skipped_overlap`;
+- aumento de `failed`;
+- divergência financeira;
+- fila crescendo por mais de 15 min sem pico de atendimentos.
+
+**Retorno:**
+- variável de volta ao valor registrado e redeploy; ou rollback instantâneo da Vercel para o deploy anterior;
+- as opções do worker continuam desligadas sem a chamada nova.
+
+**Este documento não é o GO** de nenhum desses gates além do R61-A, que já foi autorizado.
+
+## 5.1 Operação anterior (19/11, substituída pela ficha acima)
+
+A operação abaixo, de 19/11, mudava só a variável, sem a proteção de tempo. Foi substituída pela opção B. Fica registrada como histórico.
+
+### Proposta de 19/11 (substituída pela opção B)
 
 | Item | Proposta |
 | --- | --- |
@@ -114,7 +197,7 @@ Os dois passam do limite: o risco já existe hoje.
 - A variável só vale depois de um novo deploy do mesmo commit, sem código novo.
 - Não depende de migration.
 
-## 5. Operação controlada (só com GO do fundador)
+### Passos da operação de 19/11
 
 1. **Registrar o valor anterior:** em Vercel › Settings › Environment Variables (Production), anotar se `OUTBOX_BATCH_SIZE` existe e com qual valor. Se não existe, o código usa 50.
 2. **Aplicar só o ajuste autorizado:** `OUTBOX_BATCH_SIZE=200` em Production; nenhuma outra variável muda.
@@ -136,5 +219,110 @@ Os dois passam do limite: o risco já existe hoje.
    - aumento de `failed`;
    - qualquer divergência financeira.
 8. **Retorno:** voltar a variável para o valor anotado (ou removê-la) e redeployar. Alternativa: rollback instantâneo da Vercel para o deploy anterior, que guarda o ambiente antigo.
+
+## 6. O evento sem consumidor (20/11)
+
+**Resposta:** `scheduling.appointment.checked_in` é um evento **legítimo publicado à frente do consumidor**. Não é obsoleto e não há handler faltando por defeito.
+
+| Pergunta | Evidência |
+| --- | --- |
+| Nome exato | `scheduling.appointment.checked_in` (`SCHEDULING_EVENTS.CHECKED_IN`) |
+| Onde nasce | na transição para "chegou" (`TRANSITION_EVENT.chegou` em `src/contexts/scheduling/state-machine.ts`), publicado pelo core da agenda |
+| Por que nasce | é o evento de domínio da chegada do paciente (schema `TransitionBase` em `scheduling/events.ts`), para os lembretes e notificações de agenda da camada C14 |
+| Havia consumidor? | não: o histórico do git não tem handler registrado para ele em nenhum momento |
+| Consumidor em outro PR? | não: nenhum handler em `main`, #53, #56, #57, #28 nem #59 |
+| Registrado com outro nome? | não: o catálogo tem o schema e o registro não tem handler |
+| Natureza | evento de domínio para integração futura; **não é financeiro nem obrigatório** |
+| Contrato explícito | está na lista "producer ahead of consumer" do gate (`scripts/check-handler-registry.ts`, F-14, desde 10/06/2026); o gate exige tirar da lista quem ganhar handler |
+| Como a fila trata | `processOne` reserva, vê schema sem handler e finaliza `skipped` (terminal, sem retentativa, sem disjuntor), com `processed_at`; a métrica é `outbox.skipped_no_handler`; o `/api/health/outbox` conta os `skipped` |
+| Impacto na capacidade | 1 de cada 3 vagas do lote no fluxo de conclusão (chegada, início, conclusão), mais uma reserva e uma finalização pela conexão única do worker |
+
+O mesmo vale para os outros tipos da lista F-14 (por exemplo `scheduling.appointment.confirmed`, `patient.core.*`, `billing.*`).
+
+**Política proposta (sem apagar nada):** descarte em bloco dos tipos sem handler no início do tick (`skipUnhandledInBulk`).
+- O evento continua publicado e registrado no outbox, com o **mesmo desfecho de hoje**: `skipped`, `processed_at`, tentativa contada.
+- Fica auditável, contado no health e na métrica.
+- O que muda é só que ele não ocupa vaga do lote.
+- Quando um tipo ganhar handler, ele sai sozinho da lista de descarte, porque a lista é calculada do registro em cada tick.
+- Prova: `outbox-budget-db.ts`, prova 4 (paridade de campos com o caminho normal; agendados para depois ficam).
+
+**Alternativa não recomendada agora:** parar de publicar o evento. Isso apagaria a integração futura do C14 e mudaria o contrato do domínio da agenda, que não é do #55.
+
+## 7. Orçamento de tempo (20/11)
+
+**Onde fica:** no worker, como opção `reserveUntil` de `runOutboxOnce`, desligada por padrão.
+- Cada vaga do lote confere o prazo **antes de reservar** um evento.
+- Depois do prazo, a vaga não reserva nada e o evento fica `pending` para o próximo minuto.
+
+**O que não faz:**
+- não abandona nem "cancela" handler em andamento;
+- não usa `Promise.race`: um handler financeiro iniciado termina pelo próprio caminho e pelos próprios timeouts.
+
+Por isso não há risco de efeito pela metade nem de evento perdido. O que não foi reservado continua na fila, e o que foi reservado termina.
+
+**Valor sugerido (30 s), com a conta:**
+
+| Item | Valor |
+| --- | --- |
+| Limite da função (`maxDuration`) | 60 s |
+| Partida da função (importação dos handlers e do schema) | até 5 s (estimativa conservadora) |
+| Maior timeout de UMA chamada externa de um handler já iniciado | 20 s (Resend; Asaas e Meta 10 s; IA 15 s, com saga retomável) |
+| Folga | 5 s |
+| **Prazo de reserva** | **60 − 5 − 20 − 5 = 30 s** |
+
+O benchmark mede o efeito real; o valor é configurável na chamada.
+
+**Comportamento nas falhas:**
+
+| Situação | Comportamento |
+| --- | --- |
+| Invocação cortada mesmo assim | os eventos em `processing` voltam depois de 5 min (janitor); handlers idempotentes, nada duplica (prova 6) |
+| Invocação nova antes do fim da anterior | o advisory lock deixa uma só trabalhar (prova 5) |
+| Prazo atingido com fila | o resto sai no minuto seguinte; nada se perde (prova 2) |
+
+**Onde ligar:** na chamada do cron (`route.ts`), que o #53 também altera, ao colocar a reconciliação da AbacatePay na mesma invocação. A mudança proposta, para o #53 aplicar na integração, está em `handoff-53-outbox-r61.md` (§4). O #55 não altera esse arquivo.
+
+## 8. Benchmark de decisão (20/11)
+
+- **Onde e como:** runner do GitHub, run `44790428207`; evidência em `evidence/outbox-capacidade-2026-11-20/benchmark-decisao.json`.
+- **Condições:** worker e handlers reais, Postgres descartável, 3 clínicas, 60% convênio e 40% particular, ida e volta de 2,3 ms (e 10,4 ms numa rodada).
+- **Integridade:** conferida em todas as 14 rodadas.
+
+**Regime sustentado, 50 atendimentos/min por 15 minutos** (entrada no cron de 170 eventos/min):
+
+| Estratégia | Saída por tick | Fila depois de cada minuto | Atraso máx. | Drena em | Pior tick | Regime |
+| --- | :-: | --- | :-: | :-: | :-: | --- |
+| atual 50 | 50 | +106/min (1.596 no fim) | 33 min | 51 min | 1,8 s | não sustenta |
+| lote 150 | 150 | +18/min (268 no fim) | 3 min | 17 min | 3,4 s | não sustenta (atraso cresce com o tempo) |
+| lote 200 | 170 | 0 | 1 min | 15 min | 3,8 s | **sustenta** |
+| 150 + prazo + descarte | 170 | 0 | 1 min | 15 min | 3,2 s | **sustenta** |
+| 200 + prazo + descarte | 170 | 0 | 1 min | 15 min | 3,2 s | **sustenta** |
+
+**Regime sustentado, 100 atendimentos/min por 10 minutos** (entrada de 340/min):
+
+| Estratégia | Fila depois de cada minuto | Atraso máx. | Regime |
+| --- | --- | :-: | --- |
+| lote 200 | +124/min | 8 min | não sustenta |
+| 150 + prazo + descarte | +77/min | 6 min | não sustenta |
+| 200 + prazo + descarte | +35/min | 3 min (finito) | **não sustenta** |
+
+**Outros cenários:**
+
+| Cenário | Estratégia | Resultado |
+| --- | --- | --- |
+| Pico + consumidor lento (20 eventos de 1,5 s/min) | lote 200 | fila zero, atraso de 1 min, tick de 9,4 s |
+| Pico + consumidor lento (20 eventos de 1,5 s/min) | 200 + proteção | fila zero, atraso de 1 min, tick de 8,8 s |
+| Pico com 10 ms de latência | lote 200 | tick de 14,5 s |
+| Pico com 10 ms de latência | 200 + proteção | tick de 11,9 s (o descarte em bloco poupa idas ao banco) |
+| Falha transitória + veneno | 200 + proteção | recupera na 2ª tentativa; veneno vira `failed`; o tipo com falha espera cerca de 9 min (disjuntor, como hoje) |
+| **Pane de consumidor** (60 eventos de 6 s) | atual 50 | 60,5 s, passa do limite |
+| **Pane de consumidor** (60 eventos de 6 s) | lote 200 | 73,3 s, passa do limite |
+| **Pane de consumidor** (60 eventos de 6 s) | **200 + proteção** | **30,5 s**: 25 tratados, 175 vagas adiadas, 35 ficam para o minuto seguinte, sem perda |
+
+**Banco:** no máximo 7 conexões ativas e 0 locks esperando em qualquer estratégia.
+
+**Interrupção e concorrência entre rodadas** (prova separada, `outbox-budget-db.ts`, 6/6):
+- invocação cortada se recupera pelo janitor, sem duplicar;
+- com duas invocações simultâneas, uma só trabalha.
 
 **Este documento não é o GO.** O benchmark foi autorizado em ambiente sintético; a mudança em produção não.
