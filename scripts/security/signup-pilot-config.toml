@@ -1,0 +1,38 @@
+# Used only in an ephemeral Actions directory; never linked to a hosted project.
+project_id = "qoro-pilot-synthetic"
+[api]
+enabled = true
+port = 55441
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+[db]
+port = 55442
+shadow_port = 55440
+major_version = 17
+[db.seed]
+enabled = false
+[db.pooler]
+enabled = false
+[studio]
+enabled = false
+[local_smtp]
+enabled = false
+[analytics]
+enabled = false
+[storage]
+enabled = false
+[realtime]
+enabled = false
+[edge_runtime]
+enabled = false
+[auth]
+enabled = true
+site_url = "http://localhost:3210"
+additional_redirect_urls = ["http://localhost:3210/**"]
+enable_signup = true
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+[auth.hook.custom_access_token]
+enabled = true
+uri = "pg-functions://postgres/public/custom_access_token_hook"

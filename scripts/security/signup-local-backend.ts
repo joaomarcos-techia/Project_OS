@@ -8,6 +8,8 @@ import { parse } from 'dotenv';
 import postgres from 'postgres';
 import { z } from 'zod';
 import { readMigrations } from './scratch-schema';
+import { startOperationalRedis } from './abacatepay-operational-infra';
+import { startPilotMail } from './signup-pilot-mail';
 
 let raw = '';
 for await (const chunk of process.stdin) {
@@ -97,17 +99,50 @@ Object.assign(childEnv, {
   SIGNUP_LOCAL_INTEGRATION: 'ONLY_SYNTHETIC_LOCAL_55442',
 });
 const mailMode = process.argv.includes('--mail');
-const browserMode = process.argv.includes('--browser') || mailMode;
+const pilotMode = process.argv.includes('--pilot');
+const browserMode = process.argv.includes('--browser') || mailMode || pilotMode;
+let redis: Awaited<ReturnType<typeof startOperationalRedis>> | undefined;
+let mailbox: Awaited<ReturnType<typeof startPilotMail>> | undefined;
 let server: ReturnType<typeof spawn> | undefined;
 let serverLog: Awaited<ReturnType<typeof open>> | undefined;
 try {
   if (browserMode) {
-    // Only the existing development rate limiter is used; no email, payment or
-    // Production credentials are inherited. Random HMAC keys isolate test keys.
-    const configured = parse(await readFile('C:/dev/ClinicaOS_V2/.env.local'));
-    for (const key of ['UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN']) {
-      assert.ok(configured[key], `Missing development rate limiter: ${key}`);
-      childEnv[key] = configured[key];
+    if (pilotMode) {
+      assert.equal(
+        process.env.GITHUB_ACTIONS,
+        'true',
+        'Synthetic pilot stack runs only on Actions',
+      );
+      redis = await startOperationalRedis();
+      mailbox = await startPilotMail();
+      Object.assign(childEnv, {
+        UPSTASH_REDIS_REST_URL: redis.url,
+        UPSTASH_REDIS_REST_TOKEN: redis.token,
+        SIGNUP_LOCAL_PILOT: 'true',
+        PILOT_MAIL_URL: mailbox.url,
+        PILOT_MAIL_TOKEN: mailbox.token,
+        NODE_OPTIONS: `--import=${path.resolve('scripts/security/signup-pilot-fetch.mjs')}`,
+        RESEND_API_KEY: 're_synthetic_pilot_only',
+        EMAIL_FROM: 'Qoro <confirmacao@example.test>',
+        SIGNUP_ENABLED: 'false',
+        SAAS_SIGNUP_PROVIDER: 'asaas',
+        ABACATEPAY_PILOT_PROVISIONING_ENABLED: 'true',
+        ABACATEPAY_STORE_ID: 'store_synthetic',
+        ABACATEPAY_API_KEY: 'synthetic-only',
+        ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID: 'prod_probe',
+        ABACATEPAY_NEW_CHECKOUTS_ENABLED: 'false',
+        CRYPTO_SECRET_BACKEND: 'env',
+        CRYPTO_MASTER_KEY_V1: randomBytes(32).toString('base64'),
+        CRYPTO_LOOKUP_SALT: randomBytes(32).toString('base64'),
+      });
+    } else {
+      // Only the existing development rate limiter is used; no email, payment or
+      // Production credentials are inherited. Random HMAC keys isolate test keys.
+      const configured = parse(await readFile('C:/dev/ClinicaOS_V2/.env.local'));
+      for (const key of ['UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN']) {
+        assert.ok(configured[key], `Missing development rate limiter: ${key}`);
+        childEnv[key] = configured[key];
+      }
     }
     childEnv.VERCEL_ENV = 'development';
     childEnv.SIGNUP_LOCAL_BROWSER = 'true';
@@ -176,9 +211,13 @@ try {
         '--config',
         'scripts/security/signup-local.config.ts',
         '--reporter=json',
-        `--outputFile=dist/signup-${mailMode ? 'mail' : browserMode ? 'browser' : 'local'}-integration.json`,
+        `--outputFile=dist/signup-${pilotMode ? 'pilot-browser' : mailMode ? 'mail' : browserMode ? 'browser' : 'local'}-integration.json`,
       ],
-      { env: childEnv, stdio: ['ignore', 'inherit', 'inherit'], windowsHide: true },
+      {
+        env: childEnv,
+        stdio: pilotMode ? 'ignore' : ['ignore', 'inherit', 'inherit'],
+        windowsHide: true,
+      },
     );
     child.once('error', reject);
     child.once('exit', (value) => resolve(value ?? 1));
@@ -200,4 +239,6 @@ try {
     else server.kill('SIGTERM');
   }
   await serverLog?.close();
+  await mailbox?.stop();
+  await redis?.stop();
 }
