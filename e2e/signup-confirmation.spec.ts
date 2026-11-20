@@ -1999,17 +1999,26 @@ test.describe('cadastro — confirmação real via Resend', () => {
         '2',
       );
       // Antes de salvar: sem confirmação. "Continuar para o checkout" salva o plano e abre o
-      // pagamento seguro numa ação só; a criação do checkout espera o aviso "Plano salvo"
-      // aparecer (a requisição segue intacta), para provar o retorno do salvamento sem corrida
-      // com o redirecionamento.
+      // pagamento seguro numa ação só. Um observador do DOM, instalado antes do clique, avisa o
+      // teste quando o alerta "Plano salvo" aparece; nenhuma requisição é retida ou alterada
+      // (reter a criação do checkout deixava a sessão girar no meio e gerava 401).
       await expect(signup.page.getByText('Plano salvo')).toHaveCount(0);
-      let releaseCheckout: () => void = () => undefined;
-      const savedNoticeSeen = new Promise<void>((resolve) => {
-        releaseCheckout = resolve;
+      let savedNoticeShown = false;
+      await signup.page.exposeFunction('qoroE2eSavedNotice', () => {
+        savedNoticeShown = true;
       });
-      await signup.page.route('**/api/signup/checkout', async (route) => {
-        await savedNoticeSeen;
-        await route.continue();
+      await signup.page.evaluate(() => {
+        const shown = () =>
+          [...document.querySelectorAll('[role="alert"]')].some((element) =>
+            element.textContent?.includes('Plano salvo'),
+          );
+        new MutationObserver((_, observer) => {
+          if (!shown()) return;
+          observer.disconnect();
+          void (
+            window as unknown as { qoroE2eSavedNotice: () => Promise<void> }
+          ).qoroE2eSavedNotice();
+        }).observe(document.body, { childList: true, subtree: true, characterData: true });
       });
       const planSaved = signup.page.waitForResponse(
         (response) =>
@@ -2018,8 +2027,6 @@ test.describe('cadastro — confirmação real via Resend', () => {
       );
       await signup.page.getByRole('button', { name: 'Continuar para o checkout' }).click();
       expect((await planSaved).status()).toBe(200);
-      await expect(signup.page.getByRole('alert').filter({ hasText: 'Plano salvo' })).toBeVisible();
-      releaseCheckout();
       await signup.page.waitForURL(
         (url) =>
           url.protocol === 'https:' &&
@@ -2030,6 +2037,9 @@ test.describe('cadastro — confirmação real via Resend', () => {
       await expect(signup.page.getByText('Informações da assinatura')).toBeVisible({
         timeout: 30_000,
       });
+      expect(savedNoticeShown, 'o aviso "Plano salvo" apareceu depois do salvamento real').toBe(
+        true,
+      );
       const hosted = await assertHostedCheckoutPersisted(fixture.tokenHash!, selectedCode);
       checkoutProof = { checkoutId: hosted.checkoutId, planCode: selectedCode };
     } finally {
