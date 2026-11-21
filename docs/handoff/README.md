@@ -1,4 +1,4 @@
-# Handoff do PR #56 (ciclos 7 e 8, 19–20/11/2026)
+# Handoff do PR #56 (ciclos 7 a 9, 19–21/11/2026)
 
 Para os responsáveis pelo cadastro e pelo domínio financeiro (#53), por quem integra na `main`, e
 para o fundador. Nada aqui foi aplicado fora do PR #56: não houve push na `main`, nem alteração no
@@ -7,13 +7,338 @@ para o fundador. Nada aqui foi aplicado fora do PR #56: não houve push na `main
 | Item | Arquivo | Estado em 20/11 | Decisão de quem |
 | --- | --- | --- | --- |
 | P-28: senha inicial preservada na confirmação por código | `p28-signup-email-confirmation.patch` | **já no #53** (`a7931315`); falta a `main` | integração na `main` |
-| P-29: conta confirmada sem senha volta pelo "Esqueci a senha" | `p29-recuperacao-conta-pendente.patch` | no #56 (`26cb73ff`); aplica limpo no #53 e na `main` | dono do cadastro (#53) |
+| P-29: conta confirmada sem senha volta pelo "Esqueci a senha" | `p29-recuperacao-conta-pendente.patch` | no #56 (`26cb73ff`); aplica limpo no #53 `e3cf8bbd` e na `main` | dono do cadastro (#53) |
+| Origem dos links de Auth no Preview (ciclo 9) | `p29b-origem-links-auth-preview.patch` | no #56 (`fef8ec30`); aplica limpo no #53 e na `main` | dono do cadastro (#53) |
+| Link de redefinição já usado não reabre o formulário (ciclo 9) | `p29c-link-usado-nao-reabre-formulario-MAIN.patch` | no #56 (`2b6d72b7`); versão para a página da `main`/#53 | dono do cadastro (#53) |
+| Resolução dos conflitos #53, #55 e da ordem real | seção C9.4; branches `integracao/c9-*` | reproduzível; tripla bloqueada só no gate de migrations (#53 × #55) | #53 e #55 |
 | P-29: premissas do spec oficial | aplicado no #56 (`947426b1`), com autorização do fundador | spec oficial verde no Preview | — |
 | P-19: contrato de concorrência do Caixa | seções C8.4 e 3 | UI pronta; servidor pendente | domínio financeiro |
 | P-27: conta compartilhada `2E2_UI` | seções C8.3 e 4 | recuperação coordenada pelo #53 | #53 |
 | Cartão incorporado na assinatura AbacatePay | seção 5 | decisão: página hospedada | fundador |
 
-## Ciclo 8 (20/11/2026): leia primeiro
+## Ciclo 9 (20–21/11/2026): leia primeiro
+
+### C9.1 Origem dos links de Auth no Preview: resolvido em código (`fef8ec30`)
+
+- **Causa:** a entrada geral de `APP_BASE_URL` do Preview na Vercel aponta para outro deploy. O
+  cadastro, o Checkout e a troca de plano já usavam o alias da branch injetado pela Vercel
+  (`resolvePreviewCallbackOrigin`), mas a redefinição de senha, o convite da equipe e o convite
+  de clínica montavam o link só com `APP_BASE_URL`. O link de redefinição abria o código de outra
+  branch.
+- **Correção:** `resolveAuthLinkOrigin()` em `src/lib/http/application-url.ts`.
+  - Em Preview usa `VERCEL_BRANCH_URL`, depois `VERCEL_URL`. Só aceita host `*.vercel.app` em
+    HTTPS, sem porta, caminho ou credencial.
+  - Fora do Preview usa só `APP_BASE_URL`. Production não muda: `VERCEL_ENV=production` nunca
+    passa pela Vercel.
+  - Nada vem de `Host`, `Origin` ou de parâmetro do cliente, e o link passa pelas travas de
+    `buildApplicationUrl`.
+  - Os templates de redefinição e de convite comparam a origem com a mesma função
+    (`expectedOrigin`).
+  - O callback da Meta não muda.
+- **Configuração:** nada a mudar na Vercel nem no Supabase.
+  - A Vercel injeta o alias da branch sozinha.
+  - O link é `/auth/confirm#token_hash=…` do próprio app (`generateLink` sem `redirectTo`), então
+    a lista de "Redirect URLs" do Supabase não participa.
+  - DEV, Preview e Production continuam separados: o Preview usa o Auth DEV e só gera links
+    `*.vercel.app`.
+- **Provas:**
+  - unidade: Preview, alias inválido, fora do Preview, sem `APP_BASE_URL`;
+  - mutação 3/3: desfazer a origem ou qualquer uma das duas travas `expectedOrigin` reprova um
+    teste;
+  - spec oficial no Preview `2b6d72b7`: o link é aberto **como chegou**, e a sua origem serve o
+    mesmo build do deploy sob teste (mesmos assets do Next em `/login`).
+
+### C9.2 P-29: revisão final de segurança
+
+| Caso | Resultado | Prova |
+| --- | --- | --- |
+| Conta confirmada `pending` (abandono depois do link, conta legada) | recupera pelo link de redefinição e instala a primeira senha | unidade (`signup-auth-admin`, `reset-password/actions`) e spec oficial no Preview |
+| Conta não confirmada, convidada, banida, outra referência, `reserved` | recusada (`obfuscated`) | unidade, `it.each`; mutação 5/5 (ciclo 8) |
+| Token adulterado | `/auth/auth-error`, sem formulário | spec oficial no Preview |
+| Token substituído por pedido mais novo | `/auth/auth-error`; o mais novo abre | spec oficial no Preview |
+| Link reutilizado (consumo único) | `/auth/auth-error` | spec oficial no Preview |
+| Sessão de recuperação depois da troca | revogada (logout global); cookies antigos vão a `/login` | spec oficial no Preview |
+| **Replay do grant depois da troca** | **achado neste ciclo:** a página mostrava o formulário; o envio já era recusado. Corrigido (`2b6d72b7`) | página: 4 testes, mutação 2/2; action: replay de grant de perfil e órfão sem sessão ou com sessão de outra conta não instala senha nem consome epoch |
+| Logout depois do login | cookies anteriores não entram mais | spec oficial no Preview |
+| Novo login com a senha redefinida | entra (`/cadastro/continuar`) | spec oficial no Preview |
+| Senha legada (Auth v2.198.0) | nunca deu acesso (`email_not_confirmed`) e não volta | spec oficial |
+| Cadastro concorrente e link de outro draft | não confirma nem toca o outro draft | spec oficial ("link adulterado, de outro cadastro ou já usado") |
+| Existência de conta | resposta uniforme; o aviso vai só ao dono, por e-mail | spec oficial e `signup-existing-account-notice` |
+| Abuso | limites existentes: 3 pedidos de redefinição por e-mail e 10 por IP por hora; conclusão limitada; o spec usa exatamente 3 | `rate-limit.ts` |
+| Token expirado | **não executado ao vivo**: exige esperar o prazo do Auth DEV, e mudar o prazo não foi autorizado. O caminho do app é o mesmo `fail('invalid_token')` dos tokens consumido e substituído, provados acima | `auth/confirm/route.ts` |
+
+Resultado: **14 casos provados, 1 achado corrigido, 1 não executado ao vivo** (expiração).
+
+### C9.2.1 Spec oficial do cadastro no Preview final do #56 (`2b6d72b7`)
+
+O spec tem 17 testes. Os 4 de oferta com pagamento manual (`@prepare`, `@inspect`, `@retire`,
+`@verify`-offer-checkout) exigem flags explícitas e pagamento real e não foram executados. **Os 13
+executáveis passaram**, em lotes espaçados por causa dos limitadores:
+
+| Lote | Testes | Resultado |
+| --- | --- | --- |
+| 1 | link confirma no telefone; destinatário confirma e cria a senha; conta legada não confirmada | 3/3 |
+| 2 | link adulterado, de outro cadastro ou já usado; código do link vivo; reenvio | 3/3 |
+| 3 | `@code-checkout` (com o "Plano salvo" no salvamento real); `@code-flow`; `@recovery-flow` × 2 | 4/4 |
+| 4 | não afirma confirmação sem sessão; cadastro expirado retoma | 2/2 |
+| à parte | conta legada abandonada + redefinição estendida | PASS (1,8 min) |
+
+**Repetição da conta legada no lote 4:** estourou o tempo.
+- O e-mail da terceira redefinição não saiu (o Resend DEV registra o aviso e 2 das 3).
+- O limitador de redefinição por IP (10 por hora) fica num Redis compartilhado pelos Previews e
+  pelos agentes desta máquina. A resposta da tela é uniforme, então o teste espera até o fim.
+- O mesmo teste passou nesse Preview e na tripla. O resíduo foi limpo pelo `beforeAll` seguinte;
+  a sonda `residuo-cadastro.ts` deu 0 contas e 0 rascunhos.
+
+### C9.3 Pacote para o #53 (C3), validado no head `e3cf8bbd`
+
+O P-28 continua no #53 (`a7931315`). Os três patches abaixo **não** estão no #53. Aplique na ordem:
+
+```
+git fetch origin ui/otimizacao-ui-final-20261114
+for p in p29-recuperacao-conta-pendente p29b-origem-links-auth-preview p29c-link-usado-nao-reabre-formulario-MAIN; do
+  git show origin/ui/otimizacao-ui-final-20261114:docs/handoff/$p.patch | git apply --check &&
+  git show origin/ui/otimizacao-ui-final-20261114:docs/handoff/$p.patch | git apply
+done
+```
+
+| Base | Patches | Testes (onboarding, identity, reset, login, auth, http, `lib/auth`, signup, cadastro, email) | `tsc` |
+| --- | --- | --- | --- |
+| #53 `e3cf8bbd` | p29 + p29b | 126 arquivos, 1918/1918 | 0 |
+| #53 `e3cf8bbd` | + p29c | reset-password 43/43 | 0 |
+| `main` `5620a098` | p28 + p29 + p29b + p29c | 121 arquivos, 1812/1812 | 0 |
+
+- **Nenhum arquivo financeiro, de preço, webhook, ledger ou migration.**
+- O aviso de conta existente (`b46ea769`) só existe na linhagem do #56. No #53 e na `main`, a
+  recuperação self-service é o "Esqueci a senha", e é ele que o `p29` destrava.
+- Três testes do #53 falham **nesta máquina Windows** também no #53 puro
+  (`checkout-operator-session` `--preview` e `release-archive` com `tar --options`). Não têm relação
+  com os patches. A CI Linux do #53 passa.
+- **Critério para o C3 (atualizado):**
+  1. P-28 presente (está);
+  2. os três patches acima aplicados;
+  3. no Preview do #53, o teste oficial "conta legada que abandona depois do link recupera o
+     acesso…", que agora cobre a origem do link e os casos negativos. Ele chega com o spec do #56
+     na integração, ou pode ser copiado.
+
+  O piloto (Consultório, 1 médico) segue o fluxo `trial_first` do #53. A tela dele foi preservada
+  na resolução da C9.4.
+
+### C9.4 Integração: resolução reproduzível (heads de 20–21/11)
+
+Heads usados:
+
+| Frente | Head | Observação |
+| --- | --- | --- |
+| `main` | `5620a098` | — |
+| #53 | `e3cf8bbd` | — |
+| #56 | `fef8ec30` | — |
+| #55 | `acbfff24` | head do PR; o worktree do #55 tem um commit local não publicado (`85d37eb9`, outbox) que não cria conflito novo |
+| #57 | `93a79601` | — |
+
+Composições descartáveis (branches no repositório; os PRs servem só para a CI e nunca devem ser
+mergeados):
+
+| Composição | Commit | Branch | CI |
+| --- | --- | --- | --- |
+| #53 → #56 | `402cdf6e` → `41a11bac` (o `60c149e8` é vazio, só para refazer o deploy) | `integracao/c9-53-56` | PR #61: **todos os gates verdes** (auditoria, typecheck, lint, arquitetura, migrations, testes com cobertura, inventário, isolamento entre clínicas com Postgres temporário, build, segredos no bundle, E2E público). O deploy da Vercel do `402cdf6e` falhou sem log acessível |
+| #56 + #55 | `3c99d2d4` → `b0e5417c` | `integracao/c9-56-55` | PR #62: verde até os testes, que reprovaram só em 5 testes de forma do journal do próprio #55 (`migration-ledger`, `migration-composition`). Eles supõem a base `main` ou `main` + #53 completo, e o par só tem a `0136`, que o #56 carrega do #53. Esse estado não existe na ordem real |
+| #53 → #56 → #55 (ordem real) | `248a7ff1` → `da1b4111` | `integracao/c9-53-56-55` | PR #60, fechado: parou no gate de migrations (abaixo). O build foi provado pela Vercel, que publicou o Preview |
+
+**#53 → #56 (9 conflitos, todos resolvidos):**
+
+| Arquivo | Escolha |
+| --- | --- |
+| `signup-frame.tsx` / `.test.tsx` | versão do #53: é a do #56 com a prop `trialFirst` ("Plano e avaliação") e o teste dela |
+| `signup-frame.module.css` | versão do #56 (P-24). Os aliases provisórios do #53 saem, porque o #56 define `--text-body`/`--border-soft` na camada app-v5 |
+| `plano.module.css` | versão do #56. A do #53 são as 31 primeiras linhas dela |
+| `plano/page.tsx` | imports e `trialFirst` do #53. No `trial_first`, título "Escolha seu plano" com o texto da avaliação (#53); com cartão, "Confirme o plano e o pagamento" (desenho aprovado). `showLogin` do #56 |
+| `plan-selection-form.tsx` | versão do #56 com o do #53: `signupFlow`/`pilot` no estado, rota `/api/signup/pilot/provision`, 409 `trial_used`. Com cartão, o checkout aprovado. No `trial_first` (sem cartão nesta etapa), o ramo de lista de planos da mesma moldura, com "Começar avaliação gratuita" e "Mensalidade do plano": é o que os specs do #53 homologaram (rádio por plano, resumo). O aviso "Plano salvo" só aparece depois de salvar, pela regra da prancha (corrigido no `39b47f1c`; a primeira resolução o mostrava no carregamento). A frase do #53 "Nenhum cartão ou pagamento é necessário para iniciar a avaliação." fica como nota fixa abaixo do botão, e o teste do #53 passa sem mudança |
+| `plan-selection-form.test.tsx` | união das duas asserções |
+| `signup-identity.tsx` | layout do #56 + `pilotIdentity` do #53 (nome, clínica e e-mail do convite, somente leitura) |
+| `docs/security/acoes.md` | regenerado (`inventory --write`; `--check` sem regressão) |
+| `cadastro/piloto/page.tsx` (#53, sem conflito) | ganhou título de página, exigido pelo contrato UX-008 do #56 (o teste `page-titles` reprovava na composição) |
+
+**Prova visual da etapa do piloto C3** (`trial_first`, Consultório, 1 médico): a página real,
+renderizada na bancada (componente real, CSS do projeto, `fetch` simulado) com o código da
+composição, a 1440, 390 e 320 px. Sem rolagem lateral; etapa 3 "Plano e avaliação"; resumo com
+"Mensalidade do plano R$ 197,00/mês"; nenhum texto de cartão (evidência em
+`.tmp/ui-audit/evidence/2026-11-20/ciclo9/bancada-composicao-53-56-v2/`). O spec de UI do plano do
+#53 usa um harness local próprio (`/cadastro/qoro-billing-harness`, fora do repositório) e não foi
+executado aqui; os testes de unidade do #53 para o `trial_first` passam na composição.
+
+Testes na composição: cadastro e moldura 238/238; contratos de design 119/119; onboarding,
+billing, signup, pagamentos, auth, http e admin 2746/2749, com as 3 falhas de ambiente acima.
+`tsc` 0.
+
+**#56 + #55 (9 conflitos, todos resolvidos):**
+
+| Arquivo | Escolha |
+| --- | --- |
+| `_journal.json` | união por `idx`. A `0136` do #56 é a migration do #53, idêntica; nada é renumerado |
+| `caixa-view.tsx`, `cash-item-card.tsx`, `waitlist-manager.tsx` | fuso da clínica do #56 (`useClinicTimeZone`, `todayYmd(timeZone)`). Saem os auxiliares do R51 que ficaram redundantes, e também a **chave `timeZone` duplicada** que o merge automático deixou no `Intl.DateTimeFormat` do `cash-item-card` sem acusar conflito |
+| `consultorio/format.ts` | fuso da clínica com Brasília como padrão (R51 do #55 e o teste dele) |
+| `waiting-card.tsx` | `now` nulo até montar (R51) + `timeZone` da clínica (#56) |
+| `financeiro/page.tsx` | **fórmula do #55 `l.valor - l.valorPago - l.valorGlosado`**, badge do #56 |
+| `new-appointment-drawer.tsx` | UX-005/UX-006 do #56 + cobrança por convênio do #55. A falta de operadora aparece no erro do formulário, e a carteirinha zera ao trocar ou cadastrar o paciente |
+| `docs/security/acoes.md` | regenerado |
+
+Testes: agenda, caixa, consultório, financeiro, `lib/format` e contratos de design 406/406;
+Convênios e documentação 89/89. `tsc` 0 (com 6 GB de heap; a composição estoura os 2 GB padrão).
+
+**Ordem real #53 → #56 → #55 (11 conflitos):**
+- 7 de UI × TISS: a mesma resolução acima, porque nesses arquivos o lado #53 + #56 é igual ao #56.
+- `_journal.json` (`0136–0142` do #53 + `0143–0166` do #55) e `acoes.md`, como acima.
+- **2 novos entre #53 e #55, sem o #56:** `scripts/arch-db-check.ts` e
+  `scripts/security/local-build.ts`, que são listas de permissão. Resolução: união das entradas.
+
+Testes afetados 1465/1465 (141 arquivos), `tsc` 0. **Na CI (PR #60), a tripla para no gate de
+migrations:**
+
+```
+Migration journal order invalid at index 159
+```
+
+- O gate de contiguidade do journal vem do #53; a `main` e o #55 não o têm.
+- O #55 deixa a `0159` vaga para uma migration candidata do #53 (`52de7ada`, ver
+  `docs/convenios/aplicacao-0153.md`), que ainda não está no head do #53.
+
+**Ação de #53 e #55, não do #56:** entregar a `0159` antes da integração do #55, ou combinar outra
+saída. Nenhuma migration foi inventada e o gate não foi afrouxado.
+
+**Correção de um erro meu na tripla:** o `248a7ff1` levou o `acoes.md` do #55, porque o `git add`
+veio antes do `inventory --write`. O `78709377` traz o regenerado, com `--check` sem regressão.
+Nas composições em par a ordem estava certa: o #61 passou no gate do inventário.
+
+**Menu "Convênios" (proposta pronta do #55, `docs/convenios/menu-convenios.md`)**, aplicado na
+resolução, porque o item só faz sentido com a rota do #55: no #56 sozinho, a `main` teria um link
+quebrado entre os dois merges.
+- **Posição e permissão:** grupo Gestão, depois de Financeiro. `requires: VIEW_CONVENIOS`, o gate
+  atual da página pela matriz I.2, e não o `VIEW_FINANCIAL` do documento de 12/11. O
+  `modules.test` confere essa correspondência.
+- **Ícone:** `insurance` (lucide `IdCard`, a carteirinha). O `shield` proposto já era o de Equipe
+  & Permissões, e o trilho recolhido mostrava dois escudos iguais.
+- **Ritmo, medido item a item contra o #56** (`c9-trilho.ts`, conta `ui-fixture`, 9 viewports):
+  - alturas 40/36 px, folgas de 4 px entre itens e 48/42/38 px entre grupos, rodapé 36/32 px:
+    **idênticos**;
+  - item ativo "Convênios" em `/convenios`; menu móvel abre e fecha com Escape; 0 rolagem
+    lateral e 0 erro.
+- **Telas baixas:** o #56 sozinho já rola o trilho em notebooks comuns. Em 1536×864 a lista
+  esconde "Ajuda" abaixo da dobra; em 1366×768, também Equipe e Configurações. É o desenho de
+  18/11: a lista rola, um esmaecido avisa que há mais, e o destino atual é rolado para a vista.
+  - Com o 13º item, o mesmo vale a partir de 1440×900, com 36 px a mais (um item).
+  - Entre 961 e 1024 px de altura, o degrau de 40 px transbordava 4 px e esmaecia "Ajuda" numa
+    tela alta. **Ajuste:** o degrau aprovado de 36 px passa a valer até 1040 px de altura. Os
+    valores dos tokens não mudam.
+  - Os três ajustes estão na composição (`78709377`) e vão como proposta da UI para o momento da
+    integração do #55.
+
+**Código final do #56 nas composições:** elas foram montadas com o #56 em `fef8ec30`; depois
+receberam o `2b6d72b7` (página de redefinição), sem conflito (`41a11bac`, `b0e5417c`, `da1b4111`).
+
+**E2E integrado na tripla (spec oficial do #56, Preview da ordem real):**
+
+| Teste | Deploy | Resultado |
+| --- | --- | --- |
+| `@code-flow` (senha inicial, código, F5, plano preservado) | `78709377` | PASS |
+| Link adulterado, de outro cadastro ou já usado | `78709377` | PASS |
+| Conta legada abandonada + redefinição estendida (origem do link, reuso, adulterado, substituído, sessão revogada, logout, novo login) | `da1b4111` | PASS |
+
+Duas tentativas antes falharam, e as duas estão explicadas:
+- **limitador de sessões do cadastro:** o lote rodou logo depois de outro;
+- **depois, o próprio teste acertou:**
+  - no `78709377`, a trava "a origem do link serve o build sob teste" recusou o alias da branch,
+    que já apontava para um deploy mais novo;
+  - no `c93a03e8`, montado antes do `2b6d72b7`, o link já usado reabria o formulário.
+
+  Com o código final, passou.
+
+**#57:** 0 conflito com o #56. Com a tripla, 1 conflito em `docs/adr/README.md` (índice de
+ADRs), de quem integrar o #57.
+
+**Achado para o #53, fora do conflito:** em `cadastro/piloto/page.tsx`, o `PublicHeading` fica
+fora do `SignupStage` que o `SignupQuestions` monta. Na tela do convite do piloto, um `h1` aparece
+acima do logo e antes do `h1` da etapa. Proposta: passar título e texto do piloto para dentro da
+etapa 1 (`SignupQuestions`) e remover o heading externo.
+
+### C9.4.1 Auditoria visual da composição tripla (Preview `248a7ff1`)
+
+`.tmp/ui-audit/c9-integrada.ts`, conta sintética `ui-fixture`, só leitura. 93 telas, em 7 larguras
+(320, 375, 390, 768, 1024, 1440, 1920), mais duas alturas baixas:
+- telas logadas: Dashboard, Agenda, Caixa, Financeiro, Consultório, Convênios, Ajuda, tópico de
+  Convênios, Configurações;
+- telas públicas: login, cadastro, redefinição, retomar.
+
+- **0 rolagem lateral, 0 erro de JS, 1 `h1` por tela.**
+  - Os dois registros são 410 de rede no `/cadastro` anônimo, reaproveitado entre larguras pela
+    sonda. É o retorno esperado da sessão anônima expirada, com a tela se recriando.
+- **Temas:** claro e escuro aplicados (`.dark`), sem rolagem nem erro, em Dashboard, Convênios,
+  tópico de Convênios e Financeiro, a 1440 e 390 px.
+- **Link "Ajuda de Convênios":** presente nas 7 larguras.
+- **Teclado:** Tab com foco visível em todos os 8 primeiros alvos. A gaveta de novo atendimento
+  abre e fecha com Escape. Sem convênio configurado na clínica sintética, os campos de cobrança
+  por convênio ficam ocultos, como manda o #55.
+- **Trilho:** sem item ativo em `/convenios` até a entrada do menu. Depois dela, "Convênios" fica
+  ativo (ver acima).
+
+### C9.5 Central de ajuda de Convênios
+
+- Não existe central nova. O #55 pôs os 5 tópicos no `content.ts` existente (categoria
+  Financeiro), e o índice do #56 os lista sozinho.
+  - Os tópicos ficam em `/documentacao/<slug>`.
+  - O índice continua em `/documentação`: pasta própria e middleware desde o #52, não é defeito.
+- **Link "Ajuda"** no cabeçalho de Convênios (proposta do handoff-ui §17 do #55), implementado na
+  composição em `convenios/_lib/access.tsx`:
+  - leva a `/documentacao/convenios`;
+  - nome acessível "Ajuda de Convênios", que contém o texto visível;
+  - usa primitivas do design system;
+  - teste em `convenios/page.test.tsx`.
+
+  O arquivo é do #55, e a mudança vai como proposta de 17 linhas no commit `3c99d2d4`.
+
+### C9.6 P-19 e P-27
+
+- **P-19:** `valorPagoEsperado` não existe fora de teste em nenhum head (`main`, #53, #55 publicado
+  e local). O servidor não foi implementado. **UI PASS / ponta a ponta PARTIAL.** A matriz da C8.4
+  continua válida.
+- **P-27:** sonda só de leitura em 21/11: a `2E2_UI` continua sem senha (hash vazio), sem atividade
+  desde 18/11 23:18 UTC. Segue com o #53. Nenhum teste do #56 depende dela: o spec oficial usa
+  contas descartáveis, e as sondas usam a `ui-fixture`.
+
+### C9.7 `main`: proposta final de integração da autenticação
+
+**Caminho recomendado:** sem patch separado na `main`. A autenticação chega com a integração.
+- Primeiro o #53, que traz o P-28.
+- Depois o #56, que traz P-28 (idêntico; o merge não conflita), P-29, `p29b` e `p29c`.
+- O merge do #56 sobre a `main` + #53 conflita só nos 9 arquivos da C9.4, todos com resolução
+  reproduzível.
+
+**Caminho de hotfix**, se a aquisição reabrir antes da integração. Provado no commit descartável
+`1a2dcad2`, que não foi publicado.
+
+| Ordem | Patch | Arquivos | Depende de |
+| --- | --- | --- | --- |
+| 1 | `p28-signup-email-confirmation.patch` | `signup-email-code.ts` + teste | — |
+| 2 | `p29-recuperacao-conta-pendente.patch` | `signup-auth-admin.ts`, `reset-password/actions.ts` + testes | — |
+| 3 | `p29b-origem-links-auth-preview.patch` | `application-url.ts`, `password-reset-email.ts`, `team-invite-email.ts` + testes | — |
+| 4 | `p29c-link-usado-nao-reabre-formulario-MAIN.patch` | `reset-password/page.tsx` (versão da `main`), `page.test.tsx` novo, teste da action | 2 (contexto do teste da action) |
+
+Resultado:
+- `tsc` 0;
+- 1812/1812 testes (121 arquivos);
+- conflito com o #53: 0;
+- conflito com o #56: só `reset-password/page.tsx`. Fica a versão do #56, que tem a mesma regra.
+
+**Gate de segurança antes de integrar:**
+1. CI completa;
+2. spec oficial do cadastro num Preview, incluindo o teste da conta legada e o de links
+   adulterados;
+3. revisão do dono do cadastro, porque a mudança altera o contrato de recovery da conta
+   `pending`.
+
+**Não faça cherry-pick do P-28 se o #53 já tiver entrado.**
+
+## Ciclo 8 (20/11/2026)
 
 ### C8.1 Prioridade para o #53 antes do C3
 

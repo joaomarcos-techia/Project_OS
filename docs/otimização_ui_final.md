@@ -12,7 +12,34 @@
 
 ## ESTADO ATUAL DA EXECUÇÃO
 
-- **CICLO 8 (20/11/2026) — P-29 CORRIGIDO NO APP E NO SPEC OFICIAL, P-26 FECHADO. LEIA PRIMEIRO.**
+- **CICLO 9 (20–21/11/2026) — ORIGEM DOS LINKS NO PREVIEW, REVISÃO FINAL DO P-29, INTEGRAÇÃO
+  #53 → #56 → #55 RESOLVIDA E PROVADA. LEIA PRIMEIRO.**
+  - **Handoff em `docs/handoff/README.md`**, seção "Ciclo 9" (C9.1–C9.7).
+  - **Origem dos links de Auth no Preview** (`fef8ec30`):
+    - redefinição, convite da equipe e convite de clínica usam o alias da branch injetado pela
+      Vercel (`resolveAuthLinkOrigin`); Production continua só com `APP_BASE_URL`;
+    - sem mudança de configuração;
+    - o spec oficial abre o link como chegou e prova que a origem dele serve o build sob teste.
+  - **P-29, revisão final:** 14 casos provados (matriz na C9.2). Achado e corrigido
+    (`2b6d72b7`): um link de redefinição já usado reabria o formulário com cookies capturados
+    antes da troca. O envio já era recusado; agora a página aplica a mesma regra da action.
+  - **Pacote para o #53 (C3):** `p29` + `p29b` + `p29c`, validados no `e3cf8bbd` (`tsc` 0,
+    1918/1918 e 43/43). Na `main`, os 4 patches: 1812/1812.
+  - **Integração:** composições descartáveis com os 9 + 9 conflitos resolvidos e a resolução
+    reproduzível nos branches `integracao/c9-*`.
+    - #61 (#53 → #56): todos os gates da CI verdes.
+    - Tripla na ordem real: bloqueada só no gate de journal do #53, pela `0159` que o #55 reservou
+      ao #53. Isso é coordenação entre #53 e #55.
+    - Menu "Convênios" com ícone próprio e o degrau de 36 px até 1040 px; ritmo idêntico ao do #56.
+  - **Spec oficial no Preview final (`2b6d72b7`):** 13 de 13 testes executáveis PASS (os 4 de
+    pagamento manual exigem autorização). Na tripla: `@code-flow`, links adulterados e a conta
+    legada estendida PASS.
+  - **Auditoria visual da composição:** 93 telas, 0 rolagem lateral, 0 erro de JS, dois temas,
+    teclado ok.
+  - **P-19:** servidor ainda não implementado em nenhum head (UI PASS / ponta a ponta PARTIAL).
+    **P-27:** a `2E2_UI` continua sem senha; segue com o #53.
+
+- **CICLO 8 (20/11/2026) — P-29 CORRIGIDO NO APP E NO SPEC OFICIAL, P-26 FECHADO.**
   - **Handoff atualizado em `docs/handoff/README.md`** (seção "Ciclo 8"): prioridade do #53 antes
     do C3, patch da recuperação, P-27 para o #53, matriz do P-19, integração.
   - **P-29, defeito real corrigido** (`26cb73ff`): a conta confirmada que nunca concluiu a senha
@@ -2523,6 +2550,8 @@ casos, painel, sidebar (12 links) e navegação funcionam.
 | 20/11/2026 | P-29 (app) | Conta confirmada `pending` recupera pela redefinição; aviso de conta existente chega a ela | onboarding, cadastro, auth, reset, login 1276/1276; mutação 5/5 | `26cb73ff` |
 | 20/11/2026 | P-29 (spec) | Premissas obsoletas corrigidas com autorização; 2 testes novos e o salvamento real no `@code-checkout` | spec oficial no Preview (25.15) | `947426b1` |
 | 20/11/2026 | P-26 | Ponto âmbar com `warning-600`; prova isolada sem aviso global | contratos 18/18 | `a1a128fb` |
+| 21/11/2026 | Auth (Preview) | Links de redefinição e convites na origem do próprio ambiente (alias da branch); spec oficial abre o link como chegou | application-url, e-mails, reset, auth 448/448; mutação 3/3; spec no Preview | `fef8ec30` |
+| 21/11/2026 | P-29 (revisão final) | Link de redefinição já usado não reabre o formulário; replay do grant testado | reset-password 49/49; mutação 2/2; spec no Preview | `2b6d72b7` |
 
 ## 28. Pendências e bloqueios
 
@@ -2564,6 +2593,8 @@ casos, painel, sidebar (12 links) e navegação funcionam.
 | P-27 (status 19/11) | Mecanismo identificado: a conta `2E2_UI` está com o hash vazio (recovery ou código em 18/11 23:18 UTC). Não foi redefinida. A conta sintética de UI substitui a compartilhada nas sondas. Restaurar a `2E2_UI` exige coordenação com o #53 (redefinir a senha pela Admin API e atualizar os `.env.local`) | ambiente | fundador / #53 |
 | P-29 | No spec oficial do cadastro, **"o link confirma no telefone, mas só o código libera a aba original"** falha: depois da confirmação pelo link no telefone, a aba original pede de novo o e-mail ("E-mail usado no cadastro"), e o teste espera que não peça. **Anterior a este ciclo**: reproduz igual no Preview `afaaf5cb`, antes da correção do P-28. A lógica das credenciais da aba (`continuationCredentials`) é idêntica à da `main`. A hipótese é a mesma mudança do Auth (prova de recovery numa conta não confirmada), não comprovada. Como o spec é serial, os testes seguintes foram rodados à parte (25.13) | cadastro | dono do cadastro (#53/main) |
 | P-26 (status 19/11) | Bancada nos dois temas: tokens com ≥ 3:1. Os gráficos não são usados por telas; o `admin/config` exige super admin, que não foi criado por política. PARTIAL só nesse ponto | design system | conta autorizada de super admin |
+| Integração (status ciclo 9) | Conflitos #53 e #55 resolvidos em composições descartáveis (`integracao/c9-*`); #61 verde; tripla bloqueada no gate de journal do #53 pela `0159` reservada | integração | #53 e #55 (`0159`) |
+| P-29 (status ciclo 9) | **PASS final**: 14 casos provados, 1 achado corrigido (`2b6d72b7`); expiração do token não executada ao vivo | cadastro | revisão do dono do cadastro |
 | P-29 (status ciclo 8) | **Corrigido**: defeito de recuperação da conta confirmada sem senha (`26cb73ff`) e premissas do spec (`947426b1`). Resultado oficial em 25.15 | cadastro | — |
 | P-28 (status ciclo 8) | No #53 desde `a7931315`; falta a `main` antes de reabrir a aquisição | cadastro | integração na `main` |
 | P-26 (status ciclo 8) | **Fechado** com prova isolada; âmbar corrigido (`a1a128fb`) | design system | — |
