@@ -65,11 +65,18 @@ export default async function ResetPasswordPage({
   // gerenciador de senhas não sabe de que conta é a senha nova, não atualiza a
   // salva e, no login seguinte, preenche a ANTIGA. Não decide nada: quem mostra
   // o formulário continua sendo o grant.
+  //
+  // Ciclo 9: o grant só abre o formulário junto da sessão que o próprio link abriu, a mesma regra
+  // da action. Depois da troca, o logout global revoga essa sessão; os cookies capturados antes
+  // continuavam com o grant assinado e a tela dizia "Ela vale a partir de agora" para um link já
+  // usado (o envio já era recusado). Agora a tela diz que o link não vale mais.
   let username: string | null = null;
+  let live = false;
   if (grant) {
     const supabase = await createServerClient();
     const { data } = await supabase.auth.getUser();
-    if (data.user?.id === grant.userId && data.user.email) username = data.user.email;
+    live = data.user?.id === grant.userId;
+    if (live && data.user?.email) username = data.user.email;
   }
 
   return (
@@ -78,12 +85,12 @@ export default async function ResetPasswordPage({
         <LoginIntro
           title="Nova senha"
           lead={
-            grant
+            live
               ? 'Crie a senha que você vai usar para entrar na Qoro. Ela vale a partir de agora.'
               : 'Para criar uma senha nova, use um link de redefinição recente.'
           }
         />
-        {grant ? (
+        {live ? (
           <ResetPasswordForm username={username} />
         ) : (
           <div className={loginFrame.form}>
