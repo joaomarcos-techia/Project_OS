@@ -22,6 +22,8 @@ const GATE_SOURCE: Record<string, string> = {
   caixa: 'caixa/page.tsx',
   conversas: 'conversas/page.tsx',
   equipe: 'equipe/page.tsx',
+  // Convênios decide em `conveniosAccess`, pela matriz de direitos do módulo.
+  convenios: '../../../contexts/health-insurance/rights.ts',
 };
 
 const permissionKey = (value: string) =>

@@ -74,6 +74,16 @@ export const MODULES: NavModule[] = [
     requires: PERMISSIONS.VIEW_FINANCIAL,
   },
   {
+    // Integração #55 (docs/convenios/menu-convenios.md): logo depois de Financeiro. Espelha a
+    // entrada do módulo (`conveniosRights().view`, matriz I.2), não a visão financeira.
+    id: 'convenios',
+    icon: 'shield',
+    label: 'Convênios',
+    group: 'Gestão',
+    href: '/convenios',
+    requires: PERMISSIONS.VIEW_CONVENIOS,
+  },
+  {
     id: 'caixa',
     icon: 'cash',
     label: 'Caixa',
