@@ -549,12 +549,12 @@ export function PlanSelectionForm() {
 
   const live = (
     <div aria-live="polite" className={cn('space-y-2', styles.live)}>
-      {saved && (savedNow || !catalog) ? (
+      {/* Prancha: o aviso aparece depois de salvar nesta visita. A exceção do carregamento fica só
+          para planos fora da oferta (lista legada), não para o trial_first do #53. */}
+      {saved && (savedNow || (!catalog && !trialFirst)) ? (
         <Alert variant="success" title="Plano salvo">
-          {selectedTrialDescription(state, selectedPlanId, selectedCycle).replace(/\.$/u, '')}.{' '}
-          {trialFirst
-            ? 'Nenhum cartão ou pagamento é necessário para iniciar a avaliação.'
-            : 'O pagamento acontece com segurança na página do Asaas.'}
+          {selectedTrialDescription(state, selectedPlanId, selectedCycle).replace(/\.$/u, '')}.
+          {trialFirst ? null : ' O pagamento acontece com segurança na página do Asaas.'}
         </Alert>
       ) : null}
       {message ? <Alert variant="warning">{message}</Alert> : null}
@@ -591,9 +591,10 @@ export function PlanSelectionForm() {
       {nota ? <p className={signupFrame.fine}>{nota}</p> : null}
     </>
   );
+  // A nota fica abaixo do botão nos dois fluxos (no trial_first, a frase que o #53 exibe).
   const actions = actionsWith(
     trialFirst
-      ? null
+      ? 'Nenhum cartão ou pagamento é necessário para iniciar a avaliação.'
       : 'Ao continuar, a página segura do Asaas abre para você informar o cartão. Nada é cobrado hoje; a mensalidade segue o resumo do plano.',
   );
 
