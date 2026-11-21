@@ -1027,6 +1027,35 @@ async function passwordSignInSucceeds(email: string, password: string): Promise<
   throw new Error(`Supabase Auth respondeu status inesperado ${response.status} na sonda de senha`);
 }
 
+/**
+ * Ciclo 9: prova que `origin` serve o mesmo build do deploy sob teste, comparando os assets do Next
+ * que `/login` referencia nas duas origens. O header de bypass só vai a host `*.vercel.app`.
+ */
+async function servesTestedBuild(origin: string): Promise<boolean> {
+  const tested = new URL(baseUrl!).origin;
+  if (origin === tested) return true;
+  const url = new URL(origin);
+  if (url.protocol !== 'https:' || !url.hostname.endsWith('.vercel.app')) return false;
+  const assets = async (from: string): Promise<string[] | null> => {
+    const response = await fetch(`${from}/login`, {
+      headers: vercelBypassHeaders(),
+      redirect: 'manual',
+      cache: 'no-store',
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (response.status !== 200) return null;
+    const html = await response.text();
+    return [...new Set(html.match(/\/_next\/static\/[^"'?\s)\\]+/gu) ?? [])].sort();
+  };
+  const [testedAssets, linkAssets] = await Promise.all([assets(tested), assets(origin)]);
+  return (
+    testedAssets !== null &&
+    linkAssets !== null &&
+    testedAssets.length > 0 &&
+    testedAssets.join('\n') === linkAssets.join('\n')
+  );
+}
+
 /** Fixture setup for auth-only scenarios: persist through the real API without starting billing. */
 /**
  * Checkout no desenho aprovado (18/11/2026): a família do plano é escolhida pelo cartão de escolha
@@ -3151,7 +3180,7 @@ test.describe('cadastro — confirmação real via Resend', () => {
     const reason = skipReason();
     test.skip(!writeEnabled, 'E2E_SIGNUP_WRITE != 1');
     if (reason) throw new Error(`guard recusou a escrita: ${reason}`);
-    test.setTimeout(420_000);
+    test.setTimeout(900_000);
 
     const email = `delivered+qoro-legacy-reset-${Date.now()}-${randomBytes(4).toString('hex')}@resend.dev`;
     const legacyPassword = `LegacyE2e7${randomBytes(12).toString('base64url')}`;
@@ -3232,11 +3261,25 @@ test.describe('cadastro — confirmação real via Resend', () => {
       const fragment = new URLSearchParams(resetLink.hash.slice(1));
       expect(fragment.get('type')).toBe('recovery');
       expect(fragment.get('next')).toBe('/reset-password');
-      // O link usa o APP_BASE_URL do ambiente (no Preview, outro deploy). O token é do Auth DEV e
-      // é aberto no deploy sob teste, pelo mesmo caminho e fragmento.
-      await page.goto(new URL(`${resetLink.pathname}${resetLink.hash}`, baseUrl!).toString());
+      // Ciclo 9: o link sai na origem do próprio ambiente (no Preview, o alias da branch, que serve
+      // este build) e é aberto como chegou, sem trocar a origem.
+      expect(resetLink.protocol).toBe('https:');
+      expect(await servesTestedBuild(resetLink.origin)).toBe(true);
+      const appOrigin = resetLink.origin;
+      const app = (pathname: string) => new URL(pathname, appOrigin).toString();
+      const anonymousContext = async () => {
+        const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+        contexts.push(context);
+        await installVercelBypassForOrigin(context, appOrigin);
+        return context;
+      };
+      if (appOrigin !== new URL(baseUrl!).origin) {
+        await installVercelBypassForOrigin(again, appOrigin);
+      }
+      await page.goto(resetLink.toString());
       await expect(page).toHaveURL(/\/reset-password$/u, { timeout: 90_000 });
       await expect(page.getByText('Link inválido ou expirado')).toHaveCount(0);
+      const recoverySession = await again.storageState();
       await page.locator('input[type="password"]').first().fill(recoveredPassword);
       await page.getByRole('button', { name: 'Atualizar senha' }).click();
       await expect(page).toHaveURL(/\/login\?reason=password_updated$/u, { timeout: 90_000 });
@@ -3249,6 +3292,93 @@ test.describe('cadastro — confirmação real via Resend', () => {
       await page.getByLabel('Senha', { exact: true }).fill(recoveredPassword);
       await page.getByRole('button', { name: 'Entrar', exact: true }).click();
       await expect(page).toHaveURL(/\/cadastro\/continuar$/u, { timeout: 60_000 });
+
+      // A sessão aberta pelo link de recovery termina com a troca: os cookies dela não reabrem o
+      // formulário nem o cadastro.
+      const recoveryReplay = await browser.newContext({ storageState: recoverySession });
+      contexts.push(recoveryReplay);
+      await installVercelBypassForOrigin(recoveryReplay, appOrigin);
+      const replayPage = await recoveryReplay.newPage();
+      await replayPage.goto(app('/cadastro/continuar'));
+      await expect(replayPage).toHaveURL(/\/login$/u, { timeout: 60_000 });
+      await replayPage.goto(app('/reset-password'));
+      await expect(replayPage.getByText('Link inválido ou expirado')).toBeVisible({
+        timeout: 60_000,
+      });
+      await expect(replayPage.locator('input[type="password"]')).toHaveCount(0);
+
+      // O mesmo link, de novo: consumo único.
+      const reusePage = await (await anonymousContext()).newPage();
+      await reusePage.goto(resetLink.toString());
+      await expect(reusePage).toHaveURL(/\/auth\/auth-error\?reason=/u, { timeout: 90_000 });
+      await expect(reusePage.locator('input[type="password"]')).toHaveCount(0);
+
+      // Logout encerra a sessão em todo lugar: os cookies de antes não entram mais.
+      const loggedIn = await again.storageState();
+      const logoutUrl = await page.evaluate(async () => {
+        const response = await fetch('/logout', { method: 'POST' });
+        return response.url;
+      });
+      expect(new URL(logoutUrl).pathname).toBe('/login');
+      await page.goto(app('/cadastro/continuar'));
+      await expect(page).toHaveURL(/\/login$/u, { timeout: 60_000 });
+      const stale = await browser.newContext({ storageState: loggedIn });
+      contexts.push(stale);
+      await installVercelBypassForOrigin(stale, appOrigin);
+      const stalePage = await stale.newPage();
+      await stalePage.goto(app('/cadastro/continuar'));
+      await expect(stalePage).toHaveURL(/\/login$/u, { timeout: 60_000 });
+
+      // Novo login com a senha redefinida.
+      await page.locator('#email').fill(email);
+      await page.getByLabel('Senha', { exact: true }).fill(recoveredPassword);
+      await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+      await expect(page).toHaveURL(/\/cadastro\/continuar$/u, { timeout: 60_000 });
+
+      // Token adulterado e token substituído por um pedido mais novo não abrem o formulário; o
+      // link mais novo abre. Três pedidos no total: o teto por e-mail é 3 por hora.
+      const requestReset = async (): Promise<URL> => {
+        const requester = await (await anonymousContext()).newPage();
+        await requester.goto(app('/login'));
+        await requester.getByText('Esqueci a senha').click();
+        await requester.locator('#recovery-email').fill(email);
+        const requestedAt = Date.now();
+        await requester.getByRole('button', { name: 'Enviar link' }).click();
+        await expect(requester.getByText('Confira o seu e-mail')).toBeVisible({ timeout: 120_000 });
+        const sent = await waitForMessage({
+          email,
+          subject: 'Redefinir senha — Qoro',
+          after: requestedAt,
+        });
+        const link = /href="([^"]+)"[^>]*>Redefinir minha senha</u.exec(sent.html ?? '')?.[1];
+        if (!link) throw new Error('e-mail de redefinição sem o botão');
+        const url = new URL(link.replaceAll('&amp;', '&'));
+        expect(url.origin).toBe(appOrigin);
+        return url;
+      };
+      const older = await requestReset();
+      const newer = await requestReset();
+      const tampered = new URL(newer.toString());
+      const tamperedFragment = new URLSearchParams(tampered.hash.slice(1));
+      const tokenHash = tamperedFragment.get('token_hash') ?? '';
+      expect(tokenHash.length).toBeGreaterThan(8);
+      tamperedFragment.set(
+        'token_hash',
+        `${tokenHash.slice(0, -1)}${tokenHash.endsWith('0') ? '1' : '0'}`,
+      );
+      tampered.hash = tamperedFragment.toString();
+      for (const refused of [tampered, older]) {
+        const refusedPage = await (await anonymousContext()).newPage();
+        await refusedPage.goto(refused.toString());
+        await expect(refusedPage).toHaveURL(/\/auth\/auth-error\?reason=/u, { timeout: 90_000 });
+        await expect(refusedPage.locator('input[type="password"]')).toHaveCount(0);
+      }
+      const validPage = await (await anonymousContext()).newPage();
+      await validPage.goto(newer.toString());
+      await expect(validPage).toHaveURL(/\/reset-password$/u, { timeout: 90_000 });
+      await expect(validPage.getByText('Link inválido ou expirado')).toHaveCount(0);
+      // Nenhum desses links trocou a senha.
+      expect(await passwordSignInSucceeds(email, recoveredPassword)).toBe(true);
     } finally {
       await Promise.allSettled(contexts.map((context) => context.close()));
       await cleanupFixture(fixture);
