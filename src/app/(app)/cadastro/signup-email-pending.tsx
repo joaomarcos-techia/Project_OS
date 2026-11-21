@@ -1,13 +1,16 @@
 'use client';
 
-import { MailCheck } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 
+import { PublicBlock, PublicHeading, signupFrame } from '@/components/shared/signup-frame';
 import { Alert } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SIGNUP_INPUT_LIMITS } from '@/contexts/onboarding/signup-input-limits';
+import { cn } from '@/lib/ui/cn';
+
+import styles from './cadastro.module.css';
 
 type Props = {
   rowVersion: number;
@@ -126,49 +129,48 @@ export function SignupEmailPending({ rowVersion, email, onUpdated, onReconcile, 
     <section
       aria-labelledby="signup-email-title"
       data-slot="signup-email-pending"
-      className="mt-8 rounded-(--r-2xl) bg-surface-raised p-6 text-center shadow-[0_0_0_1px_oklch(0_0_0/0.06),0_8px_28px_oklch(0_0_0/0.07)] sm:p-8"
+      className={styles.stack}
     >
-      <MailCheck aria-hidden="true" className="mx-auto size-8 text-primary" />
-      <p className="mt-5 font-mono text-xs font-semibold uppercase tracking-[0.12em] text-primary">
-        Etapa 3 · confirmação
-      </p>
-      <h2 id="signup-email-title" className="mt-3 text-balance font-display text-2xl font-semibold">
-        Aguardando a confirmação do e-mail
-      </h2>
-      <p className="mx-auto mt-3 max-w-[46ch] text-pretty text-sm leading-relaxed text-fg-muted">
-        Se o endereço puder continuar, enviaremos um link e um código de 8 dígitos. Abra o link para
-        confirmar o e-mail, criar sua senha e continuar no mesmo aparelho. Se preferir continuar
-        nesta aba, use o código do e-mail depois da confirmação.
-      </p>
-
-      <form ref={formRef} onSubmit={submit} noValidate className="mt-6">
-        {pedindoEmail ? (
-          <div className="mx-auto max-w-sm space-y-2 text-left">
-            <Label htmlFor="signup-resend-email">E-mail usado no cadastro</Label>
-            <Input
-              id="signup-resend-email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
-              maxLength={SIGNUP_INPUT_LIMITS.email}
+      <PublicHeading
+        id="signup-email-title"
+        title="Aguardando a confirmação do e-mail"
+        lead="Se o endereço puder continuar, enviaremos um link e um código de 8 dígitos. Abra o link para confirmar o e-mail, criar sua senha e continuar no mesmo aparelho. Se preferir continuar nesta aba, use o código do e-mail depois da confirmação."
+      />
+      <PublicBlock narrow>
+        <div className={styles.closing}>
+          <form ref={formRef} onSubmit={submit} noValidate className={styles.form}>
+            {pedindoEmail ? (
+              <div className={signupFrame.field}>
+                <Label htmlFor="signup-resend-email">E-mail usado no cadastro</Label>
+                <Input
+                  id="signup-resend-email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  maxLength={SIGNUP_INPUT_LIMITS.email}
+                  disabled={saving}
+                />
+              </div>
+            ) : null}
+            <button
+              type="submit"
               disabled={saving}
-            />
-          </div>
-        ) : null}
-        <button
-          type="submit"
-          disabled={saving}
-          aria-expanded={conheceEmail ? undefined : pedindoEmail}
-          className="mt-3 inline-flex min-h-10 items-center justify-center rounded-(--r-md) px-3 text-sm font-medium text-fg-subtle underline underline-offset-4 transition-colors hover:text-fg focus-visible:shadow-(--focus-ring) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {rotuloBotao}
-        </button>
-      </form>
+              aria-expanded={conheceEmail ? undefined : pedindoEmail}
+              className={cn(
+                signupFrame.inlineLink,
+                'inline-flex min-h-10 items-center justify-center self-center rounded-(--r-md) px-3 underline underline-offset-4 focus-visible:shadow-(--focus-ring) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60',
+              )}
+            >
+              {rotuloBotao}
+            </button>
+          </form>
 
-      <div aria-live="polite" className="mt-4 text-left">
-        {message ? <Alert variant="warning">{message}</Alert> : null}
-      </div>
+          <div aria-live="polite" className={styles.live}>
+            {message ? <Alert variant="warning">{message}</Alert> : null}
+          </div>
+        </div>
+      </PublicBlock>
     </section>
   );
 }

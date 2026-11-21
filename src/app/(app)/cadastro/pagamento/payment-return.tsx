@@ -5,6 +5,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { PublicBlock, PublicHeading, signupFrame } from '@/components/shared/signup-frame';
+
+import styles from '../plano/plano.module.css';
 
 type Result = 'success' | 'pending' | 'cancelled' | 'expired';
 type Phase = 'checking' | 'waiting' | 'failed';
@@ -125,61 +128,70 @@ export function PaymentReturn({ result }: { result: Result }) {
 
   if (result === 'cancelled' || result === 'expired') {
     return (
-      <div className="text-center">
-        <XCircle aria-hidden="true" className="mx-auto size-9 text-warning-600" />
-        <h1 className="mt-4 text-balance font-display text-2xl font-semibold">
-          {result === 'cancelled' ? 'Checkout cancelado' : 'Checkout expirado'}
-        </h1>
-        <p className="mt-3 text-sm leading-relaxed text-fg-muted">
-          Sua clínica ainda não foi ativada. Volte ao plano para continuar o cadastro.
-        </p>
-        {message ? (
-          <div className="mt-5 text-left">
-            <Alert variant="warning">{message}</Alert>
+      <>
+        <PublicHeading
+          title={result === 'cancelled' ? 'Checkout cancelado' : 'Checkout expirado'}
+        />
+        <PublicBlock narrow>
+          <div className={signupFrame.center}>
+            <XCircle aria-hidden="true" className="size-9 text-warning-600" />
+            <p className={signupFrame.text}>
+              Sua clínica ainda não foi ativada. Volte ao plano para continuar o cadastro.
+            </p>
           </div>
-        ) : null}
-        <Button
-          type="button"
-          variant="secondary"
-          className="mt-6"
-          disabled={abandoning}
-          onClick={() => void abandon()}
-        >
-          {abandoning ? 'Encerrando Checkout…' : 'Voltar ao plano'}
-        </Button>
-      </div>
+          {message ? <Alert variant="warning">{message}</Alert> : null}
+          <div className={signupFrame.actions}>
+            <Button
+              type="button"
+              variant="secondary"
+              className={signupFrame.buttonFull}
+              disabled={abandoning}
+              onClick={() => void abandon()}
+            >
+              {abandoning ? 'Encerrando Checkout…' : 'Voltar ao plano'}
+            </Button>
+          </div>
+        </PublicBlock>
+      </>
     );
   }
 
   return (
-    <div className="text-center" aria-live="polite">
-      {phase === 'failed' ? (
-        <Clock3 aria-hidden="true" className="mx-auto size-9 text-warning-600" />
-      ) : (
-        <CheckCircle2 aria-hidden="true" className="mx-auto size-9 text-success-600" />
-      )}
-      <h1 className="mt-4 text-balance font-display text-2xl font-semibold">
-        {phase === 'failed' ? 'Aguardando confirmação' : 'Validando sua assinatura'}
-      </h1>
-      <p className="mt-3 text-sm leading-relaxed text-fg-muted">
-        {phase === 'checking'
-          ? 'Estamos conferindo o Checkout diretamente com o Asaas.'
-          : phase === 'waiting'
-            ? result === 'success'
-              ? 'O Checkout terminou no navegador. Agora aguardamos a confirmação da assinatura pelo Asaas.'
-              : 'A assinatura ainda não foi confirmada pelo Asaas. Estamos verificando novamente.'
-            : 'A ativação ainda não terminou.'}
-      </p>
-      {message ? (
-        <div className="mt-5 text-left">
-          <Alert variant="warning">{message}</Alert>
+    <div className={styles.liveStack} aria-live="polite">
+      <PublicHeading
+        title={phase === 'failed' ? 'Aguardando confirmação' : 'Validando sua assinatura'}
+      />
+      <PublicBlock narrow>
+        <div className={signupFrame.center}>
+          {phase === 'failed' ? (
+            <Clock3 aria-hidden="true" className="size-9 text-warning-600" />
+          ) : (
+            <CheckCircle2 aria-hidden="true" className="size-9 text-success-600" />
+          )}
+          <p className={signupFrame.text}>
+            {phase === 'checking'
+              ? 'Estamos conferindo o Checkout diretamente com o Asaas.'
+              : phase === 'waiting'
+                ? result === 'success'
+                  ? 'O Checkout terminou no navegador. Agora aguardamos a confirmação da assinatura pelo Asaas.'
+                  : 'A assinatura ainda não foi confirmada pelo Asaas. Estamos verificando novamente.'
+                : 'A ativação ainda não terminou.'}
+          </p>
         </div>
-      ) : null}
-      {phase === 'failed' ? (
-        <Button type="button" variant="secondary" className="mt-5" onClick={() => void verify()}>
-          Verificar novamente
-        </Button>
-      ) : null}
+        {message ? <Alert variant="warning">{message}</Alert> : null}
+        {phase === 'failed' ? (
+          <div className={signupFrame.actions}>
+            <Button
+              type="button"
+              variant="secondary"
+              className={signupFrame.buttonFull}
+              onClick={() => void verify()}
+            >
+              Verificar novamente
+            </Button>
+          </div>
+        ) : null}
+      </PublicBlock>
     </div>
   );
 }

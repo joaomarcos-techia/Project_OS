@@ -136,11 +136,37 @@ export function resolveTrustedApplicationOrigin(request: Request): string | null
   return null;
 }
 
+/**
+ * Origem dos links de Auth enviados por e-mail: redefinição de senha, convite da equipe, convite
+ * de clínica e a confirmação do cadastro quando a requisição não trouxe origem validada.
+ *
+ * Em Preview, o alias da branch injetado pela Vercel (`resolvePreviewCallbackOrigin`), como o
+ * cadastro, o Checkout e a troca de plano já fazem. A entrada geral de `APP_BASE_URL` do Preview
+ * aponta para outro deploy, e o link de redefinição abria o código de outra branch (medido no
+ * ciclo 8, 20/11/2026). Fora do Preview, só `APP_BASE_URL`. Nada vem de `Host`, `Origin` ou de
+ * parâmetro do cliente, e o resultado passa pelas mesmas travas de `buildApplicationUrl`.
+ */
+export function resolveAuthLinkOrigin(): string | undefined {
+  return resolvePreviewCallbackOrigin() ?? env.APP_BASE_URL;
+}
+
+function authLinkUrl(pathname: string): string {
+  const origin = resolveAuthLinkOrigin();
+  if (!origin) {
+    throw new Error(
+      '[app-url] APP_BASE_URL is required for transactional links and Auth redirects',
+    );
+  }
+  return buildApplicationUrl(origin, pathname, {
+    allowInsecureLocalhost: env.NODE_ENV !== 'production',
+  });
+}
+
 export function createOnboardingInviteUrl(rawToken: string): string {
   if (!isOnboardingInviteToken(rawToken)) {
     throw new Error('[app-url] onboarding invite token is invalid');
   }
-  const url = new URL(configuredApplicationUrl('/join'));
+  const url = new URL(authLinkUrl('/join'));
   url.hash = createOnboardingInvitePath(rawToken).slice('/join#'.length);
   return url.toString();
 }
@@ -189,7 +215,7 @@ export function createAuthConfirmationUrl(
     throw new Error('[app-url] auth confirmation token hash is required');
   }
 
-  const url = new URL(configuredApplicationUrl('/auth/confirm'));
+  const url = new URL(authLinkUrl('/auth/confirm'));
   url.hash = new URLSearchParams({
     token_hash: tokenHash,
     type,
@@ -226,7 +252,7 @@ export function createSignupConfirmationUrl(
       ? buildApplicationUrl(publicOrigin, '/auth/confirm', {
           allowInsecureLocalhost: env.NODE_ENV !== 'production',
         })
-      : configuredApplicationUrl('/auth/confirm'),
+      : authLinkUrl('/auth/confirm'),
   );
   url.hash = new URLSearchParams({
     token_hash: tokenHash,
@@ -253,7 +279,7 @@ export function createPasswordResetConfirmationUrl(tokenHash: string): string {
   if (!tokenHash.trim()) {
     throw new Error('[app-url] password reset token hash is required');
   }
-  const url = new URL(configuredApplicationUrl('/auth/confirm'));
+  const url = new URL(authLinkUrl('/auth/confirm'));
   url.hash = new URLSearchParams({
     token_hash: tokenHash,
     type: 'recovery',

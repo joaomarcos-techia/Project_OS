@@ -734,18 +734,15 @@ function RegistrationPinField({
   onChange: (pin: string) => void;
   disabled: boolean;
 }) {
-  const helpId = `${id}-help`;
+  // A ajuda é o `hint` do Field, que já a liga ao campo pelo id `${id}-hint` (UX-001). Antes
+  // havia também um `<span id="${id}-help">` dentro do hint e um `aria-describedby` próprio no
+  // campo: o leitor de tela anunciava a mesma frase duas vezes (P-21, 16/11/2026).
   return (
     <Field
       label="PIN de ativação do WhatsApp"
       htmlFor={id}
       required
-      hint={
-        <span id={helpId}>
-          Crie e guarde um PIN numérico de 6 dígitos. Ele ativa o número na Cloud API e não é salvo
-          pela Qoro.
-        </span>
-      }
+      hint="Crie e guarde um PIN numérico de 6 dígitos. Ele ativa o número na Cloud API e não é salvo pela Qoro."
     >
       <Input
         id={id}
@@ -758,7 +755,6 @@ function RegistrationPinField({
         value={value}
         onChange={(event) => onChange(event.target.value.replace(/\D/g, ''))}
         disabled={disabled}
-        aria-describedby={helpId}
         className="min-h-(--hit-target) max-w-80 font-mono"
       />
     </Field>

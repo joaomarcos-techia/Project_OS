@@ -17,15 +17,20 @@ export default async function SignupPlanPage() {
 
   return (
     <PublicPage>
-      <SignupStage step={3} trialFirst={trialFirst}>
-        <PublicHeading
-          title="Escolha seu plano"
-          lead={
-            trialFirst
-              ? 'Conheça o sistema por até 14 dias desde a criação da conta, sem cartão e sem cobrança inicial. Se optar por contratar durante a avaliação, confira o valor antes de pagar: o período pago começa após a confirmação do pagamento.'
-              : 'O plano fica salvo no seu cadastro. O pagamento será iniciado somente na próxima etapa, com o valor confirmado no checkout.'
-          }
-        />
+      {/* Com cartão: desenho aprovado no Claude Design ("Cadastro · 3. Checkout"). No trial_first
+          do #53 (sem cartão nesta etapa), o título e o texto da avaliação. */}
+      <SignupStage step={3} showLogin trialFirst={trialFirst}>
+        {trialFirst ? (
+          <PublicHeading
+            title="Escolha seu plano"
+            lead="Conheça o sistema por até 14 dias desde a criação da conta, sem cartão e sem cobrança inicial. Se optar por contratar durante a avaliação, confira o valor antes de pagar: o período pago começa após a confirmação do pagamento."
+          />
+        ) : (
+          <PublicHeading
+            title="Confirme o plano e o pagamento"
+            lead="Confira o plano e a quantidade de médicos. Se quiser, troque antes de continuar."
+          />
+        )}
         <PlanSelectionForm />
       </SignupStage>
     </PublicPage>

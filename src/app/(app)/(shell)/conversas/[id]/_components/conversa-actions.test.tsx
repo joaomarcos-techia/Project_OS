@@ -26,6 +26,7 @@ function renderWith(status: 'active' | 'handoff', handoff: AIHandoffState | null
       windowOpen
       windowClosesAt={null}
       lastInboundAt={null}
+      timeZone="America/Sao_Paulo"
       canManage
       handoff={handoff}
       currentUserId={ME}

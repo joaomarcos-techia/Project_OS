@@ -1,15 +1,19 @@
+import type { Metadata } from 'next';
 import { Alert } from '@/components/ui/alert';
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { AuthError, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
+import { requirePageUser } from '@/lib/auth/page-guard';
+import { AuthError, requireFreshPermission } from '@/lib/auth/tenant-context';
 
 import { HistoryImporter } from './history-importer';
+
+export const metadata: Metadata = { title: 'Importar histórico da agenda' };
 
 export const dynamic = 'force-dynamic';
 
 export default async function ImportAppointmentHistoryPage() {
-  await requireUser();
+  await requirePageUser();
   // A rota pode ser aberta diretamente mesmo quando a ação crítica continua
   // bloqueada. Exibir a negativa evita transformar RBAC esperado em erro 500.
   try {

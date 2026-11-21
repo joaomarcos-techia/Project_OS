@@ -214,6 +214,7 @@ describe('seleção de plano O-4', () => {
     expect(screen.getAllByText('/mês')).toHaveLength(2);
     expect(screen.getAllByText('7 dias grátis após a ativação')).toHaveLength(2);
     expect(within(screen.getByRole('complementary')).getByText('Clínica Sintética')).toBeTruthy();
+    expect(screen.getByRole('radiogroup', { name: 'Planos disponíveis' })).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledWith('/api/signup/plan', { cache: 'no-store' });
     expect(screen.queryByText(/Atendente: já está incluído/u)).toBeNull();
     expect(screen.queryByText('O que você pode testar')).toBeNull();
@@ -295,11 +296,24 @@ describe('seleção de plano O-4', () => {
       }),
     );
     render(<PlanSelectionForm />);
-    await screen.findByText('Clínica 2');
+    // Desenho aprovado: a família vem primeiro; a quantidade de médicos fica no resumo.
+    fireEvent.click(await screen.findByRole('button', { name: /^Clínica/u }));
+    const mais = screen.getByRole('button', { name: 'Mais um médico' });
+    const precos: Record<number, string> = { 2: '397,00', 3: '544,00', 4: '691,00', 5: '838,00' };
     for (const doctors of [2, 3, 4, 5]) {
-      expect(screen.getByText(`${doctors} médicos + até 3 acessos administrativos`)).toBeTruthy();
-      expect(screen.getByText(`Até ${doctors + 3} pessoas incluídas no total`)).toBeTruthy();
+      expect(screen.getByRole('group', { name: 'Médicos na clínica' }).textContent).toContain(
+        String(doctors),
+      );
+      expect(screen.getByText('Até 3 acessos administrativos')).toBeTruthy();
+      expect(screen.getByText('Pessoas no total').nextElementSibling?.textContent).toBe(
+        `Até ${doctors + 3}`,
+      );
+      expect(screen.getByText('Total mensal').nextElementSibling?.textContent).toMatch(
+        new RegExp(`R\\$\\s${precos[doctors]}/mês`, 'u'),
+      );
+      if (doctors < 5) fireEvent.click(mais);
     }
+    expect((mais as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText(/mesmo antes de preencher o CRM/u)).toBeTruthy();
   });
 
@@ -320,8 +334,15 @@ describe('seleção de plano O-4', () => {
       }),
     );
     render(<PlanSelectionForm />);
-    expect(await screen.findByText(/termina em 01\/10\/2026, 10:45/u)).toBeTruthy();
-    expect(screen.getByText(/Após esse horário, acesso só com pagamento confirmado/u)).toBeTruthy();
+    fireEvent.click(await screen.findByRole('button', { name: /^Consultório/u }));
+    expect(
+      screen.getByText(/A avaliação terminou em 01\/10\/2026, 10:45 \(Brasília\)/u),
+    ).toBeTruthy();
+    expect(screen.getByText(/O acesso continua só com o pagamento confirmado/u)).toBeTruthy();
+    expect(screen.getByText(/R\$\s197,00 · primeira mensalidade/u)).toBeTruthy();
+    expect(screen.getByText('Primeira mensalidade').nextElementSibling?.textContent).toBe('hoje');
+    expect(screen.getByText(/a primeira mensalidade é cobrada hoje/u)).toBeTruthy();
+    expect(screen.queryByText(/R\$\s0,00/u)).toBeNull();
   });
 
   it('mostra preço anual e envia plano mais ciclo sem aceitar preço do browser', async () => {
@@ -362,7 +383,8 @@ describe('seleção de plano O-4', () => {
     fireEvent.click(screen.getByRole('button', { name: /Anual/u }));
     expect(screen.getByText(/R\$.*1\.970,00/u)).toBeTruthy();
     expect(screen.queryByText(/R\$.*197,00/u)).toBeNull();
-    fireEvent.click(screen.getByRole('radio', { name: /Consultório/u }));
+    fireEvent.click(screen.getByRole('button', { name: /^Consultório/u }));
+    expect(screen.getByText('Total anual')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Continuar para o checkout' }));
     await screen.findByText('Plano salvo');
     expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
@@ -557,7 +579,8 @@ describe('seleção de plano O-4', () => {
     fireEvent.submit(form);
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(screen.getByRole('radio', { name: /Essencial/u })).toHaveProperty('disabled', true);
-    expect(screen.getByRole('button', { name: /Continuar para o checkout/u })).toHaveProperty(
+    // Estado "processando" da prancha: o pagamento seguro está sendo aberto.
+    expect(screen.getByRole('button', { name: 'Abrindo o pagamento seguro…' })).toHaveProperty(
       'disabled',
       true,
     );
@@ -613,5 +636,149 @@ describe('seleção de plano O-4', () => {
     await screen.findByText('Não foi possível salvar o plano. Tente novamente.');
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(assignMock).not.toHaveBeenCalled();
+  });
+});
+
+// Checkout no desenho aprovado no Claude Design ("Cadastro · 3. Checkout"), 18/11/2026.
+describe('checkout do cadastro no desenho aprovado', () => {
+  // O painel "Hoje / Primeira mensalidade" depende do relógio: fixa a data (só o Date).
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-18T15:00:00.000Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const OFERTA = [
+    { id: 'consultorio', code: 'consultorio_2026', name: 'Consultório', priceCents: 19_700 },
+    ...[2, 3, 4, 5].map((doctors) => ({
+      id: `clinica-${doctors}`,
+      code: `clinica_2026_${doctors}`,
+      name: `Clínica · ${doctors} médicos`,
+      priceCents: 39_700 + (doctors - 2) * 14_700,
+    })),
+  ].map((plan) => ({ ...plan, cycle: 'monthly' as const }));
+
+  const texto = (el: Element | null | undefined) => el?.textContent?.replace(/\s/gu, ' ');
+
+  function estado(selectedPlanId: string | null, plans = OFERTA) {
+    return {
+      ...STATE,
+      trialDays: 14,
+      offerTrialEndsAt: '2026-12-02T15:00:00.000Z',
+      selectedPlanId,
+      plans,
+    };
+  }
+
+  it('mostra o plano vindo do site no resumo: família, médicos, linhas, total e hoje', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, estado('clinica-3')));
+    render(<PlanSelectionForm />);
+    expect(await screen.findByRole('heading', { name: 'Clínica' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Cartão de crédito' })).toBeTruthy();
+    expect(screen.getByRole('group', { name: 'Médicos na clínica' }).textContent).toContain('3');
+    expect(texto(screen.getByText('Plano Clínica com 2 médicos').nextElementSibling)).toBe(
+      'R$ 397,00',
+    );
+    expect(texto(screen.getByText('1 médico extra × R$ 147,00').nextElementSibling)).toBe(
+      'R$ 147,00',
+    );
+    expect(texto(screen.getByText('Total mensal').nextElementSibling)).toBe('R$ 544,00/mês');
+    expect(screen.getByText('R$ 0,00 · 14 dias grátis')).toBeTruthy();
+    expect(texto(screen.getByText('Primeira mensalidade').nextElementSibling)).toBe('03/12/2026');
+    expect(screen.getByText(/Grátis até 02\/12\/2026, 12:00 \(Brasília\)/u)).toBeTruthy();
+    expect(
+      screen.getByText(/Nada é cobrado hoje; a primeira mensalidade vence em 03\/12\/2026/u),
+    ).toBeTruthy();
+    expect(screen.getByText('O cartão é informado na página segura do Asaas.')).toBeTruthy();
+    // No carregamento o plano já está no resumo; o aviso só vem depois de salvar.
+    expect(screen.queryByText('Plano salvo')).toBeNull();
+    // Nenhum campo de cartão: o cartão é informado na página hospedada.
+    expect(document.querySelector('input[autocomplete^="cc-"]')).toBeNull();
+  });
+
+  it('Trocar plano alterna entre Consultório e Clínica, e o resumo acompanha', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, estado('clinica-3')));
+    render(<PlanSelectionForm />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Trocar plano: mudar para Consultório' }),
+    );
+    expect(screen.getByRole('heading', { name: 'Consultório' })).toBeTruthy();
+    expect(screen.queryByRole('group', { name: 'Médicos na clínica' })).toBeNull();
+    expect(texto(screen.getByText('Total mensal').nextElementSibling)).toBe('R$ 197,00/mês');
+    fireEvent.click(screen.getByRole('button', { name: 'Trocar plano: mudar para Clínica' }));
+    expect(screen.getByRole('heading', { name: 'Clínica' })).toBeTruthy();
+    expect(texto(screen.getByText('Total mensal').nextElementSibling)).toBe('R$ 397,00/mês');
+  });
+
+  it('o seletor de médicos escolhe o plano do servidor e só ele vai no PUT', async () => {
+    fetchMock
+      .mockResolvedValueOnce(json(200, estado('clinica-3')))
+      .mockResolvedValueOnce(
+        json(200, { rowVersion: 8, selectedPlanId: 'clinica-4', selectedBillingCycle: 'monthly' }),
+      )
+      .mockResolvedValueOnce(json(200, { state: 'pending' }));
+    render(<PlanSelectionForm />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Mais um médico' }));
+    expect(texto(screen.getByText('Total mensal').nextElementSibling)).toBe('R$ 691,00/mês');
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar para o checkout' }));
+    await waitFor(() =>
+      expect(assignMock).toHaveBeenCalledWith('/cadastro/pagamento?resultado=pending'),
+    );
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
+      rowVersion: 7,
+      planId: 'clinica-4',
+      cycle: 'monthly',
+    });
+    expect(screen.getByText('Plano salvo')).toBeTruthy();
+  });
+
+  it('com só os planos de entrada, o seletor fica em 2 e diz onde ampliar', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, estado('clinica-2', OFERTA.slice(0, 2))));
+    render(<PlanSelectionForm />);
+    const menos = await screen.findByRole('button', { name: 'Menos um médico' });
+    expect((menos as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (screen.getByRole('button', { name: 'Mais um médico' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(screen.getByText('Amplie depois, na assinatura.')).toBeTruthy();
+    expect(screen.queryByText(/médico extra/u)).toBeNull();
+  });
+
+  it('conta os dias que restam da avaliação, sem prometer 14 quando já passaram alguns', async () => {
+    vi.setSystemTime(new Date('2026-11-29T15:00:00.000Z'));
+    fetchMock.mockResolvedValueOnce(json(200, estado('clinica-3')));
+    render(<PlanSelectionForm />);
+    expect(await screen.findByText('R$ 0,00 · 3 dias grátis')).toBeTruthy();
+  });
+
+  it('cartão recusado pelo provedor: aviso no topo do pagamento, nada cobrado, nova tentativa limpa', async () => {
+    fetchMock
+      .mockResolvedValueOnce(json(200, estado('clinica-3')))
+      .mockResolvedValueOnce(json(402, { error: 'declined' }))
+      .mockResolvedValueOnce(json(200, { state: 'pending' }));
+    render(<PlanSelectionForm />);
+    // Plano já salvo: o clique vai direto ao checkout.
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar para o checkout' }));
+    const alerta = await screen.findByText('O provedor recusou o pagamento. Nada foi cobrado.');
+    const pagamento = screen.getByRole('region', { name: 'Cartão de crédito' });
+    expect(pagamento.contains(alerta)).toBe(true);
+    expect(assignMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar para o checkout' }));
+    await waitFor(() =>
+      expect(assignMock).toHaveBeenCalledWith('/cadastro/pagamento?resultado=pending'),
+    );
+    expect(screen.queryByText('O provedor recusou o pagamento. Nada foi cobrado.')).toBeNull();
+  });
+
+  it('sem plano escolhido, pede a família e não deixa seguir sem escolha', async () => {
+    fetchMock.mockResolvedValueOnce(json(200, estado(null)));
+    render(<PlanSelectionForm />);
+    expect(await screen.findByRole('heading', { name: 'Escolha o plano' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^Clínica De 2 a 5 médicos/u })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar para o checkout' }));
+    expect(await screen.findByText('Selecione um plano para continuar.')).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

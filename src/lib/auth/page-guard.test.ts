@@ -14,7 +14,10 @@ vi.mock('server-only', () => ({}));
 vi.mock('next/navigation', () => ({ redirect: (to: string) => redirect(to) }));
 vi.mock('./tenant-context', () => ({ authenticate: () => authenticate() }));
 
-const { pageGate, resourceGate } = await import('./page-guard');
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, resolve, sep } from 'node:path';
+
+const { pageGate, requirePageUser, resourceGate } = await import('./page-guard');
 
 interface FakeUser {
   isSuperAdmin: boolean;
@@ -108,5 +111,57 @@ describe('resourceGate', () => {
     authenticate.mockResolvedValue(identity({ permissions: [PERMISSIONS.VIEW_PRESCRIPTION] }));
     const gate = await resourceGate([PERMISSIONS.VIEW_PRESCRIPTION]);
     expect(gate?.clinicId).toBe('clinic-a');
+  });
+});
+
+describe('requirePageUser', () => {
+  it.each(['TOKEN_INVALID', 'CLAIMS_OUTDATED', 'USER_DISABLED', 'USER_DELETED'])(
+    'sessão %s vira ida ao /login, não AuthError (OBS-001)',
+    async (reason) => {
+      authenticate.mockResolvedValue({ ok: false, reason });
+      await expect(requirePageUser()).rejects.toThrow('NEXT_REDIRECT');
+      expect(redirect).toHaveBeenCalledWith('/login');
+    },
+  );
+
+  it('devolve a mesma identidade de requireUser quando a sessão vale', async () => {
+    authenticate.mockResolvedValue(identity({ permissions: [PERMISSIONS.VIEW_AGENDA] }));
+    const user = await requirePageUser();
+    expect(user.userId).toBe('u1');
+    expect(user.permissions).toEqual([PERMISSIONS.VIEW_AGENDA]);
+    expect(redirect).not.toHaveBeenCalled();
+  });
+});
+
+/*
+  Contrato estático: nenhuma página do shell lê o usuário com `requireUser()` no render (com a
+  sessão morta, ele lança e a tela vira "Algo deu errado"). A exceção é a de Assinatura, que o
+  PR #53 (billing) está alterando: a troca fica com ele (docs/otimização_ui_final.md, 32).
+*/
+describe('páginas do shell', () => {
+  const shell = resolve(process.cwd(), 'src/app/(app)/(shell)');
+  const PENDENTES_DE_OUTRO_PR = new Set(['configuracoes/assinatura/page.tsx']);
+
+  function pages(dir: string): string[] {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) return pages(path);
+      return entry.name === 'page.tsx' ? [path] : [];
+    });
+  }
+
+  it('leem o usuário por requirePageUser, pageGate ou getCurrentUser, nunca requireUser no render', () => {
+    const offenders = pages(shell)
+      .map((path) =>
+        path
+          .slice(shell.length + 1)
+          .split(sep)
+          .join('/'),
+      )
+      .filter((relative) => !PENDENTES_DE_OUTRO_PR.has(relative))
+      .filter((relative) =>
+        readFileSync(join(shell, relative), 'utf8').includes('await requireUser()'),
+      );
+    expect(offenders).toEqual([]);
   });
 });

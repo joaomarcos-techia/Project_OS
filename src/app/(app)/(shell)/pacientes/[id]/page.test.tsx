@@ -35,9 +35,13 @@ vi.mock('@/contexts/clinical/queries', () => ({
   listProntuariosByPatient,
   listRecentProntuariosByPatient,
 }));
+vi.mock('@/contexts/tenancy/queries', () => ({
+  getClinicTimezone: vi.fn(async () => 'America/Sao_Paulo'),
+}));
 vi.mock('@/lib/auth/page-guard', () => ({ pageGate }));
 vi.mock('next/navigation', () => ({ notFound, redirect }));
 
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 
 import PacienteDetailPage, {
@@ -124,6 +128,8 @@ describe('/pacientes/[id] CRM', () => {
     expect(listRecentProntuariosByPatient).not.toHaveBeenCalled();
     expect(listProntuariosByPatient).not.toHaveBeenCalled();
     expect(listClinicalDocumentFeed).not.toHaveBeenCalled();
+    // Só a de DadosTab: sem permissão clínica, a atividade não consulta nada.
+    expect(getClinicTimezone).toHaveBeenCalledTimes(1);
   });
 
   it('consulta somente os feeds já existentes quando cada permissão autoriza', async () => {

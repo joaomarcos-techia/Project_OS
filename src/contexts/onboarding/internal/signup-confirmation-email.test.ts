@@ -17,6 +17,7 @@ const seams = vi.hoisted(() => ({
   readCodeFlow: vi.fn(),
   recordCodeDelivery: vi.fn(),
   bindCodeUser: vi.fn(),
+  notifyExisting: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/supabase-admin', () => ({
@@ -34,6 +35,9 @@ vi.mock('@/lib/auth/supabase-admin', () => ({
 vi.mock('./signup-session', () => ({
   readSignupDeliveryAttemptState: seams.readAttemptState,
   readSignupReferenceLiveness: seams.readReferenceLiveness,
+}));
+vi.mock('./signup-existing-account-notice', () => ({
+  notifyExistingSignupAccount: seams.notifyExisting,
 }));
 vi.mock('./signup-auth-admin', () => ({
   validateLegacySignupDeliveryCandidate: seams.validateLegacyCandidate,
@@ -116,6 +120,7 @@ beforeEach(() => {
     user: { id: 'u1', email, email_confirmed_at: null, app_metadata: pendingAppMetadata },
   });
   seams.sendEmail.mockResolvedValue({ providerMessageId: 'msg_1' });
+  seams.notifyExisting.mockResolvedValue(undefined);
 });
 
 describe('sendSignupConfirmation', () => {
@@ -236,6 +241,7 @@ describe('sendSignupConfirmation', () => {
     await expect(sendInitial()).resolves.toEqual({ kind: 'obfuscated' });
     expect(seams.generateLink).not.toHaveBeenCalled();
     expect(seams.sendEmail).not.toHaveBeenCalled();
+    expect(seams.notifyExisting).not.toHaveBeenCalled();
   });
 
   it.each(['email_exists', 'user_already_exists'])(
@@ -265,6 +271,7 @@ describe('sendSignupConfirmation', () => {
       await expect(sendInitial()).resolves.toEqual({ kind: 'sent' });
       expect(seams.generateLink).toHaveBeenCalledOnce();
       expect(seams.sendEmail).toHaveBeenCalledOnce();
+      expect(seams.notifyExisting).not.toHaveBeenCalled();
     },
   );
 
@@ -326,6 +333,29 @@ describe('sendSignupConfirmation', () => {
     });
     await expect(sendInitial()).resolves.toEqual({ kind: 'obfuscated' });
     expect(seams.generateLink).not.toHaveBeenCalled();
+    expect(seams.sendEmail).not.toHaveBeenCalled();
+    expect(seams.notifyExisting).toHaveBeenCalledOnce();
+    expect(seams.notifyExisting).toHaveBeenCalledWith({
+      user: { id: 'u1', email, email_confirmed_at: '2026-09-23T12:00:00Z' },
+      email,
+      signupRef,
+      attemptEpoch,
+      stage: 'initial',
+      publicOrigin,
+    });
+  });
+
+  it('com senha, conta existente recebe só o aviso: sem vínculo nem código', async () => {
+    seams.createUser.mockResolvedValue({ data: { user: null }, error: { code: 'email_exists' } });
+    seams.findUserByEmail.mockResolvedValue({
+      kind: 'found',
+      user: { id: 'u1', email, email_confirmed_at: '2026-09-23T12:00:00Z' },
+    });
+    await expect(sendWithPassword()).resolves.toEqual({ kind: 'obfuscated' });
+    expect(seams.notifyExisting).toHaveBeenCalledOnce();
+    expect(seams.sendEmail).not.toHaveBeenCalled();
+    expect(seams.bindCodeUser).not.toHaveBeenCalled();
+    expect(seams.recordCodeDelivery).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -623,6 +653,12 @@ describe('resendSignupConfirmation', () => {
     await expect(resend()).resolves.toEqual({ kind: 'obfuscated' });
     expect(seams.generateLink).not.toHaveBeenCalled();
     expect(seams.sendEmail).not.toHaveBeenCalled();
+    expect(seams.notifyExisting).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user: { id: 'u1', email, email_confirmed_at: '2026-09-22T10:00:00Z' },
+        stage: 'resend',
+      }),
+    );
   });
 
   it('não invalida um recovery legítimo de conta já confirmada', async () => {
@@ -634,6 +670,10 @@ describe('resendSignupConfirmation', () => {
     await expect(resend()).resolves.toEqual({ kind: 'obfuscated' });
     expect(seams.generateLink).not.toHaveBeenCalled();
     expect(seams.sendEmail).not.toHaveBeenCalled();
+    expect(seams.notifyExisting).toHaveBeenCalledOnce();
+    expect(seams.notifyExisting).toHaveBeenCalledWith(
+      expect.objectContaining({ stage: 'resend', email, signupRef, attemptEpoch, publicOrigin }),
+    );
   });
 
   it('faz um único lookup indexado antes de decidir que a conta confirmada existe', async () => {

@@ -5,7 +5,7 @@ import { PageNoAccess } from '@/components/shared/page-no-access';
 import Link from 'next/link';
 import { Alert } from '@/components/ui/alert';
 import { requireClinicId } from '@/lib/auth/tenant-context';
-import { loadTrialAccess } from '@/lib/trial-access';
+import { loadTrialAccessForRequest } from '../../_painel/trial-access-request';
 
 import { readWhatsappProfileAction } from './actions';
 import { loadWhatsappStatus } from './data';
@@ -36,7 +36,7 @@ export default async function WhatsappSettingsPage() {
       />
     );
   }
-  const trial = await loadTrialAccess(await requireClinicId());
+  const trial = await loadTrialAccessForRequest(await requireClinicId());
   if (trial?.restricted) {
     return (
       <Alert title="WhatsApp disponível após o pagamento">

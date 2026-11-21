@@ -1,16 +1,35 @@
-.waitingNotice {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2);
-  min-height: 44px;
-  margin-bottom: var(--sp-3);
-  padding: var(--sp-2) var(--sp-4);
-  border: 1px solid var(--warning-200);
-  border-radius: var(--r-md);
-  background: var(--warning-50);
-  color: var(--warning-700);
-  font-size: var(--fs-sm);
+/* Faixa de indicadores do período, com o ponto do status no rótulo. */
+.summary {
+  --kc-min: 150px;
+  margin-bottom: 16px;
+}
+
+.dot {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.dotDone {
+  background: var(--meter-done);
+}
+
+.dotWaiting {
+  background: var(--meter-waiting);
+}
+
+.dotNow {
+  background: var(--meter-now);
+}
+
+.dotMissed {
+  background: var(--meter-missed);
+}
+
+.dotCancelled {
+  background: var(--meter-cancelled);
+  box-shadow: inset 0 0 0 1.5px var(--meter-cancelled-ring);
 }
 
 .day {
@@ -47,23 +66,6 @@
   background: var(--surface-2);
   color: var(--text-2);
   font-size: var(--fs-xs);
-}
-
-.summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 14px;
-  font-size: 12.5px;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-2);
-}
-
-.summary > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
 }
 
 @media (max-width: 767px) {

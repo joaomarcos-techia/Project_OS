@@ -14,6 +14,7 @@ import {
   Drawer,
   DrawerBody,
   DrawerContent,
+  DrawerDescription,
   DrawerFooter,
   DrawerHeader,
   DrawerTitle,
@@ -191,6 +192,9 @@ export function PrescriptionDrawer({
       <DrawerContent size="lg">
         <DrawerHeader>
           <DrawerTitle>Emitir prescrição</DrawerTitle>
+          <DrawerDescription>
+            Receita deste atendimento, com validação das credenciais profissionais.
+          </DrawerDescription>
         </DrawerHeader>
         <DrawerBody className="flex flex-col gap-4">
           {error ? <Alert variant="danger">{error}</Alert> : null}

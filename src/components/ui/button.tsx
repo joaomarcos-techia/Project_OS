@@ -22,22 +22,26 @@ export const buttonVariants = cva(
   {
     variants: {
       variant: {
+        // Sombras, bordas e o perigo leem ganchos de `globals.css`. No `:root`
+        // eles valem exatamente o que estava escrito aqui; o app v5 da clínica
+        // os redefine (primário sem sombra, perigo com contorno vermelho).
         primary:
-          'border-transparent bg-primary text-on-primary shadow-[0_1px_2px_oklch(0.4_0.1_264/0.25),inset_0_1px_0_oklch(1_0_0/0.12)] hover:bg-(--primary-hover) active:bg-(--primary-active)',
-        secondary: 'border-(--field-border) bg-surface text-fg shadow-xs hover:bg-surface-hover',
+          'border-transparent bg-primary text-on-primary shadow-(--btn-primary-shadow) hover:bg-(--primary-hover) active:bg-(--primary-active)',
+        secondary:
+          'border-(--btn-border) bg-surface text-fg shadow-xs hover:border-(--btn-border-hover) hover:bg-surface-hover',
         subtle: 'border-border bg-surface text-fg shadow-none hover:bg-surface-hover',
         soft: 'border-transparent bg-(--primary-soft) text-(--primary-active) shadow-none hover:bg-[color-mix(in_oklch,var(--primary)_16%,var(--surface))] dark:text-fg',
         ghost:
-          'border-transparent bg-transparent text-fg-muted shadow-none hover:bg-surface-hover hover:text-fg',
+          'border-transparent bg-transparent text-(--btn-ghost-fg) shadow-none hover:bg-surface-hover hover:text-fg',
         accent:
           'border-transparent bg-ai text-on-ai shadow-[0_1px_2px_oklch(0.5_0.12_320/0.25),inset_0_1px_0_oklch(1_0_0/0.14)] hover:brightness-105',
         danger:
-          'border-transparent bg-danger-600 text-[oklch(0.99_0.01_27)] shadow-[0_1px_2px_oklch(0.5_0.2_27/0.25),inset_0_1px_0_oklch(1_0_0/0.12)] hover:bg-danger-700',
+          'border-(--btn-danger-border) bg-(--btn-danger-bg) text-(--btn-danger-fg) shadow-(--btn-danger-shadow) hover:border-(--btn-danger-border-hover) hover:bg-(--btn-danger-bg-hover)',
         success:
           'border-transparent bg-success-600 text-[oklch(0.99_0.01_152)] shadow-[0_1px_2px_oklch(0.5_0.1_151/0.25),inset_0_1px_0_oklch(1_0_0/0.12)] hover:bg-success-700',
       },
       size: {
-        sm: 'h-(--control-h-sm) gap-1.5 px-2.5 text-(length:--fs-xs)',
+        sm: 'h-(--control-h-sm) gap-1.5 px-2.5 text-(length:--btn-sm-fs)',
         md: '',
         lg: 'h-(--control-h-lg) px-5 text-(length:--fs-base)',
       },

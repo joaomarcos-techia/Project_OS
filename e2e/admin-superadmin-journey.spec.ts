@@ -211,7 +211,7 @@ test.describe.serial('jornada do super_admin (Preview)', () => {
     await page
       .getByLabel('Código de 6 dígitos')
       .fill(await proximoCodigoInedito(secret, codigosUsados));
-    await page.getByRole('button', { name: 'Verificar' }).click();
+    await page.getByRole('button', { name: 'Confirmar' }).click();
     await expect(page, 'o TOTP não elevou para AAL2').toHaveURL(/\/admin(?:\?|$)/u, {
       timeout: 60_000,
     });

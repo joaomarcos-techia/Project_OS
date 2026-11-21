@@ -25,8 +25,11 @@ describe('MfaPage', () => {
 
     render(<MfaPage />);
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Código TOTP' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Verificar' })).toBeTruthy();
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Verificação em duas etapas' }),
+    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Confirmar' })).toBeTruthy();
+    expect(screen.getByLabelText('Código de 6 dígitos')).toBeTruthy();
     const switchButton = screen.getByRole('button', { name: 'Usar outra conta' });
     expect(switchButton.getAttribute('type')).toBe('submit');
     expect(switchButton.closest('form')).toBeTruthy();

@@ -1,49 +1,49 @@
-/* Indicadores agrupados por pergunta. A primeira seção é mais larga porque
-   carrega três valores monetários; as outras duas, dois cada. */
+/* Indicadores agrupados por pergunta — app v5: três cartões que quebram sozinhos
+   e, abaixo, os quatro desfechos numa faixa só, separados por linhas finas. */
 .sections {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
 .section {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  overflow: hidden;
+  gap: 14px;
+  padding: 18px 20px;
   border: 1px solid var(--border);
-  border-radius: var(--r-lg);
+  border-radius: var(--card-radius);
   background: var(--surface);
 }
 
 .sectionHead {
   display: flex;
-  min-height: 44px;
   align-items: center;
-  gap: 12px;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--border);
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .sectionHead h2 {
   margin: 0;
   color: var(--text);
-  font-size: 13.5px;
+  font-family: var(--font-display);
+  font-size: 14px;
   font-weight: 600;
-  line-height: 1;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
 }
 
 .sectionAction {
-  margin-left: auto;
-  font-size: var(--fs-caption);
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .sectionCells {
-  display: grid;
-  flex: 1;
-  grid-auto-columns: minmax(0, 1fr);
-  grid-auto-flow: column;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
 }
 
 .sectionCells > div,
@@ -51,25 +51,40 @@
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 8px;
-  padding: 13px 16px;
-  border-right: 1px solid var(--border-subtle, var(--border));
 }
 
-.sectionCells > div:last-child,
-.outcomes > div:last-child {
-  border-right: 0;
+.meter {
+  display: flex;
+  height: 8px;
+  gap: 2px;
 }
 
-/* Os quatro desfechos: uma faixa só, porque somam o mesmo total. */
+.meter > span {
+  border-radius: 2px;
+  background: var(--border);
+}
+
+.meter > span:first-child {
+  background: var(--primary);
+}
+
 .outcomes {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-bottom: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: var(--r-lg);
+  border-radius: var(--card-radius);
   background: var(--surface);
+}
+
+.outcomes > div {
+  flex: 1 1 180px;
+  gap: 4px;
+  padding: 16px 20px;
+  box-shadow:
+    1px 0 0 var(--border-soft),
+    0 1px 0 var(--border-soft);
 }
 
 .cellLabel {
@@ -77,49 +92,37 @@
   align-items: center;
   gap: 6px;
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
-  line-height: 1;
 }
 
 .cellLabel svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   flex: none;
   color: var(--text-3);
 }
 
 .cellValue {
-  font-family: var(--font-mono);
-  font-size: 21px;
+  font-family: var(--font-display);
+  font-size: clamp(20px, 2.2vw, 24px);
   font-weight: 600;
-  line-height: 1;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .cellNote {
-  color: var(--text-3);
-  font-size: 12px;
-  line-height: 1.3;
-}
-
-@media (max-width: 1100px) {
-  .sections {
-    grid-template-columns: 1fr;
-  }
-  .outcomes {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .outcomes > div:nth-child(2n) {
-    border-right: 0;
-  }
+  color: var(--text-2);
+  font-size: 13px;
 }
 
 .metrics {
   gap: 0;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: var(--r-lg);
+  border-radius: var(--card-radius);
   background: var(--surface);
 }
 .metrics > div {
@@ -210,6 +213,7 @@
   justify-content: flex-end;
   gap: 8px;
   min-width: 0;
+  container-type: inline-size;
 }
 
 .weekValue {
@@ -284,11 +288,92 @@
   white-space: nowrap;
 }
 
+.weekLabelShort {
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  display: none;
+  color: var(--text-3);
+  font-size: var(--fs-2xs);
+  font-variant-numeric: tabular-nums;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+/* A largura que importa é a da coluna, não a da tela: 90 dias apertam as barras
+   mesmo no tablet. Os valores somem porque a tabela logo abaixo traz cada um e
+   marca a semana em curso. */
+@container (max-width: 100px) {
+  .weekLabel {
+    display: none;
+  }
+
+  .weekLabelShort {
+    display: block;
+  }
+}
+
+@container (max-width: 56px) {
+  .weekValue,
+  .weekOngoing {
+    display: none;
+  }
+
+  /* Sem o texto "período futuro", a altura é o que separa esta coluna do traço
+     de "sem dado", que diria que faltou registro numa semana que nem começou. */
+  .weekFillFuture {
+    height: 6px;
+  }
+}
+
+@container (max-width: 22px) {
+  .weekBar:nth-child(even) .weekLabelShort {
+    visibility: hidden;
+  }
+}
+
+/* 90 dias no celular: nem um rótulo sim, um não cabe. */
+@container (max-width: 9px) {
+  .weekBar:not(:nth-child(3n + 1)) .weekLabelShort {
+    visibility: hidden;
+  }
+
+  .weekBar:nth-child(3n + 1) .weekLabelShort {
+    visibility: visible;
+  }
+}
+
+@media (max-width: 640px) {
+  .weekChart {
+    margin-right: 0;
+  }
+
+  .weekGrid,
+  .weekBars {
+    right: 4px;
+  }
+
+  .weekBars {
+    gap: 8px;
+  }
+}
+
+.weekRowOngoing {
+  color: var(--text-3);
+  font-weight: 400;
+}
+
+/* As colunas numéricas não quebram; sem piso, a semana é que pagaria a conta. */
+.weekTable td:first-child {
+  min-width: 156px;
+}
+
 .weekTable td:not(:first-child),
 .weekTable th:not(:first-child) {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   text-align: right;
+  white-space: nowrap;
 }
 
 .weekTable th:not(:first-child) {

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getShellIdentity } from '@/components/painel/shell-identity';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { assertPdfExportAllowed } from '@/lib/auth/rate-limit';
 import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
@@ -35,10 +36,11 @@ export async function GET(request: Request): Promise<Response> {
   const periodLabel = PERIODS.find((p) => p.key === period.key)?.label ?? period.key;
   const canFinancial = user.permissions.includes(PERMISSIONS.VIEW_FINANCIAL);
 
-  const [data, porProfissional, identity] = await Promise.all([
+  const [data, porProfissional, identity, timeZone] = await Promise.all([
     getRelatorios(clinicId, period.days, { includeFaturamento: canFinancial }),
     getConsolidadoPorProfissional(clinicId, period.days, { includeFaturamento: canFinancial }),
     getShellIdentity(),
+    getClinicTimezone(clinicId),
   ]);
 
   const pdf = await renderRelatorioPDF({
@@ -46,7 +48,7 @@ export async function GET(request: Request): Promise<Response> {
     periodLabel,
     fromLabel: data.fromLabel,
     toLabel: data.toLabel,
-    generatedAt: new Date().toLocaleString('pt-BR'),
+    generatedAt: new Date().toLocaleString('pt-BR', { timeZone }),
     includeFaturamento: canFinancial,
     kpis: {
       faturamento: canFinancial ? data.faturamento : null,

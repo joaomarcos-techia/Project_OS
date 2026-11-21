@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/card';
 import { SearchField } from '@/components/ui/filter-bar';
 
 import type { DocTopic } from './content';
+import styles from './help.module.css';
 
 function searchable(text: string): string {
   return text.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('pt-BR');
@@ -36,12 +37,12 @@ export function HelpIndex({ topics }: { topics: readonly DocTopic[] }) {
   const categories = [...new Set(topics.map((topic) => topic.category))];
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <label htmlFor="help-search" className="mb-2 block text-(length:--fs-sm) font-medium">
+    <div className={styles.index}>
+      <Card className={styles.searchCard ?? ''}>
+        <label htmlFor="help-search" className={styles.searchLabel}>
           Qual é a sua dúvida?
         </label>
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <div className={styles.searchRow}>
           <SearchField
             id="help-search"
             className="min-w-0"
@@ -58,10 +59,16 @@ export function HelpIndex({ topics }: { topics: readonly DocTopic[] }) {
             </Button>
           ) : null}
         </div>
-        <p id="help-results" role="status" className="mt-2 text-(length:--fs-xs) text-fg-muted">
-          {filtered.length === 1 ? '1 guia encontrado' : `${filtered.length} guias encontrados`}
-        </p>
-      </div>
+        <div className={styles.searchFoot}>
+          <p id="help-results" role="status">
+            {filtered.length === 1 ? '1 guia encontrado' : `${filtered.length} guias encontrados`}
+          </p>
+          <p>
+            As opções dependem do seu plano e das permissões da sua conta. Precisa de acesso? Fale
+            com o responsável pela clínica.
+          </p>
+        </div>
+      </Card>
 
       {filtered.length === 0 ? (
         <Card className="p-5">
@@ -71,40 +78,33 @@ export function HelpIndex({ topics }: { topics: readonly DocTopic[] }) {
           </p>
         </Card>
       ) : (
-        categories.map((category) => {
-          const items = filtered.filter((topic) => topic.category === category);
-          if (!items.length) return null;
-          return (
-            <section key={category} aria-label={category}>
-              <h2 className="mb-3 text-(length:--fs-h4) font-semibold">{category}</h2>
-              <ul className="grid gap-3 md:grid-cols-2" data-testid="doc-topics">
-                {items.map((topic) => (
-                  <li key={topic.slug}>
-                    <Card className="h-full overflow-hidden">
-                      <Link
-                        href={`/documentação/${topic.slug}`}
-                        className="flex h-full min-h-20 items-center gap-3 p-4 transition-colors hover:bg-surface-hover focus-visible:shadow-(--focus-ring) focus-visible:outline-none"
-                      >
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-(length:--fs-sm) font-semibold">
-                            {topic.title}
-                          </span>
-                          <span className="mt-1 block text-pretty text-(length:--fs-xs) text-fg-muted">
-                            {topic.summary}
-                          </span>
+        <div className={styles.groups}>
+          {categories.map((category) => {
+            const items = filtered.filter((topic) => topic.category === category);
+            if (!items.length) return null;
+            return (
+              <section key={category} aria-label={category} className={styles.group}>
+                <div className={styles.groupHead}>
+                  <h2>{category}</h2>
+                  <span>{items.length === 1 ? '1 guia' : `${items.length} guias`}</span>
+                </div>
+                <ul data-testid="doc-topics">
+                  {items.map((topic) => (
+                    <li key={topic.slug}>
+                      <Link href={`/documentação/${topic.slug}`} className={styles.guide}>
+                        <span className={styles.guideCopy}>
+                          <b>{topic.title}</b>
+                          <span>{topic.summary}</span>
                         </span>
-                        <ChevronRight
-                          aria-hidden="true"
-                          className="size-4 shrink-0 text-fg-subtle"
-                        />
+                        <ChevronRight aria-hidden="true" />
                       </Link>
-                    </Card>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          );
-        })
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            );
+          })}
+        </div>
       )}
     </div>
   );

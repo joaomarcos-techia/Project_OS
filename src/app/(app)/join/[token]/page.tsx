@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 /**
  * Compatibilidade temporária para links emitidos antes da migração para
  * `/join#invite=<token>`. O request legado ainda contém token no path uma vez;
@@ -9,6 +10,8 @@ import {
   createOnboardingInvitePath,
   isOnboardingInviteToken,
 } from '@/lib/auth/onboarding-invite-fragment';
+
+export const metadata: Metadata = { title: 'Ativar acesso' };
 
 export default async function LegacyJoinPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;

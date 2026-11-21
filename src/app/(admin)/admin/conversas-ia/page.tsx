@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { buttonVariants } from '@/components/ui/button';
@@ -9,6 +10,8 @@ import { guardAdminAccess } from '../_lib/guard';
 import { formatDateTime } from '../_lib/format';
 import { clinicRepository } from '../_lib/repositories/clinics.repo';
 import { conversationsRepository } from '../_lib/repositories/conversations.repo';
+
+export const metadata: Metadata = { title: 'Conversas IA da plataforma' };
 
 export const dynamic = 'force-dynamic';
 

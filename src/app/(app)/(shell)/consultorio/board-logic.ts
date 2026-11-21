@@ -7,6 +7,7 @@
  * disso), a janela do dia no timezone da clínica (DST-correct), o cálculo de
  * idade e a montagem/bucketização dos cards. Nada toca o banco.
  */
+import { ageOnDate, todayInTimeZone } from '@/lib/datetime/clinic-calendar';
 import { allowedTransitions, type AppointmentState } from '@/contexts/scheduling/state-machine';
 import type { AppointmentStatusDTO, AppointmentSummary } from '@/contexts/scheduling/types';
 
@@ -132,15 +133,19 @@ export function clinicDayBounds(tz: string, now: Date = new Date()): { from: Dat
 
 // --- demografia do card -----------------------------------------------------
 
-/** Idade em anos a partir de `data_nascimento` (YYYY-MM-DD). null se ausente/inválida. */
-export function ageFromBirthdate(dateStr: string | null, now: Date = new Date()): number | null {
+/**
+ * Idade em anos completos no dia de HOJE da clínica. `data_nascimento` é data
+ * civil (YYYY-MM-DD) e é comparada com a data civil de hoje no fuso da clínica:
+ * com o "hoje" do servidor (UTC), a idade subia na véspera do aniversário a
+ * partir das 21h de Brasília. null se ausente/inválida.
+ */
+export function ageFromBirthdate(
+  dateStr: string | null,
+  timeZone: string,
+  now: Date = new Date(),
+): number | null {
   if (!dateStr) return null;
-  const b = new Date(dateStr);
-  if (Number.isNaN(b.getTime())) return null;
-  let age = now.getUTCFullYear() - b.getUTCFullYear();
-  const m = now.getUTCMonth() - b.getUTCMonth();
-  if (m < 0 || (m === 0 && now.getUTCDate() < b.getUTCDate())) age -= 1;
-  return age >= 0 && age < 200 ? age : null;
+  return ageOnDate(dateStr.slice(0, 10), todayInTimeZone(timeZone, now));
 }
 
 const SEXO_SHORT: Record<Sexo, string> = { M: 'M', F: 'F', O: 'Outro', N: '—' };
@@ -194,15 +199,15 @@ export function buildCard(
   a: CardAppointment,
   patient: CardPatient | undefined,
   checkInAt: string | null,
-  now: Date = new Date(),
+  clock: { now: Date; timeZone: string },
   queue?: { position: number; estimatedWaitMinutes: number },
 ): BoardCardDTO {
   return {
     appointmentId: a.id,
     patientId: a.patientId,
-    pacienteNome: patient?.nome ?? (a.patientId ? 'Paciente' : 'Walk-in'),
+    pacienteNome: patient?.nome ?? (a.patientId ? 'Paciente' : 'Paciente sem cadastro'),
     alergias: patient?.alergias ?? [],
-    idade: ageFromBirthdate(patient?.dataNascimento ?? null, now),
+    idade: ageFromBirthdate(patient?.dataNascimento ?? null, clock.timeZone, clock.now),
     sexo: patient?.sexo ?? null,
     horario: a.scheduledAt,
     motivo: motivoOf(a),

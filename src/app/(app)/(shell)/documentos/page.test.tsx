@@ -7,10 +7,14 @@ const { listClinicalDocumentFeedPage, pageGate, redirect } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/contexts/clinical/queries', () => ({ listClinicalDocumentFeedPage }));
+vi.mock('@/contexts/tenancy/queries', () => ({
+  getClinicTimezone: vi.fn(async () => 'America/Sao_Paulo'),
+}));
 vi.mock('@/lib/auth/page-guard', () => ({ pageGate }));
 vi.mock('next/navigation', () => ({ redirect }));
 
-import DocumentosPage, { documentosPageCapabilities } from './page';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
+import DocumentosPage, { documentosDescription, documentosPageCapabilities } from './page';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 
 const emptyPage = { items: [], total: 0, page: 1, pageSize: 50 };
@@ -32,6 +36,7 @@ describe('/documentos pagination', () => {
     await DocumentosPage({ searchParams: Promise.resolve({}) });
 
     expect(listClinicalDocumentFeedPage).not.toHaveBeenCalled();
+    expect(getClinicTimezone).not.toHaveBeenCalled();
   });
 
   it('normaliza busca, tipo e página antes da consulta', async () => {
@@ -87,6 +92,15 @@ describe('/documentos pagination', () => {
       canCreateDocument: false,
       canOpenLauncher: false,
     });
+  });
+
+  it('com o botão "Novo documento" na tela, o texto não manda emitir em outro lugar (P1.7)', () => {
+    expect(documentosDescription(true)).toBe(
+      'Receitas, atestados e outros documentos já emitidos.',
+    );
+    expect(documentosDescription(false)).toBe(
+      'Receitas, atestados e outros documentos já emitidos. Para emitir um novo, use o Consultório ou o prontuário.',
+    );
   });
 
   it('mantém o step-up AAL2 no bypass do super-admin', () => {

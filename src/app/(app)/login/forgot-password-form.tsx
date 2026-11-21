@@ -1,11 +1,14 @@
 'use client';
 
+import { ArrowLeft } from 'lucide-react';
 import { useActionState, useEffect, useState } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { LoginIntro, loginFrame } from '@/components/shared/login-frame';
+import { signupFrame } from '@/components/shared/signup-frame';
 import { TurnstileWidget } from '@/components/shared/turnstile-widget';
 
 import { forgotPasswordAction, type ForgotPasswordActionState } from './actions';
@@ -13,15 +16,12 @@ import { forgotPasswordAction, type ForgotPasswordActionState } from './actions'
 const INITIAL: ForgotPasswordActionState = { error: null, sent: false };
 
 /**
- * Recuperação inline: mantém o Login como rota pública única e evita link sem grant.
+ * Recuperação na própria rota de login: evita link sem grant.
  *
- * O gatilho tem a aparência do link "Esqueci a senha" do design, mas continua
- * sendo um `<details>` nativo — abre sem JS e o painel nasce logo abaixo. Por
- * isso este componente fica FORA do `<form>` de login (form aninhado é HTML
- * inválido); quem coloca o gatilho acima do botão Entrar é a ordem de flex da
- * página, não a ordem do DOM.
+ * Fica FORA do `<form>` de login (form aninhado é HTML inválido). A resposta é a
+ * mesma exista ou não a conta, e o texto de envio não pode afirmar o contrário.
  */
-export function ForgotPasswordForm() {
+export function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
   const [state, formAction, pending] = useActionState(forgotPasswordAction, INITIAL);
   // Token do Turnstile é de uso único: cada envio precisa de um novo.
   const [captchaAttempt, setCaptchaAttempt] = useState(0);
@@ -30,43 +30,66 @@ export function ForgotPasswordForm() {
     if (state.sent || state.error) setCaptchaAttempt((n) => n + 1);
   }, [state]);
 
-  return (
-    <details className="group">
-      <summary className="flex cursor-pointer list-none items-center justify-end pt-0.5 [&::-webkit-details-marker]:hidden">
-        <span className="rounded-(--r-sm) px-1 py-1 text-[13px] font-medium leading-none text-(--text-link) transition-colors group-hover:text-(--primary-800) group-focus-visible:shadow-(--focus-ring) group-focus-visible:outline-none">
-          Esqueci a senha
-        </span>
-      </summary>
-
-      <div className="mt-3 rounded-(--r-md) border border-border bg-surface-2 px-3 py-4">
-        <p className="text-pretty text-(length:--fs-sm) text-fg-muted">
-          Informe seu e-mail. Se houver uma conta, enviaremos um link seguro de redefinição.
-        </p>
-        <form action={formAction} className="mt-4 flex flex-col gap-3">
-          <Field label="E-mail" htmlFor="recovery-email">
-            <Input
-              id="recovery-email"
-              name="email"
-              type="email"
-              required
-              autoComplete="email"
-              disabled={pending || state.sent}
-              placeholder="voce@clinica.com.br"
-            />
-          </Field>
-          <TurnstileWidget action="recovery" resetSignal={captchaAttempt} />
-          {state.error ? <Alert variant="danger">{state.error}</Alert> : null}
-          {state.sent ? (
-            <Alert variant="success" title="Verifique seu e-mail">
-              Se houver uma conta para esse endereço, o link será enviado.
-            </Alert>
-          ) : (
-            <Button type="submit" variant="secondary" loading={pending} className="w-full">
-              Enviar link seguro
+  if (state.sent) {
+    return (
+      <div className={loginFrame.view}>
+        <LoginIntro
+          title="Confira o seu e-mail"
+          lead="Abra o link do e-mail para criar uma senha nova."
+        />
+        <div className={loginFrame.form}>
+          <Alert variant="success">
+            Se houver uma conta para esse endereço, o link será enviado.
+          </Alert>
+          <p className={signupFrame.text}>Não chegou em alguns minutos? Confira a caixa de spam.</p>
+          <div className={signupFrame.actions}>
+            <Button type="button" variant="ghost" onClick={onBack}>
+              <ArrowLeft aria-hidden="true" className="size-4" />
+              Voltar para o login
             </Button>
-          )}
-        </form>
+          </div>
+        </div>
       </div>
-    </details>
+    );
+  }
+
+  return (
+    <div className={loginFrame.view}>
+      <LoginIntro
+        title="Redefinir a senha"
+        lead="Informe o e-mail do seu acesso. Vamos enviar um link para você criar uma senha nova."
+      />
+      <form action={formAction} className={loginFrame.form}>
+        <Field label="E-mail" htmlFor="recovery-email">
+          <Input
+            id="recovery-email"
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            autoFocus
+            disabled={pending}
+            placeholder="voce@suaclinica.com.br"
+          />
+        </Field>
+        <TurnstileWidget action="recovery" resetSignal={captchaAttempt} />
+        {state.error ? <Alert variant="danger">{state.error}</Alert> : null}
+        <div className={loginFrame.submit}>
+          <div className={signupFrame.actions}>
+            <Button type="button" variant="ghost" onClick={onBack} disabled={pending}>
+              <ArrowLeft aria-hidden="true" className="size-4" />
+              Voltar
+            </Button>
+            <Button type="submit" loading={pending} className="flex-1">
+              Enviar link
+            </Button>
+          </div>
+          <p className={signupFrame.fine}>
+            É da equipe e não sabe qual e-mail usa? Peça para quem administra a clínica conferir em
+            Equipe &amp; Permissões.
+          </p>
+        </div>
+      </form>
+    </div>
   );
 }

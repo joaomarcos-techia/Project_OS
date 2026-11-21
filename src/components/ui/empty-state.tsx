@@ -20,6 +20,8 @@ export function EmptyState({
 }) {
   return (
     <div
+      data-slot="empty-state"
+      data-variant={variant}
       className={cn(
         'flex flex-col items-center gap-1.5 text-center',
         variant === 'compact' ? 'px-(--sp-4) py-(--sp-5)' : 'px-(--sp-6) py-(--sp-8)',

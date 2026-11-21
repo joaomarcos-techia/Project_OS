@@ -29,7 +29,7 @@ export async function renderAtestadoPDF(
           <Text>{data.cid}</Text>
         </View>
       ) : null}
-      <Text style={styles.dateLine}>Data: {formatDate(data.issuedAt)}</Text>
+      <Text style={styles.dateLine}>Data: {formatDate(data.issuedAt, data.timeZone)}</Text>
     </DocShell>,
   );
 }

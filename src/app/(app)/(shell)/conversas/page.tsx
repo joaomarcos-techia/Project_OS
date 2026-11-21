@@ -1,5 +1,6 @@
+import type { Metadata } from 'next';
 /** Inbox renderizada no servidor: permissão antes de ler e decifrar qualquer contato. */
-import { MessagesSquare, SlidersHorizontal, Timer } from 'lucide-react';
+import { MessagesSquare, SlidersHorizontal, Timer, MessageCircle } from 'lucide-react';
 import Link from 'next/link';
 import { z } from 'zod';
 import {
@@ -16,7 +17,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
-import { FilterBar, SearchField } from '@/components/ui/filter-bar';
+import { SearchField } from '@/components/ui/filter-bar';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
 import { TablePager } from '@/components/ui/table-pager';
@@ -24,8 +25,12 @@ import { identidadeDoContato } from './contact-identity';
 import { apresentacaoDoStatus, prazoRelativo } from './status-presentation';
 import { ConversasNoAccess } from './_components/no-access';
 import { ConversationAutoRefresh } from './_components/conversation-auto-refresh';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
+
 import { ConversationThread } from './_components/conversation-thread';
 import styles from './conversations.module.css';
+
+export const metadata: Metadata = { title: 'Conversas IA' };
 
 export const dynamic = 'force-dynamic';
 type SP = { q?: string; status?: string; sla?: string; page?: string; conversation?: string };
@@ -62,7 +67,7 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
   // vale é reduzir o número de queries (feito em `queries.ts`).
   //
   // Rodada 1: a lista e o pulso da fila, que não dependem um do outro.
-  const [result, pulso] = await Promise.all([
+  const [result, pulso, timeZone] = await Promise.all([
     listConversations(clinicId, {
       ...(status ? { status } : {}),
       ...(q ? { search: q } : {}),
@@ -72,6 +77,7 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
     // Pulso da fila inteira, não só da página visível: quem abre a tela precisa
     // saber quantos esperam no total, e a paginação esconderia isso.
     countOpenHandoffs(clinicId),
+    getClinicTimezone(clinicId),
   ]);
 
   const selected =
@@ -108,64 +114,63 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
     <>
       <ConversationAutoRefresh />
       <PageHeader
-        crumbs={[{ label: 'Gestão' }, { label: 'Conversas IA' }]}
+        icon={<MessageCircle aria-hidden="true" />}
         title="Conversas IA"
-        description="Agente no WhatsApp e fila de atendimento humano"
-        {...(pulso.abertos > 0
-          ? {
-              meta: (
-                <span className="font-mono tabular-nums">
-                  {pulso.abertos} aguardando humano
-                  {pulso.vencidos > 0 ? ` · ${pulso.vencidos} SLA vencido` : ''}
-                </span>
-              ),
-            }
-          : {})}
+        headline="Atendimento no WhatsApp"
+        description={
+          pulso.abertos > 0
+            ? `${pulso.abertos} aguardando humano${pulso.vencidos > 0 ? ` · ${pulso.vencidos} com prazo de atendimento vencido` : ''}`
+            : 'Agente no WhatsApp e fila de atendimento humano'
+        }
+        search={
+          <SearchField
+            form="conversas-filtros"
+            name="q"
+            defaultValue={sp.q ?? ''}
+            placeholder="Buscar por paciente ou telefone"
+            aria-label="Buscar conversas por nome do paciente ou telefone"
+            grow={false}
+            className="w-full"
+          />
+        }
         actions={
           <Link href="/configuracoes/agente" className={buttonVariants({ variant: 'secondary' })}>
             <SlidersHorizontal aria-hidden="true" className="size-4 text-fg-subtle" />
             Configurar o agente
           </Link>
         }
+        controls={
+          <form id="conversas-filtros" className="flex flex-wrap items-center gap-2">
+            <Select
+              name="status"
+              defaultValue={status ?? ''}
+              aria-label="Filtrar por status"
+              className="max-w-48"
+            >
+              <option value="">Todos os status</option>
+              <option value="handoff">Aguardando humano</option>
+              <option value="active">Agente respondendo</option>
+              <option value="closed">Encerradas</option>
+              <option value="abandoned">Abandonadas</option>
+            </Select>
+            <Select
+              name="sla"
+              defaultValue={overdueOnly ? 'overdue' : ''}
+              aria-label="Filtrar por prazo de atendimento"
+              className="max-w-44"
+            >
+              <option value="">Todos os prazos</option>
+              <option value="overdue">Prazo vencido</option>
+            </Select>
+            <button type="submit" className={buttonVariants({ variant: 'secondary' })}>
+              Filtrar
+            </button>
+            <span className={styles.count}>
+              {result.total.toLocaleString('pt-BR')} conversa{result.total === 1 ? '' : 's'}
+            </span>
+          </form>
+        }
       />
-      <FilterBar className="qoro-toolbar">
-        <form className="flex min-w-0 flex-1 flex-wrap items-center gap-(--sp-2)">
-          <SearchField
-            name="q"
-            defaultValue={sp.q ?? ''}
-            placeholder="Buscar por paciente ou telefone…"
-            aria-label="Buscar conversas por nome do paciente ou telefone"
-            className="sm:max-w-68"
-          />
-          <Select
-            name="status"
-            defaultValue={status ?? ''}
-            aria-label="Filtrar por status"
-            className="max-w-48"
-          >
-            <option value="">Todos os status</option>
-            <option value="handoff">Aguardando humano</option>
-            <option value="active">Agente respondendo</option>
-            <option value="closed">Encerradas</option>
-            <option value="abandoned">Abandonadas</option>
-          </Select>
-          <Select
-            name="sla"
-            defaultValue={overdueOnly ? 'overdue' : ''}
-            aria-label="Filtrar por SLA"
-            className="max-w-44"
-          >
-            <option value="">Todos os prazos</option>
-            <option value="overdue">SLA vencido</option>
-          </Select>
-          <button type="submit" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
-            Filtrar
-          </button>
-          <span className={styles.count}>
-            {result.total.toLocaleString('pt-BR')} conversa{result.total === 1 ? '' : 's'}
-          </span>
-        </form>
-      </FilterBar>
       <div className={cn('qoro-fill', styles.workspace)} data-detail={hasExplicitSelection}>
         <section className={styles.inbox} aria-label="Lista de conversas">
           <div className={styles.inboxHeader}>
@@ -208,15 +213,19 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
                             <strong>{contato.titulo}</strong>
                             <time
                               dateTime={item.lastMessageAt}
-                              title={new Date(item.lastMessageAt).toLocaleString('pt-BR')}
+                              title={new Date(item.lastMessageAt).toLocaleString('pt-BR', {
+                                timeZone,
+                              })}
                             >
                               {new Date(item.lastMessageAt).toLocaleDateString('pt-BR', {
                                 day: '2-digit',
                                 month: '2-digit',
+                                timeZone,
                               })}{' '}
                               {new Date(item.lastMessageAt).toLocaleTimeString('pt-BR', {
                                 hour: '2-digit',
                                 minute: '2-digit',
+                                timeZone,
                               })}
                             </time>
                           </div>
@@ -265,6 +274,7 @@ export default async function ConversasPage({ searchParams }: { searchParams: Pr
         {thread ? (
           <ConversationThread
             thread={thread}
+            timeZone={timeZone}
             canManage={user.permissions.includes(PERMISSIONS.MANAGE_CONVERSATIONS)}
             currentUserId={user.userId}
             assignedToName={assignedToName}

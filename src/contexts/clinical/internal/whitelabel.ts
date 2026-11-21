@@ -48,6 +48,16 @@ export async function loadClinicBranding(tx: Tx, clinicId: string): Promise<Clin
   };
 }
 
+/** Fuso da clínica para a data dos documentos. Mesmo default do cadastro da clínica. */
+export async function loadClinicTimezone(tx: Tx, clinicId: string): Promise<string> {
+  const [row] = await tx
+    .select({ timezone: clinics.timezone })
+    .from(clinics)
+    .where(eq(clinics.id, clinicId))
+    .limit(1);
+  return row?.timezone ?? 'America/Sao_Paulo';
+}
+
 export interface ClinicEmitente {
   nome: string;
   endereco: string | null;

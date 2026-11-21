@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // `ChecklistDismiss` é client e chama `useRouter`. Aqui interessa a COMPOSIÇÃO
@@ -52,12 +52,12 @@ describe('ActivationChecklist', () => {
   it('mostra o próximo passo pendente, não o primeiro da lista', () => {
     render(<ActivationChecklist data={checklist()} />);
 
-    // Asserção NO RESUMO, não no documento: as duas descrições também aparecem
-    // na lista abaixo, então procurar no DOM inteiro passaria mesmo que o
-    // resumo mostrasse o passo errado. Verificado por mutação.
+    // Asserção NO RESUMO, não no documento: os dois rótulos também aparecem na
+    // lista abaixo, então procurar no DOM inteiro passaria mesmo que o resumo
+    // mostrasse o passo errado.
     const resumo = screen.getByText('Próximo:').parentElement;
-    expect(resumo?.textContent).toContain('Diga quando a clínica atende.');
-    expect(resumo?.textContent).not.toContain('Adicione quem vai atender');
+    expect(resumo?.textContent).toContain('Defina os horários');
+    expect(resumo?.textContent).not.toContain('Cadastre um médico');
   });
 
   it('some quando os passos terminam', () => {
@@ -79,6 +79,10 @@ describe('ActivationChecklist', () => {
       '/equipe',
     );
     expect(screen.getByText('Cadastre um médico').className).toContain('line-through');
-    expect(screen.getByText('Defina os horários').className).not.toContain('line-through');
+    // Dentro do link: o rótulo do passo pendente também aparece no resumo.
+    const pendente = screen.getByRole('link', { name: /Defina os horários/ });
+    expect(within(pendente).getByText('Defina os horários').className).not.toContain(
+      'line-through',
+    );
   });
 });

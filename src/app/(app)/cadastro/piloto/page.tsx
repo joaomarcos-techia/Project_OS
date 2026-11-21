@@ -1,9 +1,12 @@
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { PublicPage, PublicHeading } from '@/components/shared/signup-frame';
 import { env } from '@/lib/env';
 import { SignupQuestions } from '../signup-questions';
 
 export const dynamic = 'force-dynamic';
+// Integração #53 -> #56: contrato UX-008 (toda página tem título próprio ou herdado).
+export const metadata: Metadata = { title: 'Cadastro por convite' };
 export default function PilotSignupPage() {
   if (
     env.ABACATEPAY_PILOT_PROVISIONING_ENABLED !== true ||

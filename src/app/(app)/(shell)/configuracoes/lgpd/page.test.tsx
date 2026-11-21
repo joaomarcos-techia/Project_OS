@@ -41,6 +41,15 @@ vi.mock('@/contexts/patient/queries', () => ({
   listLgpdRequestHistory,
   listLgpdRequests,
 }));
+vi.mock('@/contexts/tenancy/queries', () => ({
+  getClinicTimezone: vi.fn(async () => 'America/Sao_Paulo'),
+}));
+// A página lê o usuário por `requirePageUser` (sessão morta vai para /login, OBS-001). Aqui ele
+// delega ao `requireUser` simulado, para os cenários continuarem os mesmos; o redirecionamento
+// tem teste próprio em `src/lib/auth/page-guard.test.ts`.
+vi.mock('@/lib/auth/page-guard', () => ({
+  requirePageUser: async () => (await import('@/lib/auth/tenant-context')).requireUser(),
+}));
 vi.mock('@/lib/auth/tenant-context', () => ({
   AuthError: AuthErrorMock,
   requireClinicId,
@@ -54,6 +63,7 @@ vi.mock('./actions', () => ({
   processLgpdRequestForm: vi.fn(),
 }));
 
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import LgpdOperationsPage from './page';
 
 const clinicId = '11111111-1111-1111-1111-111111111111';
@@ -120,7 +130,10 @@ describe('LgpdOperationsPage', () => {
     expect(listLgpdRequestHistory).not.toHaveBeenCalled();
     expect(screen.getByRole('table')).toBeTruthy();
     expect(screen.getByText('Ana Souza')).toBeTruthy();
-    expect(screen.getByText('SLA vencido')).toBeTruthy();
+    // UX-014: prazo operacional de resposta ao titular (15 dias), sem "SLA" e sem "legal".
+    expect(screen.getByText('Prazo de resposta vencido')).toBeTruthy();
+    expect(screen.queryByText(/SLA/)).toBeNull();
+    expect(screen.queryByText(/prazo legal/i)).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Histórico de tratamento' })).toBeNull();
     expect(
       screen.getByRole('link', { name: 'Abrir solicitação de Ana Souza' }).getAttribute('href'),
@@ -158,6 +171,16 @@ describe('LgpdOperationsPage', () => {
     expect(screen.queryByRole('heading', { name: 'Histórico de tratamento' })).toBeNull();
   });
 
+  it('mostra solicitação e prazo no fuso da clínica', async () => {
+    vi.mocked(getClinicTimezone).mockResolvedValueOnce('Asia/Tokyo');
+
+    render(await LgpdOperationsPage({ searchParams: Promise.resolve({}) }));
+
+    // 12:00Z é 21:00 em Tóquio e 09:00 em São Paulo.
+    expect(screen.getByText('Solicitada em 18/08/2026, 21:00:00')).toBeTruthy();
+    expect(screen.getByText('19/08/2026, 21:00:00')).toBeTruthy();
+  });
+
   it('mantém o gate antes de qualquer leitura tenant', async () => {
     requireFreshPermission.mockRejectedValue(new AuthErrorMock('forbidden'));
 
@@ -166,6 +189,7 @@ describe('LgpdOperationsPage', () => {
     expect(screen.getByText(/não tem permissão para operar solicitações LGPD/iu)).toBeTruthy();
     expect(requireClinicId).not.toHaveBeenCalled();
     expect(listLgpdRequests).not.toHaveBeenCalled();
+    expect(getClinicTimezone).not.toHaveBeenCalled();
     expect(listEmployees).not.toHaveBeenCalled();
     expect(listLgpdRequestHistory).not.toHaveBeenCalled();
   });
