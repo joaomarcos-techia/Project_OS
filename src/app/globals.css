@@ -1118,8 +1118,10 @@ html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
 
 /* Telas baixas (founder, 18/11): o espaço entre itens e grupos diminui um degrau, mas os itens
    não passam de 36 px para baixo; quando não cabe, a lista rola. Antes os itens chegavam a 28 px
-   e os títulos sumiam para caber tudo, e o menu parecia espremido. */
-@media (min-width: 721px) and (max-height: 960px) {
+   e os títulos sumiam para caber tudo, e o menu parecia espremido.
+   Integração do #55 (ciclo 9): com o 13º item (Convênios), o degrau de 40 px transbordava 4 px
+   até 1024 px de altura e esmaecia "Ajuda" numa tela alta; o degrau de 36 px vale até 1040 px. */
+@media (min-width: 721px) and (max-height: 1040px) {
   body:has([data-qoro-shell='tenant']) {
     --rail-item-h: 36px;
     --rail-heading-h: 26px;
