@@ -168,6 +168,35 @@ beforeEach(() => {
 });
 
 describe('resetPasswordAction', () => {
+  // Ciclo 9 (replay): cookies capturados antes da troca carregam um grant ainda assinado, mas o
+  // logout global da troca revogou a sessão do link. Nada é instalado e nenhum epoch é consumido.
+  it.each([
+    ['profile', 'sessão revogada', null],
+    ['profile', 'sessão de outra conta', 'outra-conta'],
+    ['pretenant_orphan', 'sessão revogada', null],
+    ['pretenant_orphan', 'sessão de outra conta', 'outra-conta'],
+  ] as const)('grant %s com %s não instala senha', async (kind, _label, sessionUser) => {
+    mocks.readGrant.mockReturnValue(
+      kind === 'profile'
+        ? { kind, userId, epoch: 4, expiresAt: Date.now() + 600_000 }
+        : { kind, userId, epoch: 4, signupRef: 'a'.repeat(64), expiresAt: Date.now() + 600_000 },
+    );
+    mocks.getUser.mockResolvedValue({
+      data: { user: sessionUser ? { ...authUser, id: sessionUser } : null },
+    });
+
+    const result = await resetPasswordAction({ error: null }, form());
+
+    expect(result.error).toBe(
+      'Link de redefinição inválido, expirado ou já utilizado. Peça um novo ao administrador.',
+    );
+    expect(mocks.bumpEpochIfCurrent).not.toHaveBeenCalled();
+    expect(mocks.advanceEpoch).not.toHaveBeenCalled();
+    expect(mocks.updateUser).not.toHaveBeenCalled();
+    expect(mocks.updateAdminUser).not.toHaveBeenCalled();
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
   it('aplica a politica compartilhada antes de abrir sessao', async () => {
     const result = await resetPasswordAction({ error: null }, form('abcdefgh'));
     expect(result.error).not.toBeNull();
