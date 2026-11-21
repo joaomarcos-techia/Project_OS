@@ -1,0 +1,206 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "39",
+  "title": "Tabela 39 - Terminologia de motivo de encerramento",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 28,
+  "terms": [
+    {
+      "code": "11",
+      "term": "Alta Curado",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "12",
+      "term": "Alta Melhorado",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "14",
+      "term": "Alta a pedido",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "15",
+      "term": "Alta com previsão de retorno para acompanhamento do paciente",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "16",
+      "term": "Alta por Evasão",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "18",
+      "term": "Alta por outros motivos",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "19",
+      "term": "Alta de Paciente Agudo em Psiquiatria",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "21",
+      "term": "Permanência, por características próprias da doença",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "22",
+      "term": "Permanência, por intercorrência",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "23",
+      "term": "Permanência, por impossibilidade sócio-familiar",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "24",
+      "term": "Permanência, por Processo de doação de órgãos, tecidos e células - doador vivo",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "25",
+      "term": "Permanência, por Processo de doação de órgãos, tecidos e células - doador morto",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "26",
+      "term": "Permanência, por mudança de Procedimento",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "27",
+      "term": "Permanência, por reoperação",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "28",
+      "term": "Permanência, outros motivos",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "31",
+      "term": "Transferido para outro estabelecimento",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "32",
+      "term": "Transferência para Internação Domiciliar",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "41",
+      "term": "Óbito com declaração de óbito fornecida pelo médico assistente",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "42",
+      "term": "Óbito com declaração de Óbito fornecida pelo Instituto Médico Legal - IML",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "43",
+      "term": "Óbito com declaração de Óbito fornecida pelo Serviço de Verificação de Óbito - SVO.",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "51",
+      "term": "Encerramento Administrativo",
+      "startsOn": "2008-09-26",
+      "endsOn": null,
+      "implantationEndsOn": "2008-09-26"
+    },
+    {
+      "code": "61",
+      "term": "Alta da mãe/puérpera e do recém-nascido",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "62",
+      "term": "Alta da mãe/puérpera e permanência do recém-nascido",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "63",
+      "term": "Alta da mãe/puérpera e óbito do recém-nascido",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "64",
+      "term": "Alta da mãe/puérpera com óbito fetal",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "65",
+      "term": "Óbito da gestante e do concepto",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "66",
+      "term": "Óbito da mãe/puérpera e alta do recém-nascido",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "67",
+      "term": "Óbito da mãe/puérpera e permanência do recém-nascido",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    }
+  ]
+}

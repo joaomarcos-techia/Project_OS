@@ -552,6 +552,184 @@ export const DOC_TOPICS: readonly DocTopic[] = [
     ],
   },
   {
+    slug: 'convenios',
+    title: 'Convênios: do atendimento ao pagamento',
+    summary: 'Como a Qoro gera, envia e acompanha as guias TISS da clínica.',
+    category: 'Financeiro',
+    sections: [
+      {
+        heading: 'Disponibilidade',
+        paragraphs: [
+          'Convênios fica disponível para clínicas com assinatura paga e ativa, quando o módulo é ativado para a clínica. No período de avaliação de 14 dias, dá para conhecer as telas, mas não é possível operar guias reais.',
+          'A Qoro trabalha com a Guia de Consulta e a Guia SP/SADT (procedimentos da tabela 22 da TUSS), lotes, recurso de glosa e demonstrativos, no Padrão TISS 4.03.00. Internação, odontologia, honorários, materiais e medicamentos (outras despesas) não fazem parte desta versão.',
+        ],
+      },
+      {
+        heading: 'Quem faz o quê',
+        paragraphs: [
+          'O que cada pessoa vê e faz depende do perfil e das permissões dadas pela clínica.',
+        ],
+        bullets: [
+          'Recepção: cadastra as carteirinhas, registra o convênio no agendamento e confere os dados das guias. Não vê valores e não aprova.',
+          'Médica ou médico: vê as guias dos próprios atendimentos e informa o que só quem atendeu pode informar, como a indicação clínica da solicitação SP/SADT.',
+          'Gestão e financeiro: aprovam e emitem as guias, montam os lotes, registram envio, protocolo, glosas, recursos e pagamentos, e acompanham os relatórios.',
+        ],
+      },
+      {
+        heading: 'O caminho de uma guia',
+        paragraphs: [],
+        steps: [
+          'O atendimento de convênio é concluído e a guia nasce sozinha, com os dados do agendamento, da carteirinha e do contrato com a operadora.',
+          'Se faltar alguma informação, a guia fica pendente e mostra o que falta e quem deve corrigir.',
+          'A guia é conferida e depois aprovada e emitida. A partir daí ela não muda: correção vira substituição ou recurso.',
+          'As guias aprovadas entram num lote da mesma operadora. O arquivo XML do lote só é gerado se passar na validação oficial do padrão TISS.',
+          'A clínica envia o arquivo pelo portal da operadora e registra o envio e o protocolo na Qoro.',
+          'O demonstrativo da operadora é importado; glosas e pagamentos são conferidos guia a guia até o encerramento.',
+        ],
+      },
+      {
+        heading: 'O que a Qoro não faz por você',
+        paragraphs: [
+          'A Qoro não marca um lote como enviado sem o seu registro do envio, e não marca como recebido sem o protocolo da operadora. O envio continua sendo feito no portal de cada operadora.',
+          'Aprovação técnica da Qoro não é o mesmo que aceite da operadora: as regras de cada contrato continuam valendo.',
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'convenios-guias',
+    title: 'Guias de convênio: conferir, corrigir e emitir',
+    summary: 'Resolva pendências, confira e aprove guias sem refazer trabalho.',
+    category: 'Financeiro',
+    sections: [
+      {
+        heading: 'Pendências',
+        paragraphs: [
+          'Em Convênios › Guias, filtre por "Pendências" e por "Responsável pela pendência". Cada pendência diz o que falta e quem resolve: recepção, quem atendeu ou gestão.',
+          'Corrija na origem: carteirinha, convênio registrado no agendamento, credenciamento da clínica ou contrato do procedimento. Depois disso a guia é recalculada.',
+        ],
+      },
+      {
+        heading: 'Conferir e aprovar',
+        paragraphs: [],
+        steps: [
+          'Abra a guia. O botão "Marcar como conferida" aparece quando não há pendência.',
+          'Quem tem permissão do faturamento usa "Aprovar e emitir". A guia emitida tem PDF no modelo oficial.',
+          'Se algo estiver errado antes de entrar num lote, use "Devolver para correção" e diga o que precisa mudar.',
+        ],
+      },
+      {
+        heading: 'Corrigir depois de emitida',
+        bullets: [
+          'Fora de lote: "Devolver para correção" ou, se o atendimento não deve ser cobrado, "Cancelar guia" com o motivo. O cancelamento é definitivo e o atendimento fica livre para uma guia nova.',
+          'Em lote ainda não enviado: cancele o lote; as guias voltam a ficar aprovadas.',
+          'Já enviada à operadora: peça o cancelamento à operadora, registre o recibo de cancelamento e use "Substituir". Sem o recibo da operadora, não há substituição.',
+          'Com resultado (paga ou glosada): use o recurso de glosa.',
+        ],
+        paragraphs: [],
+      },
+    ],
+  },
+  {
+    slug: 'convenios-lotes',
+    title: 'Lotes e envio à operadora',
+    summary: 'Monte o lote, gere o XML validado e registre envio e protocolo.',
+    category: 'Financeiro',
+    sections: [
+      {
+        heading: 'Montar e gerar o arquivo',
+        paragraphs: [
+          'Um lote reúne guias aprovadas da mesma operadora e do mesmo tipo, até 100 guias. Uma guia não entra em dois lotes ao mesmo tempo.',
+          'Use "Gerar e validar XML" (ou "Gerar XML em segundo plano" para lotes grandes). O arquivo só é gerado se passar na validação oficial do padrão TISS; se não passar, a tela mostra o motivo.',
+        ],
+      },
+      {
+        heading: 'Enviar e registrar',
+        paragraphs: [],
+        steps: [
+          'Baixe o XML do lote e envie pelo portal da operadora.',
+          'Na Qoro, use "Marcar como enviado" e informe a data e como o lote foi enviado (por exemplo, o número do envio no portal).',
+          'Quando a operadora devolver o protocolo, use "Registrar protocolo".',
+          'Quando a operadora começar a analisar, use "Operadora iniciou a análise".',
+        ],
+      },
+      {
+        heading: 'Antes de reenviar',
+        paragraphs: [
+          'Se tiver dúvida se um envio chegou, confira no portal da operadora antes de mandar de novo. Enviar o mesmo lote duas vezes pode gerar cobrança em duplicidade na operadora.',
+          'Enviar não é receber: o valor fica a receber da operadora até o pagamento ou a glosa.',
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'convenios-retorno',
+    title: 'Retorno da operadora: demonstrativos, glosas e pagamentos',
+    summary: 'Importe o demonstrativo, decida as glosas e concilie o que foi pago.',
+    category: 'Financeiro',
+    sections: [
+      {
+        heading: 'Importar o demonstrativo',
+        paragraphs: [
+          'Em Convênios › Conciliação, use "Importar demonstrativo da operadora" com o arquivo XML baixado do portal. A Qoro confere o arquivo antes de qualquer efeito; o que não bater com o lote aparece como divergência para você conferir, sem ajuste automático.',
+          'Importar o mesmo arquivo de novo não duplica nada.',
+        ],
+      },
+      {
+        heading: 'Glosas e recursos',
+        bullets: [
+          '"Contestar" abre o recurso de glosa. A justificativa é sempre escrita por uma pessoa.',
+          '"Gerar XML do recurso (TISS)" gera o arquivo validado para enviar à operadora.',
+          '"Aceitar como definitiva" encerra a glosa: o valor deixa de ser esperado.',
+        ],
+        paragraphs: [],
+      },
+      {
+        heading: 'Pagamento e encerramento',
+        paragraphs: [
+          'Registre o pagamento recebido da operadora e distribua o valor entre as guias. O saldo de cada guia é o valor faturado menos o pago e menos a glosa definitiva.',
+          '"Conciliar e encerrar" só aparece quando a guia não tem saldo nem glosa em aberto. Em Convênios › Relatórios, acompanhe por operadora o que está a receber, a taxa de glosa e o prazo de pagamento.',
+        ],
+      },
+    ],
+  },
+  {
+    slug: 'convenios-duvidas',
+    title: 'Convênios: dúvidas e problemas comuns',
+    summary: 'O que fazer quando a guia não aparece, o XML não valida ou a operadora recusa.',
+    category: 'Financeiro',
+    sections: [
+      {
+        heading: 'A guia não apareceu',
+        paragraphs: [
+          'Confira se o atendimento foi concluído como convênio, com a carteirinha registrada. Se faltar algum dado, a guia fica pendente com o motivo; a Qoro tenta de novo sozinha e a guia aparece quando a causa é corrigida, sem duplicar.',
+        ],
+      },
+      {
+        heading: 'O XML não foi gerado',
+        paragraphs: [
+          'A tela do lote mostra o motivo: pendência na estrutura do padrão, código fora da tabela vigente ou cadastro da operadora incompleto. Corrija a guia ou o cadastro e gere de novo. Se a validação estiver indisponível no momento, nenhum arquivo sai: tente mais tarde.',
+        ],
+      },
+      {
+        heading: 'A operadora recusou ou glosou',
+        paragraphs: [
+          'Recusa do arquivo: confira com a operadora a versão do padrão aceita e o motivo informado. Glosa: decida entre contestar com recurso ou aceitar como definitiva.',
+          'Muitas glosas com o mesmo código costumam indicar um problema de cadastro, como o contrato do procedimento ou o credenciamento. Corrija e recorra.',
+        ],
+      },
+      {
+        heading: 'Limites desta versão',
+        bullets: [
+          'O envio à operadora é feito pelo portal de cada operadora; a Qoro gera o arquivo validado e registra o envio e o protocolo.',
+          'Internação, odontologia, honorários, materiais e medicamentos não fazem parte desta versão.',
+          'No período de avaliação, as telas podem ser conhecidas, mas guias reais não são operadas.',
+        ],
+        paragraphs: [],
+      },
+    ],
+  },
+  {
     slug: 'relatorios',
     title: 'Dashboard e relatórios',
     summary: 'Leia os indicadores com o período e a permissão corretos.',

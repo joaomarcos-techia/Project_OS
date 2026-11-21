@@ -1,0 +1,31 @@
+08:11
+OK   health-insurance-clinic-db.ts passes=29 28s 
+OK   health-insurance-guides-db.ts passes=24 35s 
+OK   health-insurance-guide-service-db.ts passes=9 75s 
+OK   health-insurance-coverage-db.ts passes=13 103s 
+OK   health-insurance-guide-issuance-db.ts passes=7 33s 
+OK   health-insurance-billing-reconcile-db.ts passes=19 76s 
+OK   health-insurance-batches-db.ts passes=16 128s 
+OK   health-insurance-glosses-payments-db.ts passes=16 111s 
+OK   health-insurance-ledger-bridge-db.ts passes=18 103s 
+OK   health-insurance-ui-data-db.ts passes=6 91s 
+OK   health-insurance-appeal-xml-db.ts passes=6 98s 
+OK   health-insurance-statement-import-db.ts passes=9 107s 
+OK   health-insurance-premium-gate-db.ts passes=11 67s 
+OK   hi-r38-ledger-equivalence-db.ts passes=4 133s 
+OK   health-insurance-payout-db.ts passes=12 112s 
+OK   health-insurance-copay-charge-db.ts passes=13 86s 
+OK   health-insurance-sadt-db.ts passes=11 150s 
+OK   health-insurance-config-db.ts passes=14 33s 
+OK   health-insurance-batch-export-async-db.ts passes=11 129s 
+OK   health-insurance-credentials-db.ts passes=7 44s 
+OK   payments-external-refund-db.ts passes=14 129s 
+OK   health-insurance-modality-change-db.ts passes=9 51s 
+OK   health-insurance-contract-import-db.ts passes=9 37s 
+OK   health-insurance-insurer-credentials-db.ts passes=5 35s 
+OK   health-insurance-tenant-isolation-db.ts passes=5 28s 
+OK   health-insurance-concurrency-db.ts passes=5 36s 
+exit=0
+08:45
+
+[exited with code 0]

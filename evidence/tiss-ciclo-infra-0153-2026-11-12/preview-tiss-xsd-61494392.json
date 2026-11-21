@@ -1,0 +1,275 @@
+{
+  "base": "https://project-9u57cy1nr-clinic-os-v2-s-projects.vercel.app",
+  "at": "2026-11-12T13:34:59.703Z",
+  "results": [
+    {
+      "label": "sem proteção (sem bypass)",
+      "path": "/api/health/tiss-xsd",
+      "status": 302,
+      "ms": 3964,
+      "leaks": 0,
+      "vercelId": "gru1",
+      "cache": "no-store, max-age=0"
+    },
+    {
+      "label": "sem credencial",
+      "path": "/api/health/tiss-xsd",
+      "status": 401,
+      "ms": 2293,
+      "leaks": 0,
+      "vercelId": "gru1",
+      "cache": "no-store",
+      "report": {
+        "error": "unauthorized"
+      }
+    },
+    {
+      "label": "monitoramento",
+      "path": "/api/health/tiss-xsd",
+      "status": 200,
+      "ms": 942,
+      "leaks": 0,
+      "vercelId": "gru1",
+      "cache": "no-store",
+      "report": {
+        "status": "ok",
+        "engine": "xmllint-wasm@5.3.0",
+        "schemaVersion": "4.03.00",
+        "schemaSetSha256": "928fa2ca4685",
+        "checks": {
+          "validAccepted": true,
+          "invalidRejected": true,
+          "hostileRejected": true
+        },
+        "ms": {
+          "valid": 285,
+          "invalid": 240,
+          "total": 558
+        },
+        "rssMb": 159,
+        "runtime": {
+          "node": "v22.23.4",
+          "region": "iad1",
+          "commit": "61494392fc4e",
+          "env": "preview"
+        }
+      }
+    },
+    {
+      "label": "sonda de limites",
+      "path": "/api/health/tiss-xsd?probe=limits",
+      "status": 200,
+      "ms": 3844,
+      "leaks": 0,
+      "vercelId": "gru1",
+      "cache": "no-store",
+      "report": {
+        "status": "ok",
+        "engine": "xmllint-wasm@5.3.0",
+        "schemaVersion": "4.03.00",
+        "schemaSetSha256": "928fa2ca4685",
+        "checks": {
+          "validAccepted": true,
+          "invalidRejected": true,
+          "hostileRejected": true
+        },
+        "ms": {
+          "valid": 217,
+          "invalid": 282,
+          "total": 499
+        },
+        "rssMb": 160,
+        "runtime": {
+          "node": "v22.23.4",
+          "region": "iad1",
+          "commit": "61494392fc4e",
+          "env": "preview"
+        },
+        "limits": {
+          "status": "ok",
+          "checks": {
+            "namespaceRejected": true,
+            "largeBatchAccepted": true,
+            "timeoutEnforced": true,
+            "memoryLimitEnforced": true,
+            "queueEnforced": true
+          },
+          "sizes": {
+            "largeBatchBytes": 2964646,
+            "memoryProbeBytes": 14057946
+          },
+          "ms": {
+            "largeBatch": 631,
+            "timeoutProbe": 26,
+            "memoryProbe": 602,
+            "queueProbe": 435,
+            "total": 2899
+          },
+          "rssMb": {
+            "before": 160,
+            "after": 435
+          },
+          "failure": null
+        }
+      }
+    },
+    {
+      "label": "paralela 1",
+      "path": "/api/health/tiss-xsd",
+      "status": 200,
+      "ms": 1084,
+      "leaks": 0,
+      "vercelId": "gru1",
+      "cache": "no-store",
+      "report": {
+        "status": "ok",
+        "engine": "xmllint-wasm@5.3.0",
+        "schemaVersion": "4.03.00",
+        "schemaSetSha256": "928fa2ca4685",
+        "checks": {
+          "validAccepted": true,
+          "invalidRejected": true,
+          "hostileRejected": true
+        },
+        "ms": {
+          "valid": 279,
+          "invalid": 445,
+          "total": 724
+        },
+        "rssMb": 444,
+        "runtime": {
+          "node": "v22.23.4",
+          "region": "iad1",
+          "commit": "61494392fc4e",
+          "env": "preview"
+        }
+      }
+    },
+    {
+      "label": "paralela 2",
+      "path": "/api/health/tiss-xsd",
+      "status": 200,
+      "ms": 1493,
+      "leaks": 0,
+      "vercelId": "gru1",
+      "cache": "no-store",
+      "report": {
+        "status": "ok",
+        "engine": "xmllint-wasm@5.3.0",
+        "schemaVersion": "4.03.00",
+        "schemaSetSha256": "928fa2ca4685",
+        "checks": {
+          "validAccepted": true,
+          "invalidRejected": true,
+          "hostileRejected": true
+        },
+        "ms": {
+          "valid": 520,
+          "invalid": 460,
+          "total": 980
+        },
+        "rssMb": 369,
+        "runtime": {
+          "node": "v22.23.4",
+          "region": "iad1",
+          "commit": "61494392fc4e",
+          "env": "preview"
+        }
+      }
+    },
+    {
+      "label": "paralela 3",
+      "path": "/api/health/tiss-xsd",
+      "status": 200,
+      "ms": 2797,
+      "leaks": 0,
+      "vercelId": "gru1",
+      "cache": "no-store",
+      "report": {
+        "status": "ok",
+        "engine": "xmllint-wasm@5.3.0",
+        "schemaVersion": "4.03.00",
+        "schemaSetSha256": "928fa2ca4685",
+        "checks": {
+          "validAccepted": true,
+          "invalidRejected": true,
+          "hostileRejected": true
+        },
+        "ms": {
+          "valid": 360,
+          "invalid": 268,
+          "total": 650
+        },
+        "rssMb": 166,
+        "runtime": {
+          "node": "v22.23.4",
+          "region": "iad1",
+          "commit": "61494392fc4e",
+          "env": "preview"
+        }
+      }
+    },
+    {
+      "label": "paralela 4",
+      "path": "/api/health/tiss-xsd",
+      "status": 200,
+      "ms": 2705,
+      "leaks": 0,
+      "vercelId": "gru1",
+      "cache": "no-store",
+      "report": {
+        "status": "ok",
+        "engine": "xmllint-wasm@5.3.0",
+        "schemaVersion": "4.03.00",
+        "schemaSetSha256": "928fa2ca4685",
+        "checks": {
+          "validAccepted": true,
+          "invalidRejected": true,
+          "hostileRejected": true
+        },
+        "ms": {
+          "valid": 279,
+          "invalid": 235,
+          "total": 534
+        },
+        "rssMb": 161,
+        "runtime": {
+          "node": "v22.23.4",
+          "region": "iad1",
+          "commit": "61494392fc4e",
+          "env": "preview"
+        }
+      }
+    },
+    {
+      "label": "health geral",
+      "path": "/api/health",
+      "status": 200,
+      "ms": 3172,
+      "leaks": 0,
+      "vercelId": "gru1",
+      "cache": "public, max-age=0, must-revalidate",
+      "report": {
+        "status": "degraded"
+      }
+    },
+    {
+      "label": "login",
+      "path": "/login",
+      "status": 200,
+      "ms": 1578,
+      "leaks": 0,
+      "vercelId": "gru1",
+      "cache": "public, max-age=0, must-revalidate"
+    },
+    {
+      "label": "raiz",
+      "path": "/",
+      "status": 307,
+      "ms": 228,
+      "leaks": 0,
+      "vercelId": "gru1",
+      "cache": "public, max-age=0, must-revalidate"
+    }
+  ]
+}

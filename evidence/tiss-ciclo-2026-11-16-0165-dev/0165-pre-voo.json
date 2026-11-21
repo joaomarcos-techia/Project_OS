@@ -1,0 +1,66 @@
+{
+ "mode": "pre",
+ "at": "2026-11-16T07:55:23.358Z",
+ "code": {
+  "pr55": "55f0ccbdf19bef1e139c4e54d9703c75b26aa05c"
+ },
+ "sha": {
+  "0164": "da5f8b90fd45b0afe3b307be689f326a25b7719ddcc664f81a714f99341e6ec1",
+  "0165": "a3af4a973f14cc3fb3720423d4c03f71f32330024f028d07191f40f4077c64cb"
+ },
+ "checks": [
+  {
+   "name": "ledger com 165 linhas e última = 0164 (when 1795468973857), hash do arquivo",
+   "ok": true
+  },
+  {
+   "name": "0165 ainda não existe (tabelas, gatilho, funções, versão); 0164 registrada",
+   "ok": true
+  },
+  {
+   "name": "arquivo 0165 presente no journal local",
+   "ok": true
+  },
+  {
+   "name": "sem transação ativa longa (> 60 s)",
+   "ok": true
+  },
+  {
+   "name": "sem lock forte de outra sessão em hi_guides, hi_guide_items, clinics",
+   "ok": true
+  }
+ ],
+ "resumo": {
+  "ledger": {
+   "n": 165,
+   "last": "1795468973857"
+  },
+  "objetos": {
+   "has_requests": false,
+   "has_receipts": false,
+   "has_guide_trg": false,
+   "new_funcs": 0,
+   "has_version": false,
+   "has_v164": true
+  },
+  "gatilhosHiGuides": [
+   "hi_aa_premium_guides:O",
+   "hi_ab_module_guides:O",
+   "hi_guides_a_transition:O",
+   "hi_guides_ab_consulta_overrides:O",
+   "hi_guides_b_refs:O",
+   "hi_guides_c_replacement:O",
+   "hi_guides_ledger_sync:O",
+   "hi_guides_z_event:O",
+   "hi_guides_zz_payout_review:O"
+  ],
+  "guias": {
+   "n": 14,
+   "naOperadora": 2,
+   "substitutasEmAndamento": 0
+  },
+  "transacoesLongas": 0,
+  "locksFortes": 0,
+  "pos": null
+ }
+}

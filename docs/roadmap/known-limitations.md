@@ -24,6 +24,10 @@ Canonical — fatos confirmados no código e bordas que não podem ser inferidas
 | Templates Meta | `EXTERNAL_DRIFT` | `cobranca_amigavel` ausente; reminder/follow-up aprovados como `MARKETING`, não `UTILITY` |
 | E-mail | `OPERATIONAL_RISK` | 33 dos 100 envios mais recentes da conta Resend observada estavam `bounced`; vínculo integral com PROD é incerto |
 | Signed URLs | `KNOWN_LIMITATION` | URL já emitida pode continuar válida até TTL/cache expirar |
+| Convênios TISS: escopo (A.3 do plano TISS) | `IMPLEMENTED_WITH_CONSTRAINT` | Suporta Guia de Consulta e Guia SP/SADT (procedimentos da tabela 22), lotes, recurso de glosa e importação de demonstrativos no Padrão TISS 4.03.00. **Não declarar suporte universal ao TISS.** Ficam fora: outras despesas (tabelas 18/19/20), internação, honorários, odontologia, anexos de quimio/radio/OPME. |
+| Convênios TISS: produção | `NOT_RELEASED` | Módulo NO-GO em produção (PR #55 draft); no trial de 14 dias é só demonstração, sem operação real. |
+| Convênios TISS: envio à operadora | `KNOWN_LIMITATION` | Envio, protocolo e retorno pelo portal da operadora, registrados no Qoro. O conector SOAP 4.03.00 está testado só contra stub; nenhuma operadora está homologada (B5). |
+| Outbox no pico | `KNOWN_LIMITATION` | A configuração atual (`OUTBOX_BATCH_SIZE` = 50) sustenta só cerca de 15 atendimentos concluídos por minuto na plataforma inteira (regime de 50/min por 15 min: fila crescendo 106/min, atraso de até 33 min). Consumidor em pane leva o tick além dos 60 s da função. Solução validada em ambiente sintético: lote 200 com prazo de reserva de 30 s e descarte em bloco (fila zero a 50/min, pane em 30,5 s, cerca de 83/min sustentados). Aguarda a integração com o #53 e o GO de produção (`docs/convenios/outbox-capacidade.md`). |
 | Cash-flow rollup | `KNOWN_LIMITATION` | janela padrão de três dias pode não recomputar estorno muito antigo sem operação ampliada |
 
 Adicionar o SDK GCP é dependência de produção e requer confirmação explícita; esta refatoração documental não o adiciona.

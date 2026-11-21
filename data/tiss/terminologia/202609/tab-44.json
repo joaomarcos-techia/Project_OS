@@ -1,0 +1,45 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "44",
+  "title": "Tabela 44 - Terminologia de situação dentária inicial",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 5,
+  "terms": [
+    {
+      "code": "H",
+      "term": "Hígido",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "E",
+      "term": "Extração indicada",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "A",
+      "term": "Ausente",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "C",
+      "term": "Cariado",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "R",
+      "term": "Restaurado",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    }
+  ]
+}

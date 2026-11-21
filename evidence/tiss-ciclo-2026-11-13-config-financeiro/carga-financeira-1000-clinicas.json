@@ -1,0 +1,147 @@
+{
+  "scenario": {
+    "clinics": 1000,
+    "guidesPerClinic": 2,
+    "concurrency": 8,
+    "storageFailRate": 0.05
+  },
+  "totalSeconds": 434.6,
+  "throughput": {
+    "guidesPerSecond": 4.6
+  },
+  "opsMs": {
+    "clinica_setup": {
+      "n": 1000,
+      "p50": 76.8,
+      "p95": 207.1,
+      "p99": 352.4,
+      "max": 1737.5,
+      "errors": 0
+    },
+    "guia_emitida": {
+      "n": 2000,
+      "p50": 581.4,
+      "p95": 1090.1,
+      "p99": 1469.2,
+      "max": 3908.9,
+      "errors": 0
+    },
+    "lote_criado": {
+      "n": 1000,
+      "p50": 124.2,
+      "p95": 291.3,
+      "p99": 412.2,
+      "max": 1562.3,
+      "errors": 0
+    },
+    "lote_exportado_xsd": {
+      "n": 1049,
+      "p50": 483.3,
+      "p95": 966.6,
+      "p99": 1283.3,
+      "max": 1873.9,
+      "errors": 49
+    },
+    "envio_protocolo_analise": {
+      "n": 1000,
+      "p50": 167.1,
+      "p95": 273.6,
+      "p99": 375.2,
+      "max": 558,
+      "errors": 0
+    },
+    "glosa_registrada": {
+      "n": 1000,
+      "p50": 61.4,
+      "p95": 144.9,
+      "p99": 256.6,
+      "max": 483.1,
+      "errors": 0
+    },
+    "glosa_decidida": {
+      "n": 1000,
+      "p50": 121.2,
+      "p95": 282.7,
+      "p99": 432.2,
+      "max": 895.1,
+      "errors": 0
+    },
+    "pagamento_por_guia": {
+      "n": 1000,
+      "p50": 73.9,
+      "p95": 170.1,
+      "p99": 254.5,
+      "max": 416.5,
+      "errors": 0
+    },
+    "estorno_realocacao": {
+      "n": 200,
+      "p50": 136.5,
+      "p95": 306.5,
+      "p99": 652.3,
+      "max": 771.4,
+      "errors": 0
+    },
+    "repasse_sync_autoriza_registra": {
+      "n": 1000,
+      "p50": 493.1,
+      "p95": 1074.5,
+      "p99": 1893.8,
+      "max": 2894.3,
+      "errors": 0
+    },
+    "painel": {
+      "n": 1000,
+      "p50": 120.2,
+      "p95": 258,
+      "p99": 480.2,
+      "max": 722.1,
+      "errors": 0
+    },
+    "lista_guias": {
+      "n": 1000,
+      "p50": 70.6,
+      "p95": 152.1,
+      "p99": 318.1,
+      "max": 618.6,
+      "errors": 0
+    },
+    "detalhe_lote": {
+      "n": 1000,
+      "p50": 95.4,
+      "p95": 219.2,
+      "p99": 383,
+      "max": 504.9,
+      "errors": 0
+    }
+  },
+  "failures": {
+    "storageInjected": 49,
+    "exportRetries": 49,
+    "recoveredAfterFailureMs": {
+      "n": 45,
+      "p50": 951.9,
+      "p95": 1962.2
+    }
+  },
+  "database": {
+    "maxConnections": 16,
+    "maxWaitingLocks": 0,
+    "size": "64 MB"
+  },
+  "process": {
+    "maxRssMb": 194
+  },
+  "integrity": {
+    "paidGuides": 1000,
+    "paidReceivables": 1500,
+    "ledgerDrift": 0,
+    "xmlFiles": 1000
+  },
+  "financial": {
+    "definitiveGlosses": 500,
+    "contestedGlosses": 500,
+    "payoutSettledCents": 10200000,
+    "reversedAllocations": 200
+  }
+}

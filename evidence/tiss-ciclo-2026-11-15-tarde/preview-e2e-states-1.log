@@ -1,0 +1,66 @@
+
+Running 12 tests using 1 worker
+
+  ok  1 [chromium] › e2e\convenios-guide-states-preview.spec.ts:361:1 › o Preview usa o projeto DEV (prova assinada antes de qualquer escrita) (3.4s)
+títulos da guia: h1:Guia de consulta nº 5 | h4:Situação | h4:Pendências | h4:Dados da consulta | h4:Procedimentos | h4:Histórico
+axe painel-fechado: 0 violações, 6 regras aprovadas, revisão manual: nenhuma
+axe painel-aberto: 0 violações, 16 regras aprovadas, revisão manual: nenhuma
+axe pagina-guia: 1 violações, 20 regras aprovadas, revisão manual: nenhuma
+  x   2 [chromium] › e2e\convenios-guide-states-preview.spec.ts:369:1 › acessibilidade do painel Dados da consulta: axe WCAG 2.2 AA, títulos, nomes, teclado, foco e celular (34.4s)
+  -   3 [chromium] › e2e\convenios-guide-states-preview.spec.ts:448:1 › trial no meio da sessão: o formulário já aberto não contorna o servidor; recarregada, a tela não oferece o ajuste
+  -   4 [chromium] › e2e\convenios-guide-states-preview.spec.ts:478:1 › clínica suspensa no meio da sessão: recusa legível; recarregada, só consulta (cancelar continua disponível)
+  -   5 [chromium] › e2e\convenios-guide-states-preview.spec.ts:504:1 › sessão expirada com o formulário aberto: nada é salvo e a pessoa é levada a entrar de novo
+  -   6 [chromium] › e2e\convenios-guide-states-preview.spec.ts:537:1 › código fora da terminologia por requisição adulterada: recusa legível, sem detalhe do banco
+  -   7 [chromium] › e2e\convenios-guide-states-preview.spec.ts:577:1 › duplo clique e duas abas (P14.2): um ajuste, uma conferência, UMA emissão; a aba desatualizada lê o conflito e, atualizada, mostra a aprovada
+  -   8 [chromium] › e2e\convenios-guide-states-preview.spec.ts:643:1 › pendência de validação: a carteirinha vencida aparece e a guia não se confere
+  -   9 [chromium] › e2e\convenios-guide-states-preview.spec.ts:660:1 › ação direta sem permissão: a recepção chama a server action do ajuste e o servidor recusa
+  -  10 [chromium] › e2e\convenios-guide-states-preview.spec.ts:679:1 › outra clínica: URL direta dá 404 e a server action com a guia desta clínica é recusada
+  -  11 [chromium] › e2e\convenios-guide-states-preview.spec.ts:696:1 › acesso desativado no meio da sessão: recusa dizendo o motivo; recarregada, a guia não abre
+  -  12 [chromium] › e2e\convenios-guide-states-preview.spec.ts:719:1 › nada mudou com as recusas; controle positivo: com tudo restaurado, o mesmo ajuste salva
+
+
+  1) [chromium] › e2e\convenios-guide-states-preview.spec.ts:369:1 › acessibilidade do painel Dados da consulta: axe WCAG 2.2 AA, títulos, nomes, teclado, foco e celular 
+
+    Error: [
+     {
+      "id": "color-contrast",
+      "impact": "serious",
+      "help": "Elements must meet minimum color contrast ratio thresholds",
+      "targets": [
+       ".h-5"
+      ]
+     }
+    ]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 10
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "targets": Array [
+    +       ".h-5",
+    +     ],
+    +   },
+    + ]
+
+      427 |   // A página inteira da guia (conteúdo principal), para registro: o resultado vai para a evidência.
+      428 |   const main = await axe(s.page, 'main', 'pagina-guia');
+    > 429 |   expect(main, JSON.stringify(main, null, 1)).toEqual([]);
+          |                                               ^
+      430 |   expect(s.errors).toEqual([]);
+      431 |   await s.context.close();
+      432 |
+        at C:\dev\Qoro_convenios_tiss_20261110\e2e\convenios-guide-states-preview.spec.ts:429:47
+
+    Error Context: test-results\convenios-guide-states-pre-2f074-omes-teclado-foco-e-celular-chromium\error-context.md
+
+  1 failed
+    [chromium] › e2e\convenios-guide-states-preview.spec.ts:369:1 › acessibilidade do painel Dados da consulta: axe WCAG 2.2 AA, títulos, nomes, teclado, foco e celular 
+  10 did not run
+  1 passed (45.0s)

@@ -1,0 +1,5 @@
+vitest completo (15/11, 00:22–00:26), HEAD 4078a474, com TISS_XMLLINT_WASM_DIR (o node_modules do worktree é junção sem o xmllint-wasm; no CI ele vem do package.json):
+ Test Files  658 passed (658)
+      Tests  7121 passed | 3 skipped (7124)
+
+Rodada anterior (14/11, 23:0x, HEAD 2d3c79e6, sem a variável): 655/657; os 2 arquivos do motor XSD passaram com a variável (25 testes).

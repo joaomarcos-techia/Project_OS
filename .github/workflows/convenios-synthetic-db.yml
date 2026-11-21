@@ -1,0 +1,186 @@
+name: Convênios — provas sintéticas de banco
+
+# Provas do módulo Convênios (TISS) em PostgreSQL DESCARTÁVEL criado dentro do próprio runner
+# (initdb no diretório temporário; some com a máquina). Por que existe: o notebook de
+# desenvolvimento não comporta Postgres nem build (decisão do fundador de 15/11/2026), e estas
+# provas não estavam em nenhum job.
+#
+# Limites (decisão do fundador para testes em CI):
+#   - dados 100% sintéticos, gerados pelos próprios harnesses; nenhum dado real do Qoro;
+#   - nenhum segredo: o job não referencia `secrets.*` nem `vars.*`, e roda sem `.env.local`;
+#   - nenhum banco compartilhado (DEV ou produção) e nenhuma migration fora do cluster descartável;
+#   - nenhum deploy, nenhum artefato publicado (nem dump), nenhuma chamada a Asaas, AbacatePay,
+#     operadora ou Supabase: o armazenamento dos arquivos é um mapa em memória do harness;
+#   - token do GitHub só de leitura, e retirado do git antes de instalar dependências.
+#
+# A cadeia "na ordem do DEV" lê as migrations 0136–0142 e a 0159 candidata do #53 por `git show`
+# de dois commits fixos (scripts/security/dev-order-chain.ts). Só leitura do repositório.
+
+# `push` na branch do #55 (não `pull_request`): o filtro de caminhos olha só os commits enviados,
+# então um push só de documentação não gasta minutos do Actions.
+on:
+  push:
+    branches: [feat/convenios-tiss-20261110]
+    paths:
+      - 'src/contexts/health-insurance/**'
+      - 'src/lib/premium-access/**'
+      - 'scripts/security/health-insurance-*-db.ts'
+      - 'scripts/security/hi-fixtures.ts'
+      - 'src/lib/outbox/**'
+      - 'scripts/security/outbox-budget-db.ts'
+      - 'scripts/security/scratch-schema.ts'
+      - 'scripts/security/dev-order-chain.ts'
+      - 'drizzle/migrations/**'
+      - 'docs/convenios/migrations/**'
+      - '.github/workflows/convenios-synthetic-db.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: convenios-synthetic-db-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-db:
+    name: Convênios — Postgres descartável (sintético)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # O commit enviado, exatamente como está (a cadeia do DEV é a do #55, sem merge com a main).
+      - uses: actions/checkout@v4
+
+      - name: Commits do #53 lidos pela cadeia do DEV (só leitura) e retirada do token do git
+        run: |
+          git fetch --no-tags --depth=1 origin \
+            8c591c8f3d89b459a80c30bb36541eae1123861f \
+            97e2c3067ad35ce487a426d966949f7391c37870
+          git config --local --unset-all http.https://github.com/.extraheader || true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: 0162 — matriz de permissões I.2, arquivo final do journal (12 provas)
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55549 \
+            pnpm exec tsx scripts/security/health-insurance-permission-matrix-db.ts
+
+      # P1.12-b (matriz I.2): escopo "só as próprias" e valores fora do servidor nas leituras da interface.
+      - name: Matriz I.2 — escopo das guias e valores nas leituras (D-1, D-3, D-4)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55553 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/health-insurance-guide-scope-db.ts
+
+      # P7.5 (0165): cancelamento na operadora e substituição só com recibo; cancelaGuia no XSD oficial.
+      - name: 0165 — cancelamento na operadora e substituição só com recibo (P7.5)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55554 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/health-insurance-guide-cancellation-db.ts
+
+      # P6.6/P12.6: manutenção de Convênios do fim do financial-reconcile (vencimento e resumo diário).
+      - name: Manutenção de Convênios — vencimento das autorizações e resumo diário (P6.6/P12.6)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55555 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/health-insurance-maintenance-db.ts
+
+      # P6.3: comprovante da autorização em partes (até 10 MB), cifra real, leitura auditada e conferência de órfãos.
+      - name: Comprovante da autorização em partes (P6.3)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55556 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/health-insurance-receipt-upload-db.ts
+
+      - name: Avisos de autorização entregues à clínica (P6.6, 0166)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55557 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/health-insurance-authorization-alerts-db.ts
+
+      - name: Concorrência da manutenção de Convênios (execuções sobrepostas, linha presa, conexão derrubada)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55558 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/health-insurance-maintenance-concurrency-db.ts
+
+      - name: Interruptor do módulo pela plataforma (P1.13, contrato do console)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55559 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/health-insurance-platform-db.ts
+
+      - name: Relatório por operadora e período (P9.10, somas contra o livro)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55560 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/health-insurance-report-db.ts
+
+      - name: Estados da cobertura não bloqueiam o atendimento clínico (P5.1)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55561           NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-coverage-states-db.ts
+
+      - name: Série recorrente de convênio e consumo da autorização (P4.7)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55562           NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-series-authorization-db.ts
+
+      - name: Credenciais da operadora e leitura só para o envio SOAP (P2.5, P6.5, P12.5)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55563           NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-insurer-credentials-db.ts
+
+      - name: Envio do lote pelo conector homologado contra a operadora stub (P9.4, teto "Testado")
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55566           NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-batch-connector-db.ts
+
+      - name: Worker do outbox — prazo de reserva e descarte em bloco (R61, 6 provas)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55567           NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/outbox-budget-db.ts
+
+      - name: Desempenho da H.2 com o código real (P14.4; metas e desvio registrado)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55564           NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-performance-db.ts
+
+      # Cada prova roda mesmo se a anterior falhar (evidência independente); o job falha se qualquer uma falhar.
+      - name: SP/SADT — solicitação, automação e indicação clínica × D24
+        if: ${{ !cancelled() }}
+        # tsx direto: o `--import` em NODE_OPTIONS também valeria para o próprio pnpm e quebra o
+        # carregamento dele (visto na execução 43774430786).
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" \
+          NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs" \
+            ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-sadt-db.ts
+
+      - name: Repasse do convênio — cancelamento com repasse e revisão humana (0163)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/health-insurance-payout-db.ts
+
+      - name: Interruptor do módulo — classe A recusada, classe C preservada
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55551 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/health-insurance-module-switch-db.ts
+
+      # 0164 (arquivo final do journal, autorizada para o DEV em 16/11): o interruptor também nos gatilhos do banco.
+      - name: 0164 — gatilhos do módulo, classe A barrada no banco, preservação e recuperação passam
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55552 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/health-insurance-module-switch-triggers-db.ts

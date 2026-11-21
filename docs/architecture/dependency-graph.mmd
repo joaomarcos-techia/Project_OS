@@ -17,6 +17,7 @@ flowchart LR
     context_clinical["clinical"]
     context_feedback["feedback"]
     context_financial["financial"]
+    context_health_insurance["health-insurance"]
     context_identity["identity"]
     context_messaging["messaging"]
     context_onboarding["onboarding"]
@@ -31,6 +32,7 @@ flowchart LR
     lib_ai["ai"]
     lib_audit["audit"]
     lib_auth["auth"]
+    lib_backup["backup"]
     lib_cron_heartbeat["cron-heartbeat"]
     lib_crypto["crypto"]
     lib_db["db"]
@@ -53,11 +55,13 @@ flowchart LR
     lib_platform_settings["platform-settings"]
     lib_realtime["realtime"]
     lib_sanitize["sanitize"]
+    lib_security["security"]
     lib_storage["storage"]
     lib_tenant_access["tenant-access"]
     lib_test["test"]
     lib_ui["ui"]
     lib_validation["validation"]
+    lib_xlsx["xlsx"]
   end
   subgraph components["component"]
     component_admin["admin"]
@@ -121,12 +125,14 @@ flowchart LR
   app__app_ --> lib_pdf
   app__app_ --> lib_platform_announcements
   app__app_ --> lib_realtime
+  app__app_ --> lib_security
   app__app_ --> lib_storage
   app__app_ --> lib_ui
   app_api --> context_ai_agent
   app_api --> context_billing
   app_api --> context_clinical
   app_api --> context_financial
+  app_api --> context_identity
   app_api --> context_messaging
   app_api --> context_onboarding
   app_api --> context_patient
@@ -136,6 +142,7 @@ flowchart LR
   app_api --> lib_auth
   app_api --> lib_cron_heartbeat
   app_api --> lib_db
+  app_api --> lib_email
   app_api --> lib_env
   app_api --> lib_env_coherence
   app_api --> lib_http
@@ -144,10 +151,13 @@ flowchart LR
   app_api --> lib_outbox
   app_api --> lib_payments
   app_api --> lib_platform_settings
+  app_api --> lib_security
   app_api --> lib_storage
   app_api --> lib_validation
   app_error --> component_shared
   app_not_found --> component_ui
+  app_page --> component_shared
+  app_page --> component_ui
   component_admin --> component_painel
   component_admin --> component_shared
   component_admin --> component_ui
@@ -183,6 +193,8 @@ flowchart LR
   context_billing --> context_tenancy
   context_billing --> lib_crypto
   context_billing --> lib_db
+  context_billing --> lib_env
+  context_billing --> lib_http
   context_billing --> lib_observability
   context_billing --> lib_outbox
   context_billing --> lib_payments
@@ -202,6 +214,7 @@ flowchart LR
   context_clinical --> lib_tenant_access
   context_feedback --> context_tenancy
   context_feedback --> lib_db
+  context_financial --> context_billing
   context_financial --> context_payments
   context_financial --> context_scheduling
   context_financial --> context_tenancy
@@ -209,10 +222,12 @@ flowchart LR
   context_financial --> lib_auth
   context_financial --> lib_db
   context_financial --> lib_financial
+  context_financial --> lib_format
   context_financial --> lib_idempotency
   context_financial --> lib_observability
   context_financial --> lib_outbox
   context_financial --> lib_validation
+  context_health_insurance --> lib_xlsx
   context_identity --> context_tenancy
   context_identity --> lib_audit
   context_identity --> lib_auth
@@ -248,6 +263,7 @@ flowchart LR
   context_onboarding --> lib_observability
   context_onboarding --> lib_outbox
   context_onboarding --> lib_payments
+  context_onboarding --> lib_validation
   context_patient --> context_tenancy
   context_patient --> lib_agent
   context_patient --> lib_audit
@@ -364,7 +380,9 @@ flowchart LR
   lib_payments --> lib_db
   lib_payments --> lib_env
   lib_payments --> lib_observability
+  lib_payments --> lib_sanitize
   lib_platform_announcements --> lib_db
   lib_platform_settings --> lib_db
+  lib_platform_settings --> lib_observability
   lib_storage --> lib_auth
   lib_tenant_access --> lib_db

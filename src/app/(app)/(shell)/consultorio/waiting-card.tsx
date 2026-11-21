@@ -32,12 +32,13 @@ function WaitingCardImpl({
   onCall,
 }: {
   card: BoardCardDTO;
-  now: number;
+  /** `null` até montar (R51): sem número de espera até o navegador ter o próprio relógio. */
+  now: number | null;
   timeZone: string;
   busy: boolean;
   onCall: (id: string) => void;
 }) {
-  const mins = waitMinutes(card.checkInAt, now);
+  const mins = now === null ? null : waitMinutes(card.checkInAt, now);
   const tone = waitTone(mins);
   return (
     <div

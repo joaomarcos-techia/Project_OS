@@ -1,0 +1,31 @@
+{
+ "autorizacao": "fundador, 19/11: estorno de R$ 4,00 e, depois de confirmado, o restante de R$ 6,00 (Sandbox)",
+ "tentativas": [
+  {
+   "quando": "2026-11-19T02:59:09Z",
+   "pedido": {
+    "valor": 4
+   },
+   "resposta": {
+    "http": 400,
+    "erro": "Esta transação só pode ser estornada parcialmente no próximo dia."
+   }
+  },
+  {
+   "quando": "2026-11-19T03:06:30Z",
+   "pedido": {
+    "valor": 4
+   },
+   "resposta": {
+    "http": 400,
+    "erro": "Esta transação só pode ser estornada parcialmente no próximo dia."
+   }
+  }
+ ],
+ "estadoDepois": {
+  "pagamento": "CONFIRMED",
+  "estornos": 0
+ },
+ "qoro": "sem mudança (cobrança paid, uma baixa, recebível pago)",
+ "leitura": "regra do provedor para cartão: estorno PARCIAL só no dia seguinte ao pagamento (depois do processamento); nenhum estorno foi criado; nenhuma chamada foi repetida sem ler o estado antes"
+}

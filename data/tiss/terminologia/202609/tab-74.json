@@ -1,0 +1,59 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "74",
+  "title": "Tabela 74 - Terminologia de motivos de ausência do código de validação",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 7,
+  "terms": [
+    {
+      "code": "01",
+      "term": "Beneficiário internado",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2020-02-29"
+    },
+    {
+      "code": "02",
+      "term": "Beneficiário em situação de urgência/emergência",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2020-02-29"
+    },
+    {
+      "code": "03",
+      "term": "Intermitência/Instabilidade de sistemas e regularização do atendimento após saída do beneficiário do prestador de serviço",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2020-02-29"
+    },
+    {
+      "code": "04",
+      "term": "Beneficiário se negou a transmitir o número do token",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2020-02-29"
+    },
+    {
+      "code": "05",
+      "term": "Beneficiário em coleta domiciliar",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2020-02-29"
+    },
+    {
+      "code": "06",
+      "term": "Material para exames enviado ao prestador por terceiros",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2020-02-29"
+    },
+    {
+      "code": "07",
+      "term": "Beneficiário não possui celular",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2020-02-29"
+    }
+  ]
+}

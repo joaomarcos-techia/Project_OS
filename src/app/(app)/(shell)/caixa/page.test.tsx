@@ -71,6 +71,8 @@ const lancamento: LancamentoSummary = {
   descricao: 'Consulta',
   valor: 250,
   valorPago: 250,
+  valorGlosado: 0,
+  sourceHiGuideId: null,
   status: 'pago',
   dueDate: '2026-10-02',
   paidAt: '2026-10-02T10:00:00.000Z',

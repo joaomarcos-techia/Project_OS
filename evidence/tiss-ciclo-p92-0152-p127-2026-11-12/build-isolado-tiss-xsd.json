@@ -1,0 +1,31 @@
+{
+  "observacoes": [
+    {
+      "test": "tiss-xsd:anon",
+      "path": "/api/health/tiss-xsd",
+      "status": 401,
+      "type": "application/json",
+      "body": "{\"error\":\"unauthorized\"}"
+    },
+    {
+      "test": "tiss-xsd:monitoring",
+      "path": "/api/health/tiss-xsd",
+      "status": 200,
+      "type": "application/json",
+      "body": "{\"status\":\"ok\",\"engine\":\"xmllint-wasm@5.3.0\",\"schemaVersion\":\"4.03.00\",\"schemaSetSha256\":\"928fa2ca4685f78375fc42b3df3e7004fb8144ac5f255ac18f53538e08968425\",\"failure\":null,\"checks\":{\"validAccepted\":true,\"invalidRejected\":true,\"hostileRejected\":true},\"ms\":{\"valid\":687,\"invalid\":346,\"total\":1158},\"rssMb\":333}"
+    }
+  ],
+  "rastreamentoDaFuncao": [
+    "../../../../../../src/contexts/health-insurance/tiss/schemas/4.03.00/MANIFEST.json",
+    "../../../../../../src/contexts/health-insurance/tiss/schemas/4.03.00/tissAssinaturaDigital_v1.01.xsd",
+    "../../../../../../src/contexts/health-insurance/tiss/schemas/4.03.00/tissComplexTypesV4_03_00.xsd",
+    "../../../../../../src/contexts/health-insurance/tiss/schemas/4.03.00/tissGuiasV4_03_00.xsd",
+    "../../../../../../src/contexts/health-insurance/tiss/schemas/4.03.00/tissSimpleTypesV4_03_00.xsd",
+    "../../../../../../src/contexts/health-insurance/tiss/schemas/4.03.00/tissV4_03_00.xsd",
+    "../../../../../../src/contexts/health-insurance/tiss/schemas/4.03.00/tissWebServicesV4_03_00.xsd",
+    "../../../../../../src/contexts/health-insurance/tiss/schemas/4.03.00/xmldsig-core-schema.xsd",
+    "..\\..\\..\\..\\..\\..\\node_modules\\xmllint-wasm\\package.json",
+    "..\\..\\..\\..\\..\\..\\node_modules\\xmllint-wasm\\xmllint-node.js",
+    "..\\..\\..\\..\\..\\..\\node_modules\\xmllint-wasm\\xmllint.wasm"
+  ]
+}

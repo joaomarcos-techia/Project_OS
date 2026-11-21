@@ -1,0 +1,1342 @@
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mC:/dev/Qoro_convenios_tiss_20261110[39m
+
+ [32m✓[39m src/contexts/messaging/internal/meta-onboarding.test.ts [2m([22m[2m105 tests[22m[2m)[22m[90m 213[2mms[22m[39m
+ [32m✓[39m src/lib/payments/asaas/index.test.ts [2m([22m[2m64 tests[22m[2m)[22m[90m 255[2mms[22m[39m
+ [32m✓[39m src/contexts/onboarding/internal/signup-confirmation-email.test.ts [2m([22m[2m42 tests[22m[2m)[22m[90m 219[2mms[22m[39m
+ [32m✓[39m src/app/(app)/reset-password/actions.test.ts [2m([22m[2m26 tests[22m[2m)[22m[90m 179[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/internal/charge-closeout.test.ts [2m([22m[2m41 tests[22m[2m)[22m[90m 109[2mms[22m[39m
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"waitlist_offer"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.sent","clinicId":"c1","jobId":"j1","type":"waitlist_offer"}
+ [32m✓[39m src/app/api/webhooks/asaas/patient/[ref]/route.test.ts [2m([22m[2m38 tests[22m[2m)[22m[33m 507[2mms[22m[39m
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"waitlist_offer","scanned":1,"sent":1,"cancelled":0,"retried":0,"failed":0}
+{"ts":"2026-10-10T11:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-noite","type":"waitlist_offer"}
+{"ts":"2026-10-10T11:00:00.000Z","kind":"metric","event":"proactive.job.sent","clinicId":"c1","jobId":"j-noite","type":"waitlist_offer"}
+{"ts":"2026-10-10T11:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"waitlist_offer","scanned":1,"sent":1,"cancelled":0,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"waitlist_offer"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j1","type":"waitlist_offer","reason":"waitlist_offer_closed"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"waitlist_offer","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"waitlist_offer"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j1","type":"waitlist_offer","reason":"waitlist_slot_unavailable"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"waitlist_offer","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"waitlist_offer"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j1","type":"waitlist_offer","reason":"waitlist_offer_superseded"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"waitlist_offer","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"waitlist_offer"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j1","type":"waitlist_offer","reason":"suppressed"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"waitlist_offer","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-falta","type":"no_show_followup"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.sent","clinicId":"c1","jobId":"j-falta","type":"no_show_followup"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"no_show_followup","scanned":1,"sent":1,"cancelled":0,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-falta","type":"no_show_followup"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j-falta","type":"no_show_followup","reason":"no_show_reversed"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"no_show_followup","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-falta","type":"no_show_followup"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j-falta","type":"no_show_followup","reason":"no_show_patient_mismatch"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"no_show_followup","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-falta","type":"no_show_followup"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j-falta","type":"no_show_followup","reason":"no_show_already_rescheduled"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"no_show_followup","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-restante","type":"remainder_link"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.sent","clinicId":"c1","jobId":"j-restante","type":"remainder_link"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"remainder_link","scanned":1,"sent":1,"cancelled":0,"retried":0,"failed":0}
+{"ts":"2026-10-09T10:59:59.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-restante","type":"remainder_link"}
+{"ts":"2026-10-09T10:59:59.000Z","kind":"metric","event":"proactive.job.deferred","clinicId":"c1","jobId":"j-restante","type":"remainder_link","reason":"send_window_closed"}
+{"ts":"2026-10-09T10:59:59.000Z","kind":"metric","event":"proactive.batch.run","type":"remainder_link","scanned":1,"sent":0,"cancelled":0,"retried":1,"failed":0}
+{"ts":"2026-10-09T23:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-restante","type":"remainder_link"}
+{"ts":"2026-10-09T23:00:00.000Z","kind":"metric","event":"proactive.job.deferred","clinicId":"c1","jobId":"j-restante","type":"remainder_link","reason":"send_window_closed"}
+{"ts":"2026-10-09T23:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"remainder_link","scanned":1,"sent":0,"cancelled":0,"retried":1,"failed":0}
+{"ts":"2026-10-09T22:59:59.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-restante","type":"remainder_link"}
+{"ts":"2026-10-09T23:00:00.000Z","kind":"metric","event":"proactive.job.deferred","clinicId":"c1","jobId":"j-restante","type":"remainder_link","reason":"send_window_closed"}
+{"ts":"2026-10-09T23:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"remainder_link","scanned":1,"sent":0,"cancelled":0,"retried":1,"failed":0}
+{"ts":"2026-10-09T23:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-sinal","type":"deposit_link"}
+{"ts":"2026-10-09T23:00:00.000Z","kind":"metric","event":"proactive.job.deferred","clinicId":"c1","jobId":"j-sinal","type":"deposit_link","reason":"send_window_closed"}
+{"ts":"2026-10-09T23:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"deposit_link","scanned":1,"sent":0,"cancelled":0,"retried":1,"failed":0}
+{"ts":"2026-10-09T11:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-restante","type":"remainder_link"}
+{"ts":"2026-10-09T11:00:00.000Z","kind":"metric","event":"proactive.job.sent","clinicId":"c1","jobId":"j-restante","type":"remainder_link"}
+{"ts":"2026-10-09T11:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"remainder_link","scanned":1,"sent":1,"cancelled":0,"retried":0,"failed":0}
+{"ts":"2026-10-09T22:59:59.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-restante","type":"remainder_link"}
+{"ts":"2026-10-09T22:59:59.000Z","kind":"metric","event":"proactive.job.sent","clinicId":"c1","jobId":"j-restante","type":"remainder_link"}
+{"ts":"2026-10-09T22:59:59.000Z","kind":"metric","event":"proactive.batch.run","type":"remainder_link","scanned":1,"sent":1,"cancelled":0,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-restante","type":"remainder_link"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j-restante","type":"remainder_link","reason":"charge_not_payable"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"remainder_link","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-sinal","type":"deposit_link"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.sent","clinicId":"c1","jobId":"j-sinal","type":"deposit_link"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"deposit_link","scanned":1,"sent":1,"cancelled":0,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"reminder"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.sent","clinicId":"c1","jobId":"j1","type":"reminder"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"reminder","scanned":1,"sent":1,"cancelled":0,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"reminder"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j1","type":"reminder","reason":"suppressed"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"reminder","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j1","type":"dunning","reason":"no_consent"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"dunning","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-sem-optin","type":"deposit_link"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j-sem-optin","type":"deposit_link","reason":"no_consent"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"deposit_link","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-sem-optin","type":"deposit_link"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j-sem-optin","type":"deposit_link","reason":"no_consent"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"deposit_link","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j1","type":"dunning","reason":"already_paid"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"dunning","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.sent","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"dunning","scanned":1,"sent":1,"cancelled":0,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"followup"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j1","type":"followup","reason":"return_no_longer_needed"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"followup","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"followup"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j1","type":"followup","reason":"return_already_completed"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"followup","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.sent","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"dunning","scanned":1,"sent":1,"cancelled":0,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.sent","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"dunning","scanned":1,"sent":1,"cancelled":0,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.retried","clinicId":"c1","jobId":"j1","type":"dunning","reason":"meta_131000","delayMs":30000,"stage":"send","resend":true}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"dunning","scanned":1,"sent":0,"cancelled":0,"retried":1,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.retried","clinicId":"c1","jobId":"j1","type":"dunning","reason":"meta_130429","delayMs":30000,"stage":"send","resend":true}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"dunning","scanned":1,"sent":0,"cancelled":0,"retried":1,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.sent","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"dunning","scanned":1,"sent":1,"cancelled":0,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.failed","clinicId":"c1","jobId":"j1","type":"dunning","reason":"meta_131026","stage":"send","why":"not_retryable"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"dunning","scanned":1,"sent":0,"cancelled":0,"retried":0,"failed":1}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.failed","clinicId":"c1","jobId":"j1","type":"dunning","reason":"meta_131048","stage":"send","why":"not_retryable"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"dunning","scanned":1,"sent":0,"cancelled":0,"retried":0,"failed":1}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.failed","clinicId":"c1","jobId":"j1","type":"dunning","reason":"meta_131049","stage":"send","why":"not_retryable"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"dunning","scanned":1,"sent":0,"cancelled":0,"retried":0,"failed":1}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.failed","clinicId":"c1","jobId":"j1","type":"dunning","reason":"meta_failed","stage":"send","why":"not_retryable"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"dunning","scanned":1,"sent":0,"cancelled":0,"retried":0,"failed":1}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.failed","clinicId":"c1","jobId":"j1","type":"dunning","reason":"meta_131000","stage":"send","why":"attempts_exhausted"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"dunning","scanned":1,"sent":0,"cancelled":0,"retried":0,"failed":1}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.failed","clinicId":"c1","jobId":"j1","type":"dunning","reason":"meta_unknown","stage":"send"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"dunning","scanned":1,"sent":0,"cancelled":0,"retried":0,"failed":1}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.failed","clinicId":"c1","jobId":"j1","type":"dunning","reason":"meta_unknown","stage":"send"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"dunning","scanned":1,"sent":0,"cancelled":0,"retried":0,"failed":1}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.sent","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"dunning","scanned":1,"sent":1,"cancelled":0,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.retried","clinicId":"c1","jobId":"j1","type":"dunning","reason":"meta_131016","delayMs":30000,"stage":"send","resend":true}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"dunning","scanned":1,"sent":0,"cancelled":0,"retried":1,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.retried","clinicId":"c1","jobId":"j1","type":"dunning","reason":"meta_pending","delayMs":30000}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"dunning","scanned":1,"sent":0,"cancelled":0,"retried":1,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.retried","clinicId":"c1","jobId":"j1","type":"dunning","reason":"meta_error","delayMs":30000}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"dunning","scanned":1,"sent":0,"cancelled":0,"retried":1,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-sinal","type":"deposit_link"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.failed","clinicId":"c1","jobId":"j-sinal","type":"deposit_link","reason":"meta_131000","stage":"send","why":"past_deadline"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"deposit_link","scanned":1,"sent":0,"cancelled":0,"retried":0,"failed":1}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"reminder"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.failed","clinicId":"c1","jobId":"j1","type":"reminder","reason":"meta_131016","why":"past_deadline"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"reminder","scanned":1,"sent":0,"cancelled":0,"retried":0,"failed":1}
+{"ts":"2026-10-10T11:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"reminder"}
+{"ts":"2026-10-10T11:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j1","type":"reminder","reason":"expired_reminder"}
+{"ts":"2026-10-10T11:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"reminder","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"reminder"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.failed","clinicId":"c1","jobId":"j1","type":"reminder","reason":"meta_130429","why":"past_deadline"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"reminder","scanned":1,"sent":0,"cancelled":0,"retried":0,"failed":1}
+{"ts":"2026-10-08T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"reminder"}
+{"ts":"2026-10-08T13:00:00.000Z","kind":"metric","event":"proactive.job.retried","clinicId":"c1","jobId":"j1","type":"reminder","reason":"meta_131000","delayMs":30000,"stage":"send","resend":true}
+{"ts":"2026-10-08T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"reminder","scanned":1,"sent":0,"cancelled":0,"retried":1,"failed":0}
+{"ts":"2026-10-12T12:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"dunning"}
+{"ts":"2026-10-12T12:00:00.000Z","kind":"metric","event":"proactive.job.failed","clinicId":"c1","jobId":"j1","type":"dunning","reason":"meta_131000","why":"past_deadline"}
+{"ts":"2026-10-12T12:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"dunning","scanned":1,"sent":0,"cancelled":0,"retried":0,"failed":1}
+{"ts":"2026-10-09T22:45:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-validade","type":"reminder"}
+{"ts":"2026-10-09T22:45:00.000Z","kind":"metric","event":"proactive.job.sent","clinicId":"c1","jobId":"j-validade","type":"reminder"}
+{"ts":"2026-10-09T22:45:00.000Z","kind":"metric","event":"proactive.batch.run","type":"reminder","scanned":1,"sent":1,"cancelled":0,"retried":0,"failed":0}
+{"ts":"2026-10-10T12:45:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-validade","type":"deposit_link"}
+{"ts":"2026-10-10T12:45:00.000Z","kind":"metric","event":"proactive.job.sent","clinicId":"c1","jobId":"j-validade","type":"deposit_link"}
+{"ts":"2026-10-10T12:45:00.000Z","kind":"metric","event":"proactive.batch.run","type":"deposit_link","scanned":1,"sent":1,"cancelled":0,"retried":0,"failed":0}
+{"ts":"2026-10-12T12:30:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-validade","type":"waitlist_offer"}
+{"ts":"2026-10-12T12:30:00.000Z","kind":"metric","event":"proactive.job.sent","clinicId":"c1","jobId":"j-validade","type":"waitlist_offer"}
+{"ts":"2026-10-12T12:30:00.000Z","kind":"metric","event":"proactive.batch.run","type":"waitlist_offer","scanned":1,"sent":1,"cancelled":0,"retried":0,"failed":0}
+ [32m✓[39m src/contexts/payments/internal/charge-store.test.ts [2m([22m[2m62 tests[22m[2m)[22m[90m 213[2mms[22m[39m
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-validade","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.sent","clinicId":"c1","jobId":"j-validade","type":"dunning"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"dunning","scanned":1,"sent":1,"cancelled":0,"retried":0,"failed":0}
+{"ts":"2026-10-18T22:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-validade","type":"followup"}
+{"ts":"2026-10-18T22:00:00.000Z","kind":"metric","event":"proactive.job.sent","clinicId":"c1","jobId":"j-validade","type":"followup"}
+{"ts":"2026-10-18T22:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"followup","scanned":1,"sent":1,"cancelled":0,"retried":0,"failed":0}
+{"ts":"2026-10-13T22:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-validade","type":"no_show_followup"}
+{"ts":"2026-10-13T22:00:00.000Z","kind":"metric","event":"proactive.job.sent","clinicId":"c1","jobId":"j-validade","type":"no_show_followup"}
+{"ts":"2026-10-13T22:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"no_show_followup","scanned":1,"sent":1,"cancelled":0,"retried":0,"failed":0}
+{"ts":"2026-10-15T22:45:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-validade","type":"remainder_link"}
+{"ts":"2026-10-15T22:45:00.000Z","kind":"metric","event":"proactive.job.sent","clinicId":"c1","jobId":"j-validade","type":"remainder_link"}
+{"ts":"2026-10-15T22:45:00.000Z","kind":"metric","event":"proactive.batch.run","type":"remainder_link","scanned":1,"sent":1,"cancelled":0,"retried":0,"failed":0}
+{"ts":"2026-10-10T11:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-validade","type":"reminder"}
+{"ts":"2026-10-10T11:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j-validade","type":"reminder","reason":"expired_reminder"}
+{"ts":"2026-10-10T11:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"reminder","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+{"ts":"2026-10-10T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-validade","type":"deposit_link"}
+{"ts":"2026-10-10T13:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j-validade","type":"deposit_link","reason":"expired_deposit_link"}
+{"ts":"2026-10-10T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"deposit_link","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+{"ts":"2026-10-12T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-validade","type":"waitlist_offer"}
+{"ts":"2026-10-12T13:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j-validade","type":"waitlist_offer","reason":"expired_waitlist_offer"}
+{"ts":"2026-10-12T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"waitlist_offer","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+{"ts":"2026-10-12T12:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-validade","type":"dunning"}
+{"ts":"2026-10-12T12:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j-validade","type":"dunning","reason":"expired_dunning"}
+{"ts":"2026-10-12T12:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"dunning","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+{"ts":"2026-10-19T12:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-validade","type":"followup"}
+{"ts":"2026-10-19T12:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j-validade","type":"followup","reason":"expired_followup"}
+{"ts":"2026-10-19T12:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"followup","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+{"ts":"2026-10-14T12:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-validade","type":"no_show_followup"}
+{"ts":"2026-10-14T12:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j-validade","type":"no_show_followup","reason":"expired_no_show_followup"}
+{"ts":"2026-10-14T12:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"no_show_followup","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+{"ts":"2026-10-16T11:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-validade","type":"remainder_link"}
+{"ts":"2026-10-16T11:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j-validade","type":"remainder_link","reason":"expired_remainder_link"}
+{"ts":"2026-10-16T11:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"remainder_link","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j1","type":"waitlist_offer"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j1","type":"waitlist_offer","reason":"expired_waitlist_offer"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"waitlist_offer","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.processing","clinicId":"c1","jobId":"j-restante","type":"remainder_link"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.job.cancelled","clinicId":"c1","jobId":"j-restante","type":"remainder_link","reason":"expired_remainder_link"}
+{"ts":"2026-10-09T13:00:00.000Z","kind":"metric","event":"proactive.batch.run","type":"remainder_link","scanned":1,"sent":0,"cancelled":1,"retried":0,"failed":0}
+ [32m✓[39m src/contexts/ai-agent/proactive-jobs/application/process.test.ts [2m([22m[2m62 tests[22m[2m)[22m[33m 1076[2mms[22m[39m
+   [33m[2m✓[22m[39m WAIT-001 — oferta da lista de espera[2m > [22moferta aberta com vaga livre → envia e marca sent [33m514[2mms[22m[39m
+ [32m✓[39m src/lib/auth/rate-limit.test.ts [2m([22m[2m61 tests[22m[2m)[22m[33m 2672[2mms[22m[39m
+   [33m[2m✓[22m[39m BoundedFallbackLimiter (F-08) — contenção de memória[2m > [22mrespeita o cap: 12.000 chaves distintas → ≤ 10.000 entradas retidas [33m2280[2mms[22m[39m
+{"ts":"2026-11-15T17:19:30.700Z","kind":"metric","event":"auth.session.revoked","reason":"epoch_mismatch"}
+{"ts":"2026-11-15T17:19:30.710Z","kind":"metric","event":"auth.session.revoked","reason":"epoch_mismatch"}
+{"ts":"2026-11-15T17:19:30.712Z","kind":"metric","event":"authz.denied","code":"unauthenticated","reason":"CLAIMS_OUTDATED","httpStatus":401}
+{"ts":"2026-11-15T17:19:30.717Z","kind":"metric","event":"auth.session.revoked","reason":"epoch_mismatch"}
+{"ts":"2026-11-15T17:19:30.742Z","kind":"metric","event":"auth.session.revoked","reason":"claim_divergence"}
+{"ts":"2026-11-15T17:19:30.745Z","kind":"metric","event":"auth.session.revoked","reason":"claim_divergence"}
+{"ts":"2026-11-15T17:19:30.748Z","kind":"metric","event":"authz.denied","code":"forbidden","reason":"MFA_REQUIRED","httpStatus":403}
+{"ts":"2026-11-15T17:19:30.754Z","kind":"metric","event":"authz.denied","code":"forbidden","reason":"MFA_REQUIRED","httpStatus":403}
+{"ts":"2026-11-15T17:19:30.757Z","kind":"metric","event":"authz.denied","code":"forbidden","reason":"MFA_REQUIRED","httpStatus":403}
+{"ts":"2026-11-15T17:19:30.760Z","kind":"metric","event":"authz.denied","code":"forbidden","reason":"MFA_REQUIRED","httpStatus":403}
+ [32m✓[39m src/contexts/onboarding/internal/signup-session.test.ts [2m([22m[2m46 tests[22m[2m)[22m[90m 239[2mms[22m[39m
+{"ts":"2026-11-15T17:19:30.773Z","kind":"metric","event":"authz.denied","code":"forbidden","reason":"ROLE_DENIED","httpStatus":403}
+{"ts":"2026-11-15T17:19:30.781Z","kind":"metric","event":"authz.denied","code":"forbidden","reason":"CLINIC_CONTEXT_REQUIRED","httpStatus":403}
+{"ts":"2026-11-15T17:19:30.786Z","kind":"metric","event":"auth.session.revoked","reason":"claim_divergence"}
+{"ts":"2026-11-15T17:19:30.787Z","kind":"metric","event":"authz.denied","code":"unauthenticated","reason":"CLAIMS_OUTDATED","httpStatus":401}
+{"ts":"2026-11-15T17:19:30.793Z","kind":"metric","event":"authz.denied","code":"forbidden","reason":"PERMISSION_DENIED","httpStatus":403}
+{"ts":"2026-11-15T17:19:30.798Z","kind":"metric","event":"authz.denied","code":"forbidden","reason":"PERMISSION_DENIED","httpStatus":403}
+{"ts":"2026-11-15T17:19:30.810Z","kind":"metric","event":"authz.denied","code":"unauthenticated","reason":"USER_DISABLED","httpStatus":401}
+{"ts":"2026-11-15T17:19:30.813Z","kind":"metric","event":"auth.session.revoked","reason":"epoch_mismatch"}
+ [32m✓[39m src/lib/auth/tenant-context.test.ts [2m([22m[2m38 tests[22m[2m)[22m[33m 4533[2mms[22m[39m
+   [33m[2m✓[22m[39m Data API desabilitada: operações de identidade permanecem server-side[2m > [22mexpõe a mesma leitura autoritativa usada pelo login [33m4267[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/internal/excess-refund.test.ts [2m([22m[2m24 tests[22m[2m)[22m[90m 95[2mms[22m[39m
+ [32m✓[39m src/contexts/onboarding/internal/signup-draft.test.ts [2m([22m[2m51 tests[22m[2m)[22m[33m 408[2mms[22m[39m
+ [32m✓[39m src/app/api/signup/sessions/continue/route.test.ts [2m([22m[2m33 tests[22m[2m)[22m[33m 303[2mms[22m[39m
+ [32m✓[39m src/contexts/onboarding/internal/signup-auth-admin.test.ts [2m([22m[2m46 tests[22m[2m)[22m[90m 99[2mms[22m[39m
+{"ts":"2026-11-15T17:19:33.938Z","kind":"metric","event":"signup.checkout.created","planCode":"essencial"}
+{"ts":"2026-11-15T17:19:33.958Z","kind":"metric","event":"signup.checkout.created","planCode":"essencial"}
+{"ts":"2026-11-15T17:19:33.967Z","kind":"metric","event":"signup.checkout.created","planCode":"consultorio_2026"}
+{"ts":"2026-11-15T17:19:33.974Z","kind":"metric","event":"signup.checkout.subscription_mismatch"}
+{"ts":"2026-11-15T17:19:33.989Z","kind":"metric","event":"signup.checkout.abandoned","reason":"cancelled"}
+{"ts":"2026-11-15T17:19:33.996Z","kind":"metric","event":"signup.checkout.abandoned","reason":"expired"}
+{"ts":"2026-11-15T17:19:34.005Z","kind":"metric","event":"signup.checkout.subscription_mismatch"}
+{"ts":"2026-11-15T17:19:34.006Z","kind":"metric","event":"signup.checkout.subscription_mismatch"}
+{"ts":"2026-10-19T12:00:00.000Z","kind":"metric","event":"signup.checkout.subscription_mismatch"}
+{"ts":"2026-11-15T17:19:34.022Z","kind":"metric","event":"signup.checkout.subscription_mismatch"}
+ [32m✓[39m src/contexts/onboarding/internal/signup-hosted-checkout.test.ts [2m([22m[2m23 tests[22m[2m)[22m[90m 97[2mms[22m[39m
+ [32m✓[39m src/app/(app)/join/[token]/actions.test.ts [2m([22m[2m43 tests[22m[2m)[22m[90m 208[2mms[22m[39m
+ [32m✓[39m src/contexts/messaging/internal/meta-health-probe.test.ts [2m([22m[2m38 tests[22m[2m)[22m[90m 142[2mms[22m[39m
+ [32m✓[39m src/app/(app)/auth/confirm/route.test.ts [2m([22m[2m32 tests[22m[2m)[22m[90m 196[2mms[22m[39m
+{"ts":"2026-11-15T17:19:36.048Z","kind":"metric","event":"signup.billing.subscription_active","planCode":"essencial"}
+{"ts":"2026-11-15T17:19:36.065Z","kind":"metric","event":"signup.billing.subscription_active","planCode":"essencial"}
+{"ts":"2026-11-15T17:19:36.069Z","kind":"metric","event":"signup.billing.subscription_active","planCode":"essencial"}
+{"ts":"2026-11-15T17:19:36.073Z","kind":"metric","event":"signup.billing.subscription_active","planCode":"essencial"}
+{"ts":"2026-11-15T17:19:36.077Z","kind":"metric","event":"signup.billing.customer_compensated","outcome":"deleted"}
+{"ts":"2026-11-15T17:19:36.089Z","kind":"metric","event":"signup.billing.subscription_compensated","outcome":"cancelled"}
+{"ts":"2026-11-15T17:19:36.090Z","kind":"metric","event":"signup.billing.customer_compensated","outcome":"deleted"}
+{"ts":"2026-11-15T17:19:36.093Z","kind":"metric","event":"signup.billing.subscription_compensated","outcome":"cancelled"}
+{"ts":"2026-11-15T17:19:36.093Z","kind":"metric","event":"signup.billing.customer_compensated","outcome":"deleted"}
+{"ts":"2026-11-15T17:19:36.097Z","kind":"metric","event":"signup.billing.subscription_compensated","outcome":"cancelled"}
+{"ts":"2026-11-15T17:19:36.098Z","kind":"metric","event":"signup.billing.customer_compensated","outcome":"deleted"}
+{"ts":"2026-11-15T17:19:36.117Z","kind":"metric","event":"signup.billing.reconciled"}
+{"ts":"2026-11-15T17:19:36.124Z","kind":"metric","event":"signup.billing.reconcile_mismatch"}
+{"ts":"2026-11-15T17:19:36.132Z","kind":"metric","event":"signup.billing.reconcile_mismatch"}
+{"ts":"2026-11-15T17:19:36.135Z","kind":"metric","event":"signup.billing.reconcile_mismatch"}
+{"ts":"2026-11-15T17:19:36.137Z","kind":"metric","event":"signup.billing.reconcile_mismatch"}
+{"ts":"2026-11-15T17:19:36.140Z","kind":"metric","event":"signup.billing.reconcile_mismatch"}
+{"ts":"2026-11-15T17:19:36.142Z","kind":"metric","event":"signup.billing.reconcile_mismatch"}
+{"ts":"2026-11-15T17:19:36.149Z","kind":"metric","event":"signup.billing.reconcile_not_found"}
+ [32m✓[39m src/contexts/onboarding/internal/signup-checkout.test.ts [2m([22m[2m29 tests[22m[2m)[22m[90m 140[2mms[22m[39m
+ [32m✓[39m src/app/api/cron/billing-reconcile/route.test.ts [2m([22m[2m15 tests[22m[2m)[22m[90m 184[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/internal/waitlist-store.test.ts [2m([22m[2m21 tests[22m[2m)[22m[90m 231[2mms[22m[39m
+ [32m✓[39m src/app/(app)/login/actions.test.ts [2m([22m[2m23 tests[22m[2m)[22m[90m 112[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/relative-datetime.test.ts [2m([22m[2m68 tests[22m[2m)[22m[33m 957[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/connect-account.test.ts [2m([22m[2m28 tests[22m[2m)[22m[33m 353[2mms[22m[39m
+{"ts":"2026-11-15T17:19:40.470Z","kind":"log","level":"error","event":"messaging.whatsapp.connection_failed","stage":"authorization","error":{"name":"MetaConnectError","message":"[meta] auth rejected"}}
+{"ts":"2026-11-15T17:19:40.527Z","kind":"log","level":"error","event":"messaging.whatsapp.connection_failed","stage":"phone_registration","error":{"name":"MetaConnectError","message":"[meta] register rejected"}}
+{"ts":"2026-11-15T17:19:40.546Z","kind":"log","level":"error","event":"messaging.whatsapp.connection_failed","stage":"persistence","error":{"name":"MetaConnectError","message":"[meta] este número já está conectado em outra clínica"}}
+{"ts":"2026-11-15T17:19:40.549Z","kind":"log","level":"error","event":"messaging.whatsapp.connection_failed","stage":"signup_incomplete","error":{"name":"MetaConnectError","message":"[meta] Embedded Signup concluiu sem waba_id"}}
+{"ts":"2026-11-15T17:19:40.565Z","kind":"log","level":"error","event":"messaging.whatsapp.connection_failed","stage":"account","error":{"name":"MetaConnectError","message":"[meta] a WABA informada não foi concedida a este app"}}
+{"ts":"2026-11-15T17:19:40.573Z","kind":"log","level":"error","event":"messaging.whatsapp.connection_failed","stage":"account","error":{"name":"MetaConnectError","message":"[meta] o número informado não pertence à WABA autorizada"}}
+{"ts":"2026-11-15T17:19:40.579Z","kind":"log","level":"error","event":"messaging.whatsapp.connection_failed","stage":"phone_ambiguous","error":{"name":"MetaConnectError","message":"[meta] a WABA autorizada tem mais de um número"}}
+{"ts":"2026-11-15T17:19:40.582Z","kind":"log","level":"error","event":"messaging.whatsapp.connection_failed","stage":"provider_unavailable","error":{"name":"MetaConnectError","message":"[meta] a Meta não respondeu de forma conclusiva sobre a WABA"}}
+{"ts":"2026-11-15T17:19:40.585Z","kind":"log","level":"error","event":"messaging.whatsapp.connection_failed","stage":"provider_unavailable","error":{"name":"MetaConnectError","message":"[meta] a Meta não respondeu de forma conclusiva sobre a WABA"}}
+{"ts":"2026-11-15T17:19:40.590Z","kind":"log","level":"error","event":"messaging.whatsapp.connection_failed","stage":"provider_rate_limited","error":{"name":"MetaConnectError","message":"[meta] graph"}}
+{"ts":"2026-11-15T17:19:40.594Z","kind":"log","level":"error","event":"messaging.whatsapp.connection_failed","stage":"provider_rate_limited","error":{"name":"MetaConnectError","message":"[meta] graph"}}
+{"ts":"2026-11-15T17:19:40.598Z","kind":"log","level":"error","event":"messaging.whatsapp.connection_failed","stage":"provider_rate_limited","error":{"name":"MetaConnectError","message":"[meta] graph"}}
+{"ts":"2026-11-15T17:19:40.601Z","kind":"log","level":"error","event":"messaging.whatsapp.connection_failed","stage":"provider_rate_limited","error":{"name":"MetaConnectError","message":"[meta] graph"}}
+{"ts":"2026-11-15T17:19:40.603Z","kind":"log","level":"error","event":"messaging.whatsapp.connection_failed","stage":"provider_rate_limited","error":{"name":"MetaConnectError","message":"[meta] graph"}}
+{"ts":"2026-11-15T17:19:40.605Z","kind":"log","level":"error","event":"messaging.whatsapp.connection_failed","stage":"provider_unavailable","error":{"name":"MetaConnectError","message":"[meta] graph"}}
+{"ts":"2026-11-15T17:19:40.608Z","kind":"log","level":"error","event":"messaging.whatsapp.connection_failed","stage":"provider_outcome_unknown","error":{"name":"MetaConnectError","message":"[meta] graph"}}
+{"ts":"2026-11-15T17:19:40.610Z","kind":"log","level":"error","event":"messaging.whatsapp.connection_failed","stage":"provider_outcome_unknown","error":{"name":"MetaConnectError","message":"[meta] graph"}}
+{"ts":"2026-11-15T17:19:40.613Z","kind":"log","level":"error","event":"messaging.whatsapp.connection_failed","stage":"provider_outcome_unknown","error":{"name":"MetaConnectError","message":"[meta] graph"}}
+{"ts":"2026-11-15T17:19:40.615Z","kind":"log","level":"error","event":"messaging.whatsapp.connection_failed","stage":"provider_rate_limited","error":{"name":"MetaConnectError","message":"[meta] graph"}}
+{"ts":"2026-11-15T17:19:40.631Z","kind":"metric","event":"messaging.whatsapp.templates_provisioned","created":0,"alreadyExists":0,"failed":0}
+{"ts":"2026-11-15T17:19:40.633Z","kind":"metric","event":"messaging.whatsapp.templates_provisioned","created":0,"alreadyExists":0,"failed":0}
+{"ts":"2026-11-15T17:19:40.639Z","kind":"metric","event":"messaging.whatsapp.templates_provisioned","created":0,"alreadyExists":0,"failed":1}
+{"ts":"2026-11-15T17:19:40.639Z","kind":"log","level":"error","event":"messaging.whatsapp.template_provision_failed","templates":"lembrete_confirmacao"}
+{"ts":"2026-11-15T17:19:40.642Z","kind":"log","level":"error","event":"messaging.whatsapp.connection_failed","stage":"webhook_subscription","error":{"name":"MetaConnectError","message":"[meta] subscribe rejected"}}
+{"ts":"2026-11-15T17:19:40.647Z","kind":"metric","event":"messaging.whatsapp.coexistence_sync","syncType":"smb_app_state_sync","result":"requested"}
+{"ts":"2026-11-15T17:19:40.647Z","kind":"metric","event":"messaging.whatsapp.coexistence_sync","syncType":"history","result":"requested"}
+{"ts":"2026-11-15T17:19:40.647Z","kind":"metric","event":"messaging.whatsapp.templates_provisioned","created":0,"alreadyExists":0,"failed":0}
+{"ts":"2026-11-15T17:19:40.650Z","kind":"metric","event":"messaging.whatsapp.coexistence_sync_failed","syncType":"smb_app_state_sync","stage":"coexistence_sync"}
+{"ts":"2026-11-15T17:19:40.650Z","kind":"log","level":"error","event":"messaging.whatsapp.coexistence_sync_failed","syncType":"smb_app_state_sync","stage":"coexistence_sync","error":{"name":"MetaConnectError","message":"boom"}}
+{"ts":"2026-11-15T17:19:40.651Z","kind":"metric","event":"messaging.whatsapp.coexistence_sync","syncType":"history","result":"declined"}
+{"ts":"2026-11-15T17:19:40.651Z","kind":"metric","event":"messaging.whatsapp.templates_provisioned","created":0,"alreadyExists":0,"failed":0}
+{"ts":"2026-11-15T17:19:40.653Z","kind":"metric","event":"messaging.whatsapp.templates_provisioned","created":0,"alreadyExists":0,"failed":0}
+ [32m✓[39m src/contexts/messaging/connect-tenant.test.ts [2m([22m[2m35 tests[22m[2m)[22m[90m 225[2mms[22m[39m
+ [32m✓[39m src/contexts/onboarding/internal/signup-recovery.test.ts [2m([22m[2m30 tests[22m[2m)[22m[90m 263[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/internal/professional-payout.test.ts [2m([22m[2m17 tests[22m[2m)[22m[90m 230[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/guards/semantic-guard.test.ts [2m([22m[2m174 tests[22m[2m)[22m[90m 299[2mms[22m[39m
+ [32m✓[39m src/app/api/webhooks/meta/route.test.ts [2m([22m[2m16 tests[22m[2m)[22m[90m 252[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/internal/credit-store.test.ts [2m([22m[2m24 tests[22m[2m)[22m[33m 392[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/internal/hosted-checkout.test.ts [2m([22m[2m22 tests[22m[2m)[22m[90m 223[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/proactive-jobs/internal/handlers/outbound-status-updated.test.ts [2m([22m[2m20 tests[22m[2m)[22m[33m 401[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/internal/consulta-guide-service.test.ts [2m([22m[2m16 tests[22m[2m)[22m[90m 60[2mms[22m[39m
+ [32m✓[39m src/contexts/billing/internal/plan-changes-cancellation.test.ts [2m([22m[2m21 tests[22m[2m)[22m[90m 289[2mms[22m[39m
+ [32m✓[39m src/app/api/signup/draft/route.test.ts [2m([22m[2m33 tests[22m[2m)[22m[33m 1060[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/internal/guide-access.test.ts [2m([22m[2m17 tests[22m[2m)[22m[33m 7281[2mms[22m[39m
+   [33m[2m✓[22m[39m invariante: só guide-access.ts decifra o snapshot da guia[2m > [22mnenhum outro arquivo combina o snapshot da guia com decryptForTenant [33m7103[2mms[22m[39m
+ [32m✓[39m src/contexts/messaging/internal/meta-business-profile.test.ts [2m([22m[2m22 tests[22m[2m)[22m[90m 292[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tiss/xml/xsd-engine.test.ts [2m([22m[2m23 tests[22m[2m)[22m[33m 24604[2mms[22m[39m
+   [33m[2m✓[22m[39m motor XSD dentro do app[2m > [22mXML válido passa; XML inválido é recusado com o elemento e sem o valor do campo [33m724[2mms[22m[39m
+   [33m[2m✓[22m[39m motor XSD dentro do app[2m > [22mconfere o corpus c1 e c2 inteiro com a expectativa do XSD (P13.2 no CI) [33m2781[2mms[22m[39m
+   [33m[2m✓[22m[39m motor XSD dentro do app[2m > [22mlote com 100 guias SP/SADT e 3.000 procedimentos é validado dentro do prazo e do teto padrão [33m852[2mms[22m[39m
+   [33m[2m✓[22m[39m motor XSD dentro do app[2m > [22mlimite de memória do WebAssembly: estouro é falha do motor, nunca "válido" [33m2880[2mms[22m[39m
+   [33m[2m✓[22m[39m motor XSD dentro do app[2m > [22mtimeout encerra o worker e conta como falha do motor [33m404[2mms[22m[39m
+   [33m[2m✓[22m[39m motor XSD dentro do app[2m > [22mconcorrência: validações simultâneas não se misturam; fila cheia devolve "busy" [33m1319[2mms[22m[39m
+   [33m[2m✓[22m[39m falhas de carga: sem motor íntegro, nada é validado (fail closed)[2m > [22mXSD ausente ou adulterado: motor indisponível e o validador do app vira null [33m382[2mms[22m[39m
+   [33m[2m✓[22m[39m falhas de carga: sem motor íntegro, nada é validado (fail closed)[2m > [22mpacote com .wasm adulterado ou ausente: motor indisponível [33m916[2mms[22m[39m
+   [33m[2m✓[22m[39m falhas de carga: sem motor íntegro, nada é validado (fail closed)[2m > [22mworker que falha ao iniciar, termina sem resposta, trava ou estoura o heap: falha do motor [33m2040[2mms[22m[39m
+   [33m[2m✓[22m[39m R41: pool de workers persistentes (wasm compilado 1×, instância nova por validação)[2m > [22mreaproveita o worker: 12 validações em sequência sobem 1 worker só [33m1987[2mms[22m[39m
+   [33m[2m✓[22m[39m R41: pool de workers persistentes (wasm compilado 1×, instância nova por validação)[2m > [22misolamento: inválido entre válidos não contamina o seguinte (instância e memória novas) [33m1170[2mms[22m[39m
+   [33m[2m✓[22m[39m R41: pool de workers persistentes (wasm compilado 1×, instância nova por validação)[2m > [22mtimeout DESCARTA o worker preso; a validação seguinte sobe outro e passa [33m1839[2mms[22m[39m
+   [33m[2m✓[22m[39m R41: pool de workers persistentes (wasm compilado 1×, instância nova por validação)[2m > [22mreciclagem: depois de N validações o worker é trocado (memória do processo não acumula) [33m1982[2mms[22m[39m
+   [33m[2m✓[22m[39m R41: pool de workers persistentes (wasm compilado 1×, instância nova por validação)[2m > [22mconcorrência limitada: 2 por processo sobem no máximo 2 workers e os resultados não se misturam [33m3434[2mms[22m[39m
+   [33m[2m✓[22m[39m R41: pool de workers persistentes (wasm compilado 1×, instância nova por validação)[2m > [22mchave de desligamento: pooled=false volta ao worker novo por validação (sem pool) [33m1411[2mms[22m[39m
+ [32m✓[39m src/app/api/signup/sessions/auth/route.test.ts [2m([22m[2m34 tests[22m[2m)[22m[33m 915[2mms[22m[39m
+{"ts":"2026-11-15T17:20:05.987Z","kind":"metric","event":"messaging.whatsapp.profile_updated","fields":1}
+{"ts":"2026-11-15T17:20:06.252Z","kind":"metric","event":"messaging.whatsapp.profile_updated","fields":2}
+{"ts":"2026-11-15T17:20:06.253Z","kind":"metric","event":"messaging.whatsapp.profile_updated","fields":1}
+{"ts":"2026-11-15T17:20:06.255Z","kind":"metric","event":"messaging.whatsapp.profile_updated","fields":1}
+{"ts":"2026-11-15T17:20:06.256Z","kind":"metric","event":"messaging.whatsapp.profile_updated","fields":2}
+{"ts":"2026-11-15T17:20:06.259Z","kind":"metric","event":"messaging.whatsapp.profile_updated","fields":1}
+ [32m✓[39m src/contexts/messaging/profile-actions.test.ts [2m([22m[2m24 tests[22m[2m)[22m[33m 519[2mms[22m[39m
+ [32m✓[39m src/contexts/onboarding/internal/signup-email-code.test.ts [2m([22m[2m24 tests[22m[2m)[22m[90m 87[2mms[22m[39m
+ [32m✓[39m src/lib/db/migration-composition.test.ts [2m([22m[2m18 tests[22m[2m)[22m[90m 75[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/internal/deposit-charge.test.ts [2m([22m[2m24 tests[22m[2m)[22m[90m 65[2mms[22m[39m
+ [32m✓[39m src/contexts/onboarding/internal/signup-auth.test.ts [2m([22m[2m63 tests[22m[2m)[22m[90m 256[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/prompts/system.test.ts [2m([22m[2m25 tests[22m[2m)[22m[33m 338[2mms[22m[39m
+{"ts":"2026-11-15T17:20:15.969Z","kind":"metric","event":"insurance.patient_charge_blocked","path":"appointment_completed","clinicId":"clinic-1"}
+{"ts":"2026-11-15T17:20:15.976Z","kind":"metric","event":"insurance.patient_charge_blocked","path":"appointment_completed","clinicId":"clinic-1"}
+ [32m✓[39m src/contexts/financial/internal/handlers/appointment-completed.test.ts [2m([22m[2m19 tests[22m[2m)[22m[33m 581[2mms[22m[39m
+   [33m[2m✓[22m[39m faturamento do atendimento — sem sinal (o caso da maioria)[2m > [22mcria o recebível pelo valor cheio, pendente e sem baixa [33m407[2mms[22m[39m
+ [32m✓[39m src/app/api/webhooks/asaas/route.test.ts [2m([22m[2m33 tests[22m[2m)[22m[33m 357[2mms[22m[39m
+ [32m✓[39m src/contexts/onboarding/internal/signup-provision-trial.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 100[2mms[22m[39m
+ [32m✓[39m src/lib/auth/policies/critical-actions.test.ts [2m([22m[2m23 tests[22m[2m)[22m[33m 7977[2mms[22m[39m
+   [33m[2m✓[22m[39m CRITICAL_ACTIONS (F-14) — enforcement via AST[2m > [22mcancelAppointment chama await requireFreshPermission(...) no nível superior [33m1211[2mms[22m[39m
+   [33m[2m✓[22m[39m CRITICAL_ACTIONS (F-14) — enforcement via AST[2m > [22mcancelInviteAction chama await requireFreshPermission(...) no nível superior [33m1553[2mms[22m[39m
+   [33m[2m✓[22m[39m CRITICAL_ACTIONS (F-14) — enforcement via AST[2m > [22mcheckInAppointment chama await requireFreshPermission(...) no nível superior [33m1067[2mms[22m[39m
+   [33m[2m✓[22m[39m CRITICAL_ACTIONS (F-14) — enforcement via AST[2m > [22mcompleteAppointment chama await requireFreshPermission(...) no nível superior [33m604[2mms[22m[39m
+   [33m[2m✓[22m[39m CRITICAL_ACTIONS (F-14) — enforcement via AST[2m > [22mconfirmAppointment chama await requireFreshPermission(...) no nível superior [33m611[2mms[22m[39m
+   [33m[2m✓[22m[39m CRITICAL_ACTIONS (F-14) — enforcement via AST[2m > [22mconnectMyClinicWhatsapp chama await requireFreshPermission(...) no nível superior [33m350[2mms[22m[39m
+   [33m[2m✓[22m[39m CRITICAL_ACTIONS (F-14) — enforcement via AST[2m > [22mdeletePatient chama await requireFreshPermission(...) no nível superior [33m346[2mms[22m[39m
+   [33m[2m✓[22m[39m CRITICAL_ACTIONS (F-14) — enforcement via AST[2m > [22mdisconnectMyClinicWhatsapp chama await requireFreshPermission(...) no nível superior [33m345[2mms[22m[39m
+ [32m✓[39m src/lib/messaging/connection-store.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 29[2mms[22m[39m
+ [32m✓[39m src/middleware.test.ts [2m([22m[2m42 tests[22m[2m)[22m[90m 215[2mms[22m[39m
+ [32m✓[39m src/app/api/signup/password/route.test.ts [2m([22m[2m26 tests[22m[2m)[22m[90m 246[2mms[22m[39m
+ [32m✓[39m src/lib/payments/account-store.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 109[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tiss/print/print.test.ts [2m([22m[2m22 tests[22m[2m)[22m[33m 36273[2mms[22m[39m
+   [33m[2m✓[22m[39m Guia de Consulta (P7.6) — o PDF reproduz o modelo da p. 469[2m > [22mcada rótulo oficial no mesmo lugar (< 0,6 pt) e cada valor dentro da caixa do seu campo [33m8421[2mms[22m[39m
+   [33m[2m✓[22m[39m Guia de Consulta (P7.6) — o PDF reproduz o modelo da p. 469[2m > [22mdados corretos do snapshot, nos campos certos; exemplo do modelo não aparece [33m9653[2mms[22m[39m
+   [33m[2m✓[22m[39m Guia de Consulta (P7.6) — o PDF reproduz o modelo da p. 469[2m > [22mobservação de 500 caracteres cabe no campo 23 sem corte (sem folha de continuação); acentos preservados [33m596[2mms[22m[39m
+   [33m[2m✓[22m[39m Guia de Consulta (P7.6) — o PDF reproduz o modelo da p. 469[2m > [22mmetadados do PDF sem dado pessoal; nenhum log durante a geração [33m376[2mms[22m[39m
+   [33m[2m✓[22m[39m Guia SP/SADT (P8.5) — o mesmo modelo da p. 520 para cobrança e solicitação[2m > [22mcobrança: rótulos oficiais no lugar; itens, totais e autorização do snapshot [33m992[2mms[22m[39m
+   [33m[2m✓[22m[39m Guia SP/SADT (P8.5) — o mesmo modelo da p. 520 para cobrança e solicitação[2m > [22m12 procedimentos: 3 folhas do MESMO modelo, linhas numeradas 1–12, totais só na última [33m1412[2mms[22m[39m
+   [33m[2m✓[22m[39m Guia SP/SADT (P8.5) — o mesmo modelo da p. 520 para cobrança e solicitação[2m > [22mindicação clínica de 500 caracteres: nada cortado em silêncio (o texto integral vai à folha de continuação) [33m2769[2mms[22m[39m
+ [32m✓[39m src/contexts/messaging/internal/messaging-health.test.ts [2m([22m[2m30 tests[22m[2m)[22m[90m 43[2mms[22m[39m
+ [32m✓[39m src/contexts/identity/internal/lifecycle.test.ts [2m([22m[2m19 tests[22m[2m)[22m[90m 90[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/tools/slot-floor.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 203[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tiss/validation/sp-sadt-validator.test.ts [2m([22m[2m42 tests[22m[2m)[22m[90m 75[2mms[22m[39m
+ [32m✓[39m src/lib/auth/pretenant-onboarding.test.ts [2m([22m[2m30 tests[22m[2m)[22m[90m 69[2mms[22m[39m
+ [32m✓[39m src/app/(app)/cadastro/confirmado/page.test.tsx [2m([22m[2m15 tests[22m[2m)[22m[90m 157[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/actions.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 121[2mms[22m[39m
+ [32m✓[39m src/contexts/messaging/internal/messaging-health-check.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 47[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/configuracoes/whatsapp/wa-types.test.ts [2m([22m[2m14 tests[22m[2m)[22m[90m 52[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/tools/prepare-appointment.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 190[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/agenda/delivery-failure-copy.test.ts [2m([22m[2m17 tests[22m[2m)[22m[90m 114[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tiss/assembly/consulta-assembler.test.ts [2m([22m[2m15 tests[22m[2m)[22m[90m 19[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tiss/assembly/sp-sadt-assembler.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 46[2mms[22m[39m
+ [32m✓[39m src/app/api/signup/sessions/resend/route.test.ts [2m([22m[2m32 tests[22m[2m)[22m[90m 177[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/configuracoes/assinatura/actions.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 133[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/waitlist-policy.test.ts [2m([22m[2m21 tests[22m[2m)[22m[33m 492[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/internal/remainder-charge.test.ts [2m([22m[2m19 tests[22m[2m)[22m[90m 48[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/pending-action.test.ts [2m([22m[2m78 tests[22m[2m)[22m[90m 130[2mms[22m[39m
+ [32m✓[39m src/app/(admin)/admin/clinicas/[id]/audit/export/route.test.ts [2m([22m[2m19 tests[22m[2m)[22m[90m 110[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/tools/appointment-summaries.test.ts [2m([22m[2m14 tests[22m[2m)[22m[90m 120[2mms[22m[39m
+ [32m✓[39m src/app/clinical-pdf-route.test.ts [2m([22m[2m16 tests[22m[2m)[22m[90m 179[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/internal/billing-gap-policy.test.ts [2m([22m[2m29 tests[22m[2m)[22m[90m 53[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/consultorio/board-logic.test.ts [2m([22m[2m25 tests[22m[2m)[22m[90m 137[2mms[22m[39m
+ [32m✓[39m src/lib/env.test.ts [2m([22m[2m22 tests[22m[2m)[22m[90m 139[2mms[22m[39m
+ [32m✓[39m src/lib/security/headers-gate.test.ts [2m([22m[2m17 tests[22m[2m)[22m[90m 110[2mms[22m[39m
+{"ts":"2026-11-15T17:20:39.157Z","kind":"http","event":"ai.provider.error","status":503}
+{"ts":"2026-11-15T17:20:39.170Z","kind":"http","event":"ai.provider.error","status":402}
+{"ts":"2026-11-15T17:20:39.174Z","kind":"http","event":"ai.provider.error","status":429}
+{"ts":"2026-11-15T17:20:39.176Z","kind":"unreachable","event":"ai.provider.error","timeout_ms":1000}
+ [32m✓[39m src/lib/ai/gemini.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 110[2mms[22m[39m
+ [32m✓[39m src/contexts/onboarding/internal/turnstile.test.ts [2m([22m[2m24 tests[22m[2m)[22m[90m 64[2mms[22m[39m
+ [32m✓[39m src/lib/test/asaas-checkout-cleanup.test.ts [2m([22m[2m34 tests[22m[2m)[22m[90m 102[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/agenda/delivery-failures.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 32[2mms[22m[39m
+ [32m✓[39m src/contexts/billing/internal/cancellation-charges.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 49[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tiss/validation/consulta-validator.test.ts [2m([22m[2m43 tests[22m[2m)[22m[90m 67[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/internal/patient-credit-adjustment.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 22[2mms[22m[39m
+ [32m✓[39m src/contexts/messaging/business-profile-contract.test.ts [2m([22m[2m31 tests[22m[2m)[22m[90m 48[2mms[22m[39m
+{"ts":"2026-11-15T17:20:42.392Z","kind":"metric","event":"audit.written","action":"clinical.prontuario.viewed","resourceType":"prontuario"}
+{"ts":"2026-11-15T17:20:42.419Z","kind":"metric","event":"audit.written","action":"clinical.prontuario.viewed","resourceType":"prontuario"}
+{"ts":"2026-11-15T17:20:42.434Z","kind":"metric","event":"audit.written","action":"clinical.prontuario.viewed","resourceType":"prontuario"}
+{"ts":"2026-11-15T17:20:42.443Z","kind":"metric","event":"audit.written","action":"clinical.prontuario.viewed","resourceType":"prontuario"}
+ [32m✓[39m src/contexts/clinical/prontuario-access.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 167[2mms[22m[39m
+ [32m✓[39m src/contexts/billing/internal/subscriptions.test.ts [2m([22m[2m19 tests[22m[2m)[22m[90m 140[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/queries.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 87[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/proactive-jobs/application/validity.test.ts [2m([22m[2m19 tests[22m[2m)[22m[90m 168[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/account/security/actions.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 75[2mms[22m[39m
+ [32m✓[39m src/app/api/signup/checkout/route.test.ts [2m([22m[2m27 tests[22m[2m)[22m[33m 301[2mms[22m[39m
+ [32m✓[39m src/app/api/cron/financial-reconcile/route.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 139[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/internal/handlers/patient-credit-granted.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 58[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/slot-resolver.test.ts [2m([22m[2m23 tests[22m[2m)[22m[90m 246[2mms[22m[39m
+ [32m✓[39m src/lib/auth/permission-enforcement-map.test.ts [2m([22m[2m36 tests[22m[2m)[22m[33m 341[2mms[22m[39m
+{"ts":"2026-11-15T17:20:46.199Z","kind":"metric","event":"ai_agent.tool.invalid","clinicId":"11111111-1111-1111-1111-111111111111","toolName":"echo_tool","aiRequestId":"44444444-4444-4444-4444-444444444444","issues":["reason"]}
+{"ts":"2026-11-15T17:20:46.210Z","kind":"metric","event":"ai_agent.tool.invalid","clinicId":"11111111-1111-1111-1111-111111111111","toolName":"echo_tool","aiRequestId":"44444444-4444-4444-4444-444444444444","issues":["reason"]}
+{"ts":"2026-11-15T17:20:46.212Z","kind":"metric","event":"ai_agent.tool.invalid","clinicId":"11111111-1111-1111-1111-111111111111","toolName":"echo_tool","aiRequestId":"44444444-4444-4444-4444-444444444444","issues":["reason"]}
+{"ts":"2026-11-15T17:20:46.214Z","kind":"metric","event":"ai_agent.tool.invalid","clinicId":"11111111-1111-1111-1111-111111111111","toolName":"echo_tool","aiRequestId":"44444444-4444-4444-4444-444444444444","issues":["(root)"]}
+{"ts":"2026-11-15T17:20:46.215Z","kind":"metric","event":"ai_agent.tool.invalid","clinicId":"11111111-1111-1111-1111-111111111111","toolName":"echo_tool","aiRequestId":"44444444-4444-4444-4444-444444444444","issues":["(root)"]}
+{"ts":"2026-11-15T17:20:46.216Z","kind":"metric","event":"ai_agent.tool.invalid","clinicId":"11111111-1111-1111-1111-111111111111","toolName":"echo_tool","aiRequestId":"44444444-4444-4444-4444-444444444444","issues":["(root)"]}
+{"ts":"2026-11-15T17:20:46.245Z","kind":"metric","event":"ai_agent.tool.invalid","clinicId":"11111111-1111-1111-1111-111111111111","toolName":"echo_tool","aiRequestId":"44444444-4444-4444-4444-444444444444","issues":["reason"]}
+{"ts":"2026-11-15T17:20:46.249Z","kind":"metric","event":"ai_agent.tool.unknown","clinicId":"11111111-1111-1111-1111-111111111111","toolName":"delete_patient","aiRequestId":"44444444-4444-4444-4444-444444444444"}
+{"ts":"2026-11-15T17:20:46.254Z","kind":"metric","event":"ai_agent.tool.multiple_mutations_rejected","clinicId":"11111111-1111-1111-1111-111111111111","aiRequestId":"44444444-4444-4444-4444-444444444444","toolNames":["mutation_a","mutation_b"]}
+{"ts":"2026-11-15T17:20:46.262Z","kind":"metric","event":"ai_agent.tool.invalid","clinicId":"11111111-1111-1111-1111-111111111111","toolName":"read_a","aiRequestId":"44444444-4444-4444-4444-444444444444","issues":["value"]}
+{"ts":"2026-11-15T17:20:46.267Z","kind":"metric","event":"ai_agent.tool.invalid_output","clinicId":"11111111-1111-1111-1111-111111111111","toolName":"echo_tool","aiRequestId":"44444444-4444-4444-4444-444444444444","issues":["echoed"]}
+{"ts":"2026-11-15T17:20:46.270Z","kind":"metric","event":"ai_agent.tool.handler_error","clinicId":"11111111-1111-1111-1111-111111111111","toolName":"echo_tool","aiRequestId":"44444444-4444-4444-4444-444444444444","error":{"name":"Error","message":"boom"}}
+ [32m✓[39m src/contexts/ai-agent/tools/registry.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 118[2mms[22m[39m
+ [32m✓[39m src/lib/auth/supabase-server.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 112[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/internal/payout-review.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 101[2mms[22m[39m
+ [32m✓[39m src/app/api/signup/sessions/identity/route.test.ts [2m([22m[2m30 tests[22m[2m)[22m[90m 184[2mms[22m[39m
+ [32m✓[39m src/lib/http/application-url.test.ts [2m([22m[2m29 tests[22m[2m)[22m[90m 77[2mms[22m[39m
+{"ts":"2026-11-15T17:20:49.406Z","kind":"metric","event":"authz.denied","code":"forbidden","reason":"PERMISSION_DENIED","httpStatus":403}
+{"ts":"2026-11-15T17:20:49.417Z","kind":"metric","event":"authz.denied","code":"forbidden","reason":"PERMISSION_DENIED","httpStatus":403}
+{"ts":"2026-11-15T17:20:49.420Z","kind":"metric","event":"authz.denied","code":"forbidden","reason":"PERMISSION_DENIED","httpStatus":403}
+ [32m✓[39m src/app/api/signup/sessions/route.test.ts [2m([22m[2m18 tests[22m[2m)[22m[90m 133[2mms[22m[39m
+{"ts":"2026-11-15T17:20:49.463Z","kind":"metric","event":"authz.denied","code":"forbidden","reason":"MFA_REQUIRED","httpStatus":403}
+ [32m✓[39m src/lib/xlsx/xlsx.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 193[2mms[22m[39m
+{"ts":"2026-11-15T17:20:49.486Z","kind":"metric","event":"authz.denied","code":"forbidden","reason":"PERMISSION_DENIED","httpStatus":403}
+{"ts":"2026-11-15T17:20:49.488Z","kind":"metric","event":"authz.denied","code":"unauthenticated","reason":"TOKEN_INVALID","httpStatus":401}
+ [32m✓[39m src/lib/auth/require-any-permission.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 2300[2mms[22m[39m
+   [33m[2m✓[22m[39m passa com QUALQUER uma das permissões[2m > [22msó a primeira [33m2201[2mms[22m[39m
+ [32m✓[39m src/app/api/cron/financial-reconcile/payment-economics-reconcile.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 62[2mms[22m[39m
+ [32m✓[39m src/contexts/billing/internal/billing-logic.test.ts [2m([22m[2m23 tests[22m[2m)[22m[90m 33[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/pending-action-revalidation.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 112[2mms[22m[39m
+ [32m✓[39m src/lib/messaging/meta-cloud.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 38[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/internal/contract-import.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 131[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/internal/connectors/connectors.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 97[2mms[22m[39m
+ [32m✓[39m src/app/api/signup/plan/route.test.ts [2m([22m[2m26 tests[22m[2m)[22m[90m 181[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/proactive-jobs/application/delivery-failures.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 70[2mms[22m[39m
+ [32m✓[39m src/contexts/patient/internal/hard-delete.test.ts [2m([22m[2m16 tests[22m[2m)[22m[90m 63[2mms[22m[39m
+ [32m✓[39m src/contexts/billing/internal/provider-sync.test.ts [2m([22m[2m21 tests[22m[2m)[22m[90m 33[2mms[22m[39m
+ [32m✓[39m src/contexts/messaging/internal/channel-health.test.ts [2m([22m[2m23 tests[22m[2m)[22m[90m 74[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/financial-economics-queries.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 80[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/insurer-credential-actions.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 1241[2mms[22m[39m
+   [33m[2m✓[22m[39m acesso à credencial cifrada (P12.5)[2m > [22msó o módulo de credenciais toca a coluna, e só para cifrar: nenhum código do app decifra [33m1174[2mms[22m[39m
+ [32m✓[39m src/app/api/signup/runtime-fingerprint/route.test.ts [2m([22m[2m19 tests[22m[2m)[22m[33m 359[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/proactive-jobs/application/remainder-link.integration.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 103[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/actions-commercial-method.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 104[2mms[22m[39m
+ [32m✓[39m src/lib/db/rls.test.ts [2m([22m[2m26 tests[22m[2m)[22m[90m 53[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/guide-migration.test.ts [2m([22m[2m14 tests[22m[2m)[22m[90m 77[2mms[22m[39m
+ [32m✓[39m src/lib/crypto/phone-lookup.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 5685[2mms[22m[39m
+   [33m[2m✓[22m[39m phoneLookupVariants — propriedades (5.000 linhas, semente fixa)[2m > [22mqualquer grafia da mesma linha gera o MESMO conjunto (classe de equivalência) [33m2037[2mms[22m[39m
+   [33m[2m✓[22m[39m phoneLookupVariants — propriedades (5.000 linhas, semente fixa)[2m > [22mtoda grafia preserva DDD e os 8 dígitos finais; fixo nunca vira celular [33m3304[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/internal/external-refund.test.ts [2m([22m[2m14 tests[22m[2m)[22m[90m 30[2mms[22m[39m
+ [32m✓[39m src/contexts/messaging/internal/delivery-status.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 43[2mms[22m[39m
+ [32m✓[39m src/contexts/clinical/actions-references.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 63[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/ledger-bridge-migration.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 62[2mms[22m[39m
+ [32m✓[39m src/lib/http/health-probes.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 273[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/proactive-jobs/infra/templates.test.ts [2m([22m[2m26 tests[22m[2m)[22m[90m 56[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/proactive-jobs/application/policy.test.ts [2m([22m[2m16 tests[22m[2m)[22m[90m 32[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/logic.test.ts [2m([22m[2m36 tests[22m[2m)[22m[90m 47[2mms[22m[39m
+ [32m✓[39m src/lib/http/cron-auth.test.ts [2m([22m[2m17 tests[22m[2m)[22m[90m 70[2mms[22m[39m
+ [32m✓[39m src/app/api/cron/payments-account-closure/route.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 149[2mms[22m[39m
+ [32m✓[39m src/contexts/billing/internal/plan-change-provider-sync.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 89[2mms[22m[39m
+ [32m✓[39m src/lib/validation/cnpj.test.ts [2m([22m[2m18 tests[22m[2m)[22m[33m 695[2mms[22m[39m
+   [33m[2m✓[22m[39m compatibilidade com CNPJs numéricos já gravados[2m > [22mmesma forma canônica e mesma validade em 5.000 CNPJs numéricos com máscaras variadas [33m661[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tiss/messages/lote-guias.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 99[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/tool-call-record.test.ts [2m([22m[2m17 tests[22m[2m)[22m[90m 38[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/recurrence-series-management.test.ts [2m([22m[2m16 tests[22m[2m)[22m[90m 38[2mms[22m[39m
+ [32m✓[39m src/contexts/billing/internal/plan-change-payment.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 36[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/internal/deposit-scan.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 124[2mms[22m[39m
+{"ts":"2026-11-15T17:21:07.545Z","kind":"metric","event":"onboarding.checkout.customer_compensated","outcome":"deleted"}
+{"ts":"2026-11-15T17:21:07.560Z","kind":"metric","event":"onboarding.checkout.customer_compensation_failed","error":{"name":"Error","message":"network unavailable"}}
+ [32m✓[39m src/contexts/onboarding/internal/saga.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 65[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/internal/membership-access.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 1022[2mms[22m[39m
+   [33m[2m✓[22m[39m invariante: só este arquivo decifra o número da carteirinha[2m > [22mnenhum outro arquivo de src combina cardNumberEncrypted com decryptForTenant [33m973[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/agenda/data.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 114[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/proactive-jobs/application/no-show-followup.integration.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 48[2mms[22m[39m
+ [32m✓[39m src/lib/email/templates/signup-confirmation.test.ts [2m([22m[2m18 tests[22m[2m)[22m[90m 38[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tiss/terminology/artifacts.test.ts [2m([22m[2m22 tests[22m[2m)[22m[33m 1472[2mms[22m[39m
+   [33m[2m✓[22m[39m terminologia TUSS 202609: artefatos[2m > [22mmanifesto aponta o pacote oficial e confere com cada arquivo [33m921[2mms[22m[39m
+   [33m[2m✓[22m[39m terminologia TUSS 202609: artefatos[2m > [22mnenhum termo tem código vazio, repetido ou datas fora de ordem [33m479[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/recurrence-policy.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 143[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tiss/guides/sp-sadt.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 69[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/relatorios/contabilidade.csv/route.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 124[2mms[22m[39m
+ [32m✓[39m src/lib/auth/supabase-admin.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 329[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/glosses-migration.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 101[2mms[22m[39m
+ [32m✓[39m src/contexts/messaging/internal/status-reconciler.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 108[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tiss/corpus/corpus.test.ts [2m([22m[2m199 tests[22m[2m | [22m[33m3 skipped[39m[2m)[22m[33m 891[2mms[22m[39m
+   [33m[2m✓[22m[39m corpus sintético TISS 4.03.00[2m > [22mo código regenera exatamente o manifesto e os arquivos versionados [33m303[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/quota.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 39[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/patient-checkout-migration.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 29[2mms[22m[39m
+ [32m✓[39m src/app/(admin)/admin/_lib/repositories/signup-accounts.repo.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 90[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/actions-estorno-payout.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 51[2mms[22m[39m
+ [32m✓[39m src/contexts/patient/internal/restore-policy.test.ts [2m([22m[2m15 tests[22m[2m)[22m[90m 34[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/batch-migration.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 74[2mms[22m[39m
+ [32m✓[39m src/lib/test/signup-confirmation-e2e-runner.test.ts [2m([22m[2m20 tests[22m[2m)[22m[90m 40[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/internal/credit-allocation.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 136[2mms[22m[39m
+ [32m✓[39m src/lib/outbox/worker-targeted.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 205[2mms[22m[39m
+ [32m✓[39m src/lib/http/cron.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 192[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/internal/credentialing.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+ [32m✓[39m src/contexts/messaging/admin-actions-order.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 67[2mms[22m[39m
+ [32m✓[39m src/contexts/billing/internal/handlers/conversation-completed.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 86[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/pacientes/[id]/page.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[90m 43[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/proactive-jobs/infra/delivery-failure.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 37[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/doctor-absence-pagination.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 52[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/migration-ledger.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 20[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/financeiro/convenios/solicitacoes/[requestId]/pdf/route.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 103[2mms[22m[39m
+ [32m✓[39m src/lib/db/retention-policy.test.ts [2m([22m[2m16 tests[22m[2m)[22m[90m 68[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/availability-windows.test.ts [2m([22m[2m14 tests[22m[2m)[22m[90m 87[2mms[22m[39m
+ [32m✓[39m src/contexts/clinical/validation.test.ts [2m([22m[2m20 tests[22m[2m)[22m[90m 157[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/handlers/business-app-echo.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 49[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/waitlist-validation-errors.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 159[2mms[22m[39m
+ [32m✓[39m src/contexts/billing/internal/plan-changes.test.ts [2m([22m[2m15 tests[22m[2m)[22m[90m 34[2mms[22m[39m
+ [32m✓[39m src/lib/http/content-security-policy.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 28[2mms[22m[39m
+ [32m✓[39m src/lib/security/security-inventory.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 8019[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tiss/assembly/consulta-overrides.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 21[2mms[22m[39m
+ [32m✓[39m src/contexts/billing/internal/billing-cycle-provider-sync.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 58[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/queries.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 38[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/clinic-setup-migration.test.ts [2m([22m[2m25 tests[22m[2m)[22m[90m 49[2mms[22m[39m
+{"ts":"2026-11-15T17:21:27.704Z","kind":"metric","event":"financial.professional_payout.reviewed","clinicId":"11111111-1111-4111-8111-111111111111","payoutId":"33333333-3333-4333-8333-333333333333","version":1}
+ [32m✓[39m src/contexts/financial/payout-actions.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 86[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/proactive-jobs/infra/failed-jobs-read.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 110[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/internal/remainder-scan.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 61[2mms[22m[39m
+ [32m✓[39m src/app/api/signup/checkout/status/route.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 80[2mms[22m[39m
+ [32m✓[39m src/lib/messaging/proactive-template-catalog.test.ts [2m([22m[2m51 tests[22m[2m)[22m[90m 50[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/internal/refund-status.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 92[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/billing-gap-migration.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 34[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/policy.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 27[2mms[22m[39m
+ [32m✓[39m src/lib/email/resend-inspector.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 173[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/coverage-migration.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 38[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/agenda/ausencias/page.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[90m 89[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/internal/deposit-hold.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 92[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/queries-pagination.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 59[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/deposit-policy.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 47[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tiss/terminology/official-sheet.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 50[2mms[22m[39m
+{"ts":"2026-11-15T17:21:33.910Z","kind":"metric","event":"ai_agent.tool.unknown","clinicId":"11111111-1111-4111-8111-111111111111","toolName":"schedule_appointment","aiRequestId":"33333333-3333-4333-8333-333333333333"}
+{"ts":"2026-11-15T17:21:33.925Z","kind":"metric","event":"ai_agent.tool.unknown","clinicId":"11111111-1111-4111-8111-111111111111","toolName":"create_payment","aiRequestId":"33333333-3333-4333-8333-333333333333"}
+{"ts":"2026-11-15T17:21:33.934Z","kind":"metric","event":"ai_agent.tool.unknown","clinicId":"11111111-1111-4111-8111-111111111111","toolName":"send_mass_message","aiRequestId":"33333333-3333-4333-8333-333333333333"}
+{"ts":"2026-11-15T17:21:33.936Z","kind":"metric","event":"ai_agent.tool.unknown","clinicId":"11111111-1111-4111-8111-111111111111","toolName":"update_prontuario","aiRequestId":"33333333-3333-4333-8333-333333333333"}
+{"ts":"2026-11-15T17:21:33.948Z","kind":"metric","event":"ai_agent.tool.multiple_mutations_rejected","clinicId":"11111111-1111-4111-8111-111111111111","aiRequestId":"33333333-3333-4333-8333-333333333333","toolNames":["prepare_appointment","confirm_pending_action"]}
+{"ts":"2026-11-15T17:21:33.988Z","kind":"metric","event":"ai_agent.tool.invalid","clinicId":"11111111-1111-4111-8111-111111111111","toolName":"cancel_appointment","aiRequestId":"33333333-3333-4333-8333-333333333333","issues":["appointment_id"]}
+ [32m✓[39m src/contexts/ai-agent/guards/prompt-injection-security.test.ts [2m([22m[2m15 tests[22m[2m)[22m[90m 96[2mms[22m[39m
+ [32m✓[39m src/contexts/clinical/queries-pagination.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 86[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/_painel/onboarding-actions.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 70[2mms[22m[39m
+ [32m✓[39m src/lib/observability/sentry-scrub.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 28[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/proactive-jobs/internal/handlers/patient-charge-link-ready.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 38[2mms[22m[39m
+ [32m✓[39m src/lib/db/migration-safety.test.ts [2m([22m[2m14 tests[22m[2m)[22m[90m 31[2mms[22m[39m
+ [32m✓[39m src/app/api/signup/sessions/verify/route.test.ts [2m([22m[2m17 tests[22m[2m)[22m[90m 262[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/internal/patient-payment-risk.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 44[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/internal/daily-duplicate.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 98[2mms[22m[39m
+ [32m✓[39m src/app/(app)/login/mfa/actions.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 49[2mms[22m[39m
+ [32m✓[39m src/app/api/signup/verificacao/route.test.ts [2m([22m[2m20 tests[22m[2m)[22m[33m 472[2mms[22m[39m
+ [32m✓[39m src/app/api/signup/sessions/answers/route.test.ts [2m([22m[2m20 tests[22m[2m)[22m[90m 137[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/configuracoes/settings-navigation.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 36[2mms[22m[39m
+ [32m✓[39m src/lib/sanitize/redact.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 28[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/internal/remainder-checkout-renewal.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 50[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/waitlist-expiry.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 125[2mms[22m[39m
+ [32m✓[39m src/contexts/onboarding/internal/signup-auth-binding.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 27[2mms[22m[39m
+ [32m✓[39m src/lib/backup/b2-pilot-guards.test.ts [2m([22m[2m23 tests[22m[2m)[22m[90m 39[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/accounting-export.test.ts [2m([22m[2m20 tests[22m[2m)[22m[90m 99[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/internal/handlers/patient-charge-closed.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 31[2mms[22m[39m
+ [32m✓[39m src/lib/security/route-test-ratchet.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 65[2mms[22m[39m
+ [32m✓[39m src/lib/db/optimistic-lock.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 43[2mms[22m[39m
+ [32m✓[39m src/lib/security/risk-register.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 396[2mms[22m[39m
+   [33m[2m✓[22m[39m registro real do repositório[2m > [22mdocs/security/riscos.md não diverge da fonte [33m364[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/payment-claim.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 32[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/internal/handlers/patient-money-adjustment-handlers.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/patient-payment-reconcile-guard-migration.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 23[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/internal/authorization-rules.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 31[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/internal/clinical-completion.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 38[2mms[22m[39m
+ [32m✓[39m src/lib/backup/recovery-capacity.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 798[2mms[22m[39m
+   [33m[2m✓[22m[39m planejamento do backup independente[2m > [22mestima um pacote acima do tamanho real e recupera bytes sintéticos [33m764[2mms[22m[39m
+ [32m✓[39m src/contexts/onboarding/internal/signup-trial.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 35[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tiss/connector/connector.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 51[2mms[22m[39m
+ [32m✓[39m src/lib/backup/storage-archive.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 2321[2mms[22m[39m
+   [33m[2m✓[22m[39m archive de arquivos do Storage[2m > [22mcifra inclusive nomes privados, preserva buckets vazios e detecta alteração dos bytes [33m1893[2mms[22m[39m
+   [33m[2m✓[22m[39m archive de arquivos do Storage[2m > [22mremove somente o archive incompleto se o download falhar [33m422[2mms[22m[39m
+ [32m✓[39m src/lib/auth/security-profile/tiss-policies.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 1328[2mms[22m[39m
+   [33m[2m✓[22m[39m R82 — histórico com verificador irreversível[2m > [22mdetecta reuso, aceita senha nova, e o verificador não contém a senha [33m1036[2mms[22m[39m
+ [32m✓[39m src/contexts/billing/internal/billing-period.test.ts [2m([22m[2m15 tests[22m[2m)[22m[90m 32[2mms[22m[39m
+ [32m✓[39m src/contexts/billing/internal/mark-invoice-paid-cancelled.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 87[2mms[22m[39m
+ [32m✓[39m src/lib/auth/page-guard.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 30[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/financeiro/convenios/arquivos/[fileId]/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 104[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/internal/provider-expense.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 48[2mms[22m[39m
+ [32m✓[39m src/lib/validation/document.test.ts [2m([22m[2m27 tests[22m[2m)[22m[90m 103[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/internal/handlers/patient-charge-paid.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 54[2mms[22m[39m
+ [32m✓[39m src/app/(admin)/admin/actions/onboarding-invites.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 42[2mms[22m[39m
+ [32m✓[39m src/contexts/billing/internal/subscriptions-provider-sync.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 35[2mms[22m[39m
+ [32m✓[39m src/contexts/clinical/internal/content-crypto.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 91[2mms[22m[39m
+ [32m✓[39m src/lib/env-coherence.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 29[2mms[22m[39m
+ [32m✓[39m src/lib/masks.test.ts [2m([22m[2m19 tests[22m[2m)[22m[90m 30[2mms[22m[39m
+ [32m✓[39m src/lib/auth/no-browser-supabase.arch.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 11612[2mms[22m[39m
+   [33m[2m✓[22m[39m sessão Supabase não entra em Client Components[2m > [22mnenhum helper transitivo leva SDK ao browser sem barreira server-only ou Server Action [33m10784[2mms[22m[39m
+   [33m[2m✓[22m[39m sessão Supabase não entra em Client Components[2m > [22mnão importa SDK de Auth/Realtime nem cliente SSR browser em código enviado ao navegador [33m824[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/agenda/copy-charge-link-action.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 33[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/conversas/contact-identity.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 32[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/agenda/actions-auth-order.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 31[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/membership-migration.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 22[2mms[22m[39m
+ [32m✓[39m src/app/(app)/auth/session-refresh/route.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 67[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/authorization-migration.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 32[2mms[22m[39m
+ [32m✓[39m src/contexts/clinical/queries-recent-prontuarios.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 33[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/professional-payout-reviews-migration.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 20[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/internal/handlers/patient-deleted.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 37[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/waitlist-offer-state.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 106[2mms[22m[39m
+ [32m✓[39m src/lib/payments/client-cache.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 28[2mms[22m[39m
+ [32m✓[39m src/app/api/signup/sessions/email/route.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 113[2mms[22m[39m
+ [32m✓[39m src/contexts/patient/patient-relationships-merge.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 47[2mms[22m[39m
+ [32m✓[39m src/app/not-found-status.test.ts [2m([22m[2m18 tests[22m[2m)[22m[90m 71[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/internal/excess-refund-reconcile.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 39[2mms[22m[39m
+ [32m✓[39m src/lib/observability/capture.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 43[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tiss/xml/xml.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 32[2mms[22m[39m
+ [32m✓[39m src/app/field-accessibility.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 9722[2mms[22m[39m
+   [33m[2m✓[22m[39m associação acessível dos Fields[2m > [22mexige htmlFor nos controles simples e group nos conjuntos [33m5187[2mms[22m[39m
+   [33m[2m✓[22m[39m associação acessível dos Fields[2m > [22mfaz cada htmlFor apontar para um id descendente real [33m2420[2mms[22m[39m
+   [33m[2m✓[22m[39m associação acessível dos Fields[2m > [22mmantém nome acessível quando um rótulo visual condicional desaparece [33m2110[2mms[22m[39m
+ [32m✓[39m src/lib/observability/context.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 30[2mms[22m[39m
+ [32m✓[39m src/lib/tenant-access/index.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 40[2mms[22m[39m
+ [32m✓[39m src/contexts/patient/queries.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 56[2mms[22m[39m
+ [32m✓[39m src/lib/env-aliases.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 28[2mms[22m[39m
+ [32m✓[39m src/app/(app)/auth/confirm/confirm-logic.test.ts [2m([22m[2m22 tests[22m[2m)[22m[90m 31[2mms[22m[39m
+ [32m✓[39m src/lib/test/asaas-fixture-webhook-cleanup.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 46[2mms[22m[39m
+ [32m✓[39m src/contexts/patient/internal/handlers/lgpd-export-requested.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 34[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/proactive-jobs/domain/resend.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+ [32m✓[39m src/lib/db/tenant.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 27[2mms[22m[39m
+ [32m✓[39m src/lib/email/resend-webhook.test.ts [2m([22m[2m19 tests[22m[2m)[22m[90m 113[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/collect-merge.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+ [32m✓[39m src/lib/crypto/encryption.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 50[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/ledger-payment-sum-migration.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 21[2mms[22m[39m
+ [32m✓[39m src/contexts/onboarding/internal/operational-onboarding.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 30[2mms[22m[39m
+ [32m✓[39m src/lib/premium-access/policy.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 28[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/actions-return.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 31[2mms[22m[39m
+ [32m✓[39m src/lib/auth/practitioner.test.ts [2m([22m[2m15 tests[22m[2m)[22m[90m 25[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/internal/billing-mode-change.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 64[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/internal/handlers/appointment-cancelled.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 23[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/appointment-balance.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 44[2mms[22m[39m
+ [32m✓[39m src/contexts/identity/internal/professional-credential.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 35[2mms[22m[39m
+ [32m✓[39m src/contexts/onboarding/internal/signup-answers.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 104[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/handlers/pending-confirmation.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 27[2mms[22m[39m
+ [32m✓[39m src/lib/ai/circuit-breaker.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 37[2mms[22m[39m
+{"ts":"2026-11-15T17:22:07.324Z","kind":"metric","event":"ai_agent.provider.empty_response_retry","attempt":1}
+{"ts":"2026-11-15T17:22:07.328Z","kind":"metric","event":"ai_agent.provider.empty_response_retry","attempt":2}
+{"ts":"2026-11-15T17:22:07.338Z","kind":"metric","event":"ai_agent.provider.empty_response_retry","attempt":1}
+{"ts":"2026-11-15T17:22:07.338Z","kind":"metric","event":"ai_agent.provider.empty_response_retry","attempt":2}
+{"ts":"2026-11-15T17:22:07.342Z","kind":"metric","event":"ai_agent.provider.server_error_retry","attempt":1}
+ [32m✓[39m src/contexts/financial/patient-payment-economics-migration.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+ [32m✓[39m src/app/api/cron/outbox/ai-usage-notice-handler.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 38[2mms[22m[39m
+{"ts":"2026-11-15T17:22:07.754Z","kind":"metric","event":"ai_agent.provider.server_error_retry","attempt":1}
+ [32m✓[39m src/contexts/financial/internal/handlers/patient-credit-released.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 31[2mms[22m[39m
+{"ts":"2026-11-15T17:22:08.163Z","kind":"metric","event":"ai_agent.provider.server_error_retry","attempt":2}
+ [32m✓[39m src/contexts/health-insurance/tiss/corpus/corpus-c2.test.ts [2m([22m[2m32 tests[22m[2m)[22m[90m 175[2mms[22m[39m
+ [32m✓[39m src/lib/http/health-auth.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 39[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/internal/walkin-queue.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 26[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/handlers/provider-retry.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 1705[2mms[22m[39m
+   [33m[2m✓[22m[39m generateWithTransientRetry[2m > [22mrepete HTTP 5xx do provider (503 "service unavailable") e devolve a resposta [33m413[2mms[22m[39m
+   [33m[2m✓[22m[39m generateWithTransientRetry[2m > [22mdesiste depois da terceira falha 5xx [33m1242[2mms[22m[39m
+{"ts":"2026-11-15T17:22:09.035Z","kind":"log","level":"warn","event":"cron.unauthorized","request_id":"a4514b18-97d3-4394-b84c-9f63e738d44f","flow":"cron.whatsapp-messaging-health","route":"whatsapp-messaging-health","destructive":false,"hasBearer":false,"hasVercelHeader":false,"secretConfigured":true}
+{"ts":"2026-11-15T17:22:09.054Z","kind":"log","level":"warn","event":"cron.unauthorized","request_id":"req-cron","flow":"cron.whatsapp-messaging-health","route":"whatsapp-messaging-health","destructive":false,"hasBearer":true,"hasVercelHeader":false,"secretConfigured":true}
+ [32m✓[39m src/app/api/cron/whatsapp-messaging-health/route.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 70[2mms[22m[39m
+ [32m✓[39m src/contexts/clinical/events.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 53[2mms[22m[39m
+ [32m✓[39m src/lib/payments/account-closure.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 26[2mms[22m[39m
+ [32m✓[39m src/contexts/onboarding/internal/signup-risk.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 23[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/internal/handlers/patient-payment-economics-corrected.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 32[2mms[22m[39m
+{"ts":"2026-11-15T17:22:11.249Z","kind":"metric","event":"insurance.copay.receivable_created","clinicId":"clinic-1"}
+ [32m✓[39m src/contexts/financial/internal/handlers/copay-confirmed.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 93[2mms[22m[39m
+ [32m✓[39m src/lib/db/pool-stats.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 1578[2mms[22m[39m
+   [33m[2m✓[22m[39m getConnectionStats[2m > [22mcalcula a saturação em % sobre o limite do servidor [33m1410[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/financeiro/convenios/guias/[guideId]/pdf/route.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 62[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tiss/validation/terminology-recheck.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 20[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/documentos/page.test.tsx [2m([22m[2m7 tests[22m[2m)[22m[90m 47[2mms[22m[39m
+ [32m✓[39m src/lib/auth/authz-denied.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 37[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/_painel/onboarding-progress.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 54[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/internal/handlers/patient-payment-economics-reconciled.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 37[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/accounting-export-query.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 36[2mms[22m[39m
+ [32m✓[39m src/app/api/signup/recovery/request/route.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 138[2mms[22m[39m
+ [32m✓[39m src/lib/auth/secret-compare.test.ts [2m([22m[2m18 tests[22m[2m)[22m[90m 43[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/catalog-migration.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 128[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/equipe/plan-entitlement.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 47[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/deposit-projection.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/pending-action-commercial.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 44[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/state-machine.test.ts [2m([22m[2m56 tests[22m[2m)[22m[90m 58[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/internal/guide-issuance.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 37[2mms[22m[39m
+ [32m✓[39m src/app/api/signup/checkout/cancel/route.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 120[2mms[22m[39m
+ [32m✓[39m src/app/auth-suspense-fallback.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 20[2mms[22m[39m
+ [32m✓[39m src/app/design-contract.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 79[2mms[22m[39m
+ [32m✓[39m src/lib/db/migration-journal.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/appointment-import.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 52[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/configuracoes/pagamentos/data.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 27[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/agenda/range.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 143[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/handlers/registration-reply.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/external-refund-migration.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/privileged-reads-gate.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 63[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tenant-isolation-gate.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 334[2mms[22m[39m
+ [32m✓[39m src/app/api/signup/recovery/consume/route.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 110[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/payment-ledger-migration.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+ [32m✓[39m src/contexts/identity/internal/password-reset-email.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 58[2mms[22m[39m
+ [32m✓[39m src/components/shared/turnstile-widget.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 13[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/validation.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 71[2mms[22m[39m
+ [32m✓[39m src/app/(admin)/admin/_lib/guard.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 23[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/internal/deposit-preview.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 31[2mms[22m[39m
+ [32m✓[39m src/lib/pdf/receituario-controle-especial.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 68813[2mms[22m[39m
+   [33m[2m✓[22m[39m renderReceituarioControleEspecialPDF[2m > [22mgera um PDF válido (%PDF) e não vazio [33m30304[2mms[22m[39m
+   [33m[2m✓[22m[39m renderReceituarioControleEspecialPDF[2m > [22mcabe em 1 página A4 com os blocos obrigatórios em DUAS vias [33m21660[2mms[22m[39m
+   [33m[2m✓[22m[39m renderReceituarioControleEspecialPDF[2m > [22mnão quebra layout com muitos medicamentos e textos longos (overflow) [33m4156[2mms[22m[39m
+   [33m[2m✓[22m[39m renderReceituarioControleEspecialPDF[2m > [22mimprime linha em branco quando o paciente não tem endereço [33m12688[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/relatorios/doctor-report-entitlement.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 123[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/tools/collect-patient-data.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 29[2mms[22m[39m
+ [32m✓[39m src/contexts/messaging/internal/inbound-status.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 29[2mms[22m[39m
+ [32m✓[39m src/lib/platform-settings/index.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 2498[2mms[22m[39m
+   [33m[2m✓[22m[39m modo do agente em falha de configuração[2m > [22mausência da flag mantém o modo normal existente [33m2269[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/internal/handlers/lancamento-paid.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+ [32m✓[39m src/contexts/onboarding/internal/signup-verification-policy.test.ts [2m([22m[2m15 tests[22m[2m)[22m[90m 32[2mms[22m[39m
+ [32m✓[39m src/lib/load-test-guards.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 29[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/internal/charge-economics.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 32[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/conversation-identity.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+ [32m✓[39m src/lib/pdf/relatorio.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 14128[2mms[22m[39m
+   [33m[2m✓[22m[39m renderRelatorioPDF[2m > [22mgera um PDF válido (%PDF) com consolidado por profissional [33m4407[2mms[22m[39m
+   [33m[2m✓[22m[39m renderRelatorioPDF[2m > [22msem view:financial omite faturamento sem quebrar [33m3881[2mms[22m[39m
+   [33m[2m✓[22m[39m renderRelatorioPDF[2m > [22mdistingue relatório fora do plano de ausência de movimento: null [33m4075[2mms[22m[39m
+   [33m[2m✓[22m[39m renderRelatorioPDF[2m > [22mdistingue relatório fora do plano de ausência de movimento: %s [33m1762[2mms[22m[39m
+ [32m✓[39m src/app/api/webhooks/resend/route.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 87[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/pacientes/page.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[90m 31[2mms[22m[39m
+ [32m✓[39m src/app/api/health/tiss-xsd/route.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 46[2mms[22m[39m
+ [32m✓[39m src/lib/auth/captcha.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 28[2mms[22m[39m
+ [32m✓[39m src/app/api/cron/signup-sessions-cleanup/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 94[2mms[22m[39m
+ [32m✓[39m src/lib/payments/asaas/checkout-recurring.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 38[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/internal/handlers/appointment-deposit-requested.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 28[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tiss/schemas/manifest.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 49[2mms[22m[39m
+ [32m✓[39m src/app/(app)/join/bootstrap.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 34[2mms[22m[39m
+ [32m✓[39m src/app/(app)/logout/route.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 41[2mms[22m[39m
+ [32m✓[39m src/app/api/cron/proactive-followup/route.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 35[2mms[22m[39m
+ [32m✓[39m src/app/pdf-return-navigation.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 19[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/relatorios/repasses/report.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 94[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/internal/availability-scope.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 30[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/handlers/media-turn.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 15[2mms[22m[39m
+ [32m✓[39m src/lib/idempotency/mutation.types.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 10[2mms[22m[39m
+ [32m✓[39m src/contexts/onboarding/internal/signup-draft-snapshot.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 39[2mms[22m[39m
+ [32m✓[39m src/lib/auth/signup-password.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 53[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/manual-message-retry.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 15[2mms[22m[39m
+ [32m✓[39m src/app/motion-and-hit-targets.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 724[2mms[22m[39m
+   [33m[2m✓[22m[39m fundação de movimento e alvos de interação[2m > [22mnão usa transition-all nem transition: all no código de interface [33m712[2mms[22m[39m
+ [32m✓[39m src/app/(app)/cadastro/continuar/page.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[90m 62[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/proactive-jobs/infra/send-window.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 89[2mms[22m[39m
+ [32m✓[39m src/contexts/patient/address-for-document.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 28[2mms[22m[39m
+ [32m✓[39m src/app/api/cron/outbox/appointment-no-show-handler.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 30[2mms[22m[39m
+ [32m✓[39m src/lib/email/templates/password-reset.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 33[2mms[22m[39m
+ [32m✓[39m src/lib/db/connection-origin-guard.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 77[2mms[22m[39m
+ [32m✓[39m src/lib/auth/session-epoch.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 28[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/internal/payment-ledger.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 26[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/schedulable-resources.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 37[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/proactive-jobs/infra/proactive-lease.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 19[2mms[22m[39m
+ [32m✓[39m src/app/api/signup/sessions/me/route.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 63[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/configuracoes/perfil/actions.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 37[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/convenios/_lib/patient-insurance-state.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 16[2mms[22m[39m
+ [32m✓[39m src/app/(app)/cadastro/page.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[90m 135[2mms[22m[39m
+ [32m✓[39m src/contexts/billing/subscription-webhook-events.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 39[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/available-credit-summary.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 34[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/internal/handlers/appointment-billing-mode-changed.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+ [32m✓[39m src/lib/auth/recovery-grant.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 34[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/tools/provide-clinic-info.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 42[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/payout.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+ [32m✓[39m src/lib/observability/metrics.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 33[2mms[22m[39m
+ [32m✓[39m src/contexts/billing/proposed-offer.test.ts [2m([22m[2m33 tests[22m[2m)[22m[90m 35[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tiss/xml/reader.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 35[2mms[22m[39m
+ [32m✓[39m src/lib/backup/recovery-health.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 43[2mms[22m[39m
+ [32m✓[39m src/contexts/identity/owner-emails.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 32[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/internal/copay-math.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 63[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/operational-information.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 37[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/dashboard/data.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 34[2mms[22m[39m
+ [32m✓[39m src/lib/email/retry.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 1322[2mms[22m[39m
+ [32m✓[39m src/contexts/onboarding/internal/signup-provision.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 28[2mms[22m[39m
+ [32m✓[39m src/lib/test/e2e-preview-runtime.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 43[2mms[22m[39m
+ [32m✓[39m src/lib/backup/recovery-set.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 616[2mms[22m[39m
+   [33m[2m✓[22m[39m keeps SQL key, Storage key and Auth config only inside the authenticated portable envelope [33m600[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/proactive-jobs/application/enqueue.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/documentacao/content.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 25[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/proactive-jobs/domain/delivery-failure.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 28[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/billing-mode-schema.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 52[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tiss/validation/batch-validator.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 31[2mms[22m[39m
+ [32m✓[39m src/lib/email/templates/team-invite.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 29[2mms[22m[39m
+ [32m✓[39m src/app/api/signup/sessions/destination/route.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 61[2mms[22m[39m
+ [32m✓[39m src/contexts/clinical/internal/tenant-references.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 28[2mms[22m[39m
+ [32m✓[39m src/app/(app)/cadastro/retomar/route.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 32[2mms[22m[39m
+ [32m✓[39m src/lib/email/resend.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 46[2mms[22m[39m
+ [32m✓[39m src/lib/observability/sentry-environment.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 466[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/handlers/mutation-budget.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 29[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/reply-policy.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/list-appointments-by-ids.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 30[2mms[22m[39m
+ [32m✓[39m src/lib/test/asaas-account-provenance.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 28[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/proactive-jobs/send-key-migration.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 19[2mms[22m[39m
+ [32m✓[39m src/contexts/onboarding/internal/founder-price.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+ [32m✓[39m src/lib/email/templates/signup-code.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 47[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tiss/xml/hash-verify.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 25[2mms[22m[39m
+ [32m✓[39m src/contexts/clinical/internal/patient-ref.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 31[2mms[22m[39m
+ [32m✓[39m src/app/(admin)/admin/_lib/admin-read-only.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 72[2mms[22m[39m
+ [32m✓[39m src/lib/http/webhook-body.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 49[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/internal/appointment-deposit-request.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 16[2mms[22m[39m
+ [32m✓[39m src/lib/cli/delete-test-clinics-prod.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 21[2mms[22m[39m
+ [32m✓[39m src/contexts/patient/patient-death.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 64[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/internal/appointment-financial-plan.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 26[2mms[22m[39m
+ [32m✓[39m src/app/design-system-preset.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+ [32m✓[39m src/lib/observability/logger.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 35[2mms[22m[39m
+ [32m✓[39m src/contexts/billing/internal/handlers/appointment-created.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/sanitize.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 25[2mms[22m[39m
+ [32m✓[39m src/lib/backup/recovery-package.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 2211[2mms[22m[39m
+   [33m[2m✓[22m[39m portable recovery package[2m > [22mpreserves binary data, protects identifiers and produces randomized ciphertext [33m720[2mms[22m[39m
+   [33m[2m✓[22m[39m portable recovery package[2m > [22mrejects wrong password, truncated ciphertext, tampering and modified header [33m1483[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/collection-cases.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 19[2mms[22m[39m
+ [32m✓[39m src/lib/http/error-response.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 34[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/agenda-operations-ui.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 16[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tiss/guides/snapshot.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 20[2mms[22m[39m
+ [32m✓[39m src/lib/agent/actor.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 21[2mms[22m[39m
+ [32m✓[39m src/contexts/patient/lgpd-workflow.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 13[2mms[22m[39m
+ [32m✓[39m src/contexts/onboarding/internal/signup-identity.test.ts [2m([22m[2m14 tests[22m[2m)[22m[90m 62[2mms[22m[39m
+{"ts":"2026-11-15T17:22:55.368Z","kind":"metric","event":"ai.cost.unknown_model","model":"gpt-99"}
+ [32m✓[39m src/lib/ai/cost.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 26[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/proactive-jobs/internal/handlers/appointment-no-show.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 66[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/internal/handlers/patient-charge-created.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 20[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/documentos/actions.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 32[2mms[22m[39m
+ [32m✓[39m src/lib/auth/no-doctor-capability-check.arch.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 868[2mms[22m[39m
+   [33m[2m✓[22m[39m arch: nenhum `role === 'doctor'` fora do predicado (ADR-032 §2)[2m > [22mcapacidade clínica só via isPractitioner / getCurrentPractitioner / practitionerSql [33m864[2mms[22m[39m
+ [32m✓[39m src/lib/pdf/pdf.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 9315[2mms[22m[39m
+   [33m[2m✓[22m[39m PDF engine (funções puras → Buffer)[2m > [22mrenderPrescriptionPDF gera um PDF válido [33m5134[2mms[22m[39m
+   [33m[2m✓[22m[39m PDF engine (funções puras → Buffer)[2m > [22mrenderAtestadoPDF gera um PDF válido [33m1554[2mms[22m[39m
+   [33m[2m✓[22m[39m PDF engine (funções puras → Buffer)[2m > [22mrenderExamePDF gera um PDF válido [33m2423[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/security-matrix.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 32[2mms[22m[39m
+ [32m✓[39m src/app/(admin)/admin/_lib/services/audit-export.service.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 22[2mms[22m[39m
+ [32m✓[39m src/contexts/messaging/api.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/prior-completed-appointment.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 33[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/meta-window.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/whatsapp-format.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 22[2mms[22m[39m
+ [32m✓[39m src/contexts/billing/internal/clinic-status.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 30[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/configuracoes/whatsapp/data.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 33[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/proactive-jobs/infra/tz.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 68[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/relatorios/report-aggregation.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 13[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/configuracoes/pagamentos/pagamentos-types.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 33[2mms[22m[39m
+ [32m✓[39m src/lib/cron-heartbeat/index.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 28[2mms[22m[39m
+ [32m✓[39m src/lib/storage/tiss-files.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 14[2mms[22m[39m
+ [32m✓[39m src/lib/email/templates/payment-account-closure-notice.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 93[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/handlers/payment-claim-wiring.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 14[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/handlers/turn-serialization.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+ [32m✓[39m src/contexts/patient/consent-decisions.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 11[2mms[22m[39m
+{"ts":"2026-11-15T17:23:02.609Z","kind":"metric","event":"authz.denied","code":"unauthenticated","reason":"TOKEN_INVALID","httpStatus":401}
+{"ts":"2026-11-15T17:23:02.623Z","kind":"metric","event":"authz.denied","code":"unauthenticated","reason":"TOKEN_INVALID","httpStatus":401}
+{"ts":"2026-11-15T17:23:02.627Z","kind":"metric","event":"authz.denied","code":"unauthenticated","reason":"TOKEN_INVALID","httpStatus":401}
+{"ts":"2026-11-15T17:23:02.630Z","kind":"metric","event":"authz.denied","code":"unauthenticated","reason":"TOKEN_INVALID","httpStatus":401}
+{"ts":"2026-11-15T17:23:02.631Z","kind":"metric","event":"authz.denied","code":"unauthenticated","reason":"TOKEN_INVALID","httpStatus":401}
+{"ts":"2026-11-15T17:23:02.634Z","kind":"metric","event":"authz.denied","code":"unauthenticated","reason":"TOKEN_INVALID","httpStatus":401}
+{"ts":"2026-11-15T17:23:02.637Z","kind":"metric","event":"authz.denied","code":"unauthenticated","reason":"TOKEN_INVALID","httpStatus":401}
+{"ts":"2026-11-15T17:23:02.640Z","kind":"metric","event":"authz.denied","code":"unauthenticated","reason":"TOKEN_INVALID","httpStatus":401}
+{"ts":"2026-11-15T17:23:02.643Z","kind":"metric","event":"authz.denied","code":"unauthenticated","reason":"TOKEN_INVALID","httpStatus":401}
+{"ts":"2026-11-15T17:23:02.647Z","kind":"metric","event":"authz.denied","code":"unauthenticated","reason":"TOKEN_INVALID","httpStatus":401}
+{"ts":"2026-11-15T17:23:02.650Z","kind":"metric","event":"authz.denied","code":"unauthenticated","reason":"TOKEN_INVALID","httpStatus":401}
+{"ts":"2026-11-15T17:23:02.667Z","kind":"metric","event":"authz.denied","code":"unauthenticated","reason":"TOKEN_INVALID","httpStatus":401}
+{"ts":"2026-11-15T17:23:02.669Z","kind":"metric","event":"authz.denied","code":"unauthenticated","reason":"TOKEN_INVALID","httpStatus":401}
+{"ts":"2026-11-15T17:23:02.671Z","kind":"metric","event":"authz.denied","code":"unauthenticated","reason":"TOKEN_INVALID","httpStatus":401}
+{"ts":"2026-11-15T17:23:02.672Z","kind":"metric","event":"authz.denied","code":"unauthenticated","reason":"TOKEN_INVALID","httpStatus":401}
+{"ts":"2026-11-15T17:23:02.673Z","kind":"metric","event":"authz.denied","code":"unauthenticated","reason":"TOKEN_INVALID","httpStatus":401}
+ [32m✓[39m src/contexts/patient/security-actions.test.ts [2m([22m[2m17 tests[22m[2m)[22m[90m 85[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/_painel/handoff-actions.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 22[2mms[22m[39m
+ [32m✓[39m src/lib/email/templates/signup-recovery.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 23[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/pacientes/[id]/patient-crm-layout.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/events.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 49[2mms[22m[39m
+ [32m✓[39m src/lib/payments/sandbox-guard.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/internal/handlers/financial-lancamento-created.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 33[2mms[22m[39m
+ [32m✓[39m src/lib/auth/supabase-session-cookie.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 64[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/handoff-sla.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 15[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/tools/provide-procedure-price.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 18[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/handlers/read-reuse.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+ [32m✓[39m src/app/page.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[90m 92[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/internal/insurer-rules.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tiss/membership-card.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 22[2mms[22m[39m
+ [32m✓[39m src/contexts/clinical/templates/psiquiatria.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 17[2mms[22m[39m
+ [32m✓[39m src/lib/email/templates/clinic-invite.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/internal/config-service.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 28[2mms[22m[39m
+ [32m✓[39m src/contexts/messaging/events.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 36[2mms[22m[39m
+ [32m✓[39m src/lib/operations/reset-prod-data.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 19[2mms[22m[39m
+ [32m✓[39m src/lib/db/restore-test-result.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 23[2mms[22m[39m
+ [32m✓[39m src/lib/pdf/quantity-to-words.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 14[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tiss/numbering.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 22[2mms[22m[39m
+ [32m✓[39m src/lib/db/transaction-pool-session-state.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2021[2mms[22m[39m
+   [33m[2m✓[22m[39m estado de sessão no Supavisor transaction pooler[2m > [22mnão permite comandos read-only persistentes em código executável [33m2017[2mms[22m[39m
+ [32m✓[39m src/app/ui-content-consistency.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 46[2mms[22m[39m
+ [32m✓[39m src/contexts/tenancy/queries.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 25[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/internal/handlers/financial-faturamento-pendente.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 22[2mms[22m[39m
+ [32m✓[39m src/contexts/identity/internal/team-invite-email.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 28[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/tools/register.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 27[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/whatsapp-contact-name-migration.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 11[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/context-builder.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 22[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/recovery-policy.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 23[2mms[22m[39m
+ [32m✓[39m src/lib/storage/clinical.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 26[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/types.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 31[2mms[22m[39m
+ [32m✓[39m src/contexts/identity/internal/role-matrix.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 16[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/inbound-media.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 17[2mms[22m[39m
+ [32m✓[39m src/lib/security/public-env-registry.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+ [32m✓[39m src/contexts/billing/api-financial-policies.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 57[2mms[22m[39m
+ [32m✓[39m src/contexts/patient/patient-relationship-search.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 15[2mms[22m[39m
+ [32m✓[39m src/lib/db/query-timeout.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 70[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/patient-webhook-grants.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 16[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/internal/handlers/excess-refund-requested.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 13[2mms[22m[39m
+ [32m✓[39m src/app/(app)/cadastro/verificacao/page.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[90m 73[2mms[22m[39m
+ [32m✓[39m src/lib/security/e2e-artifact-policy.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 208[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/payout-queries.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 40[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/consultorio/priority.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 30[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/config-types.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 46[2mms[22m[39m
+ [32m✓[39m src/contexts/clinical/templates.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 25[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/configuracoes/settings-status.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 16[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/internal/tenant-references.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 23[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/payment-account-closure-migration.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 11[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/configuracoes/pagamentos/account-fees-action.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 23[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/convenios/_lib/client-boundary.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 30[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/doctor-absence.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/internal/tiss-file-access.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 14[2mms[22m[39m
+ [32m✓[39m src/contexts/patient/lgpd-policy.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 10[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/pacientes/patient-list-url.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 17[2mms[22m[39m
+ [32m✓[39m src/lib/idempotency/purged.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 15[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/appointment-selection.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+ [32m✓[39m src/lib/audit/log.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 25[2mms[22m[39m
+ [32m✓[39m src/lib/outbox/detached-handler.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 13[2mms[22m[39m
+ [32m✓[39m src/app/api/cron/billing-dunning/route.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 29[2mms[22m[39m
+ [32m✓[39m src/lib/platform-settings/coerce.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 23[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/agenda/ausencias/pagination.test.ts [2m([22m[2m14 tests[22m[2m)[22m[90m 16[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/guide-event-label.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+ [32m✓[39m src/contexts/identity/internal/normalize-crm.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 20[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tiss/xml/xsd-validator.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 15[2mms[22m[39m
+ [32m✓[39m src/lib/auth/signup-confirmation-grant.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 44[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/appointment-recovery.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/convenios-migration.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 17[2mms[22m[39m
+ [32m✓[39m src/components/shared/announcement-dismissal.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 15[2mms[22m[39m
+ [32m✓[39m src/contexts/health-insurance/tiss/xml/self-check.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 3026[2mms[22m[39m
+   [33m[2m✓[22m[39m autoteste do motor XSD (P9.2)[2m > [22mválido aceito, inválido recusado pelo XSD, hostil recusado antes do parser [33m495[2mms[22m[39m
+   [33m[2m✓[22m[39m autoteste do motor XSD (P9.2)[2m > [22msonda de limites: namespace, lote grande, timeout, memória e fila valem de verdade [33m2527[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/dunning-candidates.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 11[2mms[22m[39m
+ [32m✓[39m src/contexts/payments/internal/handlers/appointment-no-show.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 15[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/pacientes/[id]/prontuarios/actions-auth-order.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 14[2mms[22m[39m
+ [32m✓[39m src/lib/format.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 132[2mms[22m[39m
+ [32m✓[39m src/contexts/onboarding/internal/step-state.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+ [32m✓[39m src/lib/impersonation/cookie.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 19[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/config-grants.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 11[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/caixa/caixa-types.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 10[2mms[22m[39m
+ [32m✓[39m src/lib/operations/local-bin-command.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+ [32m✓[39m src/lib/auth/signup-user-hash.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 21[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/internal/tenant-references.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 21[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/documentos/pagination.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 15[2mms[22m[39m
+ [32m✓[39m src/components/shared/page-layout.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 17[2mms[22m[39m
+ [32m✓[39m src/lib/db/prod-encrypted-backup.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 22[2mms[22m[39m
+ [32m✓[39m src/lib/auth/onboarding-invite-fragment.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 16[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/convenios/_lib/guide-label.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/doctor-absence-validation.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 58[2mms[22m[39m
+ [32m✓[39m src/contexts/identity/internal/map-error.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/financeiro/pagination.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 17[2mms[22m[39m
+ [32m✓[39m src/lib/security/signup-release-check.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+ [32m✓[39m src/app/destructive-actions-migration.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 16[2mms[22m[39m
+ [32m✓[39m src/contexts/onboarding/signup-email-feedback.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 20[2mms[22m[39m
+ [32m✓[39m src/lib/outbox/worker-pool.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 11[2mms[22m[39m
+ [32m✓[39m src/lib/auth/recovery-consumption.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 11[2mms[22m[39m
+ [32m✓[39m src/app/(admin)/admin/_lib/format.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 16[2mms[22m[39m
+ [32m✓[39m src/contexts/patient/internal/export/pdf.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 2118[2mms[22m[39m
+   [33m[2m✓[22m[39m renderExportPdf (LGPD export — react-pdf)[2m > [22mgera um PDF válido com seções aninhadas [33m2115[2mms[22m[39m
+ [32m✓[39m src/contexts/clinical/internal/doctor.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/types.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 16[2mms[22m[39m
+ [32m✓[39m src/lib/auth/email-domain-suggestion.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 21[2mms[22m[39m
+ [32m✓[39m src/contexts/financial/dunning-policy.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/consultorio/format-timezone.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 16[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/convenios/_lib/batch-ui.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 15[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/tools/list-slots.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+ [32m✓[39m src/lib/auth/signup-response-timing.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 11[2mms[22m[39m
+ [32m✓[39m src/contexts/patient/minor-policy.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 11[2mms[22m[39m
+ [32m✓[39m src/lib/storage/clinic-logo-policy.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 9[2mms[22m[39m
+ [32m✓[39m src/contexts/onboarding/trial.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 10[2mms[22m[39m
+ [32m✓[39m src/contexts/scheduling/reminder-candidates.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 17[2mms[22m[39m
+ [32m✓[39m src/contexts/ai-agent/internal/handlers/outbound-outcome.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 11[2mms[22m[39m
+ [32m✓[39m src/app/(admin)/admin/config/page.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[33m 938[2mms[22m[39m
+   [33m[2m✓[22m[39m ConfigPage[2m > [22mrenderiza operação por padrão, preserva as flags e marca a navegação atual [33m314[2mms[22m[39m
+ [32m✓[39m src/app/(app)/cadastro/signup-code-confirmation.test.tsx [2m([22m[2m19 tests[22m[2m)[22m[33m 1847[2mms[22m[39m
+   [33m[2m✓[22m[39m same-screen verification UI[2m > [22mshows failed delivery feedback without claiming inbox placement [33m351[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/configuracoes/assinatura/plan-change-form.test.tsx [2m([22m[2m22 tests[22m[2m)[22m[33m 2791[2mms[22m[39m
+   [33m[2m✓[22m[39m cancelar assinatura na tela[2m > [22mfecha o diálogo e mostra a confirmação quando o cancelamento termina [33m321[2mms[22m[39m
+ [32m✓[39m src/app/(app)/cadastro/plano/plan-selection-form.test.tsx [2m([22m[2m26 tests[22m[2m)[22m[33m 5061[2mms[22m[39m
+   [33m[2m✓[22m[39m seleção de plano O-4[2m > [22mresumes the persisted plan at checkout without another selection or plan write [33m421[2mms[22m[39m
+   [33m[2m✓[22m[39m seleção de plano O-4[2m > [22msalva a escolha e abre o checkout no mesmo clique, sem enviar preço do browser [33m314[2mms[22m[39m
+   [33m[2m✓[22m[39m seleção de plano O-4[2m > [22mnão abre checkout quando salvar falha com HTTP 401 [33m376[2mms[22m[39m
+   [33m[2m✓[22m[39m seleção de plano O-4[2m > [22mnão abre checkout quando salvar falha com HTTP 403 [33m342[2mms[22m[39m
+   [33m[2m✓[22m[39m seleção de plano O-4[2m > [22mnão abre checkout com confirmação de salvamento incompatível: {"rowVersion":8,"selectedPlanId":"33333333-3333-4333-8333-333333333333","selectedBillingCycle":"annual"} [33m368[2mms[22m[39m
+   [33m[2m✓[22m[39m seleção de plano O-4[2m > [22mnão abre checkout com confirmação de salvamento incompatível: {"rowVersion":"8","selectedPlanId":"33333333-3333-4333-8333-333333333333","selectedBillingCycle":"monthly"} [33m487[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/configuracoes/whatsapp/whatsapp-profile.test.tsx [2m([22m[2m22 tests[22m[2m)[22m[33m 5069[2mms[22m[39m
+   [33m[2m✓[22m[39m leitura falha[2m > [22moferece novo carregamento, e o formulário só aparece quando a leitura volta [33m339[2mms[22m[39m
+   [33m[2m✓[22m[39m salvar[2m > [22mcomeça desabilitado e só habilita depois de uma alteração de verdade [33m342[2mms[22m[39m
+   [33m[2m✓[22m[39m salvar[2m > [22menvia os seis campos, com os sites como lista sem vazios [33m797[2mms[22m[39m
+   [33m[2m✓[22m[39m salvar[2m > [22mmostra erro POR CAMPO e PRESERVA o texto digitado [33m322[2mms[22m[39m
+   [33m[2m✓[22m[39m salvar[2m > [22morienta reler o perfil quando a Meta não confirma um POST que pode ter sido aplicado [33m407[2mms[22m[39m
+   [33m[2m✓[22m[39m salvar[2m > [22mnão habilita o botão quando a única diferença é espaço em branco [33m409[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/configuracoes/whatsapp/whatsapp-connect.test.tsx [2m([22m[2m46 tests[22m[2m)[22m[33m 8827[2mms[22m[39m
+   [33m[2m✓[22m[39m WhatsappConnect[2m > [22mnão fica conectando nem chama o servidor quando o Embedded Signup é cancelado [33m419[2mms[22m[39m
+   [33m[2m✓[22m[39m WhatsappConnect[2m > [22mD78 single-flight: callback sem code com janela pendente impede relançamento [33m346[2mms[22m[39m
+   [33m[2m✓[22m[39m WhatsappConnect[2m > [22mD78 single-flight: CANCEL antes do callback trava até o callback + quiescência [33m364[2mms[22m[39m
+   [33m[2m✓[22m[39m WhatsappConnect[2m > [22mD78 escape de `closing` quando o callback nunca retorna[2m > [22mServer Action em curso impede nova tentativa mesmo após o abandono destravar a fase [33m388[2mms[22m[39m
+   [33m[2m✓[22m[39m WhatsappConnect — coexistência[2m > [22mnúmero novo escolhido dentro da janela da coexistência não chama o servidor [33m559[2mms[22m[39m
+   [33m[2m✓[22m[39m WhatsappConnect — coexistência[2m > [22mo botão de número novo não aceita o fim da coexistência [33m493[2mms[22m[39m
+   [33m[2m✓[22m[39m WhatsappConnect — saúde de envio (health_status)[2m > [22mcanal quebrado: o aviso de envio gravado continua visível [33m306[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/caixa/caixa-view.test.tsx [2m([22m[2m35 tests[22m[2m)[22m[33m 7927[2mms[22m[39m
+   [33m[2m✓[22m[39m CaixaView — work queue, rótulos e RBAC[2m > [22musa Confirmar pagamento para recebível e Pagar para pagável, mantendo os formulários inline [33m562[2mms[22m[39m
+   [33m[2m✓[22m[39m CaixaView — work queue, rótulos e RBAC[2m > [22moferece somente a forma comercial acordada no recebível do atendimento [33m316[2mms[22m[39m
+   [33m[2m✓[22m[39m CaixaView — work queue, rótulos e RBAC[2m > [22moperate:caixa mostra ações de receber/cancelar; sem permissão não mostra [33m628[2mms[22m[39m
+   [33m[2m✓[22m[39m CaixaView — work queue, rótulos e RBAC[2m > [22mcancelamento exige confirmação contextual antes da action idempotente [33m399[2mms[22m[39m
+   [33m[2m✓[22m[39m CaixaView — work queue, rótulos e RBAC[2m > [22mexplica o estado de estorno confirmed sem expor identificadores [33m336[2mms[22m[39m
+   [33m[2m✓[22m[39m CaixaView — work queue, rótulos e RBAC[2m > [22mexplica o estado de estorno cancelled sem expor identificadores [33m335[2mms[22m[39m
+   [33m[2m✓[22m[39m CaixaView — work queue, rótulos e RBAC[2m > [22mtorna todos os lançamentos acessíveis por paginação local [33m895[2mms[22m[39m
+   [33m[2m✓[22m[39m CaixaView — work queue, rótulos e RBAC[2m > [22mremove o corte de cinco pendências e oferece caminho até a página seguinte [33m482[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/_painel/handoff-watcher.test.tsx [2m([22m[2m17 tests[22m[2m)[22m[90m 292[2mms[22m[39m
+ [32m✓[39m src/app/(admin)/admin/page.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 1129[2mms[22m[39m
+   [33m[2m✓[22m[39m AdminDashboardPage[2m > [22mrenderiza KPIs e listas quando todas as leituras respondem [33m781[2mms[22m[39m
+ [32m✓[39m src/app/(app)/cadastro/continuar/continue-signup-form.test.tsx [2m([22m[2m10 tests[22m[2m)[22m[33m 2553[2mms[22m[39m
+   [33m[2m✓[22m[39m continuação autenticada do cadastro verificado[2m > [22mrecupera o cadastro pela identidade verificada, sem redigitar nada [33m409[2mms[22m[39m
+   [33m[2m✓[22m[39m continuação autenticada do cadastro verificado[2m > [22mnão consulta a sessão anônima: 410 já significa que não há nada a recuperar [33m374[2mms[22m[39m
+   [33m[2m✓[22m[39m continuação autenticada do cadastro verificado[2m > [22mrecomeça com todos os dados e envia só o contrato do recomeço [33m506[2mms[22m[39m
+   [33m[2m✓[22m[39m continuação autenticada do cadastro verificado[2m > [22mvalida o recomeço antes do POST e mantém a confirmação explícita [33m361[2mms[22m[39m
+ [32m✓[39m src/app/(app)/cadastro/signup-questions.test.tsx [2m([22m[2m41 tests[22m[2m)[22m[33m 23895[2mms[22m[39m
+   [33m[2m✓[22m[39m cadastro — quatro perguntas impessoais[2m > [22mavança uma pergunta por tela e preserva a escolha ao voltar [33m562[2mms[22m[39m
+   [33m[2m✓[22m[39m cadastro — quatro perguntas impessoais[2m > [22mretoma a primeira pergunta ainda não respondida depois de recarregar a página [33m524[2mms[22m[39m
+   [33m[2m✓[22m[39m cadastro — quatro perguntas impessoais[2m > [22mnão leva respostas locais para uma sessão nova [33m323[2mms[22m[39m
+   [33m[2m✓[22m[39m cadastro — quatro perguntas impessoais[2m > [22mdescarta escolhas locais após uma hora, sem renovar o prazo ao editar [33m375[2mms[22m[39m
+   [33m[2m✓[22m[39m cadastro — quatro perguntas impessoais[2m > [22mcontinua o cadastro quando o navegador bloqueia o armazenamento [33m719[2mms[22m[39m
+   [33m[2m✓[22m[39m cadastro — quatro perguntas impessoais[2m > [22mmantém a última pergunta como a única que salva, com o rótulo próprio [33m415[2mms[22m[39m
+   [33m[2m✓[22m[39m cadastro — quatro perguntas impessoais[2m > [22menvia uma vez, bloqueia edição durante o POST e confirma o snapshot salvo [33m641[2mms[22m[39m
+   [33m[2m✓[22m[39m cadastro — quatro perguntas impessoais[2m > [22mresolve CAS perdido relendo e exibindo as respostas vencedoras [33m885[2mms[22m[39m
+   [33m[2m✓[22m[39m cadastro — quatro perguntas impessoais[2m > [22mtransforma 409 seguido de 410 em reinício de sessão, não em erro de rede [33m1755[2mms[22m[39m
+   [33m[2m✓[22m[39m cadastro — quatro perguntas impessoais[2m > [22mmantém o estado pronto quando a releitura do conflito recebe 429 [33m1943[2mms[22m[39m
+   [33m[2m✓[22m[39m cadastro — quatro perguntas impessoais[2m > [22mdistingue sessão expirada e rate limit ao salvar [33m4726[2mms[22m[39m
+   [33m[2m✓[22m[39m cadastro — quatro perguntas impessoais[2m > [22mpreserva as escolhas quando a rede falha antes da confirmação [33m1934[2mms[22m[39m
+   [33m[2m✓[22m[39m cadastro — conta e espera O-3b.5[2m > [22mapós confirmar exige o código e nunca lê o draft nem avança automaticamente [33m1428[2mms[22m[39m
+   [33m[2m✓[22m[39m cadastro — conta e espera O-3b.5[2m > [22mapós refresh pede e-mail, nova senha com olho e código antes de continuar [33m602[2mms[22m[39m
+   [33m[2m✓[22m[39m cadastro — conta e espera O-3b.5[2m > [22mcódigo recusado mantém a continuação local e não oferece login impossível [33m558[2mms[22m[39m
+   [33m[2m✓[22m[39m cadastro — conta e espera O-3b.5[2m > [22msenha recusada na aba original revela somente as credenciais que precisam ser refeitas [33m881[2mms[22m[39m
+   [33m[2m✓[22m[39m cadastro — conta e espera O-3b.5[2m > [22m410 encerra o handoff e 503 preserva o formulário para nova tentativa [33m419[2mms[22m[39m
+   [33m[2m✓[22m[39m cadastro — conta e espera O-3b.5[2m > [22mmantém o gate fechado e só abre os dados depois das quatro respostas [33m664[2mms[22m[39m
+   [33m[2m✓[22m[39m cadastro — conta e espera O-3b.5[2m > [22mnão avança para espera se o provedor recusar o envio [33m849[2mms[22m[39m
+   [33m[2m✓[22m[39m cadastro — conta e espera O-3b.5[2m > [22mnão pede senha após rate limit e reutiliza somente a versão confirmada do staging [33m721[2mms[22m[39m
+   [33m[2m✓[22m[39m cadastro — conta e espera O-3b.5[2m > [22mreconcilia resposta Auth ambígua e não repete a criação da conta [33m313[2mms[22m[39m
+ [32m✓[39m src/app/(admin)/admin/clinicas/[id]/page.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 1786[2mms[22m[39m
+   [33m[2m✓[22m[39m ClinicDetailPage[2m > [22mpreserva dados, links, ações e filas no detalhe completo [33m1452[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/convenios/page.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 6085[2mms[22m[39m
+   [33m[2m✓[22m[39m interface de Convênios[2m > [22mpainel: valores por operadora e o que falta para faturar por responsável [33m1998[2mms[22m[39m
+   [33m[2m✓[22m[39m interface de Convênios[2m > [22mD24: no trial o recurso aparece como contratável; suspensa = consulta; liberada = sem aviso [33m2425[2mms[22m[39m
+   [33m[2m✓[22m[39m interface de Convênios[2m > [22mguia conferida: quem gerencia vê aprovar/devolver/cancelar; quem só vê, nenhuma ação [33m604[2mms[22m[39m
+   [33m[2m✓[22m[39m interface de Convênios[2m > [22mD24: em trial ou suspensa, quem gerencia não vê conferir/aprovar/devolver/ajustar (o servidor recusa); cancelar continua [33m776[2mms[22m[39m
+ [32m✓[39m src/app/(app)/convite/server-session.test.tsx [2m([22m[2m11 tests[22m[2m)[22m[33m 7274[2mms[22m[39m
+   [33m[2m✓[22m[39m sessão Supabase server-only[2m > [22mconfirma link, grava todos os fragmentos HttpOnly e aceita o convite pelo formulário real [33m5333[2mms[22m[39m
+   [33m[2m✓[22m[39m sessão Supabase server-only[2m > [22mrefresh autenticado restringe destino externo https://evil.invalid/ [33m348[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/_painel/product-tour.test.tsx [2m([22m[2m12 tests[22m[2m)[22m[33m 2414[2mms[22m[39m
+   [33m[2m✓[22m[39m ProductTour[2m > [22mavança mandando o passo de onde o cliente pensa estar [33m529[2mms[22m[39m
+   [33m[2m✓[22m[39m ProductTour[2m > [22mrelê do servidor quando a recusa vem sem estado [33m304[2mms[22m[39m
+   [33m[2m✓[22m[39m ProductTour[2m > [22mnão deixa voltar no primeiro passo [33m381[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/conversas/_components/conversation-thread.test.tsx [2m([22m[2m13 tests[22m[2m)[22m[33m 4983[2mms[22m[39m
+   [33m[2m✓[22m[39m continuidade do atendimento humano[2m > [22mexplica a pausa e a retomada sem prometer reprocessar mensagens antigas [33m1413[2mms[22m[39m
+   [33m[2m✓[22m[39m reenvio no histórico compartilhado[2m > [22mmostra falha de entrega e reenvio para responsável autorizado dentro da janela [33m458[2mms[22m[39m
+   [33m[2m✓[22m[39m reenvio no histórico compartilhado[2m > [22mnão oferece reenvio: 'sem permissão' [33m389[2mms[22m[39m
+   [33m[2m✓[22m[39m reenvio no histórico compartilhado[2m > [22mnão oferece reenvio: 'outro responsável' [33m355[2mms[22m[39m
+   [33m[2m✓[22m[39m reenvio no histórico compartilhado[2m > [22mnão oferece reenvio: 'sem handoff' [33m344[2mms[22m[39m
+   [33m[2m✓[22m[39m reenvio no histórico compartilhado[2m > [22mnão oferece reenvio: 'mensagem entregue' [33m348[2mms[22m[39m
+   [33m[2m✓[22m[39m resposta da recepção pelo app do celular (coexistência)[2m > [22maparece como Recepção pelo celular, e não como a IA nem como o responsável [33m317[2mms[22m[39m
+   [33m[2m✓[22m[39m identidade do contato na conversa[2m > [22mo nome do cadastro tem precedência sobre o do WhatsApp [33m315[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/caixa/page.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 1081[2mms[22m[39m
+   [33m[2m✓[22m[39m CaixaPage — composição financeira por plano[2m > [22mmostra fatos reais no Solo e reserva o repasse ao plano avançado [33m928[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/configuracoes/pagamentos/payment-account-panel.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[33m 3476[2mms[22m[39m
+   [33m[2m✓[22m[39m PaymentAccountPanel[2m > [22mexplica a etapa que falhou mesmo antes de uma nova tentativa [33m716[2mms[22m[39m
+   [33m[2m✓[22m[39m PaymentAccountPanel[2m > [22mmostra local, motivo e código seguro devolvidos pela nova tentativa [33m913[2mms[22m[39m
+   [33m[2m✓[22m[39m PaymentAccountPanel[2m > [22mencerra a conta pausada só depois da confirmação [33m939[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/dashboard/page.test.tsx [2m([22m[2m17 tests[22m[2m)[22m[33m 19453[2mms[22m[39m
+   [33m[2m✓[22m[39m DashboardPage[2m > [22mprioriza ativação e operação, com agenda antes do gráfico [33m8184[2mms[22m[39m
+   [33m[2m✓[22m[39m DashboardPage[2m > [22mmantém o nome completo do usuário na saudação do cabeçalho [33m2405[2mms[22m[39m
+   [33m[2m✓[22m[39m DashboardPage[2m > [22mmostra a prévia apenas ao usuário configurado, sem escrever ou ler métricas reais [33m1667[2mms[22m[39m
+   [33m[2m✓[22m[39m DashboardPage[2m > [22mmantém os dados reais para qualquer outro usuário [33m1284[2mms[22m[39m
+   [33m[2m✓[22m[39m DashboardPage[2m > [22mnão aplica a prévia quando a conta de teste está em outra clínica [33m832[2mms[22m[39m
+   [33m[2m✓[22m[39m DashboardPage[2m > [22mmantém os gates financeiros e de auditoria também na prévia [33m542[2mms[22m[39m
+   [33m[2m✓[22m[39m DashboardPage[2m > [22mformata Hoje no fuso da clínica durante a virada do dia em UTC [33m698[2mms[22m[39m
+   [33m[2m✓[22m[39m DashboardPage[2m > [22musa o EmptyState compacto canônico nos três vazios reais [33m676[2mms[22m[39m
+   [33m[2m✓[22m[39m DashboardPage[2m > [22mnão consulta nem serializa conteúdo financeiro ou de auditoria sem permissão [33m1635[2mms[22m[39m
+   [33m[2m✓[22m[39m DashboardPage — mensagens automáticas do WhatsApp[2m > [22mconta bloqueada: uma faixa que leva à tela de WhatsApp [33m670[2mms[22m[39m
+   [33m[2m✓[22m[39m DashboardPage — mensagens automáticas do WhatsApp[2m > [22msem manage:settings o estado da conta nem é lido [33m302[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/configuracoes/horarios/horarios-manager.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 3298[2mms[22m[39m
+   [33m[2m✓[22m[39m HorariosManager[2m > [22massocia os rótulos de disponibilidade aos controles nativos [33m1169[2mms[22m[39m
+   [33m[2m✓[22m[39m HorariosManager[2m > [22mA11Y-001: Data e Motivo do feriado têm nome acessível [33m375[2mms[22m[39m
+   [33m[2m✓[22m[39m HorariosManager[2m > [22mAUTHZ-007: sem gestão de equipe, o bloco de feriados não é renderizado [33m812[2mms[22m[39m
+   [33m[2m✓[22m[39m HorariosManager — atomicidade do expediente (DATA-006)[2m > [22mmanhã + tarde vão numa ÚNICA chamada, não em duas [33m716[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/configuracoes/lgpd/page.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 693[2mms[22m[39m
+   [33m[2m✓[22m[39m LgpdOperationsPage[2m > [22mcarrega a fila inicial sem consultar histórico por solicitação [33m317[2mms[22m[39m
+ [32m✓[39m src/app/(app)/cadastro/verificacao/signup-protection-check.test.tsx [2m([22m[2m9 tests[22m[2m)[22m[33m 2755[2mms[22m[39m
+   [33m[2m✓[22m[39m operator verification flow[2m > [22mshows PASS only after the server confirms all three checks [33m703[2mms[22m[39m
+   [33m[2m✓[22m[39m operator verification flow[2m > [22mdoes not trust partial or malformed proof: {"ok":true,"runId":"a94567d9-0cbb-4c37-b252-97ade0123400","accepted":false,"replayRejected":true,"invalidRejected":true} [33m333[2mms[22m[39m
+   [33m[2m✓[22m[39m operator verification flow[2m > [22mdoes not trust partial or malformed proof: {"ok":true,"runId":"<sensitive-value>","accepted":true,"replayRejected":true,"invalidRejected":true} [33m301[2mms[22m[39m
+ [32m✓[39m src/components/ui/viz-foundations.test.tsx [2m([22m[2m11 tests[22m[2m)[22m[33m 2153[2mms[22m[39m
+   [33m[2m✓[22m[39m StatCard — tom é significado, não direção[2m > [22mpinta de vermelho uma alta que é ruim (despesa subindo) [33m762[2mms[22m[39m
+   [33m[2m✓[22m[39m BarChart[2m > [22mesconde rótulos quando há colunas demais para caberem [33m333[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/relatorios/repasses/page.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 1876[2mms[22m[39m
+   [33m[2m✓[22m[39m RepassesPage[2m > [22mmédico recebe somente o próprio escopo, inclusive na consulta ao banco [33m1172[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/pacientes/[id]/patient-clinical-activity.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 2507[2mms[22m[39m
+   [33m[2m✓[22m[39m PatientClinicalActivity[2m > [22mmostra somente registros reais recebidos e ordena o mais recente primeiro [33m1956[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/agenda/delivery-failure-strip.test.tsx [2m([22m[2m7 tests[22m[2m)[22m[33m 2401[2mms[22m[39m
+   [33m[2m✓[22m[39m DeliveryFailureStrip[2m > [22msem nada acionável não desenha nada [33m409[2mms[22m[39m
+   [33m[2m✓[22m[39m DeliveryFailureStrip[2m > [22mo resumo diz quem e até quando; o item, o que fazer, o motivo e o código [33m1225[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/relatorios/page.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 4382[2mms[22m[39m
+   [33m[2m✓[22m[39m RelatoriosPage[2m > [22musa faixa única de métricas e não consulta faturamento sem permissão [33m1469[2mms[22m[39m
+   [33m[2m✓[22m[39m RelatoriosPage[2m > [22mdescobre o relatório próprio para titular médico mesmo sem view:financial [33m613[2mms[22m[39m
+   [33m[2m✓[22m[39m RelatoriosPage[2m > [22mnão oferece o relatório consolidado ao atendente que apenas lê o financeiro [33m798[2mms[22m[39m
+   [33m[2m✓[22m[39m RelatoriosPage[2m > [22mmantém o link para médico mesmo com leitura financeira concedida [33m584[2mms[22m[39m
+   [33m[2m✓[22m[39m RelatoriosPage[2m > [22mmantém período, exportação e faturamento descobertos com permissão [33m597[2mms[22m[39m
+   [33m[2m✓[22m[39m RelatoriosPage[2m > [22mConsultório mantém indicadores gerais e PDF sem oferecer relatório de repasses [33m303[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/pacientes/[id]/prontuarios/[pid]/prontuario-editor.test.tsx [2m([22m[2m7 tests[22m[2m)[22m[33m 3010[2mms[22m[39m
+   [33m[2m✓[22m[39m ProntuarioEditor — autosave[2m > [22moferece o template de Psiquiatria com campos clínicos específicos [33m1347[2mms[22m[39m
+   [33m[2m✓[22m[39m ProntuarioEditor — autosave[2m > [22mNÃO salva antes do debounce; salva 10s após digitar (com conteúdo + rowVersion) [33m440[2mms[22m[39m
+   [33m[2m✓[22m[39m ProntuarioEditor — autosave[2m > [22m"Salvar agora" persiste imediatamente (sem esperar o debounce) [33m319[2mms[22m[39m
+   [33m[2m✓[22m[39m ProntuarioEditor — autosave[2m > [22mcorrida: o que é digitado DURANTE um save lento é persistido no save seguinte [33m411[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/conversas/page.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[33m 5778[2mms[22m[39m
+   [33m[2m✓[22m[39m inbox de conversas[2m > [22mmostra contato e histórico lado a lado, com telefone inclusive para paciente cadastrado [33m3346[2mms[22m[39m
+   [33m[2m✓[22m[39m inbox de conversas[2m > [22mseleciona uma conversa da página e mantém os filtros ao voltar e paginar [33m683[2mms[22m[39m
+   [33m[2m✓[22m[39m inbox de conversas[2m > [22mnão consulta seleção fora dos resultados: invalid-id [33m593[2mms[22m[39m
+   [33m[2m✓[22m[39m inbox de conversas[2m > [22mmantém leitura sem composer para quem não pode gerenciar [33m339[2mms[22m[39m
+ [32m✓[39m src/app/(app)/cadastro/confirmado/signup-password-form.test.tsx [2m([22m[2m14 tests[22m[2m)[22m[33m 4359[2mms[22m[39m
+   [33m[2m✓[22m[39m senha após confirmação[2m > [22mdoes not allow a native GET or password entry before hydration [33m419[2mms[22m[39m
+   [33m[2m✓[22m[39m senha após confirmação[2m > [22mexplica a reconciliação sem sugerir criar outra senha [33m570[2mms[22m[39m
+   [33m[2m✓[22m[39m senha após confirmação[2m > [22mlimpa uma senha recusada sem pedir novamente e-mail ou código [33m551[2mms[22m[39m
+   [33m[2m✓[22m[39m senha após confirmação[2m > [22moferece reinício quando o cadastro expirou [33m444[2mms[22m[39m
+   [33m[2m✓[22m[39m senha após confirmação[2m > [22mnão aceita um HTTP 200 sem o resultado esperado [33m398[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/convenios/solicitacoes/[requestId]/page.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 1774[2mms[22m[39m
+   [33m[2m✓[22m[39m detalhe da solicitação SP/SADT[2m > [22mrascunho (o que a consulta real devolve): renderiza, com "Conferir solicitação" para quem gerencia [33m1081[2mms[22m[39m
+   [33m[2m✓[22m[39m detalhe da solicitação SP/SADT[2m > [22maguardando a operadora: documento oficial gerado (abrir PDF) ou pendente (gerar) [33m675[2mms[22m[39m
+ [32m✓[39m src/lib/realtime/use-consultorio-polling.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 866[2mms[22m[39m
+   [33m[2m✓[22m[39m useConsultorioPolling[2m > [22mfaz uma leitura imediata, uma por intervalo e para ao desmontar [33m425[2mms[22m[39m
+ [32m✓[39m src/app/(admin)/admin/clinicas/[id]/export-form.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[33m 2536[2mms[22m[39m
+   [33m[2m✓[22m[39m mensagem de erro do envelope chega ao operador[2m > [22m422 de span → exibe a mensagem, não uma caixa vazia [33m1266[2mms[22m[39m
+ [32m✓[39m src/app/(app)/oferta-preview/proposal-calculator.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 1358[2mms[22m[39m
+   [33m[2m✓[22m[39m prévia da proposta comercial[2m > [22mdistingue planos de entrada no DEV de itens ainda não contratáveis [33m772[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/agenda/copy-charge-link-button.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 1843[2mms[22m[39m
+   [33m[2m✓[22m[39m CopyChargeLinkButton[2m > [22mpede o link do JOB no clique e copia [33m1076[2mms[22m[39m
+ [32m✓[39m src/components/ui/data-layer.test.tsx [2m([22m[2m14 tests[22m[2m)[22m[33m 1182[2mms[22m[39m
+   [33m[2m✓[22m[39m EntityCell[2m > [22mmostra nome e sublinha juntos [33m315[2mms[22m[39m
+ [32m✓[39m src/components/shared/shell-nav-state.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[33m 1367[2mms[22m[39m
+   [33m[2m✓[22m[39m menu do usuário no rodapé[2m > [22msó oferece o perfil da clínica quando o shell informa o destino [33m906[2mms[22m[39m
+ [32m✓[39m src/app/(app)/cadastro/signup-identity.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 2450[2mms[22m[39m
+   [33m[2m✓[22m[39m identity and destination continuity[2m > [22mrequires a deliberate typo choice before any save/send [33m1840[2mms[22m[39m
+   [33m[2m✓[22m[39m identity and destination continuity[2m > [22mallows explicitly keeping the typed domain without silent correction [33m461[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/agenda/page.test.tsx [2m([22m[2m7 tests[22m[2m)[22m[33m 3887[2mms[22m[39m
+   [33m[2m✓[22m[39m AgendaPage[2m > [22mmantém as subrotas no cabeçalho e separa os controles temporais [33m2124[2mms[22m[39m
+   [33m[2m✓[22m[39m AgendaPage[2m > [22mmantém a importação no menu e oferece ausências somente com manage:availability [33m689[2mms[22m[39m
+   [33m[2m✓[22m[39m AgendaPage[2m > [22mno Dia, a linha da consulta ganha o selo ao lado do "Sinal pendente" [33m767[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/configuracoes/settings-category.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 781[2mms[22m[39m
+   [33m[2m✓[22m[39m SettingsGroupSection[2m > [22mempilha um destino por linha, com o cabeçalho do grupo dentro do cartão [33m503[2mms[22m[39m
+ [32m✓[39m src/app/(app)/cadastro/pagamento/payment-return.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 940[2mms[22m[39m
+   [33m[2m✓[22m[39m retorno do Checkout do cadastro[2m > [22mverifica uma assinatura pendente antes de abrir o dashboard [33m304[2mms[22m[39m
+ [32m✓[39m src/app/route-loading-coverage.test.tsx [2m([22m[2m16 tests[22m[2m)[22m[33m 634[2mms[22m[39m
+ [32m✓[39m src/app/(app)/reset-password/reset-password-form.test.tsx [2m([22m[2m7 tests[22m[2m)[22m[33m 974[2mms[22m[39m
+   [33m[2m✓[22m[39m ResetPasswordForm[2m > [22mmostra e oculta a nova senha, como a tela de login [33m441[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/financeiro/page.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 838[2mms[22m[39m
+   [33m[2m✓[22m[39m FinanceiroPage[2m > [22mexibe pagamento antecipado separado de recebível e de recebido no mês [33m749[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/documentação/page.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 1033[2mms[22m[39m
+   [33m[2m✓[22m[39m documentação dentro da conta Qoro[2m > [22moferece guias de uso e busca, sem conteúdo de engenharia ou marcas anteriores [33m824[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/pacientes/[id]/patient-crm-controls.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 1095[2mms[22m[39m
+   [33m[2m✓[22m[39m controles do CRM de paciente[2m > [22mrevela a gestão de vínculos inline apenas após intenção explícita [33m739[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/convenios/_lib/consulta-fields-ui.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 1294[2mms[22m[39m
+   [33m[2m✓[22m[39m painel Dados da consulta: foco, erro e dica[2m > [22mabre com o foco no primeiro campo e devolve o foco ao botão ao voltar [33m612[2mms[22m[39m
+   [33m[2m✓[22m[39m painel Dados da consulta: foco, erro e dica[2m > [22ma recusa do servidor fica no formulário com role="alert", sem fechar e sem perder o que foi escolhido [33m408[2mms[22m[39m
+ [32m✓[39m src/components/painel/painel-shell.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 3079[2mms[22m[39m
+   [33m[2m✓[22m[39m shell tenant das referências HTML[2m > [22mmantém Ajuda ativa e aponta ao endereço novo: /documentação/agenda [33m630[2mms[22m[39m
+   [33m[2m✓[22m[39m shell tenant das referências HTML[2m > [22mmantém Configurações ativo em todas as categorias e preserva o destino autorizado [33m368[2mms[22m[39m
+   [33m[2m✓[22m[39m shell tenant das referências HTML[2m > [22mfecha a navegação por Escape e pelo controle explícito [33m897[2mms[22m[39m
+   [33m[2m✓[22m[39m shell tenant das referências HTML[2m > [22misola a aparência e preserva acesso ao conteúdo e contagem de handoff [33m615[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/dashboard/_components/activation-checklist.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 1097[2mms[22m[39m
+   [33m[2m✓[22m[39m ActivationChecklist[2m > [22manuncia o progresso como progressbar, não só como texto [33m705[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/conversas/[id]/page.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 972[2mms[22m[39m
+   [33m[2m✓[22m[39m workspace da conversa[2m > [22mmantém histórico, telefone e atendimento no mesmo painel [33m796[2mms[22m[39m
+ [32m✓[39m src/lib/ui/use-hydrated-now.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 366[2mms[22m[39m
+   [33m[2m✓[22m[39m R51 — hidratação com relógios diferentes[2m > [22mcontrole: Date.now() na renderização diverge entre servidor e navegador (o defeito) [33m312[2mms[22m[39m
+ [32m✓[39m src/components/shared/use-theme.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[90m 291[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/documentacao/restart-tour.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 702[2mms[22m[39m
+   [33m[2m✓[22m[39m RestartTour[2m > [22minicia voluntariamente um tour ainda não iniciado [33m405[2mms[22m[39m
+ [32m✓[39m src/components/ui/form-foundations.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 515[2mms[22m[39m
+ [32m✓[39m src/app/(admin)/admin/clinicas/signup-accounts.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 896[2mms[22m[39m
+   [33m[2m✓[22m[39m admin signup accounts[2m > [22mshows pending Auth identities separately from provisioned clinics, even without a live draft [33m546[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/pacientes/[id]/patient-profile-card.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 1725[2mms[22m[39m
+   [33m[2m✓[22m[39m PatientProfileCard[2m > [22mmantém view mode como padrão e não oferece edição sem permissão [33m580[2mms[22m[39m
+   [33m[2m✓[22m[39m PatientProfileCard[2m > [22mabre e fecha a edição inline sem modal quando autorizada [33m1085[2mms[22m[39m
+ [32m✓[39m src/components/ui/destructive-action.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 2677[2mms[22m[39m
+   [33m[2m✓[22m[39m confirmações destrutivas[2m > [22mcancelar o ConfirmDialog não executa a mutação [33m1265[2mms[22m[39m
+   [33m[2m✓[22m[39m confirmações destrutivas[2m > [22mbloqueia reenvio enquanto a mutação está pendente [33m629[2mms[22m[39m
+   [33m[2m✓[22m[39m confirmações destrutivas[2m > [22mmantém o erro no diálogo e permite tentar novamente [33m771[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/consultorio/document-drawer.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 3178[2mms[22m[39m
+   [33m[2m✓[22m[39m DocumentDrawer[2m > [22mpode abrir diretamente a partir do hub do paciente [33m1192[2mms[22m[39m
+   [33m[2m✓[22m[39m DocumentDrawer[2m > [22massocia cada rótulo ao campo do tipo de documento selecionado [33m845[2mms[22m[39m
+   [33m[2m✓[22m[39m DocumentDrawer[2m > [22mexpõe os quatro tipos como rádios de um grupo nomeado [33m731[2mms[22m[39m
+   [33m[2m✓[22m[39m DocumentDrawer[2m > [22mdescreve o que cada tipo serve, não só o nome dele [33m402[2mms[22m[39m
+ [32m✓[39m src/components/ui/use-toast.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 754[2mms[22m[39m
+   [33m[2m✓[22m[39m toast store[2m > [22mempilha toasts e entrega via useToasts [33m414[2mms[22m[39m
+ [32m✓[39m src/components/ui/use-action-feedback.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 850[2mms[22m[39m
+   [33m[2m✓[22m[39m useActionFeedback[2m > [22mnão dispara toast no estado inicial [33m478[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/configuracoes/agente/agent-config-form.test.tsx [2m([22m[2m1 test[22m[2m)[22m[33m 2547[2mms[22m[39m
+   [33m[2m✓[22m[39m AgentConfigForm — convênios aceitos[2m > [22mmostra a configuração atual e envia a lista normalizada [33m2507[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/account/security/security-dialog.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 2981[2mms[22m[39m
+   [33m[2m✓[22m[39m TotpSetupDialog[2m > [22mnão cria fator nenhum antes do clique [33m647[2mms[22m[39m
+   [33m[2m✓[22m[39m TotpSetupDialog[2m > [22mabre o diálogo com QR, secret e o campo de confirmação [33m1580[2mms[22m[39m
+   [33m[2m✓[22m[39m TotpSetupDialog[2m > [22mmostra a recusa do servidor em vez de um diálogo vazio [33m730[2mms[22m[39m
+ [32m✓[39m src/components/ui/status-badge.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 1028[2mms[22m[39m
+   [33m[2m✓[22m[39m StatusBadge — cor definida uma vez, nunca por tela[2m > [22mtraduz o status de agendamento para o rotulo da state machine [33m419[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/conversas/[id]/_components/conversa-actions.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 2139[2mms[22m[39m
+   [33m[2m✓[22m[39m ConversaActions — devolver ao agente[2m > [22m"Aguardando responsável" sem ninguém assumido oferece assumir E devolver [33m1273[2mms[22m[39m
+   [33m[2m✓[22m[39m ConversaActions — devolver ao agente[2m > [22massumida por mim continua com o devolver do painel de atendimento [33m479[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/configuracoes/pagamentos/deposit-policy-form.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 2235[2mms[22m[39m
+   [33m[2m✓[22m[39m DepositPolicyForm — como o paciente paga[2m > [22mexplica sinal pelo link, restante em dinheiro e o caso sem sinal [33m1362[2mms[22m[39m
+   [33m[2m✓[22m[39m DepositPolicyForm — como o paciente paga[2m > [22mcita as ações que existem no Caixa [33m435[2mms[22m[39m
+   [33m[2m✓[22m[39m DepositPolicyForm — como o paciente paga[2m > [22mdefine retorno apenas depois de consulta concluída [33m410[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/pacientes/patient-form.test.tsx [2m([22m[2m1 test[22m[2m)[22m[33m 3765[2mms[22m[39m
+   [33m[2m✓[22m[39m PatientForm[2m > [22mpreserva o rascunho após a action devolver erro de validação [33m3755[2mms[22m[39m
+ [32m✓[39m src/components/ui/button.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 572[2mms[22m[39m
+   [33m[2m✓[22m[39m <Button>[2m > [22mloading desabilita e anuncia aria-busy [33m418[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/financeiro/fornecedores/fornecedores-view.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 941[2mms[22m[39m
+   [33m[2m✓[22m[39m FornecedoresView — RBAC[2m > [22mlista o fornecedor (sempre) [33m386[2mms[22m[39m
+   [33m[2m✓[22m[39m FornecedoresView — RBAC[2m > [22mmanage:financial → mostra Novo fornecedor / Editar / Desativar [33m345[2mms[22m[39m
+ [32m✓[39m src/app/(app)/login/mfa/page.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 1346[2mms[22m[39m
+   [33m[2m✓[22m[39m MfaPage[2m > [22moferece uma ação secundária acessível para usar outra conta [33m756[2mms[22m[39m
+   [33m[2m✓[22m[39m MfaPage[2m > [22mmostra a falha de saída sem prometer recuperação de MFA [33m584[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/documentos/new-clinical-document-drawer.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 4444[2mms[22m[39m
+   [33m[2m✓[22m[39m NewClinicalDocumentDrawer[2m > [22mseleciona paciente e roteia cada tipo sem criar consulta [33m2843[2mms[22m[39m
+   [33m[2m✓[22m[39m NewClinicalDocumentDrawer[2m > [22mnão oferece tipo sem permissão correspondente [33m1585[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/documentacao/help-index.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 4787[2mms[22m[39m
+   [33m[2m✓[22m[39m busca da central de ajuda[2m > [22mexibe os guias agrupados com o endereço solicitado [33m1934[2mms[22m[39m
+   [33m[2m✓[22m[39m busca da central de ajuda[2m > [22mbusca também nos passos, sem exigir acento ou letra maiúscula [33m938[2mms[22m[39m
+   [33m[2m✓[22m[39m busca da central de ajuda[2m > [22mpermite limpar uma busca vazia de resultados e não interpreta HTML digitado [33m1912[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/configuracoes/perfil/professional-credential-form.test.tsx [2m([22m[2m1 test[22m[2m)[22m[33m 1515[2mms[22m[39m
+   [33m[2m✓[22m[39m ProfessionalCredentialForm[2m > [22menvia CRM, UF e especialidade para a action [33m1498[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/configuracoes/assinatura/page.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 1559[2mms[22m[39m
+   [33m[2m✓[22m[39m AssinaturaPage[2m > [22mrenderiza a negativa de RBAC sem lançar erro de rota [33m1249[2mms[22m[39m
+ [32m✓[39m src/components/ui/deposit-status-badge.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 667[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/conversas/_components/conversation-auto-refresh.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 313[2mms[22m[39m
+ [32m✓[39m src/app/(app)/join/join-entry.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 585[2mms[22m[39m
+   [33m[2m✓[22m[39m JoinEntry[2m > [22mremove o fragmento antes de montar o wizard e mantém o token só em memória [33m452[2mms[22m[39m
+ [32m✓[39m src/components/ui/field.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 674[2mms[22m[39m
+   [33m[2m✓[22m[39m Field[2m > [22massocia o rótulo de um controle simples por htmlFor/id [33m407[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/conversas/[id]/_components/janela-aberta.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 886[2mms[22m[39m
+   [33m[2m✓[22m[39m janela de 24 h[2m > [22mo horário absoluto sai do PROP — é a parte que o servidor pode escrever [33m684[2mms[22m[39m
+ [32m✓[39m src/components/ui/ui-foundations.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 599[2mms[22m[39m
+   [33m[2m✓[22m[39m foundations densas de página[2m > [22musa a escala tipográfica normativa no título e na descrição [33m423[2mms[22m[39m
+ [32m✓[39m src/app/(app)/login/forgot-password-form.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 856[2mms[22m[39m
+   [33m[2m✓[22m[39m ForgotPasswordForm[2m > [22mexpõe o disclosure nativo e anuncia a resposta genérica de envio [33m709[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/configuracoes/perfil/perfil-form.test.tsx [2m([22m[2m1 test[22m[2m)[22m[33m 312[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/configuracoes/pagamentos/financial-policies-panel.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 400[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/configuracoes/pagamentos/asaas-fees-panel.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 307[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/configuracoes/pagamentos/payment-readiness.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[90m 221[2mms[22m[39m
+ [32m✓[39m src/components/ui/navigation-and-focus.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[90m 166[2mms[22m[39m
+ [32m✓[39m src/app/(app)/login/clear-password-field.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 115[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/consultorio/finalized-list.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[90m 150[2mms[22m[39m
+ [32m✓[39m src/components/shared/auth-screen-skeleton.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[90m 161[2mms[22m[39m
+ [32m✓[39m src/components/ui/separator.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[90m 160[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/financeiro/lancamento-form.test.tsx [2m([22m[2m1 test[22m[2m)[22m[90m 188[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/consultorio/prescription-drawer.test.tsx [2m([22m[2m1 test[22m[2m)[22m[33m 508[2mms[22m[39m
+   [33m[2m✓[22m[39m PrescriptionDrawer[2m > [22mpode abrir diretamente sem prontuário ou consulta [33m500[2mms[22m[39m
+ [32m✓[39m src/components/admin/admin-nav.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 567[2mms[22m[39m
+ [32m✓[39m src/app/(app)/(shell)/agenda/new-appointment-drawer.test.tsx [2m([22m[2m1 test[22m[2m)[22m[33m 1393[2mms[22m[39m
+   [33m[2m✓[22m[39m recorrência com preço único[2m > [22mpermite selecionar uma série sem exigir forma de pagamento [33m1386[2mms[22m[39m
+ [32m✓[39m src/app/(app)/join/[token]/join-wizard.test.tsx [2m([22m[2m1 test[22m[2m)[22m[90m 265[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m663 passed[39m[22m[90m (663)[39m
+[2m      Tests [22m [1m[32m7156 passed[39m[22m[2m | [22m[33m3 skipped[39m[90m (7159)[39m
+[2m   Start at [22m 14:19:19
+[2m   Duration [22m 484.57s[2m (transform 453.68s, setup 0ms, collect 2610.06s, tests 505.63s, environment 670.09s, prepare 514.48s)[22m
+
+
+[90mstderr[2m | src/app/(app)/cadastro/retomar/route.test.ts
+[22m[39m[@sentry/nextjs] Importing `withSentryConfig` from `@sentry/nextjs` is deprecated and will stop working in v11. Import it from `@sentry/nextjs/config` instead:
+  import { withSentryConfig } from '@sentry/nextjs/config';
+
+[90mstderr[2m | src/lib/storage/clinic-logo-policy.test.ts
+[22m[39m[@sentry/nextjs] Importing `withSentryConfig` from `@sentry/nextjs` is deprecated and will stop working in v11. Import it from `@sentry/nextjs/config` instead:
+  import { withSentryConfig } from '@sentry/nextjs/config';
+
+[90mstderr[2m | src/app/(app)/convite/server-session.test.tsx[2m > [22m[2msessão Supabase server-only[2m > [22m[2mconfirma link, grava todos os fragmentos HttpOnly e aceita o convite pelo formulário real
+[22m[39mGoTrueClient@sb-127-auth-token-v2-1874ca4cbad34fb7b6f9c50bc909af83:1 (2.106.2) 2026-11-15T17:24:11.283Z Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under the same storage key.
+
+[90mstderr[2m | src/app/(app)/convite/server-session.test.tsx[2m > [22m[2msessão Supabase server-only[2m > [22m[2mconfirma link, grava todos os fragmentos HttpOnly e aceita o convite pelo formulário real
+[22m[39mGoTrueClient@sb-127-auth-token-v2-1874ca4cbad34fb7b6f9c50bc909af83:2 (2.106.2) 2026-11-15T17:24:14.270Z Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under the same storage key.
+
+[90mstderr[2m | src/app/(app)/convite/server-session.test.tsx[2m > [22m[2msessão Supabase server-only[2m > [22m[2mrejeita invalid-invite na confirmação, na página e na action direta
+[22m[39mPOST http://127.0.0.1:64611/auth/v1/verify 403 (Forbidden)
+
+[90mstderr[2m | src/app/(app)/convite/server-session.test.tsx[2m > [22m[2msessão Supabase server-only[2m > [22m[2mrejeita expired-invite na confirmação, na página e na action direta
+[22m[39mPOST http://127.0.0.1:64611/auth/v1/verify 403 (Forbidden)
+
+[90mstderr[2m | src/app/(app)/convite/server-session.test.tsx[2m > [22m[2msessão Supabase server-only[2m > [22m[2mrecusa conta já ativa antes de alterar a senha
+[22m[39mGoTrueClient@sb-127-auth-token-v2-a260847c68034f5890513f619d8b2efe:1 (2.106.2) 2026-11-15T17:24:14.869Z Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under the same storage key.
+
+[90mstderr[2m | src/app/(app)/convite/server-session.test.tsx[2m > [22m[2msessão Supabase server-only[2m > [22m[2mrecusa conta já ativa antes de alterar a senha
+[22m[39mGoTrueClient@sb-127-auth-token-v2-a260847c68034f5890513f619d8b2efe:2 (2.106.2) 2026-11-15T17:24:14.920Z Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under the same storage key.
+
+[90mstderr[2m | src/app/(app)/convite/server-session.test.tsx[2m > [22m[2msessão Supabase server-only[2m > [22m[2mOTP inválido desvincula a identidade anterior sem selecionar uma sessão nova
+[22m[39mPOST http://127.0.0.1:64611/auth/v1/verify 403 (Forbidden)
+
+[90mstderr[2m | src/app/(app)/convite/server-session.test.tsx[2m > [22m[2msessão Supabase server-only[2m > [22m[2mrenova access/refresh expirados no Route Handler antes do RSC e mantém a sessão na recarga
+[22m[39mGoTrueClient@sb-127-auth-token-v2-a4ba41ddc62b41e9802d143707c39a92:1 (2.106.2) 2026-11-15T17:24:15.181Z Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under the same storage key.
+
+[90mstderr[2m | src/app/(app)/convite/server-session.test.tsx[2m > [22m[2msessão Supabase server-only[2m > [22m[2mrenova access/refresh expirados no Route Handler antes do RSC e mantém a sessão na recarga
+[22m[39mGoTrueClient@sb-127-auth-token-v2-a4ba41ddc62b41e9802d143707c39a92:2 (2.106.2) 2026-11-15T17:24:15.315Z Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under the same storage key.
+
+[90mstderr[2m | src/app/(app)/convite/server-session.test.tsx[2m > [22m[2msessão Supabase server-only[2m > [22m[2mrefresh autenticado restringe destino externo https://evil.invalid/
+[22m[39mGoTrueClient@sb-127-auth-token-v2-2b3947bc548f4042aacefda933b6fca5:1 (2.106.2) 2026-11-15T17:24:15.642Z Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under the same storage key.
+
+[90mstderr[2m | src/app/(app)/convite/server-session.test.tsx[2m > [22m[2msessão Supabase server-only[2m > [22m[2mrefresh autenticado restringe destino externo //evil.invalid/
+[22m[39mGoTrueClient@sb-127-auth-token-v2-8c3527b8fe8148cdbd2c3e2add0eb6e3:1 (2.106.2) 2026-11-15T17:24:15.794Z Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under the same storage key.
+
+[90mstderr[2m | src/app/(app)/convite/server-session.test.tsx[2m > [22m[2msessão Supabase server-only[2m > [22m[2mrefresh autenticado restringe destino externo /\evil.invalid/
+[22m[39mGoTrueClient@sb-127-auth-token-v2-1ed33eac05284801a4e4d1d49adac8b6:1 (2.106.2) 2026-11-15T17:24:15.943Z Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under the same storage key.
+
+[90mstderr[2m | src/components/shared/shell-nav-state.test.tsx[2m > [22m[2mestado ativo da navegação lateral[2m > [22m[2mmarca o item da página corrente para leitor de tela
+[22m[39mReceived `false` for a non-boolean attribute `prefetch`.
+
+If you want to write it to the DOM, pass a string instead: prefetch="false" or prefetch={value.toString()}.
+
+If you used to conditionally omit it with prefetch={condition && value}, pass prefetch={condition ? value : undefined} instead.
+

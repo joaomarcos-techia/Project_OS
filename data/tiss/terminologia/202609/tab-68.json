@@ -1,0 +1,45 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "68",
+  "title": "Tabela 68 - Terminologia de categoria de despesa",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 5,
+  "terms": [
+    {
+      "code": "1",
+      "term": "Consulta",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "2",
+      "term": "Exames / Terapias",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3",
+      "term": "Internação",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "4",
+      "term": "Outras despesas",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "5",
+      "term": "Odontologia",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    }
+  ]
+}

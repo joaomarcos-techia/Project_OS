@@ -66,6 +66,8 @@ export async function lookupDepositCandidate(
           eq(appointments.id, appointmentId),
           isNotNull(appointments.patientId),
           eq(appointments.status, 'agendado'),
+          // Convênio nunca entra na cobrança automática do paciente (sinal ou saldo).
+          eq(appointments.billingMode, 'particular'),
           gt(appointments.scheduledAt, sql`now()`),
         ),
       )
@@ -115,6 +117,8 @@ export async function listDepositCandidates(
         inArray(appointments.clinicId, [...clinicIds]),
         isNotNull(appointments.patientId),
         eq(appointments.status, 'agendado'),
+        // Convênio nunca entra na cobrança automática do paciente (sinal ou saldo).
+        eq(appointments.billingMode, 'particular'),
         gt(appointments.scheduledAt, sql`now()`),
         gt(appointments.createdAt, sql`now() - (${hours}::int * interval '1 hour')`),
       ),
@@ -193,6 +197,8 @@ export async function listRemainderCandidates(
         inArray(appointments.clinicId, [...clinicIds]),
         isNotNull(appointments.patientId),
         eq(appointments.status, 'atendido'),
+        // Convênio nunca entra na cobrança automática do paciente (sinal ou saldo).
+        eq(appointments.billingMode, 'particular'),
         gt(appointments.updatedAt, sql`now() - (${hours}::int * interval '1 hour')`),
       ),
     )

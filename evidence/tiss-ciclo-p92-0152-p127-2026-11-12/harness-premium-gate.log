@@ -1,0 +1,12 @@
+PASS: trial no 1º e no 14º dia e trial expirado: o módulo não liga (nem pelo operador); a decisão vale para os 3 recursos
+PASS: sem assinatura, pagamento pendente, cancelada e vencida (dunning suspendeu) são negadas; past_due com a clínica ativa segue (graça do dunning)
+PASS: clínica paga com plano que não inclui o recurso: negado (plano desconhecido fica de fora)
+PASS: assinatura paga e ativa: módulo liga, cobertura, conclusão, worker e guia automática; particular gera o recebível
+PASS: trial: marcar convênio, cobertura (serviço), carteirinha, guia e lote (direto no banco e pelo serviço) são todos recusados
+PASS: isolamento: consultar o estado comercial de outra clínica = 42501; o núcleo sem vínculo de sessão não é executável pelo runtime; recurso desconhecido = 22023
+PASS: assinatura cancelada antes do worker: sem guia, pendência automática "assinatura inativa"; reprocesso idempotente; nada apagado; regularizada, o reconcile gera UMA guia
+PASS: trial → pagamento confirmado: o mesmo estado que era negado passa a liberar, e o fluxo gera a guia
+PASS: assinatura paga com o módulo desligado: convênio não entra (habilitação operacional continua obrigatória); desligar nunca é barrado
+PASS: carência limitada: past_due só dentro do `grace_period_until` gravado pelo billing; período vencido sem carência, carência expirada e cancelamento no fim do período = "period_expired" para os 3 recursos; assinatura antiga sem período segue o status do dunning; desligar continua permitido
+
+RESULT: 10/10 PASS

@@ -1,0 +1,57 @@
+{"seededMs":78459,"sizes":{"lanc":"212 MB","pt":"75 MB","n_lanc":1000000,"n_pt":333333}}
+0153# 0     85 ms  lancamentos:AccessExclusiveLock                                                  ALTER TABLE public.lancamentos
+0153# 1     20 ms  lancamentos:AccessExclusiveLock                                                  ALTER TABLE public.lancamentos ADD CONSTRAINT lancamentos_valor_glosado_chk CHECK (
+0153# 2    792 ms  lancamentos:ShareUpdateExclusiveLock                                             ALTER TABLE public.lancamentos VALIDATE CONSTRAINT lancamentos_valor_glosado_chk;
+0153# 3     12 ms  lancamentos:AccessExclusiveLock                                                  ALTER TABLE public.lancamentos ADD CONSTRAINT lancamentos_insurer_receivable_chk CHECK (
+0153# 4    387 ms  lancamentos:ShareUpdateExclusiveLock                                             ALTER TABLE public.lancamentos VALIDATE CONSTRAINT lancamentos_insurer_receivable_chk;
+0153# 5     12 ms  lancamentos:AccessExclusiveLock                                                  ALTER TABLE public.lancamentos DROP CONSTRAINT IF EXISTS lancamentos_auto_origin_chk;
+0153# 6      8 ms  lancamentos:AccessExclusiveLock                                                  ALTER TABLE public.lancamentos ADD CONSTRAINT lancamentos_auto_origin_chk CHECK (
+0153# 7    335 ms  lancamentos:ShareUpdateExclusiveLock                                             ALTER TABLE public.lancamentos VALIDATE CONSTRAINT lancamentos_auto_origin_chk;
+0153# 8    413 ms  lancamentos:ShareLock                                                            CREATE UNIQUE INDEX lancamentos_hi_guide_uniq ON public.lancamentos (clinic_id, source_hi_
+0153# 9     31 ms  lancamentos:AccessShareLock, lancamentos:ShareRowExclusiveLock, payment_transactions:AccessShareLock, payment_transactions:ShareRowExclusiveLock CREATE TABLE public.hi_ledger_entries (
+0153#17      6 ms  lancamentos:ShareRowExclusiveLock                                                CREATE TRIGGER lancamentos_insurer_receivable_guard BEFORE INSERT OR UPDATE ON public.lanc
+0153#20     40 ms  payment_transactions:ShareRowExclusiveLock                                       CREATE TRIGGER payment_transactions_insurer_guard BEFORE INSERT ON public.payment_transact
+0153#23    105 ms                                                                                   CREATE OR REPLACE FUNCTION public.hi_ledger_sync_guide(p_clinic_id uuid, p_guide_id uuid) 
+0153#25     51 ms                                                                                   CREATE OR REPLACE FUNCTION public.hi_ledger_sync_clinic(p_clinic_id uuid) RETURNS integer
+0153#27     54 ms                                                                                   CREATE OR REPLACE FUNCTION public.hi_ledger_on_guide_status() RETURNS trigger
+0153#28     55 ms                                                                                   CREATE OR REPLACE FUNCTION public.hi_ledger_on_account_change() RETURNS trigger
+0153#31     66 ms                                                                                   CREATE TRIGGER hi_payment_allocations_ledger_sync AFTER INSERT ON public.hi_payment_alloca
+0153#33    114 ms  lancamentos:AccessShareLock                                                      CREATE VIEW public.hi_ledger_drift WITH (security_invoker = true) AS
+0153#34     54 ms                                                                                   CREATE VIEW public.hi_insurer_receivables WITH (security_invoker = true) AS
+0153#36     52 ms                                                                                   ALTER TABLE public.hi_ledger_entries FORCE  ROW LEVEL SECURITY;
+0153#38     53 ms                                                                                   REVOKE ALL ON public.hi_ledger_entries FROM PUBLIC, anon, authenticated, service_role;
+0153#39    155 ms                                                                                   GRANT SELECT ON public.hi_ledger_entries TO authenticated, service_role;
+0153#40     99 ms                                                                                   REVOKE ALL ON public.hi_ledger_drift, public.hi_insurer_receivables FROM PUBLIC, anon;
+0153#41    100 ms                                                                                   GRANT SELECT ON public.hi_ledger_drift, public.hi_insurer_receivables TO authenticated, se
+0153#42     53 ms                                                                                   GRANT EXECUTE ON FUNCTION public.hi_ledger_sync_clinic(uuid) TO authenticated, service_rol
+0153#43     53 ms                                                                                   INSERT INTO public._schema_version (version) VALUES ('0153-hi-ledger-bridge')
+0154# 0     53 ms                                                                                   CREATE OR REPLACE FUNCTION public.qoro_premium_denial_for(p_clinic_id uuid, p_feature text
+0154# 2     53 ms                                                                                   GRANT EXECUTE ON FUNCTION public.qoro_premium_denial_for(uuid, text) TO service_role;
+0154# 3      6 ms  invoices:AccessShareLock, subscriptions:AccessShareLock                          CREATE VIEW public.qoro_subscription_period_audit AS
+0154# 4     52 ms                                                                                   REVOKE ALL ON public.qoro_subscription_period_audit FROM PUBLIC, anon, authenticated;
+0154# 6     51 ms                                                                                   INSERT INTO public._schema_version (version) VALUES ('0154-hi-premium-period-evidence')
+{
+  "rows": 1000000,
+  "statements": 51,
+  "totalMs": 3789,
+  "concurrentWrites": 520,
+  "maxConcurrentWriteWaitMs": 412,
+  "paymentTriggerCost": [
+    {
+      "label": "particular, antes da 0153",
+      "avgMs": 61,
+      "plan": "Aggregate  (cost=7846.87..7846.88 rows=1 width=32) |   ->  Gather  (cost=1000.00..7846.87 rows=1 width=5) |         Workers Planned: 2 |         ->  Parallel Se"
+    },
+    {
+      "label": "particular, depois da 0153",
+      "avgMs": 60.62,
+      "plan": "Aggregate  (cost=7846.87..7846.88 rows=1 width=32) |   ->  Gather  (cost=1000.00..7846.87 rows=1 width=5) |         Workers Planned: 2 |         ->  Parallel Se"
+    },
+    {
+      "label": "convênio, depois da 0153",
+      "avgMs": 14.04
+    }
+  ]
+}
+
+OK — 0153+0154 aplicadas sobre 1000000 lançamentos sintéticos: 3789 ms no total; escrita concorrente esperou no máximo 412 ms.

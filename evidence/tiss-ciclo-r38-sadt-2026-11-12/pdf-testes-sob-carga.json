@@ -1,0 +1,31 @@
+{
+  "condicao": "24 processos de CPU em 12 núcleos + cobertura v8, só print.test.ts",
+  "antes": {
+    "aprovados": 22,
+    "somaMs": 67777,
+    "maiorMs": 12940
+  },
+  "depois": [
+    {
+      "rodada": 1,
+      "aprovados": 22,
+      "falhas": 0,
+      "somaMs": 69670,
+      "maiorMs": 18543
+    },
+    {
+      "rodada": 2,
+      "aprovados": 22,
+      "falhas": 0,
+      "somaMs": 61792,
+      "maiorMs": 17930
+    },
+    {
+      "rodada": 3,
+      "aprovados": 22,
+      "falhas": 0,
+      "somaMs": 58451,
+      "maiorMs": 15936
+    }
+  ]
+}

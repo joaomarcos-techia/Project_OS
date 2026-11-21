@@ -1,0 +1,31 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "75",
+  "title": "Tabela 75 - Terminologia de Cobertura especial",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 3,
+  "terms": [
+    {
+      "code": "01",
+      "term": "Gestante",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "02",
+      "term": "Pré-operatório",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "03",
+      "term": "Pós-operatório",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    }
+  ]
+}

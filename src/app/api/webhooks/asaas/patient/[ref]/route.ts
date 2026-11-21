@@ -37,12 +37,16 @@ import { resolvePatientWebhookAccount } from '@/lib/payments/account-store';
 import { safeEqual } from '@/lib/auth/secret-compare';
 import type { ProviderPayment } from '@/lib/payments/asaas';
 
+import { PAYMENTS_EVENTS } from '@/contexts/payments';
 import { markDepositPaid } from '@/contexts/payments/internal/charge-store';
 import { reconcileRefundIntentsForPayment } from '@/contexts/payments/internal/excess-refund';
+import { reconcileExternalRefund } from '@/contexts/payments/internal/external-refund';
 import {
   classifyPatientPaymentRisk,
   reconcilePatientPaymentRisk,
 } from '@/contexts/payments/internal/patient-payment-risk';
+
+import { scheduleRefundFollowUp, scheduleSettlementFollowUp } from '../settlement-follow-up';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -56,6 +60,8 @@ const REFUND_EVENTS = new Set([
   'PAYMENT_REFUND_IN_PROGRESS',
   'PAYMENT_REFUND_DENIED',
 ]);
+/** Status do pagamento (lido do Asaas) que dizem "houve devolução". */
+const REFUNDED_PAYMENT_STATUSES = new Set(['REFUNDED', 'REFUND_REQUESTED', 'REFUND_IN_PROGRESS']);
 
 /**
  * Status do provider → ação. Mesma tabela do webhook de assinatura, de propósito:
@@ -160,23 +166,54 @@ async function handlePatientWebhook(
     return new Response('verification failed', { status: 500 });
   }
 
-  // D50: o evento apenas acorda a reconciliação. A confirmação vem de
-  // GET /payments/{id}/refunds, nunca do status carregado no webhook.
-  if (parsed.paymentId && REFUND_EVENTS.has(parsed.event)) {
+  // D50 + R54: o evento apenas acorda a reconciliação. A confirmação vem de
+  // GET /payments/{id}/refunds (com a chave DESTA clínica), nunca do corpo do webhook.
+  // Primeiro as devoluções que o Qoro pediu; o que sobrar é estorno feito direto no
+  // Asaas. Também entra aqui uma entrega atrasada que já encontra o pagamento devolvido.
+  if (
+    parsed.paymentId &&
+    (REFUND_EVENTS.has(parsed.event) || REFUNDED_PAYMENT_STATUSES.has(payment.status))
+  ) {
     const providerPaymentId = parsed.paymentId;
     try {
+      const refunds = await account.client.listPaymentRefunds(providerPaymentId, {
+        attempts: 1,
+      });
       const confirmed = await reconcileRefundIntentsForPayment({
         clinicId: account.clinicId,
         providerPaymentId,
-        loadRefunds: () =>
-          account.client.listPaymentRefunds(providerPaymentId, {
-            attempts: 1,
-          }),
+        loadRefunds: async () => refunds,
+      });
+      const external = await reconcileExternalRefund({
+        clinicId: account.clinicId,
+        providerPaymentId,
+        payment,
+        refunds,
+        source: 'webhook',
+        asaasEventId: parsed.eventId,
       });
       metrics.emit('payments.webhook.refund_reconciled', {
         clinicId: account.clinicId,
         confirmed,
+        external: external.outcome,
       });
+      if (
+        (external.outcome === 'recorded' || external.outcome === 'manual_review') &&
+        external.chargeId &&
+        external.appointmentId &&
+        external.eventKey
+      ) {
+        scheduleRefundFollowUp({
+          clinicId: account.clinicId,
+          chargeId: external.chargeId,
+          appointmentId: external.appointmentId,
+          eventKey: external.eventKey,
+          eventType:
+            external.outcome === 'recorded'
+              ? PAYMENTS_EVENTS.EXTERNAL_REFUND_RECOGNIZED
+              : PAYMENTS_EVENTS.EXTERNAL_REFUND_REVIEW_REQUIRED,
+        });
+      }
     } catch (err) {
       captureBackgroundError(err, { flow: FLOW });
       metrics.emit('payments.webhook.refund_reconcile_error', {
@@ -246,6 +283,11 @@ async function handlePatientWebhook(
       providerInstallmentNumber: payment.installmentNumber ?? null,
     });
     metrics.emit('payments.webhook.processed', { clinicId: account.clinicId, outcome });
+    // Baixa e coparticipação logo depois da resposta (o cron é a garantia). A reentrega
+    // (`already_paid`) agenda de novo: o que já rodou não repete, o que ficou para trás anda.
+    if (outcome === 'paid' || outcome === 'already_paid') {
+      scheduleSettlementFollowUp(account.clinicId, payment.paymentId);
+    }
     if (outcome === 'amount_mismatch') {
       metrics.emit('payments.webhook.amount_mismatch', { clinicId: account.clinicId });
     }

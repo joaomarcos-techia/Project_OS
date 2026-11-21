@@ -1,0 +1,51 @@
+E2E_RUN=ZHAYE
+
+Running 22 tests using 1 worker
+
+E2E_RUN=ZHLU6
+  ok  1 [chromium] › e2e\convenios-config-preview.spec.ts:219:1 › o Preview usa o projeto DEV (prova assinada antes de qualquer escrita) (4.2s)
+  ok  2 [chromium] › e2e\convenios-config-preview.spec.ts:224:1 › gestora: procedimento no catálogo da clínica (Configurações › Procedimentos) (1.3m)
+  ok  3 [chromium] › e2e\convenios-config-preview.spec.ts:241:1 › gestora: configura do zero — prestador, operadora, plano, contrato TUSS, ativação e perfil TISS (2.2m)
+  ok  4 [chromium] › e2e\convenios-config-preview.spec.ts:378:1 › recepção: cadastra o paciente e a carteirinha (número cifrado; completo só auditado) (50.4s)
+  ok  5 [chromium] › e2e\convenios-config-preview.spec.ts:425:1 › recepção: agenda como CONVÊNIO e a cobertura nasce pronta, com coparticipação estimada (32.9s)
+  ok  6 [chromium] › e2e\convenios-config-preview.spec.ts:493:1 › recepção: muda um atendimento PARTICULAR para CONVÊNIO pela agenda e volta para particular (P4.3) (56.6s)
+  ok  7 [chromium] › e2e\convenios-config-preview.spec.ts:580:1 › gestora: importa a tabela por planilha — prévia por linha, erro bloqueia, aplicação atômica, reenvio não duplica (P2.7) (53.2s)
+  ok  8 [chromium] › e2e\convenios-config-preview.spec.ts:648:1 › gestora: reajuste a partir de uma data cria versão; o passado não muda; histórico registrado (25.2s)
+  ok  9 [chromium] › e2e\convenios-config-preview.spec.ts:679:1 › médica: sem ver o financeiro, não entra na configuração nem nas carteirinhas (22.8s)
+  ok 10 [chromium] › e2e\convenios-config-preview.spec.ts:698:1 › outra clínica: operadora e paciente de outro tenant não aparecem (404 / não encontrado) (27.0s)
+  ok 11 [chromium] › e2e\convenios-config-preview.spec.ts:713:1 › trial: configuração e carteirinhas aparecem como recurso contratável (a recusa da carteirinha no trial é provada no harness) (18.1s)
+  ok 12 [chromium] › e2e\convenios-config-preview.spec.ts:729:1 › celular: configuração, operadora, carteirinhas e atendimentos sem rolagem lateral (28.8s)
+  ok 13 [chromium] › e2e\convenios-config-preview.spec.ts:748:1 › gestora: regra de repasse da médica (40%) em Configurações › Pagamentos (13.0s)
+  ok 14 [chromium] › e2e\convenios-config-preview.spec.ts:765:1 › recepção: encaixe de convênio (o paciente chegou agora) (23.7s)
+  ok 15 [chromium] › e2e\convenios-config-preview.spec.ts:791:1 › médica: chama e encerra a consulta; a guia de convênio nasce sozinha do atendimento (1.2m)
+  ok 16 [chromium] › e2e\convenios-config-preview.spec.ts:839:1 › gestora: confere, aprova e emite a guia; o PDF oficial sai do documento congelado (46.0s)
+  ok 17 [chromium] › e2e\convenios-config-preview.spec.ts:857:1 › gestora: lote → XML validado no XSD → enviado → protocolo → em análise (51.2s)
+  ok 18 [chromium] › e2e\convenios-config-preview.spec.ts:914:1 › gestora: glosa parcial → análise → contestação → recurso com XML no XSD → envio → resposta (1.2m)
+  ok 19 [chromium] › e2e\convenios-config-preview.spec.ts:973:1 › gestora: pagamento parcial → alocação → estorno → nova alocação; demonstrativo repetido recusado (51.2s)
+  ok 20 [chromium] › e2e\convenios-config-preview.spec.ts:1036:1 › gestora: repasse de 40% sobre o recebido → autorizar → registrar o repasse (31.6s)
+  x  21 [chromium] › e2e\convenios-config-preview.spec.ts:1061:1 › coparticipação: recepção confere R$ 45,00, gestora confirma; só esse valor vira cobrança do paciente (1.3m)
+  -  22 [chromium] › e2e\convenios-config-preview.spec.ts:1100:1 › ficha do paciente: aba Convênios com carteirinha mascarada, cobertura e guia; quem não vê o financeiro não tem a aba
+
+
+  1) [chromium] › e2e\convenios-config-preview.spec.ts:1061:1 › coparticipação: recepção confere R$ 45,00, gestora confirma; só esse valor vira cobrança do paciente 
+
+    TimeoutError: locator.fill: Timeout 45000ms exceeded.
+    Call log:
+      - waiting for getByLabel('A cobrar do paciente (R$)').first()
+
+
+      1077 |   const s = await login(browser, 'cfg-gestor');
+      1078 |   expect(await visit(s, '/convenios/conciliacao')).toBe(200);
+    > 1079 |   await s.page.getByLabel('A cobrar do paciente (R$)').first().fill('45,00');
+           |                                                                ^
+      1080 |   await s.page.getByRole('button', { name: 'Confirmar coparticipação' }).first().click();
+      1081 |   await toast(s.page, 'Coparticipação confirmada; o valor a cobrar do paciente foi lançado.');
+      1082 |   // O recebível nasce do evento logo depois; a lista mostra a cobrança de R$ 45,00 (nunca R$ 150,00).
+        at C:\dev\Qoro_convenios_tiss_20261110\e2e\convenios-config-preview.spec.ts:1079:64
+
+    Error Context: test-results\convenios-config-preview-c-d3536-r-vira-cobrança-do-paciente-chromium\error-context.md
+
+  1 failed
+    [chromium] › e2e\convenios-config-preview.spec.ts:1061:1 › coparticipação: recepção confere R$ 45,00, gestora confirma; só esse valor vira cobrança do paciente 
+  1 did not run
+  20 passed (16.5m)

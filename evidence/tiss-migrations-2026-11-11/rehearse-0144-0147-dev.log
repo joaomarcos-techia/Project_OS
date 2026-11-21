@@ -1,0 +1,27 @@
+ok  conexão — postgres | bypassrls=true | PostgreSQL 17.6 on aarch64-unknown-linux
+ok  0144_hi_clinic_setup.sql executada (62 comandos)
+ok  0145_hi_memberships.sql executada (18 comandos)
+ok  0146_hi_authorizations.sql executada (42 comandos)
+ok  0147_hi_guides.sql executada (68 comandos)
+ok  dono da tabela = dono das funções DEFINER = quem migra (premissa do gatilho de estado) — {"table_owner":"postgres","fn_owner":"postgres","me":"postgres"}
+ok  guia: criada pelo runtime com o número alocado na mesma transação [esperado predicado, obtido ok] — [{"id":"<uuid>","number":"1","live":true}]
+ok  guia: mesma chave de origem (reprocessamento) [esperado 23505, obtido 23505] — duplicate key value violates unique constraint "hi_guides_idem_uniq"
+ok  item: atendimento de outro paciente [esperado 23514, obtido 23514] — O atendimento deve ser da mesma clínica e do mesmo paciente da guia.
+ok  item: do contrato vigente, atendimento do paciente [esperado ok, obtido ok]
+ok  segunda Consulta para o mesmo atendimento [esperado 23505, obtido 23505] — duplicate key value violates unique constraint "hi_guide_items_live_billing_uniq"
+ok  runtime salta de pendências para aprovada [esperado 55000, obtido 55000] — Transição de guia não permitida: pending_data → approved.
+ok  aprovação completa (pronta → conferida → snapshot → aprovada) [esperado predicado, obtido ok] — [{"status":"approved"}]
+ok  editar guia aprovada [esperado 55000, obtido 55000] — Guia conferida não se edita: reabra (nova revisão) ou substitua.
+ok  runtime coloca guia em lote [esperado 55000, obtido 55000] — Transição de guia não permitida: approved → in_batch.
+ok  dono (código do banco) leva a guia a lote → exportada → enviada [esperado ok, obtido ok]
+ok  substituta em rascunho não segura o atendimento [esperado predicado, obtido ok] — [{"id":"<uuid>","live":false}]
+ok  aprovar a substituta encerra a original (replaced) na mesma transação [esperado predicado, obtido ok] — [{"status":"replaced","live":false},{"status":"approved","live":true}]
+ok  histórico: runtime não escreve [esperado 42501, obtido 42501] — permission denied for table hi_guide_events
+ok  histórico gravado pelo banco, com autor e só nomes de campos [esperado predicado, obtido ok] — [{"to_status":"pending_data","actor_kind":"user","changed_fields":[]},{"to_status":"ready_for_review","actor_kind":"user","changed_fields":["status","terminology_version","total_value_cents"]},{"to_st
+ok  snapshot: nem o dono altera [esperado 55000, obtido 55000] — Registro de convênio só de inclusão (hi_guide_snapshots).
+ok  outra clínica não vê guias, itens nem histórico [esperado predicado, obtido ok] — []
+ok  anon não lê guias [esperado 42501, obtido 42501] — permission denied for table hi_guides
+ok  retenção: paciente (sintético) com guia não é excluído [esperado 23503, obtido 23503] — update or delete on table "patients" violates foreign key constraint "hi_guides_patient_id_fkey" on table "hi_guides"
+ok  funções de gatilho da 0147 sem EXECUTE para authenticated [esperado predicado, obtido ok] — [{"n":0}]
+ok  depois do ROLLBACK: nenhuma tabela, linha sintética, registro de migration ou versão — {"g":null,"m":null,"a":null,"i":null,"n":144,"v":0,"p":0,"pt":0}
+RESUMO 26/26 em 74.0 s

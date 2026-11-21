@@ -308,6 +308,8 @@ export interface ProviderRefund {
   refundId: string | null;
   status: string;
   value: number;
+  /** `dateCreated` do item de estorno, quando o Asaas informar (evidência; nunca decide nada). */
+  dateCreated?: string | null;
 }
 
 export interface ProviderSubscription {
@@ -492,7 +494,7 @@ export interface PaymentProvider {
    */
   listPaymentRefunds(
     asaasPaymentId: string,
-    opts?: { attempts?: number },
+    opts?: { attempts?: number; timeoutMs?: number },
   ): Promise<ProviderRefund[]>;
   /**
    * `DELETE /payments/{id}` — remove uma cobrança **ainda não paga**.
@@ -1335,6 +1337,7 @@ export function createAsaasClient(credential: AsaasCredential): AsaasClient {
             refundId: asStr(refund.id),
             status: asStr(refund.status) ?? 'UNKNOWN',
             value: asNum(refund.value),
+            dateCreated: asStr(refund.dateCreated),
           },
         ];
       });

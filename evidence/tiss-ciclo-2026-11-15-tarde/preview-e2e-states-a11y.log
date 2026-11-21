@@ -1,0 +1,66 @@
+
+Running 1 test using 1 worker
+
+títulos da guia: h1:Guia de consulta nº 5 | h4:Situação | h4:Pendências | h4:Dados da consulta | h4:Procedimentos | h4:Histórico
+axe painel-fechado: 0 violações, 6 regras aprovadas, revisão manual: nenhuma
+axe painel-aberto: 0 violações, 16 regras aprovadas, revisão manual: nenhuma
+axe pagina-guia: 1 violações, 20 regras aprovadas, revisão manual: nenhuma
+  x  1 [chromium] › e2e\convenios-guide-states-preview.spec.ts:380:1 › acessibilidade do painel Dados da consulta: axe WCAG 2.2 AA, títulos, nomes, teclado, foco e celular (22.9s)
+
+
+  1) [chromium] › e2e\convenios-guide-states-preview.spec.ts:380:1 › acessibilidade do painel Dados da consulta: axe WCAG 2.2 AA, títulos, nomes, teclado, foco e celular 
+
+    Error: [
+     {
+      "id": "color-contrast",
+      "impact": "serious",
+      "help": "Elements must meet minimum color contrast ratio thresholds",
+      "targets": [
+       ".h-5"
+      ],
+      "nodes": [
+       {
+        "html": "<span class=\"inline-flex h-5 item...\">",
+        "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.44 (foreground color: #a4622a, background color: #fff5e0, font size: 8.6pt (11.5px), font weight: normal). Expected contrast ratio of 4.5:1"
+       }
+      ]
+     }
+    ]
+
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 17
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "html": "<span class=\"inline-flex h-5 item...\">",
+    +         "summary": "Fix any of the following:
+    +   Element has insufficient color contrast of 4.44 (foreground color: #a4622a, background color: #fff5e0, font size: 8.6pt (11.5px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +       },
+    +     ],
+    +     "targets": Array [
+    +       ".h-5",
+    +     ],
+    +   },
+    + ]
+
+      438 |   // A página inteira da guia (conteúdo principal), para registro: o resultado vai para a evidência.
+      439 |   const main = await axe(s.page, 'main', 'pagina-guia');
+    > 440 |   expect(main, JSON.stringify(main, null, 1)).toEqual([]);
+          |                                               ^
+      441 |   expect(s.errors).toEqual([]);
+      442 |   await s.context.close();
+      443 |
+        at C:\dev\Qoro_convenios_tiss_20261110\e2e\convenios-guide-states-preview.spec.ts:440:47
+
+    Error Context: test-results\convenios-guide-states-pre-2f074-omes-teclado-foco-e-celular-chromium\error-context.md
+
+  1 failed
+    [chromium] › e2e\convenios-guide-states-preview.spec.ts:380:1 › acessibilidade do painel Dados da consulta: axe WCAG 2.2 AA, títulos, nomes, teclado, foco e celular 

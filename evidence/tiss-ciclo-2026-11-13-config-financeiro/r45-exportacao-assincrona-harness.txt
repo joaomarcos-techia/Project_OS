@@ -1,0 +1,11 @@
+PASS: leitura delegada: serviço não declarado recusado; a leitura de sistema comum não usa a delegada; lote de outra clínica = não encontrado
+PASS: quem pediu sem manage:financial é negado NA EXECUÇÃO (falha sem nova tentativa, código access_permission_revoked), negação auditada em nome dessa pessoa; nenhum arquivo
+PASS: pedido → job → XML exportado e validado no XSD; 2 leituras auditadas em nome de quem pediu, com serviço e job (delegated)
+PASS: idempotência: mesmo pedido = 1 job; replay = already_exported; dois workers no mesmo lote (exported + already_exported) → 1 arquivo faturável por lote
+PASS: lote cancelado depois do pedido: o job caduca (processado sem efeito), nenhum arquivo
+PASS: XSD reprovado: falha sem nova tentativa (export_xsd), lote continua preparado, nenhum arquivo
+PASS: armazenamento fora: erro transitório (nova tentativa agendada), nada órfão; com o armazenamento de volta, exporta 1 arquivo
+PASS: assinatura suspensa depois do pedido: bloqueio comercial (premium_denied), nenhum arquivo, lote preparado
+PASS: worker interrompido: o job preso em "processing" é devolvido à fila pelo zelador do outbox e exporta 1 arquivo (sem duplicar)
+PASS: backlog: 12 lotes pedidos de uma vez → 12 exportados, 1 arquivo cada (2041 ms no worker local, concorrência 2)
+10/10 provas da exportação assíncrona (R45) passaram.

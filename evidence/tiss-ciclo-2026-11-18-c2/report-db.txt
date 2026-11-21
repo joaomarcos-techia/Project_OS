@@ -1,0 +1,5 @@
+PASS 1: somas do relatório = conta da guia = recebível da operadora (faturado 45000, recebido 9000, glosa definitiva 2000, pendente 34000); livro da clínica sem divergência
+PASS 2: período pela data de envio (fora do intervalo não entra); operadora filtrada só traz a dela; período acima de 366 dias recusado
+PASS 3: isolamento: a sessão da clínica B não lê a A (nem com o id da clínica ou da operadora da A); o CSV não leva paciente nem carteirinha
+PASS 4: a exportação fica na trilha da clínica com o filtro e a quantidade de linhas, sem valores
+4/4 provas do relatório por operadora (P9.10).

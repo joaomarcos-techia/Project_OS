@@ -1,0 +1,11 @@
+PASS: 0161: a coluna nasce nula, o gatilho existe e o runtime tem UPDATE só nessa coluna nova
+PASS: CHECK: recusa chave desconhecida, formato fora do XSD, valor que não é texto, nulo explícito, objeto vazio, observação vazia ou com mais de 500 caracteres, lista e ajuste em guia SP/SADT
+PASS: serviço: com a guia em edição grava o ajuste normalizado (espaços fora), uma versão nova e um evento com só o NOME do campo e quem ajustou; salvar o mesmo conteúdo não gera versão nem evento
+PASS: serviço: versão velha (outra pessoa mexeu), código fora da tabela 52, código fora da vigência na data do atendimento e emoji na observação são recusados com mensagem, e a guia fica como estava
+PASS: três salvamentos simultâneos com a mesma versão: 1 grava, 2 recebem "a guia mudou desde que a tela foi aberta"; uma versão nova só
+PASS: outra clínica: o UPDATE direto não acha a guia (RLS) e o serviço responde "guia inexistente"; nada muda
+PASS: conferida: o serviço recusa ("devolva para correção"), e o gatilho da 0161 recusa o UPDATE do runtime e até o do superusuário (55000); o ajuste continua o mesmo
+PASS: emissão: a guia ajustada sai com regime 02, acidente 1, tipo 4, cobertura 01, saúde ocupacional 02 e a observação; a guia sem ajuste sai com os padrões da D11 (01, 9, 1) e sem os opcionais
+PASS: reaberta: o ajuste volta a ser editável (tipo de consulta de volta ao padrão), e a revisão 2 sai com o conteúdo novo; a revisão 1 continua no histórico
+PASS: trial e clínica suspensa (D24): o serviço recusa o ajuste sem tocar na guia; com a assinatura paga e a clínica ativa de novo, o mesmo ajuste grava
+OK: 10 provas dos ajustes da Guia de Consulta (D11) sobre o schema real com a 0161

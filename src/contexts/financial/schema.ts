@@ -82,6 +82,8 @@ export const patientCreditAdjustmentKind = pgEnum('patient_credit_adjustment_kin
   'excess_refund',
   'chargeback_loss',
   'cash_undone',
+  // R54 (0160): estorno feito direto no Asaas, sem intenção do Qoro.
+  'external_refund',
 ]);
 
 export const pendenciaStatus = pgEnum('pendencia_status', ['aberta', 'resolvida']);
@@ -165,6 +167,14 @@ export const lancamentos = pgTable(
     providerEconomicsRevision: integer('provider_economics_revision'),
     sourceEventId: uuid('source_event_id'),
     providerPaymentId: text('provider_payment_id'),
+    /**
+     * 0153 (Convênios): recebível da OPERADORA de uma guia enviada. Linhagem opaca, sem FK
+     * cross-context; a UNIQUE parcial é a trava "uma guia = um recebível". Só a ponte do
+     * Convênios mantém essas linhas (gatilhos recusam pagamento/edição pelo Caixa).
+     */
+    sourceHiGuideId: uuid('source_hi_guide_id'),
+    /** 0153: baixa SEM caixa por glosa definitiva da operadora (sempre 0 fora do convênio). */
+    valorGlosado: numeric('valor_glosado', { precision: 12, scale: 2 }).notNull().default('0'),
     paymentMethod: text('payment_method').references(() => paymentMethods.code),
     createdVia: lancamentoCreatedVia('created_via').notNull(),
     // Lineage do estorno (append-only): aponta para o lançamento original.
@@ -196,6 +206,10 @@ export const lancamentos = pgTable(
     patientFkIdx: index('lancamentos_patient_id_idx').on(t.patientId),
     unitFkIdx: index('lancamentos_unit_id_idx').on(t.unitId),
     // 1 atendimento = 1 lançamento automático.
+    // 0153: uma guia de convênio = um recebível da operadora.
+    hiGuideUniq: uniqueIndex('lancamentos_hi_guide_uniq')
+      .on(t.clinicId, t.sourceHiGuideId)
+      .where(sql`source_hi_guide_id IS NOT NULL`),
     appointmentUniq: uniqueIndex('lancamentos_appointment_uniq')
       .on(t.appointmentId)
       .where(sql`appointment_id IS NOT NULL`),
@@ -217,7 +231,8 @@ export const lancamentos = pgTable(
       'lancamentos_auto_origin_chk',
       sql`${t.createdVia} <> 'auto'
           OR ${t.appointmentId} IS NOT NULL
-          OR (${t.sourcePatientChargeId} IS NOT NULL AND ${t.financialExpenseKind} IS NOT NULL)`,
+          OR (${t.sourcePatientChargeId} IS NOT NULL AND ${t.financialExpenseKind} IS NOT NULL)
+          OR ${t.sourceHiGuideId} IS NOT NULL`,
     ),
     providerExpenseCoherenceChk: check(
       'lancamentos_provider_expense_coherence_chk',
@@ -232,6 +247,17 @@ export const lancamentos = pgTable(
             AND ${t.financialExpenseKind} = 'payment_processing_fee_adjustment'
             AND ${t.providerEconomicsRevision} >= 2
             AND ${t.sourceEventId} IS NOT NULL AND ${t.providerPaymentId} IS NOT NULL)`,
+    ),
+    valorGlosadoChk: check(
+      'lancamentos_valor_glosado_chk',
+      sql`${t.valorGlosado} >= 0 AND ${t.valorPago} + ${t.valorGlosado} <= ${t.valor}
+          AND (${t.valorGlosado} = 0 OR ${t.sourceHiGuideId} IS NOT NULL)`,
+    ),
+    insurerReceivableChk: check(
+      'lancamentos_insurer_receivable_chk',
+      sql`${t.sourceHiGuideId} IS NULL OR (${t.tipo} = 'receber' AND ${t.createdVia} = 'auto'
+          AND ${t.appointmentId} IS NULL AND ${t.patientId} IS NULL AND ${t.sourcePatientChargeId} IS NULL
+          AND ${t.reversesLancamentoId} IS NULL AND ${t.paymentMethod} = 'convenio')`,
     ),
     estornoOriginChk: check(
       'lancamentos_estorno_origin_chk',

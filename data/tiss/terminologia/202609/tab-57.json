@@ -1,0 +1,45 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "57",
+  "title": "Tabela 57 - Terminologia de tipo de internação.",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 5,
+  "terms": [
+    {
+      "code": "1",
+      "term": "Clínica",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "2",
+      "term": "Cirúrgica",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "3",
+      "term": "Obstétrica",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "4",
+      "term": "Pediátrica",
+      "startsOn": "2006-08-14",
+      "endsOn": null,
+      "implantationEndsOn": "2006-08-14"
+    },
+    {
+      "code": "5",
+      "term": "Psiquiátrica",
+      "startsOn": "2006-08-14",
+      "endsOn": null,
+      "implantationEndsOn": "2006-08-14"
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+ "quando": "2026-11-19T02:50:08.420Z",
+ "ambiente": "Asaas Sandbox (sandbox.asaas.com) + DEV",
+ "checkout": "5faa25a3…326b",
+ "clinica": "e2e-hi-config-* (sintética)",
+ "qoro": {
+  "cobranca": {
+   "status": "pending",
+   "amount": "10.00",
+   "payment": null,
+   "paidAt": null,
+   "refundedAt": null,
+   "gross": null,
+   "net": null,
+   "fee": null,
+   "billingType": null,
+   "kind": "remainder",
+   "sameClinic": true
+  },
+  "livro": [
+   {
+    "tipo": "receber",
+    "valor": "10.00",
+    "valorPago": "0.00",
+    "valorGlosado": "0.00",
+    "status": "pendente",
+    "paidAt": null,
+    "linkedToCharge": false,
+    "providerPayment": null
+   }
+  ],
+  "baixas": 0,
+  "webhooks": 0,
+  "coparticipacao": {
+   "status": "charged",
+   "chargeable_cents": 1000,
+   "received_cents": 0,
+   "confirmed_cents": 1000
+  }
+ },
+ "asaas": {
+  "pagamentosDoCheckout": 0,
+  "pagamentoMaisRecenteDaConta": "R$ 45 de 13/11 (a cobrança histórica)",
+  "paginaDoCheckout": "ainda em \"Finalizar pagamento\", R$ 10,00"
+ },
+ "cobranca45": {
+  "status": "paid",
+  "amount": "45.00",
+  "paidAt": "2026-11-13 20:57:28.441+00",
+  "refundedAt": null,
+  "payment": "pay_0_ov…w9n6"
+ },
+ "conclusao": "checkout criado e válido; nenhum pagamento concluído no provedor; nada a conciliar ainda"
+}

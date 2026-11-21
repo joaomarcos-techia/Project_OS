@@ -1,0 +1,40 @@
+{
+ "at": "2026-11-16T07:13:13.278Z",
+ "target": {
+  "host": "aws-1-us-west-1.pooler.supabase.com",
+  "user": "postgres.<ref DEV>"
+ },
+ "files": [
+  {
+   "file": "schema-public-drizzle.sql",
+   "bytes": 1027399,
+   "sha256": "c5e95a26cc2846eeccb7a07c4616e722a7189bdc9ac8d512d06f3751956926c7",
+   "ms": 67478
+  },
+  {
+   "file": "data-hi-tables.sql",
+   "bytes": 282423,
+   "sha256": "fc7ee3f77f98590602cfb6be1f9bdca2b2da97322d669546e4808ffa9ab78d26",
+   "ms": 23658
+  },
+  {
+   "file": "data-drizzle-ledger.sql",
+   "bytes": 14303,
+   "sha256": "858119aabc507732c0b5339d9e9f5cb483cd6d358936c75e397983a16ffa3a08",
+   "ms": 14593
+  }
+ ],
+ "verify": {
+  "hi_guides": true,
+  "hi_payouts": true,
+  "hi_payout_movements": true,
+  "hi_clinic_settings": true
+ },
+ "tabelas": 41,
+ "schema_has": {
+  "hi_payout_movements": true,
+  "hi_payout_reviews": false,
+  "hi_module_guard": false,
+  "payout_guard": true
+ }
+}
