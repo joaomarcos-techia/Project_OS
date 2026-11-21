@@ -23,6 +23,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
@@ -268,6 +269,8 @@ export const patientCharges = pgTable(
     providerEconomicsRevision: integer('provider_economics_revision').notNull().default(0),
     /** Ultima tentativa do backstop, para alternar candidatos sem bloquear a fila. */
     providerReconcileCheckedAt: timestamp('provider_reconcile_checked_at', { withTimezone: true }),
+    /** R54 (0160): cursor da varredura de estorno feito direto no Asaas (webhook perdido). */
+    refundCheckedAt: timestamp('refund_checked_at', { withTimezone: true }),
     /** Geração corrente do Checkout hospedado; não é a dívida nem o payment. */
     providerCheckoutId: text('provider_checkout_id'),
     checkoutGeneration: integer('checkout_generation').notNull().default(0),
@@ -312,6 +315,9 @@ export const patientCharges = pgTable(
       .where(
         sql`${t.status} = 'paid' and ${t.providerPaymentId} is not null and ${t.economicsReconciledAt} is null`,
       ),
+    refundCheckIdx: index('patient_charges_refund_check_idx')
+      .on(t.refundCheckedAt.asc().nullsFirst(), t.paidAt.desc())
+      .where(sql`${t.status} = 'paid' and ${t.providerPaymentId} is not null`),
     pendingMismatchScanIdx: index('patient_charges_pending_mismatch_scan_idx')
       .on(t.providerReconcileCheckedAt.asc().nullsFirst(), t.updatedAt, t.id)
       .where(
@@ -444,6 +450,64 @@ export const patientRefundIntents = pgTable(
 );
 
 export type PatientRefundIntentRow = typeof patientRefundIntents.$inferSelect;
+
+// --- patient_external_refunds (R54, 0160) -----------------------------------
+
+/**
+ * Evidência de estorno feito DIRETO no Asaas (sem intenção do Qoro), só de inclusão.
+ *
+ * Uma linha por patamar acumulado devolvido por fora do Qoro: o item de estorno do Asaas
+ * pode vir sem id, então a chave idempotente é `external_total` — reentrega do webhook,
+ * varredura e duas instâncias concorrentes caem no mesmo UNIQUE. `evidence` guarda só
+ * status, valor e data dos estornos lidos em `GET /payments/{id}/refunds`.
+ */
+export const patientExternalRefunds = pgTable(
+  'patient_external_refunds',
+  {
+    id: uuidPk(),
+    clinicId: tenantIdRef(),
+    patientChargeId: uuid('patient_charge_id')
+      .notNull()
+      .references(() => patientCharges.id, { onDelete: 'restrict' }),
+    appointmentId: uuid('appointment_id').notNull(),
+    providerPaymentId: text('provider_payment_id').notNull(),
+    externalTotal: numeric('external_total', { precision: 12, scale: 2 }).notNull(),
+    amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+    providerRefundedTotal: numeric('provider_refunded_total', {
+      precision: 12,
+      scale: 2,
+    }).notNull(),
+    intentsClaimed: numeric('intents_claimed', { precision: 12, scale: 2 }).notNull(),
+    providerStatus: text('provider_status').notNull(),
+    fullRefund: boolean('full_refund').notNull(),
+    source: text('source').$type<'webhook' | 'reconcile'>().notNull(),
+    asaasEventId: text('asaas_event_id'),
+    evidence: jsonb('evidence').$type<ExternalRefundEvidenceItem[]>().notNull(),
+    observedAt: timestamp('observed_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    levelUniq: unique('patient_external_refunds_level_uniq').on(
+      t.clinicId,
+      t.patientChargeId,
+      t.externalTotal,
+    ),
+    chargeIdx: index('patient_external_refunds_charge_idx').on(
+      t.clinicId,
+      t.patientChargeId,
+      t.externalTotal.desc(),
+    ),
+  }),
+);
+
+/** Item da evidência: o que a API do Asaas devolveu, sem dado pessoal. */
+export interface ExternalRefundEvidenceItem {
+  status: string;
+  value: number;
+  dateCreated: string | null;
+}
+
+export type PatientExternalRefundRow = typeof patientExternalRefunds.$inferSelect;
 
 // --- patient_payment_customers (ADR-050) -------------------------------------
 

@@ -1,0 +1,11 @@
+PASS: cadeia unida aplica inteira no Postgres 17: 153 migrations (0000–0152), 0136–0142 do #53 em 9ddc432a, prefixos contíguos; 123 marcas de versão
+PASS: gatilhos convivem: trial do #53 (AFTER INSERT), convênio e bloqueio comercial (BEFORE) em appointments e lancamentos
+PASS: clínica em trial (política do #53): a decisão central nega Convênios, cobrança e IA; o módulo não liga e o atendimento não vira convênio; os gatilhos do #53 barram conectar Asaas e WhatsApp (canal do Agente de IA)
+PASS: particular no trial: recebível de R$ 150 e 1 da cota consumida, exatamente como no #53
+PASS: R33 resolvido pela regra comercial: no limite de 15 recebíveis do trial não há convênio, logo não há coparticipação presa; o limite não muda (sem exceção) e nenhuma linha de Convênios existe
+PASS: assinatura marcada ativa SEM a liberação do #53 (fatura paga verificada): Convênios continua negado ("pagamento pendente")
+PASS: pagamento verificado (fatura paga libera a política do #53): os 3 recursos liberados; Convênios liga, guia automática, coparticipação confirmada vira recebível de R$ 45 (nunca R$ 150), sem cota de trial
+PASS: clínica paga: recebível cheio de convênio continua recusado pela rede da 0148
+PASS: mesma decisão que o código REAL do #53 em 9ddc432a (evaluateModuleAccess + a consulta dele) para cobrança de pacientes e Agentes de IA em 8 estados: ativa, past_due dentro e fora da carência, cancelada no fim do período, cancelada, suspensa, pagamento pendente e trial; Convênios segue indisponível no #53 até a liberação controlada
+
+OK — 9/9 provas da cadeia unida (main + #53 9ddc432a + #55) em Postgres descartável.

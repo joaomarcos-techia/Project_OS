@@ -1,0 +1,31 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "48",
+  "title": "Tabela 48 - Terminologia de técnica utilizada",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 3,
+  "terms": [
+    {
+      "code": "1",
+      "term": "Convencional",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "2",
+      "term": "Video",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3",
+      "term": "Robótica",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    }
+  ]
+}

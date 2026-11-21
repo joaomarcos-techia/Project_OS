@@ -51,6 +51,10 @@ export async function listDunningCandidates(limit = 500): Promise<DunningCandida
            AND l.status IN ('pendente', 'parcial')
            AND l.valor > l.valor_pago
            AND l.patient_id IS NOT NULL
+           -- Convênios (0148; P4.5): a régua não persegue recebível de atendimento de
+           -- convênio (coparticipação tem política própria na P10.5).
+           AND NOT EXISTS (SELECT 1 FROM appointments a
+                            WHERE a.id = l.appointment_id AND a.billing_mode = 'convenio')
            AND p.deleted_at IS NULL
            AND p.obito_em IS NULL
            AND l.due_date IS NOT NULL

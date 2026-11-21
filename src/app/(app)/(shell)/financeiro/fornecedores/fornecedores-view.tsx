@@ -154,7 +154,7 @@ export function FornecedoresView({
                 value={draft.cnpj}
                 onChange={(e) => setDraft((d) => ({ ...d, cnpj: maskCnpj(e.target.value) }))}
                 maxLength={18}
-                inputMode="numeric"
+                autoCapitalize="characters"
                 placeholder="00.000.000/0001-00"
               />
             </Field>

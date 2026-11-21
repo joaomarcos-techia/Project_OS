@@ -1,0 +1,23 @@
+{
+ "jobs": [
+  {
+   "status": "processed",
+   "attempts": 1,
+   "error_code": null,
+   "created_at": "2026-11-13T10:07:44.690Z",
+   "processed_at": "2026-11-13T10:07:55.067Z",
+   "ms": 10377
+  }
+ ],
+ "delegatedReads": [
+  {
+   "action": "health_insurance.guide.content_viewed",
+   "has_user": true,
+   "actor": "delegated",
+   "service": "insurance-batch-export",
+   "purpose": "exportacao_xml_delegada",
+   "n": 1
+  }
+ ],
+ "exportRequests": 1
+}

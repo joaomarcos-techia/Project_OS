@@ -1,0 +1,80 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "79",
+  "title": "Tabela 79 - Terminologia de Modelos de Remuneração entre Operadoras e Prestadores",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 7,
+  "terms": [
+    {
+      "code": "01",
+      "term": "Por procedimento (Fee for Service)",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30",
+      "extra": {
+        "Descrição detalhada": "Corresponde ao pagamento aos prestadores diretamente vinculado à realização de procedimentos ou eventos, elencados em tabelas com a discriminação de seus valores, que se dá pelo somatório de cada procedimento, evento ou itens - materiais, medicamentos, honorários profissionais, diárias hospitalares, exames complementares etc., pagos item a item, em modelo de conta aberta."
+      }
+    },
+    {
+      "code": "02",
+      "term": "Pacote",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30",
+      "extra": {
+        "Descrição detalhada": "Corresponde ao pagamento por valor contratado, diretamente, vinculado à realização de procedimentos e itens assistenciais de forma agrupada."
+      }
+    },
+    {
+      "code": "03",
+      "term": "Orçamentação",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30",
+      "extra": {
+        "Descrição detalhada": "Corresponde ao pagamento pela prestação de um conjunto de ações em saúde contratadas por um valor preestabelecido por meio de uma programação orçamentária, por um período, independentemente da quantidade de procedimentos realizados. Este modelo de remuneração está comprometido com o cumprimento de metas de desempenho."
+      }
+    },
+    {
+      "code": "04",
+      "term": "Capitation (capitação)",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30",
+      "extra": {
+        "Descrição detalhada": "Corresponde ao pagamento de um conjunto de procedimentos e/ou eventos contratado por um valor global preestabelecido per capita para um grupo de beneficiários definido, sem a consideração de suas condições clínicas, em um determinado período, independentemente da quantidade de procedimentos e/ou eventos, efetivamente, realizados."
+      }
+    },
+    {
+      "code": "05",
+      "term": "DRG",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30",
+      "extra": {
+        "Descrição detalhada": "Corresponde ao pagamento de um conjunto de ações em saúde, baseado em casos clínicos, classificados de acordo com variáveis pré-estabelecidas e valores previamente acordados, por grupos homogêneos de diagnóstico. Este modelo de remuneração está vinculado à realização das ações em saúde."
+      }
+    },
+    {
+      "code": "06",
+      "term": "Bundle baseado em episódio",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30",
+      "extra": {
+        "Descrição detalhada": "Bundle baseado em episódio - Procedure Based Episode Payments: corresponde ao pagamento de um conjunto de ações em saúde, por um valor contratado com base no ciclo de cuidado de um determinado episódio (ex.: artroplastia de quadril, cirurgia bariátrica), durante um período definido."
+      }
+    },
+    {
+      "code": "07",
+      "term": "Bundle por condição clínica",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30",
+      "extra": {
+        "Descrição detalhada": "Bundle por condição clínica - Condition Based Bundle: corresponde ao pagamento de um conjunto de ações em saúde, por um valor contratado per capita, por um período, baseado no ciclo de cuidado de uma determinada condição clínica (ex.: conjunto de beneficiários portadores de uma condição clínica – uma população com obesidade ou diabetes, ou hipertensão, ou problemas ortopédicos), independentemente da quantidade de procedimentos efetivamente realizados."
+      }
+    }
+  ]
+}

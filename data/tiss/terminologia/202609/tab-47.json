@@ -1,0 +1,80 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "47",
+  "title": "Tabela 47 - Terminologia de status da guia e do protocolo",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 10,
+  "terms": [
+    {
+      "code": "1",
+      "term": "Recebido",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "2",
+      "term": "Em análise",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "3",
+      "term": "Liberado para pagamento",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "4",
+      "term": "Encerrado sem pagamento",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "5",
+      "term": "Analisado e aguardando liberação para o pagamento",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "6",
+      "term": "Pagamento efetuado",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "7",
+      "term": "Não localizado",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "8",
+      "term": "Aguardando informação complementar",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "9",
+      "term": "Cancelado",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "10",
+      "term": "Bloqueio judicial - prestador",
+      "startsOn": "2025-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2025-11-30"
+    }
+  ]
+}

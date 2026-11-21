@@ -145,7 +145,7 @@ export function PerfilForm({ initial }: { initial: ClinicProfile }) {
               id="clinica-cnpj"
               value={cnpj}
               onChange={(e) => setCnpj(maskCnpj(e.target.value))}
-              inputMode="numeric"
+              autoCapitalize="characters"
               maxLength={18}
             />
           </Field>

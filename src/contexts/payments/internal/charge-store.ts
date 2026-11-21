@@ -1059,6 +1059,32 @@ export async function reconcilePaidChargeEconomics(input: {
 }
 
 /**
+ * Cobrança PAGA de um pagamento do gateway, para o processamento logo depois do webhook
+ * (as chaves dos eventos que `markDepositPaid` publicou usam o id da cobrança). Só
+ * leitura, sob RLS; `null` se o pagamento não for de uma cobrança paga desta clínica.
+ */
+export async function findPaidChargeByProviderPayment(
+  clinicId: string,
+  providerPaymentId: string,
+): Promise<{ chargeId: string; appointmentId: string } | null> {
+  const rows = await withTenant(clinicId, (tx) =>
+    tx
+      .select({ id: patientCharges.id, appointmentId: patientCharges.appointmentId })
+      .from(patientCharges)
+      .where(
+        and(
+          eq(patientCharges.clinicId, clinicId),
+          eq(patientCharges.providerPaymentId, providerPaymentId),
+          eq(patientCharges.status, 'paid'),
+        ),
+      )
+      .limit(1),
+  );
+  const row = rows[0];
+  return row ? { chargeId: row.id, appointmentId: row.appointmentId } : null;
+}
+
+/**
  * Marca o sinal como pago e publica `payments.patient_charge.paid` na MESMA
  * transação, junto do registro de dedup do webhook.
  *

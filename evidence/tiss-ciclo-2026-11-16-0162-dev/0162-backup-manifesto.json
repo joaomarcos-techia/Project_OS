@@ -1,0 +1,41 @@
+{
+ "at": "2026-11-16T03:09:39.914Z",
+ "target": {
+  "host": "aws-1-us-west-1.pooler.supabase.com",
+  "user": "postgres.<ref DEV>"
+ },
+ "files": [
+  {
+   "file": "schema-auth-tables.sql",
+   "bytes": 13394,
+   "sha256": "cfe376747d5a0fd637ed4475b40071dae99fac888a2c31fe5161cfc52e2571ef",
+   "ms": 15839
+  },
+  {
+   "file": "data-auth-tables.sql",
+   "bytes": 12628,
+   "sha256": "e69ff87376f19d6f4de548a7275c3cb3f2995ec342361f37b830ebda7aa4365b",
+   "ms": 19014
+  },
+  {
+   "file": "data-drizzle-ledger.sql",
+   "bytes": 14220,
+   "sha256": "0e4f3c47cb54194105bfe03df7c24a20b8defa3a41951df1258f41e8fa581b61",
+   "ms": 13941
+  }
+ ],
+ "rows": {
+  "public.permissions": 28,
+  "public.profiles": 35,
+  "public.role_permissions": 84,
+  "public.user_permission_overrides": 0,
+  "drizzle.__drizzle_migrations": 162
+ },
+ "verify": {
+  "permissions": true,
+  "role_permissions": true,
+  "user_permission_overrides": true,
+  "profiles": true,
+  "ledger": true
+ }
+}

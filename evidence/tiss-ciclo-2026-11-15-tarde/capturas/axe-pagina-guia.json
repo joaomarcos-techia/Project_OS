@@ -1,0 +1,20 @@
+{
+ "violations": [
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "targets": [
+    ".h-5"
+   ],
+   "nodes": [
+    {
+     "html": "<span class=\"inline-flex h-5 item...\">",
+     "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.44 (foreground color: #a4622a, background color: #fff5e0, font size: 8.6pt (11.5px), font weight: normal). Expected contrast ratio of 4.5:1"
+    }
+   ]
+  }
+ ],
+ "incomplete": [],
+ "passes": 20
+}

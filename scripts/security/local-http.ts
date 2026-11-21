@@ -69,6 +69,12 @@ interface Observation {
   cspReportOnly: string;
 }
 const observations: Observation[] = [];
+/**
+ * Corpo inteiro da resposta, para quem precisa ler o JSON: o relatório (`observations`)
+ * guarda só os 700 primeiros caracteres, e um JSON maior que isso não se lê do `body`.
+ */
+const fullBodies = new WeakMap<Observation, string>();
+const fullBody = (o: Observation): string => fullBodies.get(o) ?? o.body;
 async function request(
   test: string,
   route: string,
@@ -85,7 +91,7 @@ async function request(
         res.on('data', (chunk: Buffer) => chunks.push(chunk));
         res.on('end', () => {
           const text = Buffer.concat(chunks).toString();
-          resolve({
+          const observation: Observation = {
             test,
             path: route,
             method,
@@ -97,7 +103,9 @@ async function request(
             cors: String(res.headers['access-control-allow-origin'] ?? ''),
             csp: String(res.headers['content-security-policy'] ?? ''),
             cspReportOnly: String(res.headers['content-security-policy-report-only'] ?? ''),
-          });
+          };
+          fullBodies.set(observation, text);
+          resolve(observation);
         });
       },
     );
@@ -155,6 +163,55 @@ try {
     assert.ok([307, 308, 400, 401, 403, 404].includes(response.status), JSON.stringify(response));
   }
   assert.equal((await request('health:head', '/api/health', 'HEAD')).status, 401);
+
+  // P9.2 — validador XSD TISS no MESMO build que vai para a Vercel: sem credencial, 401;
+  // com o Bearer do monitoramento, o autoteste (válido aceito, inválido e hostil
+  // recusados) roda no worker do xmllint-wasm a partir do `.next` deste build.
+  assert.equal((await request('tiss-xsd:anon', '/api/health/tiss-xsd')).status, 401);
+  const xsdCheck = await request('tiss-xsd:monitoring', '/api/health/tiss-xsd', 'GET', {
+    Authorization: `Bearer ${env.CRON_SECRET}`,
+  });
+  const xsdReport = z
+    .object({
+      status: z.literal('ok'),
+      engine: z.literal('xmllint-wasm@5.3.0'),
+      schemaVersion: z.literal('4.03.00'),
+      schemaSetSha256: z.string().regex(/^[0-9a-f]{64}$/u),
+      failure: z.null(),
+      checks: z.object({ validAccepted: z.literal(true), invalidRejected: z.literal(true), hostileRejected: z.literal(true) }),
+      ms: z.object({ valid: z.number(), invalid: z.number(), total: z.number() }),
+      rssMb: z.number(),
+    })
+    .parse(JSON.parse(fullBody(xsdCheck)));
+  assert.equal(xsdCheck.status, 200);
+  // Sonda de limites no build real: namespace, lote grande, timeout, teto de memória e fila.
+  const limitsCheck = await request('tiss-xsd:limits', '/api/health/tiss-xsd?probe=limits', 'GET', {
+    Authorization: `Bearer ${env.CRON_SECRET}`,
+  });
+  const limitsReport = z
+    .object({
+      limits: z.object({
+        status: z.literal('ok'),
+        checks: z.object({
+          namespaceRejected: z.literal(true),
+          largeBatchAccepted: z.literal(true),
+          timeoutEnforced: z.literal(true),
+          memoryLimitEnforced: z.literal(true),
+          queueEnforced: z.literal(true),
+        }),
+        ms: z.object({ largeBatch: z.number(), total: z.number() }).passthrough(),
+      }),
+    })
+    .parse(JSON.parse(fullBody(limitsCheck)));
+  assert.equal(limitsCheck.status, 200);
+  // O rastreamento de arquivos (o que a Vercel empacota na função) inclui o worker, o
+  // `.wasm` e os XSD: a rota não depende de arquivo fora do bundle.
+  const trace = z
+    .object({ files: z.array(z.string()) })
+    .parse(JSON.parse(await readFile(path.join(target, '.next/server/app/api/health/tiss-xsd/route.js.nft.json'), 'utf8')));
+  for (const needed of ['xmllint-wasm/xmllint.wasm', 'xmllint-wasm/xmllint-node.js', 'xmllint-wasm/package.json', 'schemas/4.03.00/MANIFEST.json', 'schemas/4.03.00/tissV4_03_00.xsd', 'schemas/4.03.00/tissSimpleTypesV4_03_00.xsd']) {
+    assert.ok(trace.files.some((f) => f.replaceAll('\\', '/').endsWith(needed)), `bundle da rota tiss-xsd sem ${needed}`);
+  }
   const preflight = await request('csrf:preflight', '/api/health', 'OPTIONS', {
     Origin: 'https://evil.test',
     'Access-Control-Request-Method': 'POST',
@@ -270,6 +327,7 @@ try {
     JSON.stringify(
       {
         healthVectors: 12,
+        tissXsd: { engine: xsdReport.engine, validMs: xsdReport.ms.valid, totalMs: xsdReport.ms.total, rssMb: xsdReport.rssMb, tracedFiles: 6, limitsLargeBatchMs: limitsReport.limits.ms.largeBatch, limitsTotalMs: limitsReport.limits.ms.total },
         actions: Object.keys(manifest.node).length,
         actionRequests: observations.filter((item) => item.test.startsWith('action:')).length,
         action200WithExplicitDenial: failures.length,

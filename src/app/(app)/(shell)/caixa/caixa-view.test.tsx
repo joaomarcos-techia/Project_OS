@@ -58,6 +58,8 @@ function item(overrides: Partial<CaixaItem> = {}): CaixaItem {
     descricao: 'Atendimento - Consulta',
     valor: 200,
     valorPago: 0,
+    valorGlosado: 0,
+    sourceHiGuideId: null,
     status: 'pendente',
     dueDate: '2026-06-06',
     paidAt: null,

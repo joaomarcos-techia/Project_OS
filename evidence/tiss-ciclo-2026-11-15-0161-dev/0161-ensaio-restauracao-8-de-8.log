@@ -1,0 +1,10 @@
+PASS 1: o backup restaura: 10 guias, 9 revisões emitidas, 67 eventos e 10 itens com o MESMO md5 do pré-voo do DEV; ledger com 161 linhas, última a 0160
+PASS 2: guarda de composição sobre o ledger restaurado (exceções do #53: 8): nenhum bloqueio, pendente só a 0161
+PASS 3: com outra sessão segurando hi_guides, o migrador desiste no lock_timeout (8125 ms no total) e nada muda: sem coluna, sem CHECK, sem gatilho, ledger com 161 linhas
+PASS 4: o migrador real aplica só a 0161 (3786 ms com a partida da CLI): ledger 162 linhas, última com o sha256 do arquivo (acd23a73e251…); nada pendente depois
+PASS 5: guias, revisões, eventos e itens com o mesmo md5 (nenhuma linha reescrita, nenhum evento novo); CHECK validado sobre as guias reais; nenhuma guia com ajuste
+PASS 6: gatilhos sobre as guias do DEV: na Consulta em edição o ajuste grava (versão 2) e o histórico registra só ["consulta_overrides"]; nas 9 já emitidas (partially_glossed, exported) o ajuste é recusado (55000); código "44" recusado pelo CHECK (23514); tudo desfeito
+PASS 7: segunda execução do migrador não aplica nada (ledger igual)
+PASS 8: a reversão documentada (gatilho, função, coluna, versão e a linha do ledger) desfaz sem tocar os dados, e o migrador reaplica igual depois dela
+
+8/8 provas do ensaio da 0161 passaram (descartável, dados do backup do DEV).

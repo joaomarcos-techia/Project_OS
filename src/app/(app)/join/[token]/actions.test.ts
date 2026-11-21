@@ -75,6 +75,8 @@ vi.mock('@/contexts/onboarding', async () => {
   };
 });
 
+import { CNPJ_INVALID_MESSAGE } from '@/lib/validation/cnpj';
+
 import { saveStepAction, submitCheckoutAction } from './actions';
 
 const TOKEN = 'a'.repeat(43);
@@ -178,9 +180,31 @@ describe('saveStepAction — transição clínica → responsável', () => {
       clinic: expect.objectContaining({
         nome: 'Clínica da Empresa',
         slug: 'clinica-da-empresa',
-        cnpj: '11.222.333/0001-81',
+        // Forma canônica (R16): o hash do CNPJ representa o documento, não a grafia.
+        cnpj: '11222333000181',
       }),
     });
+  });
+
+  it('aceita o CNPJ alfanumérico e grava a forma canônica', async () => {
+    await expect(
+      saveStepAction(
+        { error: null },
+        stepForm('clinic', { nome: 'Clínica Nova', cnpj: '12.abc.345/01de-35' }),
+      ),
+    ).resolves.toEqual({ error: null, ok: true });
+    expect(persistedState()).toMatchObject({
+      clinic: expect.objectContaining({ cnpj: '12ABC34501DE35' }),
+    });
+  });
+
+  it('recusa CNPJ inválido com a mensagem do CNPJ, sem avançar o passo', async () => {
+    await expect(
+      saveStepAction(
+        { error: null },
+        stepForm('clinic', { nome: 'Clínica Nova', cnpj: '11.222.333/0001-82' }),
+      ),
+    ).resolves.toEqual({ error: CNPJ_INVALID_MESSAGE });
   });
 
   it('campos opcionais vazios não viram string vazia no estado', async () => {
@@ -418,6 +442,12 @@ describe('submitCheckoutAction — validação do titular e do cartão', () => {
     ['nome do titular curto demais', { billingHolderName: 'A' }],
     ['telefone do titular com 9 dígitos', { billingHolderPhone: '119900000' }],
     ['CPF/CNPJ com tamanho inválido', { billingHolderCpfCnpj: '123' }],
+    // Sem as letras sobrariam os 11 dígitos de um CPF com DV válido (R16).
+    ['CPF/CNPJ com letras', { billingHolderCpfCnpj: 'ABC24971563792' }],
+    [
+      'CNPJ alfanumérico (gateway sem suporte documentado)',
+      { billingHolderCpfCnpj: '12ABC34501DE35' },
+    ],
     ['CEP incompleto', { cep: '0100' }],
     ['número do endereço ausente', { addressNumber: '' }],
     ['cartão curto demais', { cardNumber: '411111' }],

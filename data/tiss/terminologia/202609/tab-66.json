@@ -1,0 +1,59 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "66",
+  "title": "Tabela 66 - Terminologia de nódulo",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 7,
+  "terms": [
+    {
+      "code": "1",
+      "term": "N1",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "2",
+      "term": "N2",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "3",
+      "term": "N3",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "4",
+      "term": "N0",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "5",
+      "term": "Nx",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "8",
+      "term": "Não se aplica",
+      "startsOn": "2017-04-10",
+      "endsOn": null,
+      "implantationEndsOn": "2017-07-09"
+    },
+    {
+      "code": "9",
+      "term": "Sem informação",
+      "startsOn": "2017-04-10",
+      "endsOn": null,
+      "implantationEndsOn": "2017-07-09"
+    }
+  ]
+}

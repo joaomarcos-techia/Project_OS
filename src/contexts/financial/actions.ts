@@ -188,6 +188,14 @@ export async function createLancamento(
   );
 }
 
+/**
+ * 0153: recebível da OPERADORA (guia de convênio enviada) é mantido só pelo Convênios: o
+ * pagamento entra pela conta da guia, a glosa definitiva baixa sem caixa e o estorno é
+ * compensatório lá. O banco também recusa (gatilhos); aqui a mensagem é clara antes.
+ */
+const INSURER_RECEIVABLE_MESSAGE =
+  'Recebível de convênio: registre pagamento, glosa ou estorno em Convênios (conta da guia), não no Caixa.';
+
 // --- confirmPayment (parcial ou total) -------------------------------------
 
 export async function confirmPayment(
@@ -223,6 +231,7 @@ export async function confirmPayment(
         .for('update')
         .limit(1);
       if (!lanc) throw new LancamentoNotFoundError(data.lancamentoId);
+      if (lanc.sourceHiGuideId) throw new FinancialValidationError(INSURER_RECEIVABLE_MESSAGE);
 
       if (lanc.tipo === 'receber' && lanc.appointmentId) {
         await assertAppointmentPaymentMethod(tx, clinicId, lanc.appointmentId, data.paymentMethod);
@@ -340,6 +349,7 @@ export async function cancelLancamento(
         .for('update')
         .limit(1);
       if (!lanc) throw new LancamentoNotFoundError(data.lancamentoId);
+      if (lanc.sourceHiGuideId) throw new FinancialValidationError(INSURER_RECEIVABLE_MESSAGE);
       // Nunca cancelar pago — a state machine barra ('pago'→'cancelado' inválido).
       assertLancamentoTransition(lanc.status, 'cancelado');
 
@@ -401,6 +411,7 @@ export async function createEstorno(
         .for('update')
         .limit(1);
       if (!orig) throw new LancamentoNotFoundError(data.lancamentoId);
+      if (orig.sourceHiGuideId) throw new FinancialValidationError(INSURER_RECEIVABLE_MESSAGE);
       if (orig.status !== 'pago') {
         throw new LancamentoStateError('estorno exige lançamento totalmente pago');
       }

@@ -1,0 +1,24 @@
+[launcher] variáveis no ambiente do aplicador: APPDATA, ComSpec, DATABASE_URL, HOMEDRIVE, HOMEPATH, LOCALAPPDATA, NODE_ENV, NUMBER_OF_PROCESSORS, OS, PATH, PATHEXT, PROCESSOR_ARCHITECTURE, Path, SYSTEMROOT, SystemRoot, TEMP, TMP, USERPROFILE, windir
+[migrate:dev-limited] 2026-11-15T11:46:30.382Z alvo: postgresql://postgres.pqhkirrszzpwezdaqrai:***@aws-1-us-west-1.pooler.supabase.com:5432/postgres?sslmode=require
+[migrate:dev-limited] 2026-11-15T11:46:33.229Z exceções externas: 0136_trial_resource_limits, 0137_trial_service_role_privileges, 0138_saas_gateway_bindings, 0139_saas_gateway_recontracts, 0140_saas_recurring_payment_observations, 0141_saas_scheduled_plan_changes, 0142_saas_review_replays, 0159_saas_period_snapshot
+[migrate:dev-limited] 2026-11-15T11:46:37.669Z composição antes: ok, pendentes 1
+[migrate:dev-limited] 2026-11-15T11:46:37.669Z aviso APPLIED_HASH_MISMATCH 0033_messaging_connection_status: hash histórico divergente (antes da 0136): não bloqueia
+[migrate:dev-limited] 2026-11-15T11:46:37.669Z aviso APPLIED_HASH_MISMATCH 0037_profiles_invite_and_crm: hash histórico divergente (antes da 0136): não bloqueia
+[migrate:dev-limited] 2026-11-15T11:46:37.669Z aviso APPLIED_HASH_MISMATCH 0051_ai_conversations_panel: hash histórico divergente (antes da 0136): não bloqueia
+[migrate:dev-limited] 2026-11-15T11:46:37.669Z aviso APPLIED_HASH_MISMATCH 0071_runtime_role_timeouts: hash histórico divergente (antes da 0136): não bloqueia
+[migrate:dev-limited] 2026-11-15T11:46:37.669Z aviso APPLIED_HASH_MISMATCH 0093_ai_clinic_config_convenios: hash histórico divergente (antes da 0136): não bloqueia
+[migrate:dev-limited] 2026-11-15T11:46:37.669Z aviso APPLIED_HASH_MISMATCH 0124_offer_2026_trial_deadline: hash histórico divergente (antes da 0136): não bloqueia
+[migrate:dev-limited] 2026-11-15T11:46:37.851Z ledger antes: 161 linhas, última 1795123373857 (0160_patient_external_refunds)
+[migrate:dev-limited] 2026-11-15T11:46:37.851Z pendentes (1): 0161_hi_guide_consulta_overrides
+[migrate:dev-limited] 2026-11-15T11:46:38.389Z sessão: lock_timeout=2s statement_timeout=1min
+[migrate:dev-limited] 2026-11-15T11:46:41.870Z ledger depois: 162 linhas, última 1795209773857 (0161_hi_guide_consulta_overrides) em 3305 ms
+[migrate:dev-limited] 2026-11-15T11:46:46.272Z composição depois: ok, pendentes 0
+[migrate:dev-limited] 2026-11-15T11:46:46.272Z aviso APPLIED_HASH_MISMATCH 0033_messaging_connection_status: hash histórico divergente (antes da 0136): não bloqueia
+[migrate:dev-limited] 2026-11-15T11:46:46.272Z aviso APPLIED_HASH_MISMATCH 0037_profiles_invite_and_crm: hash histórico divergente (antes da 0136): não bloqueia
+[migrate:dev-limited] 2026-11-15T11:46:46.272Z aviso APPLIED_HASH_MISMATCH 0051_ai_conversations_panel: hash histórico divergente (antes da 0136): não bloqueia
+[migrate:dev-limited] 2026-11-15T11:46:46.272Z aviso APPLIED_HASH_MISMATCH 0071_runtime_role_timeouts: hash histórico divergente (antes da 0136): não bloqueia
+[migrate:dev-limited] 2026-11-15T11:46:46.272Z aviso APPLIED_HASH_MISMATCH 0093_ai_clinic_config_convenios: hash histórico divergente (antes da 0136): não bloqueia
+[migrate:dev-limited] 2026-11-15T11:46:46.272Z aviso APPLIED_HASH_MISMATCH 0124_offer_2026_trial_deadline: hash histórico divergente (antes da 0136): não bloqueia
+[migrate:dev-limited] 2026-11-15T11:46:46.272Z ok
+[launcher] aplicador terminou com código 0 em 22201 ms
+[observador] 10 amostras (2 s); máx. sessões esperando lock: 0; maior espera: 0 s; amostras com AccessExclusive do migrador: 1

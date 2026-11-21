@@ -1,0 +1,59 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "32",
+  "title": "Tabela 32 - Terminologia de faces do dente",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 7,
+  "terms": [
+    {
+      "code": "O",
+      "term": "Oclusal",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "L",
+      "term": "Lingual",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "M",
+      "term": "Mesial",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "V",
+      "term": "Vestibular",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "D",
+      "term": "Distal",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "I",
+      "term": "Incisal",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "P",
+      "term": "Palatina",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    }
+  ]
+}

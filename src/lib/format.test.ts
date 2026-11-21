@@ -20,3 +20,13 @@ describe('formatDatePt', () => {
     expect(browser.formatDatePt(instant)).toBe('09/10/2026');
   });
 });
+
+describe('todayYmdIn (R51)', () => {
+  it('devolve o dia do fuso pedido, não o do processo: às 22h30 de Brasília ainda é o mesmo dia', async () => {
+    const { todayYmdIn } = await import('./format');
+    const lateEvening = new Date('2026-11-14T01:30:00Z');
+    expect(todayYmdIn('America/Sao_Paulo', lateEvening)).toBe('2026-11-13');
+    expect(todayYmdIn('UTC', lateEvening)).toBe('2026-11-14');
+    expect(todayYmdIn(undefined, lateEvening)).toBe('2026-11-13');
+  });
+});

@@ -1,0 +1,21 @@
+{"ts":"2026-11-15T17:16:19.965Z","kind":"metric","event":"insurance.authorization.expired","count":"2"}
+PASS: vencimento: só concedidas com a senha vencida (data da clínica); a de hoje, sem validade, pedida e negada ficam; histórico; repetição sem efeito
+PASS: vencida não se consome (gatilho da 0146); a vigente consome normalmente
+{"ts":"2026-11-15T17:16:20.115Z","kind":"metric","event":"insurance.authorization.expired","count":"1"}
+PASS: o vencimento de uma clínica não toca a outra
+{"ts":"2026-11-15T17:16:20.281Z","kind":"metric","event":"audit.written","action":"health_insurance.authorization.receipt_read","resourceType":"hi_authorization_attachment"}
+PASS: comprovante cifrado no armazenamento, SHA-256 no banco; leitura devolve os mesmos bytes e é auditada sem a referência
+{"ts":"2026-11-15T17:16:20.423Z","kind":"metric","event":"audit.written","action":"health_insurance.authorization.receipt_read","resourceType":"hi_authorization_attachment"}
+{"ts":"2026-11-15T17:16:20.423Z","kind":"authorization_receipt","event":"insurance.file.integrity_failed","outcome":"integrity_failed"}
+{"ts":"2026-11-15T17:16:20.460Z","kind":"metric","event":"audit.written","action":"health_insurance.authorization.receipt_read","resourceType":"hi_authorization_attachment"}
+{"ts":"2026-11-15T17:16:20.461Z","kind":"authorization_receipt","event":"insurance.file.missing","outcome":"missing"}
+PASS: adulterado e ausente nunca são entregues; a auditoria de cada falha fica gravada
+PASS: compensação: a transação que não confirma remove o objeto gravado; nenhum registro novo
+PASS: conteúdo que não bate com o tipo e autorização cancelada: recusados, nada gravado
+PASS: outra clínica não lê o comprovante nem anexa na autorização desta (RLS)
+PASS: pedido manual de Consulta nasce solicitado; resposta com evidência: autorizada (senha cifrada, autor, histórico) e em parte
+PASS: sem evidência, data no futuro ou antes do pedido, quantidade acima da pedida, nada concedido e número repetido: recusados, nada muda
+PASS: versão antiga, autorização da SP/SADT, já respondida, outra clínica e carteirinha de outra clínica: recusados
+PASS: negativa com motivo registrada; em trial o pedido manual é recusado (D24) e nada é gravado
+
+OK: 12/12 provas da P6.1 (autorização: vencimento, comprovante, pedido manual de Consulta, isolamento)

@@ -1,0 +1,325 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "49",
+  "title": "Tabela 49 - Terminologia de Tipo de Acomodação",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 45,
+  "terms": [
+    {
+      "code": "02",
+      "term": "QUARTO PRIVATIVO / PARTICULAR",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "09",
+      "term": "APARTAMENTO DE LUXO DA MATERNIDADE",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "10",
+      "term": "APARTAMENTO DE LUXO DE PSIQUIATRIA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "11",
+      "term": "APARTAMENTO DE LUXO",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "12",
+      "term": "APARTAMENTO SIMPLES",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "13",
+      "term": "APARTAMENTO STANDARD",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "14",
+      "term": "APARTAMENTO SUÍTE",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "15",
+      "term": "APARTAMENTO COM ALOJAMENTO CONJUNTO",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "16",
+      "term": "APARTAMENTO PARA PACIENTE COM OBESIDADE MÓRBIDA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "17",
+      "term": "APARTAMENTO SIMPLES DA MATERNIDADE",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "18",
+      "term": "APARTAMENTO SIMPLES DE PSIQUIATRIA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "19",
+      "term": "APARTAMENTO SUÍTE DA MATERNIDADE",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "20",
+      "term": "APARTAMENTO SUÍTE DE PSIQUIATRIA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "21",
+      "term": "BERÇÁRIO NORMAL",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "22",
+      "term": "BERÇÁRIO PATOLÓGICO / PREMATURO",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "25",
+      "term": "ENFERMARIA DE 3 LEITOS DA MATERNIDADE",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "26",
+      "term": "ENFERMARIA DE 4 OU MAIS LEITOS DA MATERNIDADE",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "27",
+      "term": "HOSPITAL DIA APARTAMENTO",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "28",
+      "term": "HOSPITAL DIA ENFERMARIA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "29",
+      "term": "HOSPITAL DIA PSIQUIATRIA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "30",
+      "term": "QUARTO COLETIVO DE 2 LEITOS DA MATERNIDADE",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "31",
+      "term": "ENFERMARIA DE 3 LEITOS",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "32",
+      "term": "ENFERMARIA DE 4 OU MAIS LEITOS",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "33",
+      "term": "ENFERMARIA COM ALOJAMENTO CONJUNTO",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "36",
+      "term": "QUARTO PRIVATIVO / PARTICULAR DA MATERNIDADE",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "37",
+      "term": "QUARTO PRIVATIVO / PARTICULAR DE PSIQUIATRIA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "38",
+      "term": "SEMI UTI ADULTO GERAL",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "39",
+      "term": "SEMI UTI CORONARIANA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "40",
+      "term": "SEMI UTI NEONATAL",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "41",
+      "term": "QUARTO COLETIVO DE 2 LEITOS",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "43",
+      "term": "QUARTO COM ALOJAMENTO CONJUNTO",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "44",
+      "term": "SEMI UTI NEUROLÓGICA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "45",
+      "term": "SEMI UTI INFANTIL/PEDIÁTRICA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "46",
+      "term": "SEMI UTI QUEIMADOS",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "47",
+      "term": "UNIDADE DE TRANSPLANTE DE MEDULA ÓSSEA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "48",
+      "term": "UNIDADE DE TRANSPLANTE EM GERAL",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "49",
+      "term": "APARTAMENTO STANDARD DA MATERNIDADE",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "50",
+      "term": "APARTAMENTO STANDARD DE PSIQUIATRIA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "51",
+      "term": "UTI ADULTO GERAL",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "52",
+      "term": "UTI INFANTIL/PEDIÁTRICA",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "53",
+      "term": "UTI NEONATAL",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "56",
+      "term": "UNIDADE PARA TRATAMENTO RADIOATIVO",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "57",
+      "term": "UTI CORONARIANA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "58",
+      "term": "UTI NEUROLÓGICA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "59",
+      "term": "UTI QUEIMADOS",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    }
+  ]
+}

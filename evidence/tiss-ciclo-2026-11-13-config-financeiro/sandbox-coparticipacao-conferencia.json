@@ -1,0 +1,32 @@
+{
+ "conferidoEm": "2026-11-13 (só leitura: banco DEV + API do Asaas Sandbox)",
+ "charges": [
+  {
+   "kind": "remainder",
+   "amount": "45.00",
+   "status": "pending",
+   "provider": "asaas",
+   "checkout": "652855…ecfb",
+   "invoiceHost": "sandbox.asaas.com",
+   "appointmentValor": "150.00",
+   "billingMode": "convenio",
+   "copayStatus": "charged",
+   "chargeableCents": "4500"
+  }
+ ],
+ "webhookDestaBranch": [
+  {
+   "host": "project-os-git-feat-convenios-ti-2b5ecd-clinic-os-v2-s-projects.vercel.app",
+   "enabled": true,
+   "interrupted": false,
+   "bypass": true
+  }
+ ],
+ "outrosWebhooksNaContaSandbox": 3,
+ "checkoutPage": {
+  "bytes": 28833,
+  "mentions4500": true,
+  "mentions15000": false
+ },
+ "pagamento": "pendente: o checkout hospedado do Sandbox exige reCAPTCHA humano (ação do fundador); depois, o webhook concilia"
+}

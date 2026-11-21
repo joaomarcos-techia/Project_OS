@@ -1,0 +1,73 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "67",
+  "title": "Tabela 67 - Terminologia de tumor",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 9,
+  "terms": [
+    {
+      "code": "1",
+      "term": "T1",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "2",
+      "term": "T2",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "3",
+      "term": "T3",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "4",
+      "term": "T4",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "5",
+      "term": "T0",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "6",
+      "term": "Tis",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "7",
+      "term": "Tx",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "8",
+      "term": "Não se aplica",
+      "startsOn": "2017-04-10",
+      "endsOn": null,
+      "implantationEndsOn": "2017-07-09"
+    },
+    {
+      "code": "9",
+      "term": "Sem informação",
+      "startsOn": "2017-04-10",
+      "endsOn": null,
+      "implantationEndsOn": "2017-07-09"
+    }
+  ]
+}

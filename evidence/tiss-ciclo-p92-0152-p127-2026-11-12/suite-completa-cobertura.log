@@ -1,0 +1,9 @@
+ ✓ src/contexts/health-insurance/glosses-migration.test.ts (13 tests) 58ms
+ ✓ src/contexts/health-insurance/tiss/xml/xsd-engine.test.ts (17 tests) 112651ms
+ ✓ src/contexts/health-insurance/tiss/validation/terminology-recheck.test.ts (4 tests) 19ms
+ ✓ src/contexts/health-insurance/internal/tiss-file-access.test.ts (3 tests) 84ms
+ ✓ src/app/(app)/(shell)/configuracoes/assinatura/plan-change-form.test.tsx (22 tests) 3905ms
+ Test Files  625 passed (625)
+      Tests  6932 passed | 3 skipped (6935)
+   Duration  519.36s (transform 297.77s, setup 0ms, collect 2408.67s, tests 954.76s, environment 453.59s, prepare 540.32s)
+All files          |   63.09 |    82.98 |   67.17 |   63.09 |                   

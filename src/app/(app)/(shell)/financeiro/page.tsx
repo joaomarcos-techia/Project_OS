@@ -409,7 +409,7 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
                       viria buscar, e ela não cabe no badge compartilhado. */}
                   {diasVencido(l) === 0 && l.status === 'parcial' ? (
                     <Badge tone="amber" dot>
-                      Parcial · {formatBRL(l.valor - l.valorPago)} em aberto
+                      Parcial · {formatBRL(l.valor - l.valorPago - l.valorGlosado)} em aberto
                     </Badge>
                   ) : (
                     <PaymentStatusBadge

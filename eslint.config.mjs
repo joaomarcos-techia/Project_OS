@@ -161,6 +161,14 @@ const config = [
       'scripts/security/signup-browser.integration.ts',
       // Guarded Preview/DEV operator; synthetic resend.dev recipients only.
       'scripts/run-signup-recovery-dev.ts',
+      // Guarded DEV operator (ADR-072, P1.3): carga one-shot da terminologia TUSS nas
+      // tabelas globais tiss_*; exige --expected-ref do projeto e recusa prod. Conexão
+      // própria porque o pooler do DEV leva ~10–16 s para conectar e o pool do app
+      // desiste em 10 s.
+      'scripts/tiss/terminology/load.ts',
+      // Guarded DEV migrator (docs/convenios/aplicacao-0153.md): migrador do Drizzle numa
+      // conexão única com lock_timeout/statement_timeout de sessão; recusa o pooler 6543.
+      'scripts/db-migrate-dev-limited.ts',
       // Reset operacional de pré-go-live: conexão one-shot explícita em
       // DATABASE_URL_PROD, backup obrigatório e confirmação fail-closed.
       'scripts/reset-prod-data.ts',
@@ -242,6 +250,9 @@ const config = [
       // arch:db-check. Só estes 3 arquivos.
       'src/contexts/scheduling/reminder-candidates.ts',
       'src/contexts/financial/dunning-candidates.ts',
+      // Convênios P7.4: scan "convênio sem guia" (só ids + estado do evento, LIMIT);
+      // processamento por atendimento em withTenant. Também no arch:db-check.
+      'src/contexts/health-insurance/billing-gap-candidates.ts',
       'src/contexts/ai-agent/proactive-jobs/infra/repository.ts',
       // ADR-049 1.3b: mesma forma, para o sinal. `deposit-candidates` é o
       // read-model do Scheduling ("quem ainda pode ser cobrado"); `deposit-scan`
@@ -340,6 +351,10 @@ const config = [
       // A action já provou o ator; o comando fixa id+clinic_id, as colunas permitidas
       // e a auditoria na mesma tx. Irmão do lifecycle e do perfil da clínica.
       'src/contexts/identity/internal/professional-credential.ts',
+      // R45 (convênios): a exportação em segundo plano age em nome de quem pediu; a
+      // permissão efetiva dessa pessoa (effective_permissions_v lê role_permissions, que
+      // authenticated não vê) é conferida aqui, só leitura, escopo fixo usuário+clínica.
+      'src/contexts/health-insurance/internal/delegation-permission.ts',
       // I-11a (0042): auditoria de login roda por service_role (dbAdmin), não mais por
       // anon via PostgREST. record_login_attempt é SECURITY DEFINER (D9); dbAdmin tem
       // EXECUTE. Ponto ÚNICO e privilegiado — best-effort, nunca bloqueia o login.

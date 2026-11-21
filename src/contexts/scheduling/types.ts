@@ -127,6 +127,27 @@ export type CreateHolidayInput = z.infer<typeof CreateHolidaySchema>;
 
 // --- appointments ----------------------------------------------------------
 
+/** Forma de atendimento (ADR-072): o convênio paga pela guia; o paciente, no máximo a coparticipação. */
+export const BillingModeSchema = z.enum(['particular', 'convenio']);
+export type BillingMode = z.infer<typeof BillingModeSchema>;
+
+/**
+ * Convênio não tem preço por meio de pagamento nem valor ajustado para o paciente (P4.2):
+ * o valor vem do contrato da operadora e o paciente só paga a coparticipação confirmada.
+ */
+function refineInsuranceBilling(
+  value: { billingMode?: BillingMode | undefined; commercialPaymentMethod?: string | null | undefined; commercialPriceId?: string | null | undefined; pricingPolicyMode?: string | undefined; valorAjustado?: boolean | undefined },
+  ctx: z.RefinementCtx,
+): void {
+  if (value.billingMode !== 'convenio') return;
+  if (value.commercialPaymentMethod != null || value.commercialPriceId != null || value.pricingPolicyMode === 'payment_method_pricing') {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'atendimento de convênio não tem preço por meio de pagamento', path: ['billingMode'] });
+  }
+  if (value.valorAjustado) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'atendimento de convênio não tem valor ajustado para o paciente', path: ['valorAjustado'] });
+  }
+}
+
 const CreateAppointmentFieldsSchema = z.object({
   doctorId: uuid,
   patientId: uuid.nullable().optional(),
@@ -143,6 +164,8 @@ const CreateAppointmentFieldsSchema = z.object({
   commercialPriceId: uuid.nullable().optional(),
   urgencia: z.boolean().optional(),
   observacoes: ObservacoesSchema.optional(),
+  /** ADR-072 (P4.1): modalidade escolhida na criação; padrão particular (nada muda sem convênio). */
+  billingMode: BillingModeSchema.optional(),
 });
 
 export const CreateAppointmentSchema = CreateAppointmentFieldsSchema.refine(
@@ -152,6 +175,7 @@ export const CreateAppointmentSchema = CreateAppointmentFieldsSchema.refine(
     path: ['valorAjusteMotivo'],
   },
 ).superRefine((value, ctx) => {
+  refineInsuranceBilling(value, ctx);
   const installments = value.commercialInstallmentCount ?? null;
   if (value.commercialPaymentMethod === 'credit_card' && installments === null) {
     ctx.addIssue({
@@ -186,8 +210,10 @@ export const CreateWalkInSchema = z
     commercialPaymentMethod: z.enum(['pix', 'cash', 'credit_card']).nullable().optional(),
     commercialInstallmentCount: z.number().int().min(1).max(12).nullable().optional(),
     commercialPriceId: uuid.nullable().optional(),
+    billingMode: BillingModeSchema.optional(),
   })
   .superRefine((value, ctx) => {
+    refineInsuranceBilling(value, ctx);
     if (value.valorAjustado && (value.valor == null || value.valorAjusteMotivo == null)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -248,6 +274,7 @@ export const CreateRecurringAppointmentsSchema = z.object({
   occurrences: z.number().int().min(2).max(104),
   urgencia: z.boolean().optional(),
   observacoes: ObservacoesSchema.optional(),
+  billingMode: BillingModeSchema.optional(),
 });
 export type CreateRecurringAppointmentsInput = z.infer<typeof CreateRecurringAppointmentsSchema>;
 

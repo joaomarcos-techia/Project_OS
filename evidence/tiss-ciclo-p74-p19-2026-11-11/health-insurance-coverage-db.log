@@ -1,0 +1,17 @@
+# health-insurance-coverage-db — 2026-11-11T18:15:46Z — exit=0 — árvore de trabalho sobre b450a560 (mudanças do commit deste ciclo, ainda não commitadas)
+PASS: modalidade: nasce particular; convênio só com o módulo ligado na clínica e só até a chegada do paciente
+PASS: cobertura validada no servidor: carteirinha de outro paciente recusada; autorização exigida fica pendente; falta vira pendência com responsável; coparticipação estimada (30% de R$ 150 = R$ 45)
+PASS: cobertura: carteirinha de outro paciente, "pronta" sem carteirinha e autorização negada como "registrada" são recusadas pelo banco; negada vira situação própria; RLS por clínica
+PASS: coparticipação: nasce estimada (nunca confirmada nem cobrada); sem pular etapa
+PASS: rede de segurança: recebível cheio de atendimento de convênio recusado pelo banco (handler, Caixa ou script, como dono ou runtime); particular e lançamento avulso seguem iguais
+PASS: ponta a ponta, particular: concluir gera o recebível cheio do paciente, exatamente como antes
+PASS: ponta a ponta, convênio: concluir gera a guia nº 1 pronta para conferência (R$ 150 do contrato), coparticipação calculada (R$ 45, ainda não cobrável), NENHUM recebível do paciente e NENHUMA cobrança (patient_charges vazio)
+PASS: sinal e link do saldo (Asaas): o convênio não entra nos candidatos; o particular continua entrando
+PASS: reentrega dos dois eventos: nenhuma guia, número, recebível ou histórico a mais
+PASS: convênio concluído sem cobertura: nada é inventado (sem guia, sem recebível); a cobertura não entra depois por fora (vai para correção)
+{"ts":"2026-11-11T18:16:07.439Z","kind":"metric","event":"outbox.retry","clinicId":"<uuid>","eventType":"health_insurance.copay.confirmed","attempts":1,"errorCode":"unknown","errorMessage":"Error: Failed query: insert into \"lancamentos\" (\"id\", \"clinic_id\", \"unit_id\", \"tipo\", \"descricao\", \"valor\", \"valor_pago\", \"status\", \"due_date\", \"paid_at\", \"patient_id\", \"supplier_id\", \"appointment_id\""}
+{"ts":"2026-11-11T18:16:07.454Z","kind":"metric","event":"outbox.retry","clinicId":"<uuid>","eventType":"health_insurance.copay.confirmed","attempts":2,"errorCode":"unknown","errorMessage":"Error: Failed query: insert into \"lancamentos\" (\"id\", \"clinic_id\", \"unit_id\", \"tipo\", \"descricao\", \"valor\", \"valor_pago\", \"status\", \"due_date\", \"paid_at\", \"patient_id\", \"supplier_id\", \"appointment_id\""}
+PASS: coparticipação conferida e confirmada: recebível do paciente só de R$ 45 (nunca R$ 150); falha no meio retenta sem duplicar; acima do confirmado é recusado; não se dispensa depois de virar recebível
+PASS: régua de cobrança: o recebível particular vencido entra; o de atendimento de convênio não
+PASS: LGPD: paciente com guia é ANONIMIZADO (cadastro sem dado pessoal) e a guia fica, sem bloqueio silencioso; paciente só com cobertura é excluído por inteiro
+OK: 13 provas da 0148 e do fluxo ponta a ponta (particular x convênio) sobre o schema real

@@ -1,0 +1,52 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "46",
+  "title": "Tabela 46 - Terminologia do status do cancelamento",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 6,
+  "terms": [
+    {
+      "code": "1",
+      "term": "Cancelado com sucesso",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "2",
+      "term": "Não cancelado",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3",
+      "term": "Guia inexistente",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "4",
+      "term": "Em processamento",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5",
+      "term": "Lote inexistente",
+      "startsOn": "2021-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "6",
+      "term": "Protocolo inexistente",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    }
+  ]
+}

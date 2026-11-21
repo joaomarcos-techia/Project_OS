@@ -1,0 +1,162 @@
+{
+ "mode": "post",
+ "at": "2026-11-16T03:12:54.294Z",
+ "code": {
+  "pr55": "eb82aad39457e40f3d1a80d8c6019f978b11c365"
+ },
+ "sha0161": "acd23a73e25109c14c1514f6995fbcd81182a51f7338c1bd6c63127f8d0265c5",
+ "sha0162": "eed2d0dee2b9d59be3b8f707d1c4963541d0b03e3597a73157be8766d481ec68",
+ "checks": [
+  {
+   "name": "ledger com 163 linhas e última = 0162 (when 1795296173857)",
+   "ok": true
+  },
+  {
+   "name": "última linha tem o sha256 do arquivo da 0162; a anterior é a 0161",
+   "ok": true
+  },
+  {
+   "name": "catálogo 28 → 33, os cinco códigos novos com descrição; os 28 antigos idênticos",
+   "ok": true
+  },
+  {
+   "name": "pacotes de hoje intactos",
+   "ok": true
+  },
+  {
+   "name": "pacotes novos exatamente os da matriz",
+   "ok": true
+  },
+  {
+   "name": "overrides de antes intocados (mesmas linhas, mesmo updated_at)",
+   "ok": true
+  },
+  {
+   "name": "overrides novos = exatamente R1–R4 calculados do estado de antes (negativa vence)",
+   "ok": true
+  },
+  {
+   "name": "ninguém perdeu nem ganhou código antigo (efetivas sem os códigos novos idênticas)",
+   "ok": true
+  },
+  {
+   "name": "códigos novos efetivos: sem override = pacote do papel; com override, nada fora de pacote ∪ concessões",
+   "ok": true
+  },
+  {
+   "name": "claims_version: todo perfil de clínica incrementado; super_admin intocado",
+   "ok": true
+  },
+  {
+   "name": "token (hook real): códigos da matriz para o papel, ≤ 128, claims_version igual ao do perfil",
+   "ok": true
+  },
+  {
+   "name": "sem DDL: visão, hook, gatilhos, políticas, GRANTs e colunas idênticos",
+   "ok": true
+  },
+  {
+   "name": "clínicas intocadas (mesmas linhas e updated_at)",
+   "ok": true
+  },
+  {
+   "name": "versão 0162-hi-permission-matrix registrada",
+   "ok": true
+  }
+ ],
+ "resumo": {
+  "ledger": {
+   "n": 163,
+   "last": "1795296173857"
+  },
+  "catalogo": 33,
+  "pacotes": 100,
+  "overrides": 0,
+  "perfisPorPapel": {
+   "owner": 17,
+   "doctor": 10,
+   "attendant": 2,
+   "gestor": 4,
+   "super_admin": 2
+  },
+  "codigosNovosNoCatalogo": [
+   "manage:convenios",
+   "manage:faturamento_convenio",
+   "operate:convenios",
+   "view:convenios",
+   "view:faturamento_convenio"
+  ],
+  "pacotesNovos": [
+   "attendant|operate:convenios",
+   "attendant|view:convenios",
+   "doctor|view:convenios",
+   "financial|manage:faturamento_convenio",
+   "financial|view:convenios",
+   "financial|view:faturamento_convenio",
+   "gestor|manage:convenios",
+   "gestor|manage:faturamento_convenio",
+   "gestor|operate:convenios",
+   "gestor|view:convenios",
+   "gestor|view:faturamento_convenio",
+   "owner|manage:convenios",
+   "owner|manage:faturamento_convenio",
+   "owner|operate:convenios",
+   "owner|view:convenios",
+   "owner|view:faturamento_convenio"
+  ],
+  "token": {
+   "owner": {
+    "n": 33,
+    "newCodes": [
+     "manage:convenios",
+     "manage:faturamento_convenio",
+     "operate:convenios",
+     "view:convenios",
+     "view:faturamento_convenio"
+    ],
+    "cvMatches": true,
+    "hasOv": false
+   },
+   "gestor": {
+    "n": 32,
+    "newCodes": [
+     "manage:convenios",
+     "manage:faturamento_convenio",
+     "operate:convenios",
+     "view:convenios",
+     "view:faturamento_convenio"
+    ],
+    "cvMatches": true,
+    "hasOv": false
+   },
+   "attendant": {
+    "n": 12,
+    "newCodes": [
+     "operate:convenios",
+     "view:convenios"
+    ],
+    "cvMatches": true,
+    "hasOv": false
+   },
+   "doctor": {
+    "n": 14,
+    "newCodes": [
+     "view:convenios"
+    ],
+    "cvMatches": true,
+    "hasOv": false
+   }
+  },
+  "ddl": {
+   "view": "d55694e4a8d62d6d3b26caf2c2efc8ef",
+   "hook": "192e4e4dcda4cc2957f0cb63e0deca18",
+   "triggers": "profiles.abacatepay_pending_seats:O,profiles.profiles_offer_2026_seats:O,profiles.profiles_preserve_contract_owner:O,profiles.trg_overrides_propagate_clinic:O,profiles.trg_profiles_bump_claims_version:O,profiles.trg_profiles_updated_at:O,profiles.trial_team_invites:O,role_permissions.trg_role_permissions_bump_claims_version:O,user_permission_overrides.trg_overrides_bump_claims_version:O,user_permission_overrides.trg_user_permission_overrides_updated_at:O",
+   "policies": "ff018dacfb88c04998f668255848f3f8",
+   "grants": "30bf2d656213bbc5a668dbb2ff98260e",
+   "cols": "d092b9596e2a62261d382ccf5fcd06d0"
+  },
+  "clinicas": 52,
+  "transacoesLongas": 0,
+  "locksFortes": 0
+ }
+}

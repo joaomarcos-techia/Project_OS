@@ -1,0 +1,102 @@
+{
+ "mode": "pre",
+ "at": "2026-11-16T03:12:11.617Z",
+ "code": {
+  "pr55": "eb82aad39457e40f3d1a80d8c6019f978b11c365"
+ },
+ "sha0161": "acd23a73e25109c14c1514f6995fbcd81182a51f7338c1bd6c63127f8d0265c5",
+ "sha0162": "eed2d0dee2b9d59be3b8f707d1c4963541d0b03e3597a73157be8766d481ec68",
+ "checks": [
+  {
+   "name": "ledger com 162 linhas e última = 0161 (when 1795209773857)",
+   "ok": true
+  },
+  {
+   "name": "última linha tem o sha256 do arquivo da 0161",
+   "ok": true
+  },
+  {
+   "name": "0159 do #53 segue com o hash fixado (eb00a4e3…)",
+   "ok": true
+  },
+  {
+   "name": "a 0162 ainda não existe (códigos, pacotes, overrides, versão)",
+   "ok": true
+  },
+  {
+   "name": "catálogo com 28 códigos",
+   "ok": true
+  },
+  {
+   "name": "gatilhos de claims_version presentes em role_permissions e overrides",
+   "ok": true
+  },
+  {
+   "name": "sem transação ativa longa (> 60 s) no banco",
+   "ok": true
+  },
+  {
+   "name": "sem lock forte de outra sessão nas tabelas de autorização",
+   "ok": true
+  },
+  {
+   "name": "todo perfil de clínica tem papel da matriz (owner, gestor, attendant, financial, doctor) ou é super_admin",
+   "ok": true
+  }
+ ],
+ "resumo": {
+  "ledger": {
+   "n": 162,
+   "last": "1795209773857"
+  },
+  "catalogo": 28,
+  "pacotes": 84,
+  "overrides": 0,
+  "perfisPorPapel": {
+   "owner": 17,
+   "doctor": 10,
+   "attendant": 2,
+   "gestor": 4,
+   "super_admin": 2
+  },
+  "codigosNovosNoCatalogo": [],
+  "pacotesNovos": [],
+  "token": {
+   "owner": {
+    "n": 28,
+    "newCodes": [],
+    "cvMatches": true,
+    "hasOv": false
+   },
+   "gestor": {
+    "n": 27,
+    "newCodes": [],
+    "cvMatches": true,
+    "hasOv": false
+   },
+   "attendant": {
+    "n": 10,
+    "newCodes": [],
+    "cvMatches": true,
+    "hasOv": false
+   },
+   "doctor": {
+    "n": 13,
+    "newCodes": [],
+    "cvMatches": true,
+    "hasOv": false
+   }
+  },
+  "ddl": {
+   "view": "d55694e4a8d62d6d3b26caf2c2efc8ef",
+   "hook": "192e4e4dcda4cc2957f0cb63e0deca18",
+   "triggers": "profiles.abacatepay_pending_seats:O,profiles.profiles_offer_2026_seats:O,profiles.profiles_preserve_contract_owner:O,profiles.trg_overrides_propagate_clinic:O,profiles.trg_profiles_bump_claims_version:O,profiles.trg_profiles_updated_at:O,profiles.trial_team_invites:O,role_permissions.trg_role_permissions_bump_claims_version:O,user_permission_overrides.trg_overrides_bump_claims_version:O,user_permission_overrides.trg_user_permission_overrides_updated_at:O",
+   "policies": "ff018dacfb88c04998f668255848f3f8",
+   "grants": "30bf2d656213bbc5a668dbb2ff98260e",
+   "cols": "d092b9596e2a62261d382ccf5fcd06d0"
+  },
+  "clinicas": 52,
+  "transacoesLongas": 0,
+  "locksFortes": 0
+ }
+}

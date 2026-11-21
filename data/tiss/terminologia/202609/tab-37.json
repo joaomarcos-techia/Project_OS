@@ -1,0 +1,24 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "37",
+  "title": "Tabela 37 - Terminologia de indicador de débito e crédito",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 2,
+  "terms": [
+    {
+      "code": "1",
+      "term": "Débito",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "2",
+      "term": "Crédito",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    }
+  ]
+}

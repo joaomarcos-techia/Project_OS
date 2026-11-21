@@ -1,0 +1,73 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "50",
+  "title": "Tabela 50 - Terminologia de Tipo de Atendimento",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 9,
+  "terms": [
+    {
+      "code": "01",
+      "term": "Remoção",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "02",
+      "term": "Pequena Cirurgia",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "03",
+      "term": "Outras Terapias",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "04",
+      "term": "Consulta",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "08",
+      "term": "Quimioterapia",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "09",
+      "term": "Radioterapia",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "10",
+      "term": "Terapia Renal Substitutiva (TRS)",
+      "startsOn": "2005-11-10",
+      "endsOn": null,
+      "implantationEndsOn": "2005-11-10"
+    },
+    {
+      "code": "13",
+      "term": "Pequeno atendimento (sutura, gesso e outros)",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "23",
+      "term": "Exame",
+      "startsOn": "2021-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    }
+  ]
+}

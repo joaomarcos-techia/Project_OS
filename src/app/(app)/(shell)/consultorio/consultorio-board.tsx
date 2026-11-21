@@ -23,6 +23,7 @@ import { CheckinStrip } from './checkin-strip';
 import { FinalizedList } from './finalized-list';
 import { waitMinutes } from './priority';
 import { WaitingCard } from './waiting-card';
+import { useHydratedNow } from '@/lib/ui/use-hydrated-now';
 import { uuidv4 } from '@/lib/ui/uuid';
 import styles from './consultorio.module.css';
 
@@ -91,13 +92,9 @@ export function ConsultorioBoard({
   );
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [now, setNow] = useState(() => Date.now());
-
-  // Relógio: atualiza "tempo aguardando" sem refetch.
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 30_000);
-    return () => clearInterval(t);
-  }, []);
+  // Relógio: atualiza "tempo aguardando" sem refetch. `null` até montar (R51: o
+  // `Date.now()` do servidor e o do navegador diferem e a hidratação acusava erro 418).
+  const now = useHydratedNow(30_000);
 
   const refetch = useCallback(async (): Promise<boolean> => {
     try {
@@ -172,7 +169,7 @@ export function ConsultorioBoard({
   // `waitMinutes` devolve null sem check-in registrado, e aí o cabeçalho fica
   // neutro em vez de anunciar uma espera que ninguém mediu.
   const maiorEsperaMin = board.salaEspera.reduce<number | null>((maior, card) => {
-    const minutos = waitMinutes(card.checkInAt, now);
+    const minutos = now === null ? null : waitMinutes(card.checkInAt, now);
     if (minutos === null) return maior;
     return maior === null || minutos > maior ? minutos : maior;
   }, null);

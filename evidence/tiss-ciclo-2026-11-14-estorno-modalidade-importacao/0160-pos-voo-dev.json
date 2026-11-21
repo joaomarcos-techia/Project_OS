@@ -1,0 +1,110 @@
+{
+ "mode": "post",
+ "at": "2026-11-14T04:27:06.748Z",
+ "code": {
+  "pr55": "c5841aa110134e57c98ded82e0347751572af2a1"
+ },
+ "sha0160": "718190feffe57a0f0b7ceaf7c28686793209f0c0cb9f4b7bfd6480d4ac1ef306",
+ "checks": [
+  {
+   "name": "ledger com 161 linhas e última = 0160 (when 1795123373857)",
+   "ok": true,
+   "detail": {
+    "n": 161,
+    "last": "1795123373857"
+   }
+  },
+  {
+   "name": "última linha tem o sha256 do arquivo da 0160",
+   "ok": true,
+   "detail": "718190feffe5"
+  },
+  {
+   "name": "penúltima continua a 0159 do #53",
+   "ok": true,
+   "detail": "eb00a4e3dd45"
+  },
+  {
+   "name": "objetos da 0160 presentes",
+   "ok": true,
+   "detail": {
+    "has_table": true,
+    "has_col": true,
+    "has_idx": true,
+    "has_enum": true,
+    "has_version": true
+   }
+  },
+  {
+   "name": "patient_external_refunds com RLS forçada, 2 políticas e authenticated só SELECT/INSERT",
+   "ok": true,
+   "detail": {
+    "rls": true,
+    "force": true,
+    "auth_grants": [
+     "INSERT",
+     "SELECT"
+    ],
+    "policies": 2
+   }
+  },
+  {
+   "name": "patient_charges: mesmas linhas e mesmo conteúdo (só ganhou a coluna nula)",
+   "ok": true,
+   "detail": {
+    "n": 10
+   }
+  },
+  {
+   "name": "payment_transactions e ajustes de crédito intocados",
+   "ok": true,
+   "detail": {
+    "pt": 25,
+    "adj": 0
+   }
+  }
+ ],
+ "raw": {
+  "led": {
+   "n": 161,
+   "last": "1795123373857"
+  },
+  "tail": [
+   {
+    "hash": "718190feffe57a0f0b7ceaf7c28686793209f0c0cb9f4b7bfd6480d4ac1ef306",
+    "at": "1795123373857"
+   },
+   {
+    "hash": "eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74",
+    "at": "1795036973858"
+   }
+  ],
+  "obj": {
+   "has_table": true,
+   "has_col": true,
+   "has_idx": true,
+   "has_enum": true,
+   "has_version": true
+  },
+  "pc": {
+   "n": 10,
+   "digest": "93a93fd03c56ab96bfee834a79da4ec3"
+  },
+  "adj": 0,
+  "pt": {
+   "n": 25,
+   "digest": "196c653cef54119c0850758884002ec0"
+  },
+  "longTx": 0,
+  "chargeLocks": 0,
+  "rls": {
+   "rls": true,
+   "force": true,
+   "auth_grants": [
+    "INSERT",
+    "SELECT"
+   ],
+   "policies": 2
+  }
+ }
+}

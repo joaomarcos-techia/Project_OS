@@ -1,0 +1,29 @@
+{
+ "at": "2026-11-12T22:06:44.029Z",
+ "files": [
+  {
+   "file": "schema-public-drizzle.sql",
+   "bytes": 609714,
+   "sha256": "8c03251ff7937f86e042dad9a1a5325e3f8f41ee0072079a5c5d9754b86b4ac2",
+   "ms": 52947
+  },
+  {
+   "file": "data-shared-tables.sql",
+   "bytes": 31714,
+   "sha256": "03da4e7175fefe4303895e72835fa4d8a4d2cd7c6c6c70c6d186cd0c6019254c",
+   "ms": 17915
+  },
+  {
+   "file": "data-drizzle-ledger.sql",
+   "bytes": 12726,
+   "sha256": "b310f18c208b4aa41e057528762de6ac3f192eaa2e9fac0592b5a26016aa8547",
+   "ms": 23065
+  }
+ ],
+ "schema_has": {
+  "validate_payment_transaction_insert": true,
+  "lancamentos_auto_origin_chk": true,
+  "hi_insurers": false,
+  "billing_mode": false
+ }
+}

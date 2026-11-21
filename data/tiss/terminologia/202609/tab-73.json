@@ -1,0 +1,24 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "73",
+  "title": "Tabela 73 - Terminologia de etapas de autorização",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 2,
+  "terms": [
+    {
+      "code": "1",
+      "term": "Solicitação de autorização prévia",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2020-02-29"
+    },
+    {
+      "code": "2",
+      "term": "Solicitação de autorização pelo prestador executante",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2020-02-29"
+    }
+  ]
+}

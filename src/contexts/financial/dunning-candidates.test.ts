@@ -15,4 +15,14 @@ describe('dunning candidate query', () => {
     expect(source).toContain('- l.due_date) >= 3');
     expect(source).not.toContain('BETWEEN 3 AND 30');
   });
+
+  // Caracterização (P14.1 do QORO_TISS_MASTER_PLAN.md): a régua só cobra
+  // recebível de PACIENTE. O recebível de operadora de convênio nasce sem
+  // `patient_id` (ADR-072) e depende desta regra para nunca virar cobrança ao
+  // paciente. Se este teste quebrar, a premissa do convênio quebrou junto.
+  it('só cobra recebível a receber que tem paciente', () => {
+    expect(source).toContain("l.tipo = 'receber'");
+    expect(source).toContain('l.patient_id IS NOT NULL');
+    expect(source).toContain('JOIN patients p ON p.id = l.patient_id');
+  });
 });

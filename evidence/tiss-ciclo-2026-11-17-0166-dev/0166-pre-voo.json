@@ -1,0 +1,76 @@
+{
+ "mode": "pre",
+ "at": "2026-11-17T23:08:12.014Z",
+ "code": {
+  "pr55": "087380af5e239ce7855e0d072cb4bdb6b3ff91cd"
+ },
+ "sha": {
+  "0165": "a3af4a973f14cc3fb3720423d4c03f71f32330024f028d07191f40f4077c64cb",
+  "0166": "ccf1639b4eccbdd50e5aa5b2f49a0b55d964ff8092dc47c09d77db61487025c6"
+ },
+ "checks": [
+  {
+   "name": "ledger com 166 linhas e última = 0165 (when 1795555373857), hash do arquivo",
+   "ok": true,
+   "detail": {
+    "n": 166,
+    "last": "1795555373857"
+   }
+  },
+  {
+   "name": "0166 ainda não existe (tabela, funções, versão); 0165 registrada",
+   "ok": true,
+   "detail": {
+    "has_table": false,
+    "new_funcs": 0,
+    "has_version": false,
+    "has_v165": true
+   }
+  },
+  {
+   "name": "arquivo 0166 presente no repositório",
+   "ok": true,
+   "detail": "ccf1639b4ecc"
+  },
+  {
+   "name": "sem transação ativa longa (> 60 s)",
+   "ok": true,
+   "detail": 0
+  },
+  {
+   "name": "sem lock forte de outra sessão em hi_authorizations, clinics",
+   "ok": true,
+   "detail": []
+  }
+ ],
+ "raw": {
+  "led": {
+   "n": 166,
+   "last": "1795555373857"
+  },
+  "tail": [
+   {
+    "hash": "a3af4a973f14cc3fb3720423d4c03f71f32330024f028d07191f40f4077c64cb",
+    "at": "1795555373857"
+   },
+   {
+    "hash": "da5f8b90fd45b0afe3b307be689f326a25b7719ddcc664f81a714f99341e6ec1",
+    "at": "1795468973857"
+   }
+  ],
+  "obj": {
+   "has_table": false,
+   "new_funcs": 0,
+   "has_version": false,
+   "has_v165": true
+  },
+  "auths": {
+   "n": 8,
+   "d": "41434f2c1f45a5d402c53e95cc65bb71"
+  },
+  "outbox": 0,
+  "longTx": 0,
+  "heavy": [],
+  "post": null
+ }
+}

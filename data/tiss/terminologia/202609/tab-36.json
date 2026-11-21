@@ -1,0 +1,38 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "36",
+  "title": "Tabela 36 - Terminologia de Indicador de Acidente",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 4,
+  "terms": [
+    {
+      "code": "0",
+      "term": "Trabalho",
+      "startsOn": "2006-08-14",
+      "endsOn": null,
+      "implantationEndsOn": "2006-08-14"
+    },
+    {
+      "code": "1",
+      "term": "Trânsito",
+      "startsOn": "2006-08-14",
+      "endsOn": null,
+      "implantationEndsOn": "2006-08-14"
+    },
+    {
+      "code": "2",
+      "term": "Outros",
+      "startsOn": "2006-08-14",
+      "endsOn": null,
+      "implantationEndsOn": "2006-08-14"
+    },
+    {
+      "code": "9",
+      "term": "Não Acidente",
+      "startsOn": "2006-08-14",
+      "endsOn": null,
+      "implantationEndsOn": "2006-08-14"
+    }
+  ]
+}

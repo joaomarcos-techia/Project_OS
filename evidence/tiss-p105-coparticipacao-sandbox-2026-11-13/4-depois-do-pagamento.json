@@ -1,0 +1,120 @@
+{
+ "modo": "depois",
+ "ok": false,
+ "checks": [
+  {
+   "n": 1,
+   "label": "checkout só no Asaas Sandbox",
+   "ok": true,
+   "detail": "host sandbox.asaas.com; checkout a59171…6595; a chave usada nesta conferência enxerga a conta (webhooks 200)"
+  },
+  {
+   "n": 2,
+   "label": "valor exatamente R$ 45,00",
+   "ok": false,
+   "detail": "cobrança 45.00; cobrável 4500 centavos; página cita 45,00=false, 150,00=false; consulta 150.00 (convenio)"
+  },
+  {
+   "n": 3,
+   "label": "clínica e paciente sintéticos",
+   "ok": true,
+   "detail": "clínica e2e-hi-config-mwf3d1lt; paciente \"Paciente Sintético …\""
+  },
+  {
+   "n": 4,
+   "label": "nenhuma credencial live",
+   "ok": true,
+   "detail": "chave de homologação ($aact_hmlg_); checkout hospedado em sandbox.asaas.com"
+  },
+  {
+   "n": 5,
+   "label": "checkout resolvido",
+   "ok": true,
+   "detail": "geração 2 paid; expira 2026-11-14T20:52:46.510Z; página 200"
+  },
+  {
+   "n": 6,
+   "label": "webhook do deployment certo",
+   "ok": true,
+   "detail": "host project-os-git-feat-convenios-ti-2b5ecd-clinic-os-v2-s-projects.vercel.app (alias da branch: sempre o último deploy); /patient/da5f69…3ca5; enabled=true; interrupted=false; bypass=true; eventos 12; token=true"
+  },
+  {
+   "n": 7,
+   "label": "base de URL do ambiente esperado",
+   "ok": true,
+   "detail": "webhook e retornos do checkout na mesma origem da branch: project-os-git-feat-convenios-ti-2b5ecd-clinic-os-v2-s-projects.vercel.app (payment=cancelled, payment=success); no Preview a origem vem da URL da própria branch, não de um APP_BASE_URL de outro deploy"
+  },
+  {
+   "n": 8,
+   "label": "banco de homologação (DEV)",
+   "ok": true,
+   "detail": "consulta feita no projeto pqhkirrszzpwezdaqrai (DEV); o runtime do Preview é provado DEV pela prova assinada do spec"
+  },
+  {
+   "n": 9,
+   "label": "idempotência ativa",
+   "ok": false,
+   "detail": "índices: patient_checkout_generations_one_open_uniq, patient_checkout_generations_provider_checkout_uniq, patient_webhook_events_uniq; outbox UNIQUE=true; cobranças do atendimento=1; gerações de checkout=2"
+  },
+  {
+   "n": 10,
+   "label": "cobrança ligada à guia e à coparticipação",
+   "ok": true,
+   "detail": "coparticipação 38de5a…38ec paid → charge_ref = cobrança: true; guias do atendimento: consulta partially_glossed 15000"
+  },
+  {
+   "n": 11,
+   "label": "reconciliação preparada",
+   "ok": true,
+   "detail": "recebível do atendimento: 45.00 pago 45.00 (pago); transações: payment 45.00"
+  },
+  {
+   "n": 12,
+   "label": "consulta ao provedor",
+   "ok": true,
+   "detail": "GET /payments?checkoutSession → 200; cobranças pagas pelo checkout: CONFIRMED 45 CREDIT_CARD"
+  },
+  {
+   "n": 13,
+   "label": "Asaas confirma o pagamento",
+   "ok": true,
+   "detail": "CONFIRMED 45 CREDIT_CARD pay_0_…w9n6"
+  },
+  {
+   "n": 14,
+   "label": "webhook recebido e deduplicado",
+   "ok": true,
+   "detail": "PAYMENT_CONFIRMED, CHECKOUT_PAID"
+  },
+  {
+   "n": 15,
+   "label": "cobrança marcada paga",
+   "ok": true,
+   "detail": "paid; pagamento pay_0_…w9n6; pago em 2026-11-13T20:57:28.441Z"
+  },
+  {
+   "n": 16,
+   "label": "eventos do outbox processados",
+   "ok": true,
+   "detail": "payments.patient_charge.paid processed (1); payments.patient_credit.granted processed (1)"
+  },
+  {
+   "n": 17,
+   "label": "baixa financeira única",
+   "ok": true,
+   "detail": "45.00 (pago); pagamentos=1"
+  },
+  {
+   "n": 18,
+   "label": "coparticipação paga",
+   "ok": true,
+   "detail": "paid; recebido 4500 centavos"
+  },
+  {
+   "n": 19,
+   "label": "auditoria",
+   "ok": true,
+   "detail": "financial.payout_rule.updated×1, health_insurance.copay.charge_requested×2, health_insurance.copay.charge_synced×1, health_insurance.copay.checked×1, health_insurance.copay.confirmed×1, payments.account.connected×1"
+  }
+ ]
+}
