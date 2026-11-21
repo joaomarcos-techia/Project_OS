@@ -1,0 +1,360 @@
+diff --git a/src/app/api/cron/outbox/route.test.ts b/src/app/api/cron/outbox/route.test.ts
+index 8a4ae908..e76a46b9 100644
+--- a/src/app/api/cron/outbox/route.test.ts
++++ b/src/app/api/cron/outbox/route.test.ts
+@@ -56,6 +56,38 @@ describe('existing outbox minute tick', () => {
+     expect(deadline).toBeLessThanOrEqual(Date.now() + 35_000);
+     expect(mocks.heartbeat).toHaveBeenCalledWith('outbox', 'success', { processed: 2 });
+   });
++  it('R61: bounds the outbox reservation window inside the shared invocation', async () => {
++    const started = Date.now();
++    await GET(request());
++    const after = Date.now();
++    expect(mocks.run).toHaveBeenCalledOnce();
++    const options = mocks.run.mock.calls[0]?.[0] as { reserveUntil: number; skipUnhandledInBulk: boolean };
++    expect(options.skipUnhandledInBulk).toBe(true);
++    expect(options.reserveUntil).toBeGreaterThanOrEqual(started + 30_000);
++    expect(options.reserveUntil).toBeLessThanOrEqual(after + 30_000);
++  });
++  it('R61: derives every financial deadline from the same invocation clock', async () => {
++    await GET(request());
++    const { reserveUntil } = mocks.run.mock.calls[0]?.[0] as { reserveUntil: number };
++    // Same clock: the gaps are exact, so no job's budget drifts with call order.
++    expect(mocks.recovery.mock.calls[0]?.[0]).toBe(reserveUntil + 5_000);
++    expect(mocks.closures.mock.calls[0]?.[0]).toBe(reserveUntil - 10_000);
++  });
++  it('R61: a deferred outbox (deadline reached) is a successful tick and is reported', async () => {
++    mocks.run.mockResolvedValueOnce({ processed: 25, deferred: 175, skipped_bulk: 30 });
++    expect(await (await GET(request())).json()).toEqual({
++      ok: true,
++      processed: 25,
++      deferred: 175,
++      skipped_bulk: 30,
++    });
++    expect(mocks.recovery).toHaveBeenCalledOnce();
++    expect(mocks.heartbeat).toHaveBeenCalledWith('outbox', 'success', {
++      processed: 25,
++      deferred: 175,
++      skipped_bulk: 30,
++    });
++  });
+   it('does not wait for outbox completion to start durable financial work', async () => {
+     let release: (() => void) | undefined;
+     mocks.run.mockImplementation(
+diff --git a/src/app/api/cron/outbox/route.ts b/src/app/api/cron/outbox/route.ts
+index a3769430..c25deb9c 100644
+--- a/src/app/api/cron/outbox/route.ts
++++ b/src/app/api/cron/outbox/route.ts
+@@ -29,13 +29,27 @@ export const dynamic = 'force-dynamic';
+ // Application budget. Verify the platform plan separately; this is not its quota.
+ export const maxDuration = 60;
+ 
+-async function runRegisteredOutbox() {
++// R61 (shared minute tick): the outbox stops RESERVING new events this long after the
++// invocation starts. Handlers already started are never abandoned; they finish through
++// their own timeouts. 60 s maxDuration − up to 5 s of function start − 20 s for a
++// started handler (largest single external timeout) − 5 s margin = 30 s. Deferred events
++// stay `pending` for the next minute. Unreleased exports are not valid in a route file,
++// so the window lives here and the worker contract stays in `runOutboxOnce`.
++const OUTBOX_RESERVATION_WINDOW_MS = 30_000;
++
++async function runRegisteredOutbox(invocationStartedAt: number) {
+   // Handler boot belongs to the shared event worker, not to SaaS reconciliation.
+   // A module import failure must remain observable without preventing the other
+   // financial jobs from starting and finishing their independent transactions.
+   await import('@/lib/db/schema');
+   await import('./handlers');
+-  return runOutboxOnce();
++  return runOutboxOnce({
++    reserveUntil: invocationStartedAt + OUTBOX_RESERVATION_WINDOW_MS,
++    // Catalog types without a consumer (F-14 "producer ahead") end `skipped` in one
++    // UPDATE, with the same terminal fields as the per-event path, instead of
++    // taking batch slots from events that do have a consumer.
++    skipUnhandledInBulk: true,
++  });
+ }
+ 
+ // `errorEvent: 'worker.error'` foge do padrão `<domínio>.error` das outras
+@@ -48,11 +62,13 @@ export const GET = withCron(
+     // Reuse the existing minute tick without changing vercel.json. This branch
+     // selects its explicit environment. Independent work runs beside the outbox
+     // rather than consuming the daily Asaas reconciler's remaining time budget.
++    // One clock for the whole invocation: every job derives its budget from it.
++    const invocationStartedAt = Date.now();
+     const [outbox, recovery, inbox, closures, watch] = await Promise.allSettled([
+-      runRegisteredOutbox(),
+-      reconcileAbacatePayRecoveryTick(Date.now() + 35_000),
++      runRegisteredOutbox(invocationStartedAt),
++      reconcileAbacatePayRecoveryTick(invocationStartedAt + 35_000),
+       reconcileAbacatePayInboxTick(),
+-      reconcileAbacatePayCheckoutClosuresTick(Date.now() + 20_000),
++      reconcileAbacatePayCheckoutClosuresTick(invocationStartedAt + 20_000),
+       reconcileAbacatePayRenewalWatchTick(),
+     ]);
+     for (const [job, result] of [
+diff --git a/src/lib/outbox/types.ts b/src/lib/outbox/types.ts
+index da5a8ea3..d300eaac 100644
+--- a/src/lib/outbox/types.ts
++++ b/src/lib/outbox/types.ts
+@@ -71,7 +71,17 @@ export type WorkerTickSummary = {
+   stuck_reclaimed: number;
+   circuit_paused: number;
+   duration_ms: number;
++  /**
++   * R61 (opcional, só com `reserveUntil`): vagas do lote que NÃO reservaram evento porque o
++   * prazo de reserva da invocação passou. Os eventos continuam `pending` para o próximo tick.
++   */
++  deferred?: number;
++  /**
++   * R61 (opcional, só com `skipUnhandledInBulk`): eventos do catálogo SEM handler registrado
++   * finalizados como `skipped` em bloco, no início do tick, sem ocupar vaga do lote.
++   */
++  skipped_bulk?: number;
+ };
+ 
+ /** Outcome of a single processOne() invocation (exhaustive). */
+-export type ProcessOneResult = 'empty' | 'processed' | 'failed' | 'skipped';
++export type ProcessOneResult = 'empty' | 'processed' | 'failed' | 'skipped' | 'deferred';
+diff --git a/src/lib/outbox/worker-targeted.test.ts b/src/lib/outbox/worker-targeted.test.ts
+index a0a4c961..af76faa3 100644
+--- a/src/lib/outbox/worker-targeted.test.ts
++++ b/src/lib/outbox/worker-targeted.test.ts
+@@ -57,7 +57,7 @@ vi.mock('./registry', () => ({
+   getHandler: () => ({ execution: 'detached', handler: state.handler }),
+ }));
+ 
+-import { runOutboxEventsNow, runOutboxOnce } from './worker';
++import { OUTBOX_HANDLER_SLOW_MS, runOutboxEventsNow, runOutboxOnce } from './worker';
+ 
+ function pendingRow(id: string) {
+   return {
+@@ -151,6 +151,57 @@ describe('runOutboxEventsNow', () => {
+   });
+ });
+ 
++describe('handler lento (R61)', () => {
++  it('aponta o tipo de evento que passou da folga da janela, sem interromper o handler', async () => {
++    vi.useFakeTimers({ toFake: ['Date'] });
++    try {
++      state.available = [pendingRow('slow')];
++      state.handler.mockImplementationOnce(async () => {
++        vi.setSystemTime(Date.now() + OUTBOX_HANDLER_SLOW_MS + 1_000);
++      });
++
++      const summary = await runOutboxOnce({ batchSize: 1, parallelism: 1 });
++
++      expect(summary).toMatchObject({ processed: 1, failed: 0 });
++      expect(state.emit).toHaveBeenCalledWith('outbox.handler_slow', {
++        eventType: 'messaging.inbound.received',
++        handlerMs: OUTBOX_HANDLER_SLOW_MS + 1_000,
++        ok: true,
++      });
++    } finally {
++      vi.useRealTimers();
++    }
++  });
++
++  it('marca o desfecho de um handler lento que falhou', async () => {
++    vi.useFakeTimers({ toFake: ['Date'] });
++    try {
++      state.available = [pendingRow('slow-fail')];
++      state.handler.mockImplementationOnce(async () => {
++        vi.setSystemTime(Date.now() + OUTBOX_HANDLER_SLOW_MS + 5);
++        throw new Error('Synthetic slow failure');
++      });
++
++      await runOutboxOnce({ batchSize: 1, parallelism: 1 });
++
++      expect(state.emit).toHaveBeenCalledWith(
++        'outbox.handler_slow',
++        expect.objectContaining({ ok: false, handlerMs: OUTBOX_HANDLER_SLOW_MS + 5 }),
++      );
++    } finally {
++      vi.useRealTimers();
++    }
++  });
++
++  it('handler dentro da folga não gera o aviso', async () => {
++    state.available = [pendingRow('fast')];
++
++    await runOutboxOnce({ batchSize: 1, parallelism: 1 });
++
++    expect(state.emit).not.toHaveBeenCalledWith('outbox.handler_slow', expect.anything());
++  });
++});
++
+ describe('runOutboxOnce (cron) continua global', () => {
+   it('reserva sem filtro de chave', async () => {
+     state.available = [pendingRow('evt-1')];
+diff --git a/src/lib/outbox/worker.ts b/src/lib/outbox/worker.ts
+index 405f764f..711d6123 100644
+--- a/src/lib/outbox/worker.ts
++++ b/src/lib/outbox/worker.ts
+@@ -1,4 +1,4 @@
+-import { and, eq, sql } from 'drizzle-orm';
++import { and, eq, inArray, lte, sql } from 'drizzle-orm';
+ import pLimit from 'p-limit';
+ 
+ import { DB_WORKER_POOL_SIZE, dbWorker } from '@/lib/db';
+@@ -8,7 +8,7 @@ import { env } from '@/lib/env';
+ import { metrics } from '@/lib/observability/metrics';
+ 
+ import { backoffDelayMs, BACKOFF_FAIL } from './backoff';
+-import { getEventSchema } from './catalog';
++import { getEventSchema, listEventTypes } from './catalog';
+ import { applyCircuitBreaker } from './circuit';
+ import { HandlerNotFoundError, PoisonPillError, serializeError } from './errors';
+ import { reclaimStuckProcessing } from './janitor';
+@@ -46,6 +46,21 @@ export async function runOutboxOnce(
+   opts: {
+     batchSize?: number;
+     parallelism?: number;
++    /**
++     * R61 — prazo (epoch ms) para PARAR DE RESERVAR eventos nesta invocação. Conferido em cada
++     * vaga ANTES da reserva: depois do prazo, a vaga não reserva nada ('deferred') e o evento
++     * fica `pending` para o próximo tick. Handler já iniciado NUNCA é abandonado nem
++     * "cancelado de mentira": ele termina (ou falha) pelo próprio caminho e pelos próprios
++     * timeouts. Sem o parâmetro, o comportamento é o de sempre.
++     */
++    reserveUntil?: number;
++    /**
++     * R61 — finaliza como `skipped`, em bloco e no início do tick, os eventos devidos cujo tipo
++     * está no catálogo e NÃO tem handler registrado neste processo (os "producer ahead" do gate
++     * F-14, como `scheduling.appointment.checked_in`). É exatamente o desfecho que o
++     * `processOne` daria a cada um deles — só que sem ocupar vaga do lote. Desligado por padrão.
++     */
++    skipUnhandledInBulk?: boolean;
+   } = {},
+ ): Promise<WorkerTickSummary> {
+   const t0 = Date.now();
+@@ -79,7 +94,7 @@ export async function runOutboxOnce(
+     metrics.emit('worker.tick.lock_skipped_pool_too_small', {
+       poolSize: DB_WORKER_POOL_SIZE,
+     });
+-    return runTickBody(t0, batchSize, parallelism);
++    return runTickBody(t0, batchSize, parallelism, opts);
+   }
+ 
+   return dbWorker.transaction<WorkerTickSummary>(async (lockTx) => {
+@@ -91,7 +106,7 @@ export async function runOutboxOnce(
+       metrics.emit('worker.tick.skipped_overlap', summary);
+       return summary;
+     }
+-    return runTickBody(t0, batchSize, parallelism);
++    return runTickBody(t0, batchSize, parallelism, opts);
+   });
+ }
+ 
+@@ -99,13 +114,23 @@ async function runTickBody(
+   t0: number,
+   batchSize: number,
+   parallelism: number,
++  opts: { reserveUntil?: number; skipUnhandledInBulk?: boolean } = {},
+ ): Promise<WorkerTickSummary> {
+   const stuck = await reclaimStuckProcessing();
+   const circuit = await applyCircuitBreaker();
++  const bulkSkipped = opts.skipUnhandledInBulk ? await skipUnhandledPendingInBulk() : undefined;
+ 
+   const limit = pLimit(parallelism);
++  const deadline = opts.reserveUntil;
+   const results = await Promise.all(
+-    Array.from({ length: batchSize }, () => limit(() => processOne())),
++    Array.from({ length: batchSize }, () =>
++      limit(() =>
++        // O prazo é conferido na hora em que a vaga ia RESERVAR: o que já está rodando segue.
++        deadline !== undefined && Date.now() >= deadline
++          ? Promise.resolve<ProcessOneResult>('deferred')
++          : processOne(),
++      ),
++    ),
+   );
+ 
+   const summary: WorkerTickSummary = {
+@@ -116,12 +141,40 @@ async function runTickBody(
+     stuck_reclaimed: stuck,
+     circuit_paused: circuit.pausedCount,
+     duration_ms: Date.now() - t0,
++    ...(bulkSkipped !== undefined ? { skipped_bulk: bulkSkipped } : {}),
+   };
+   for (const r of results) tally(summary, r);
+   metrics.emit('worker.tick', summary);
+   return summary;
+ }
+ 
++/**
++ * R61 — eventos devidos de tipos do catálogo SEM handler neste processo viram `skipped` num
++ * UPDATE só, com os mesmos campos do `finalizeSkipped` (status, `processed_at`, tentativa
++ * contada). Só linhas `pending` e já devidas: o que estiver em processamento ou agendado para
++ * depois não muda. Cada tipo fica na métrica `outbox.skipped_no_handler` (bulk), como antes.
++ */
++async function skipUnhandledPendingInBulk(): Promise<number> {
++  const unhandled = listEventTypes().filter((t) => !getHandler(t));
++  if (unhandled.length === 0) return 0;
++  const rows = await dbWorker
++    .update(outbox)
++    .set({
++      status: 'skipped',
++      processedAt: sql`now()`,
++      processingStartedAt: null,
++      attempts: sql`${outbox.attempts} + 1`,
++    })
++    .where(and(eq(outbox.status, 'pending'), lte(outbox.nextAttemptAt, sql`now()`), inArray(outbox.eventType, unhandled)))
++    .returning({ eventType: outbox.eventType });
++  if (rows.length > 0) {
++    const byType: Record<string, number> = {};
++    for (const r of rows) byType[r.eventType] = (byType[r.eventType] ?? 0) + 1;
++    metrics.emit('outbox.skipped_no_handler', { bulk: true, count: rows.length, byType });
++  }
++  return rows.length;
++}
++
+ // F-03: exhaustive tally over ProcessOneResult. `empty` = no row reserved;
+ // `skipped` = terminally skipped (no handler). The `default: never` makes the
+ // compiler reject any future result variant that isn't counted here.
+@@ -139,6 +192,9 @@ function tally(summary: WorkerTickSummary, r: ProcessOneResult): void {
+     case 'empty':
+       summary.empty++;
+       break;
++    case 'deferred':
++      summary.deferred = (summary.deferred ?? 0) + 1;
++      break;
+     default: {
+       const _exhaustive: never = r;
+       throw new Error(`unknown processOne result: ${String(_exhaustive)}`);
+@@ -285,6 +341,7 @@ async function processOne(selection?: OutboxSelection): Promise<ProcessOneResult
+   // DEVEM usar eventId como dedup key em INSERTs (ON CONFLICT) e como
+   // idempotency-key em chamadas a APIs externas (ADR-011 §26).
+   let handlerError: unknown | null = null;
++  const handlerStartedAt = Date.now();
+   try {
+     if (!schema) throw new HandlerNotFoundError(reserved.event_type);
+     if (!handler) throw new HandlerNotFoundError(reserved.event_type);
+@@ -311,6 +368,7 @@ async function processOne(selection?: OutboxSelection): Promise<ProcessOneResult
+   } catch (err) {
+     handlerError = err;
+   }
++  reportSlowHandler(reserved.event_type, Date.now() - handlerStartedAt, handlerError === null);
+ 
+   // === TX3 (dbWorker) — finalize CONDITIONAL em processing_started_at ===
+   // CRITICAL-01: WHERE id AND status='processing' AND processing_started_at = $X
+@@ -331,6 +389,20 @@ async function processOne(selection?: OutboxSelection): Promise<ProcessOneResult
+   return finalizeRetryOrFailed(reserved, handlerError);
+ }
+ 
++/**
++ * R61: o prazo de reserva (`reserveUntil`) só impede eventos NOVOS; handler já iniciado
++ * termina pelo próprio caminho. A janela do cron compartilhado supõe que ele acabe em até
++ * este tempo depois de iniciado. Acima disso, a métrica aponta qual tipo de evento ameaça
++ * a invocação — sem interromper nada.
++ */
++export const OUTBOX_HANDLER_SLOW_MS = 25_000;
++
++function reportSlowHandler(eventType: string, handlerMs: number, ok: boolean): void {
++  if (handlerMs > OUTBOX_HANDLER_SLOW_MS) {
++    metrics.emit('outbox.handler_slow', { eventType, handlerMs, ok });
++  }
++}
++
+ async function finalizeSkipped(
+   reserved: ReservedRow,
+   reason: 'missing_clinic' | 'no_handler',

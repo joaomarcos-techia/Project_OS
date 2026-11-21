@@ -79,18 +79,31 @@ interface CircuitState {
 
 export interface ConnectorOptions {
   transport: ConnectorTransport;
+  /** Limite de UMA tentativa. */
   timeoutMs: number;
   /** Tentativas extras para `unavailable`, só com transporte idempotente. */
   retries: number;
+  /**
+   * R61: tempo total de um envio, somando as tentativas. Uma nova tentativa só começa se ainda
+   * couber; cada tentativa usa no máximo o que sobra. Sem o campo, não há teto total.
+   */
+  totalBudgetMs?: number;
   circuit: CircuitOptions;
   now?: () => number;
 }
 
+/** Teto de uma tentativa de webservice: o envio roda dentro da janela do cron compartilhado. */
+export const CONNECTOR_TIMEOUT_MAX_MS = 20_000;
+
 export const DEFAULT_CONNECTOR_OPTIONS: Omit<ConnectorOptions, 'transport'> = {
-  timeoutMs: 20_000,
+  timeoutMs: CONNECTOR_TIMEOUT_MAX_MS,
   retries: 2,
+  totalBudgetMs: CONNECTOR_TIMEOUT_MAX_MS,
   circuit: { failureThreshold: 5, cooldownMs: 5 * 60_000 },
 };
+
+/** Abaixo disso, uma nova tentativa não começa: não haveria tempo para a resposta. */
+const MIN_RETRY_WINDOW_MS = 2_000;
 
 export interface InsuranceConnector {
   submit(request: ConnectorRequest): Promise<ConnectorOutcome>;
@@ -114,14 +127,16 @@ export function createConnector(options: ConnectorOptions): InsuranceConnector {
     return now() - st.openedAt >= options.circuit.cooldownMs ? 'half_open' : 'open';
   };
 
-  async function once(request: ConnectorRequest): Promise<ConnectorOutcome> {
+  async function once(request: ConnectorRequest, timeoutMs: number): Promise<ConnectorOutcome> {
+    // O tempo esgotado ABORTA a requisição (o transporte recebe o sinal e fecha o socket);
+    // não é uma promessa abandonada com a chamada ainda rodando.
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<ConnectorOutcome>((resolve) => {
       timer = setTimeout(() => {
         controller.abort();
         resolve({ kind: 'unavailable', reason: 'timeout' });
-      }, options.timeoutMs);
+      }, timeoutMs);
     });
     try {
       return await Promise.race([
@@ -149,8 +164,13 @@ export function createConnector(options: ConnectorOptions): InsuranceConnector {
       const idempotent = options.transport.isIdempotent?.(request) ?? options.transport.idempotent;
       const maxAttempts = idempotent && p === 'closed' ? 1 + options.retries : 1;
       let outcome: ConnectorOutcome = { kind: 'unavailable', reason: 'network' };
+      // Relógio real (não `options.now`, que é do circuito): o teto total vale para o envio.
+      const startedAt = Date.now();
+      const budgetMs = options.totalBudgetMs ?? Infinity;
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        outcome = await once(request);
+        const remainingMs = budgetMs - (Date.now() - startedAt);
+        if (attempt > 0 && remainingMs < Math.min(options.timeoutMs, MIN_RETRY_WINDOW_MS)) break;
+        outcome = await once(request, Math.max(1, Math.min(options.timeoutMs, remainingMs)));
         if (outcome.kind !== 'unavailable') break;
       }
       if (outcome.kind === 'unavailable') {

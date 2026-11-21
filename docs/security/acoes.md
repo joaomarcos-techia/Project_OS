@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 280 actions (0 inline); 69 métodos em 65 handlers; 90 props com referência de action; 926 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
+Contagem: 280 actions (0 inline); 69 métodos em 65 handlers; 90 props com referência de action; 939 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -1183,6 +1183,19 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/outbox-capacity-db.ts:71`                                  | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
 | `scripts/security/outbox-capacity-db.ts:72`                                  | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
 | `scripts/security/outbox-capacity-db.ts:73`                                  | `LOG_LEVEL`                            | `process.env.LOG_LEVEL`                                                     |
+| `scripts/security/outbox-shared-cron-db.ts:23`                               | `R61_CHILD`                            | `process.env.R61_CHILD`                                                     |
+| `scripts/security/outbox-shared-cron-db.ts:24`                               | `PORT`                                 | `process.env.PORT`                                                          |
+| `scripts/security/outbox-shared-cron-db.ts:45`                               | `R61_DATABASE_URL`                     | `process.env.R61_DATABASE_URL`                                              |
+| `scripts/security/outbox-shared-cron-db.ts:52`                               | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
+| `scripts/security/outbox-shared-cron-db.ts:53`                               | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
+| `scripts/security/outbox-shared-cron-db.ts:54`                               | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
+| `scripts/security/outbox-shared-cron-db.ts:55`                               | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
+| `scripts/security/outbox-shared-cron-db.ts:56`                               | `OUTBOX_CRON_ALLOW_NON_VERCEL`         | `process.env.OUTBOX_CRON_ALLOW_NON_VERCEL`                                  |
+| `scripts/security/outbox-shared-cron-db.ts:57`                               | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                                         |
+| `scripts/security/outbox-shared-cron-db.ts:58`                               | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
+| `scripts/security/outbox-shared-cron-db.ts:59`                               | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
+| `scripts/security/outbox-shared-cron-db.ts:60`                               | `LOG_LEVEL`                            | `process.env.LOG_LEVEL`                                                     |
+| `scripts/security/outbox-shared-cron-db.ts:302`                              | `<object>`                             | `process.env`                                                               |
 | `scripts/security/payments-0160-restore-rehearsal.ts:23`                     | `BACKUP_DIR`                           | `process.env.BACKUP_DIR`                                                    |
 | `scripts/security/payments-0160-restore-rehearsal.ts:24`                     | `PRE_FLIGHT`                           | `process.env.PRE_FLIGHT`                                                    |
 | `scripts/security/payments-external-refund-db.ts:27`                         | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |

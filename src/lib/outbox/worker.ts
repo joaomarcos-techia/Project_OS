@@ -341,6 +341,7 @@ async function processOne(selection?: OutboxSelection): Promise<ProcessOneResult
   // DEVEM usar eventId como dedup key em INSERTs (ON CONFLICT) e como
   // idempotency-key em chamadas a APIs externas (ADR-011 §26).
   let handlerError: unknown | null = null;
+  const handlerStartedAt = Date.now();
   try {
     if (!schema) throw new HandlerNotFoundError(reserved.event_type);
     if (!handler) throw new HandlerNotFoundError(reserved.event_type);
@@ -367,6 +368,7 @@ async function processOne(selection?: OutboxSelection): Promise<ProcessOneResult
   } catch (err) {
     handlerError = err;
   }
+  reportSlowHandler(reserved.event_type, Date.now() - handlerStartedAt, handlerError === null);
 
   // === TX3 (dbWorker) — finalize CONDITIONAL em processing_started_at ===
   // CRITICAL-01: WHERE id AND status='processing' AND processing_started_at = $X
@@ -385,6 +387,20 @@ async function processOne(selection?: OutboxSelection): Promise<ProcessOneResult
   }
 
   return finalizeRetryOrFailed(reserved, handlerError);
+}
+
+/**
+ * R61: o prazo de reserva (`reserveUntil`) só impede eventos NOVOS; handler já iniciado
+ * termina pelo próprio caminho. A janela do cron compartilhado supõe que ele acabe em até
+ * este tempo depois de iniciado. Acima disso, a métrica aponta qual tipo de evento ameaça
+ * a invocação — sem interromper nada.
+ */
+export const OUTBOX_HANDLER_SLOW_MS = 25_000;
+
+function reportSlowHandler(eventType: string, handlerMs: number, ok: boolean): void {
+  if (handlerMs > OUTBOX_HANDLER_SLOW_MS) {
+    metrics.emit('outbox.handler_slow', { eventType, handlerMs, ok });
+  }
 }
 
 async function finalizeSkipped(

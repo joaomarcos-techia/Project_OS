@@ -417,6 +417,10 @@ const matrix: Array<[Scenario, Strategy, number]> =
         [scenarios.falha!, PROT200, 1],
       ]
     : [
+        // R61-B: entrada TEMPORÁRIA (3 min a 50/min; 2 min a 100/min) e a drenagem depois, nas 5 estratégias.
+        ...[ATUAL50, LOTE150, LOTE200, PROT150, PROT200].map((st) => [scenarios.pico!, st, 1] as [Scenario, Strategy, number]),
+        ...[ATUAL50, LOTE150, LOTE200, PROT150, PROT200].map((st) => [scenarios.acima!, st, 1] as [Scenario, Strategy, number]),
+        // Entrada SUSTENTADA.
         ...[ATUAL50, LOTE150, LOTE200, PROT150, PROT200].map((st) => [scenarios.sustentado50!, st, 1] as [Scenario, Strategy, number]),
         ...[LOTE200, PROT150, PROT200].map((st) => [scenarios.sustentado100!, st, 1] as [Scenario, Strategy, number]),
         ...[LOTE200, PROT200].map((st) => [scenarios.lentos!, st, 1] as [Scenario, Strategy, number]),
@@ -470,7 +474,26 @@ try {
   }
   results.push({ cenario: 'pane_de_consumidor', rodadas: pane });
   save();
-  console.log(`\n${results.length - 1} rodadas com integridade conferida (nenhuma perda, duplicidade ou clínica errada).`);
+  // Consumidor TRAVADO: um evento que não termina dentro da janela (70 s) entre 100 rápidos. O prazo
+  // de reserva não abandona handler iniciado, então o tick espera o travado: mede-se, sem esconder.
+  const travado: Array<Record<string, unknown>> = [];
+  for (const st of MODE === 'smoke' ? [PROT200] : [ATUAL50, PROT200]) {
+    for (let i = 0; i < 200 && (await pendingNow()) > 0; i++) {
+      await advanceMinute();
+      await runOutboxOnce({ batchSize: 500, parallelism: 10 });
+    }
+    const c = await newClinic(`travado-${st.label}`);
+    const stuckMs = MODE === 'smoke' ? 7_000 : 70_000;
+    await insertSynthetic(c.clinicId, SLOW, 1, stuckMs);
+    await insertSynthetic(c.clinicId, SLOW, 100, 50);
+    const t = await tick(st, 1);
+    const left = await pendingNow();
+    travado.push({ estrategia: st.label, travadoMs: stuckMs, rapidos: 100, tickMs: t.ms, tratados: t.handled, adiadas: t.deferred, ficaramNaFila: left, excede60s: t.ms > 60_000 });
+    console.log(`travado [${st.label}]: tick ${t.ms} ms (${t.handled} tratados, ${t.deferred} vagas adiadas, ${left} na fila)${t.ms > 60_000 ? ' — EXCEDE o maxDuration de 60 s (o handler travado segura o tick)' : ''}`);
+  }
+  results.push({ cenario: 'consumidor_travado', rodadas: travado });
+  save();
+  console.log(`\n${results.filter((r) => 'integridade' in r).length} rodadas com integridade conferida (nenhuma perda, duplicidade ou clínica errada).`);
 } finally {
   save();
   proxy.close();
