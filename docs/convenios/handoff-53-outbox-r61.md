@@ -59,7 +59,7 @@ git fetch origin feat/convenios-tiss-20261110
 git show origin/feat/convenios-tiss-20261110:docs/convenios/r61b/r61b-para-53.patch | git apply --index
 ```
 
-- Aplica limpo sobre `fad3d5d3`.
+- Aplica limpo sobre `fad3d5d3` (onde a composição rodou) e sobre `bc955f4e`, o head do #53 em 21/11, cujos commits novos não tocam nos arquivos do patch.
 - Se o #53 tiver mudado a rota depois desse commit, o #55 regenera o patch: basta pedir.
 
 ## 6. Testes
@@ -68,7 +68,7 @@ git show origin/feat/convenios-tiss-20261110:docs/convenios/r61b/r61b-para-53.pa
 | --- | --- | --- |
 | `route.test.ts` (3 novos + os do #53) | composição no runner | **PASS** (33/33 com o worker) |
 | `worker-targeted.test.ts` (3 novos: handler lento) | #55 e composição | 9/9 no #55 |
-| Suíte completa do #53, typecheck, lint, gate do registro, inventário, isolamento entre clínicas, build | composição (`r61b-composicao.yml`) | **PASS** (suíte 7.411/7.411); inventário refeito na ordem corrigida |
+| Suíte completa do #53, typecheck, lint, gate do registro, inventário, isolamento entre clínicas, build | composição (`r61b-composicao.yml`) | **PASS** (suíte 7.411/7.411; inventário verde na 3ª execução, run `44893788939`) |
 | `outbox-budget-db.ts` (6 provas do worker) | #55 e composição | **PASS** 6/6 nos dois |
 | `outbox-shared-cron-db.ts` (6 provas da invocação compartilhada, corte real aos 60 s) | #55 e composição | **PASS** 6/6 nos dois |
 | Fusão futura (#53 + patch) × #55: só os conflitos já conhecidos, nenhum no outbox ou na rota | composição | **PASS** |

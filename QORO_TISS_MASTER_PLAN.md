@@ -130,11 +130,11 @@
 | Proprietário da mudança | a rota do cron é do **#53**; o patch `docs/convenios/r61b/r61b-para-53.patch` (rota, teste e worker idêntico ao do #55) é para o #53 aplicar; o #55 não mexe na branch nem no worktree dele |
 | Código do #55 (`85d37eb9`) | métrica `outbox.handler_slow` (handler iniciado acima de 25 s, sem interromper); conector TISS com teto total de 20 s por envio e timeout de operadora acima de 20 s recusado na configuração |
 | Invocação compartilhada | `outbox-shared-cron-db.ts` 6/6 no #55 e na composição: outbox para de reservar aos 30 s; corte REAL aos 60 s com handler travado: as 4 tarefas financeiras terminaram e gravaram antes (último item aos 33 s); janitor devolve o preso, sem efeito duplicado; sobrepostas sem item repetido; CPU pesado: prazos mantidos |
-| Composição #53 + patch | patch limpo sobre `fad3d5d3`; fusão futura só com os 4 conflitos conhecidos; suíte completa do #53 7.411/7.411; typecheck, lint, build, isolamento e as duas provas do outbox verdes |
+| Composição #53 + patch | 3ª execução (run `44893788939`) toda verde: patch limpo sobre `fad3d5d3`, fusão futura só com os 4 conflitos conhecidos, suíte completa do #53 7.411/7.411, inventário do #53 (o patch leva a linha `route.ts:59#GET`), typecheck, lint, build, isolamento e as duas provas do outbox; o patch também aplica limpo sobre `bc955f4e` (head do #53 em 21/11) |
 | Benchmark R61-B | 23 rodadas, integridade em todas; pico temporário 50/min: atual 8 min, 200 + proteção 1 min; 100/min temporário: atual 12 min, 200 + proteção 2 min; pane: 30,2 s com proteção; **handler travado segura o tick em qualquer configuração** (70 s) |
 | Recomendação | opção B mantida; rollout em duas etapas (proteção com lote 50, depois lote 200) |
 | GO | R61-B pronto do lado do #55; R61-C pronto para pedir depois do #53; nada mudou em produção |
-| Integração | #53 `fad3d5d3`: 4 conflitos; #56 `fef8ec30`: os mesmos 9 (nenhum na central de ajuda; o #56 só reestiliza as páginas e não toca no `content.ts`); #57: 1; #28: 2; #59: 0 |
+| Integração | #53 `bc955f4e`: os mesmos 4 conflitos; pedido formal do R61-B postado no #53; #56 `fef8ec30`: os mesmos 9 (nenhum na central de ajuda; o #56 só reestiliza as páginas e não toca no `content.ts`); #57: 1; #28: 2; #59: 0 |
 
 ### Checkpoint de 20/11/2026 (tarde)
 

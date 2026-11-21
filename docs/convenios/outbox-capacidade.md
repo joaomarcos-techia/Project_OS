@@ -391,6 +391,22 @@ O benchmark mede o efeito real; o valor é configurável na chamada.
   - que a invocação nunca passa de 60 s: um handler que ignore os próprios timeouts ainda pode segurá-la;
   - o comportamento das tarefas reais da AbacatePay, que são do #53 (as regressões do C3 ficam com ele).
 
+
+### 9.1 Composição #53 + patch, 3ª execução (run `44893788939`, commit do #55 `5161c88e`, #53 em `fad3d5d3`)
+
+**Todos os gates verdes:**
+- patch aplicado e worker igual ao do #55;
+- fusão futura só com os 4 conflitos conhecidos;
+- install, typecheck e lint;
+- gate do registro;
+- testes da rota e do worker: 33/33;
+- **suíte completa do #53: 7.411/7.411**;
+- **inventário de segurança do #53**;
+- isolamento entre duas clínicas e build;
+- `outbox-budget-db.ts` 6/6 e `outbox-shared-cron-db.ts` 6/6, com o corte real aos 60,0 s e o último item financeiro gravado aos 33,2 s.
+
+Depois da composição, o #53 foi para `bc955f4e`, com dois commits que não tocam na rota, no worker nem no inventário (`docs(billing)` e um teste de cópia de plano). **O patch aplica limpo sobre `bc955f4e`** (conferido com `git apply --check` contra a árvore desse commit). A composição em si foi feita sobre `fad3d5d3`.
+
 ### 9.2 Benchmark comparativo do R61-B (run `44856201932`, commit `85d37eb9`)
 
 Mesmas condições do §8: runner do GitHub, worker e handlers reais, Postgres descartável, 3 clínicas, 60% convênio. **23 rodadas, com a integridade conferida em todas** (nenhuma perda, duplicidade ou clínica errada). Evidência: `evidence/outbox-capacidade-2026-11-20/benchmark-r61b.json`.
