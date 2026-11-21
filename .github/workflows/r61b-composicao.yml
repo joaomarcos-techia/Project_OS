@@ -1,9 +1,12 @@
-name: R61-B — composição descartável (#53 + patch do cron compartilhado)
+name: "R61-B — composição descartável (#53 + patch do cron compartilhado)"
 
 # Valida o patch R61-B (docs/convenios/r61b/r61b-para-53.patch) SOBRE o commit do PR #53, sem
 # tocar na branch nem no worktree do #53: o runner busca o commit do #53 por SHA (só leitura),
 # aplica o patch numa pasta temporária e roda ali os gates do próprio #53 e as provas do outbox.
 # A composição some com a máquina; nada é enviado de volta ao repositório.
+#
+# Ordem: primeiro os gates do #53 sobre "#53 + patch" (exatamente o que o #53 teria); só depois a
+# infraestrutura de harness do #55 entra na pasta (sem commit) para as provas do outbox.
 #
 # Limites (os mesmos das provas sintéticas):
 #   - dados 100% sintéticos; nenhum segredo (`secrets.*`/`vars.*` não são lidos), sem `.env.local`;
@@ -34,7 +37,7 @@ concurrency:
 
 jobs:
   composicao:
-    name: R61-B — #53 + patch (gates do #53 e provas do outbox)
+    name: "R61-B — #53 + patch (gates do #53 e provas do outbox)"
     runs-on: ubuntu-latest
     timeout-minutes: 75
     env:
@@ -46,7 +49,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Commit do #53 (só leitura), composição e retirada do token do git
+      - name: "Commit do #53 (só leitura) + patch, e retirada do token do git"
         run: |
           git fetch --no-tags origin "$PR53_SHA"
           git config --local --unset-all http.https://github.com/.extraheader || true
@@ -56,14 +59,10 @@ jobs:
           for f in src/lib/outbox/worker.ts src/lib/outbox/types.ts src/lib/outbox/worker-targeted.test.ts; do
             cmp "$f" "$COMP/$f"
           done
-          # Infraestrutura de harness do #55 (o código e as migrations são os do #53 + patch).
-          cp scripts/security/outbox-shared-cron-db.ts scripts/security/outbox-budget-db.ts \
-             scripts/security/scratch-schema.ts scripts/security/server-only-hook.mjs "$COMP/scripts/security/"
-          git -C "$COMP" add scripts/security
           git -C "$COMP" -c user.name=ci -c user.email=ci@example.invalid commit -qm "composicao descartavel R61-B"
           git -C "$COMP" diff --stat "$PR53_SHA" HEAD
 
-      - name: Fusão futura #53+patch com o #55 — só os conflitos já conhecidos
+      - name: "Fusão futura (#53 + patch) com o #55: só os conflitos já conhecidos"
         run: |
           COMPOSED="$(git -C "$COMP" rev-parse HEAD)"
           set +e
@@ -72,8 +71,7 @@ jobs:
           tail -n +2 /tmp/merge.txt | sed '/^$/d' | sort -u > /tmp/conflicts.txt
           echo "Conflitos:"; cat /tmp/conflicts.txt
           printf '%s\n' docs/security/acoes.md drizzle/migrations/meta/_journal.json scripts/arch-db-check.ts \
-            scripts/security/local-build.ts scripts/security/outbox-shared-cron-db.ts scripts/security/outbox-budget-db.ts \
-            scripts/security/scratch-schema.ts scripts/security/server-only-hook.mjs | sort -u > /tmp/known.txt
+            scripts/security/local-build.ts | sort -u > /tmp/known.txt
           if comm -23 /tmp/conflicts.txt /tmp/known.txt | grep -q .; then
             echo "Conflito novo fora dos conhecidos:"; comm -23 /tmp/conflicts.txt /tmp/known.txt; exit 1
           fi
@@ -89,22 +87,22 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install (composição)
+      - name: "Install (#53 + patch)"
         working-directory: /tmp/c53
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck (composição)
+      - name: "Typecheck (#53 + patch)"
         working-directory: /tmp/c53
         env:
           NODE_OPTIONS: --max-old-space-size=4096
         run: pnpm typecheck
 
-      - name: Lint (composição)
+      - name: "Lint (#53 + patch)"
         if: ${{ !cancelled() }}
         working-directory: /tmp/c53
         run: pnpm lint
 
-      - name: Handler registry gate (composição)
+      - name: "Handler registry gate (#53 + patch)"
         if: ${{ !cancelled() }}
         working-directory: /tmp/c53
         env:
@@ -113,41 +111,27 @@ jobs:
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_ci'
         run: pnpm check:registry:strict
 
-      - name: Rota do cron e worker (testes dirigidos, composição)
+      - name: "Rota do cron e worker, testes dirigidos (#53 + patch)"
         if: ${{ !cancelled() }}
         working-directory: /tmp/c53
         run: pnpm exec vitest run src/app/api/cron/outbox src/lib/outbox
 
-      - name: Suíte completa do #53 (composição)
+      - name: "Suíte completa do #53 (#53 + patch)"
         if: ${{ !cancelled() }}
         working-directory: /tmp/c53
         run: pnpm test
 
-      - name: Security inventory (composição)
+      - name: "Security inventory (#53 + patch)"
         if: ${{ !cancelled() }}
         working-directory: /tmp/c53
         run: pnpm security:inventory
 
-      - name: Isolamento entre duas clínicas (composição, Postgres descartável)
+      - name: "Isolamento entre duas clínicas (#53 + patch, Postgres descartável)"
         if: ${{ !cancelled() }}
         working-directory: /tmp/c53
         run: SECURITY_PG_BIN="$(pg_config --bindir)" pnpm security:tenant
 
-      - name: Worker do outbox — prazo e descarte em bloco (composição, 6 provas)
-        if: ${{ !cancelled() }}
-        working-directory: /tmp/c53
-        run: |
-          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55567 NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs" \
-            ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/outbox-budget-db.ts
-
-      - name: Invocação compartilhada do cron com corte real aos 60 s (composição, 6 provas)
-        if: ${{ !cancelled() }}
-        working-directory: /tmp/c53
-        run: |
-          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55568 NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs" \
-            ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/outbox-shared-cron-db.ts
-
-      - name: Build (composição)
+      - name: "Build (#53 + patch)"
         if: ${{ !cancelled() }}
         working-directory: /tmp/c53
         env:
@@ -156,3 +140,25 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: 'https://ci.supabase.co'
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_ci'
         run: pnpm security:build
+
+      # Daqui em diante, a infraestrutura de harness do #55 entra na pasta (sem commit): o código e as
+      # migrations continuam os do #53 + patch.
+      - name: "Infraestrutura de harness do #55 na composição"
+        if: ${{ !cancelled() }}
+        run: |
+          cp scripts/security/outbox-shared-cron-db.ts scripts/security/outbox-budget-db.ts \
+             scripts/security/scratch-schema.ts scripts/security/server-only-hook.mjs "$COMP/scripts/security/"
+
+      - name: "Worker do outbox: prazo e descarte em bloco (#53 + patch, 6 provas)"
+        if: ${{ !cancelled() }}
+        working-directory: /tmp/c53
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55567 NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs" \
+            ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/outbox-budget-db.ts
+
+      - name: "Invocação compartilhada do cron com corte real aos 60 s (#53 + patch, 6 provas)"
+        if: ${{ !cancelled() }}
+        working-directory: /tmp/c53
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55568 NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs" \
+            ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/outbox-shared-cron-db.ts

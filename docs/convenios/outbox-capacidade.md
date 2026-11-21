@@ -1,6 +1,6 @@
 # Capacidade do outbox compartilhado: diagnóstico, benchmark e proposta para produção
 
-Estado em 20/11/2026 (2º ciclo). **Nada mudou em produção.** Recomendação atual: **opção B** (§4); ficha do GO no §5. A alteração de `OUTBOX_BATCH_SIZE` em produção depende de GO específico do fundador.
+Estado em 20/11/2026 (noite, ciclo R61-B). **Nada mudou em produção.** Recomendação: **opção B** (§4); ficha do GO R61-C no §5; R61-B (proteção no cron compartilhado, patch para o #53) no §9. A alteração de `OUTBOX_BATCH_SIZE` em produção depende de GO específico do fundador.
 
 O outbox é a fila de eventos de **todo** o Qoro, não só do módulo Convênios. Um atraso nele atrasa:
 - o recebível do atendimento particular;
@@ -121,40 +121,50 @@ Os dois passam do limite: o risco já existe hoje.
 - o disjuntor segura por cerca de 10 min um tipo de evento que falha em massa (é o desenho atual, não muda);
 - um handler que demore mais que o próprio timeout (não deve acontecer; os clientes externos têm `AbortSignal.timeout`).
 
-## 5. Ficha executiva do GO R61 (produção)
+## 5. Ficha executiva do GO R61-C (produção)
+
+**Estado (20/11, noite):** R61-A cumprido. R61-B **tecnicamente pronto do lado do #55**: o patch para o #53 está provado na composição descartável (§9) e aguarda o #53 aplicá-lo na branch dele. Quando o #53 aplicar e a CI dele ficar verde, o R61-C pode ser pedido.
 
 | Item | Conteúdo |
 | --- | --- |
 | Configuração atual | `OUTBOX_BATCH_SIZE` = 50 (padrão do código); cron sem prazo de reserva nem descarte em bloco |
-| Configuração proposta | `OUTBOX_BATCH_SIZE=200` **e** o cron chamando `runOutboxOnce({ reserveUntil: início + 30_000, skipUnhandledInBulk: true })` |
-| Código necessário | as opções do worker já estão no #55 (`ed2fd056`); a ligação no `route.ts` entra na integração com o #53 (sem SHA próprio ainda) |
-| Testes | `outbox-budget-db.ts` 6/6; benchmark de decisão 14/14 com integridade; CI verde |
-| Impacto na AbacatePay | **positivo**: o outbox deixa de poder levar a invocação compartilhada além dos 60 s; as tarefas da AbacatePay não mudam |
-| Responsáveis | #53 (ligação no cron), #55 (opções do worker e provas), fundador (GO e variável de produção) |
+| Configuração proposta | **opção B**: `OUTBOX_BATCH_SIZE=200` **e** o cron chamando `runOutboxOnce({ reserveUntil: início + 30_000, skipUnhandledInBulk: true })` |
+| Código necessário | o patch R61-B no `route.ts` do #53 (`docs/convenios/r61b/r61b-para-53.patch`); o worker já está no #55 (`ed2fd056` e `85d37eb9`) e vai idêntico no patch |
+| Testes | `outbox-budget-db.ts` 6/6; `outbox-shared-cron-db.ts` 6/6, com corte real aos 60 s; composição #53 + patch (§9); benchmark de decisão e R61-B (§8 e §9) |
+| Impacto na AbacatePay | **positivo**: o outbox para de reservar aos 30 s. As tarefas da AbacatePay terminam e gravam antes de um eventual corte, mesmo com consumidor travado (provado). Os prazos dela não mudam |
+| Responsáveis | #53 (aplicar o patch na rota), #55 (worker e provas), fundador (GO e variável de produção) |
 
 **Gates:**
 
 | Gate | O que é | Situação |
 | --- | --- | --- |
-| R61-A | homologação técnica DEV/Preview | **cumprido em ambiente sintético** (6/6 e 14/14) |
-| R61-B | revisão conjunta com o #53 | preparada (`handoff-53-outbox-r61.md`) |
-| R61-C | sua aprovação explícita | pendente |
-| R61-D | alteração controlada de produção | só depois da integração (#53 → #56 → #55) e do C |
-| R61-E | observação e validação operacional | 24 h com os critérios abaixo |
+| R61-A | homologação técnica DEV/Preview | **cumprido** em ambiente sintético |
+| R61-B | proteção implementada na branch responsável e provada | **pronto do lado do #55**: patch provado em composição; falta o #53 aplicar e rodar as regressões do C3 |
+| R61-C | sua aprovação explícita | **pronto para pedir** depois do R61-B no #53 |
+| R61-D | mudança controlada em produção | depois da integração (#53 → #56 → #55) e do C |
+| R61-E | observação operacional | 24 h por etapa, com os critérios abaixo |
 
-**Condições para o rollout (R61-D), na ordem:**
-1. A integração com a ligação no cron está em produção (deploy aprovado à parte).
-2. Registrar o valor atual de `OUTBOX_BATCH_SIZE`.
-3. Mudar só para 200.
-4. Redeployar o mesmo commit.
-5. Conferir o primeiro `worker.tick` com fila.
+**Rollout recomendado (R61-D), em duas etapas:** primeiro a proteção, depois a capacidade, para que cada mudança seja observada sozinha.
+
+1. **Etapa 1, proteção com o lote atual.** A rota com o patch vai para produção no deploy da integração, aprovado à parte, com `OUTBOX_BATCH_SIZE` ainda em 50. Observar 24 h:
+   - `worker.tick` com `duration_ms` abaixo de 35 s;
+   - `skipped_bulk` coerente com as chegadas;
+   - `deferred` só em pane.
+2. **Etapa 2, capacidade.**
+   - Registrar o valor atual da variável.
+   - Mudar só `OUTBOX_BATCH_SIZE` para 200 (ou 150, na opção C).
+   - Redeployar o mesmo commit.
+   - Conferir o primeiro `worker.tick` com fila.
+   - Observar 24 h.
 
 **Monitoramento (R61-E):**
-- `worker.tick`: `duration_ms` abaixo de 35 s, `deferred` só em pane, `skipped_bulk` coerente com as chegadas;
-- fila pendente sem tendência de alta;
+- `worker.tick`: `duration_ms`, `deferred`, `skipped_bulk` e `processed`;
+- `outbox.handler_slow` (novo): qualquer ocorrência mostra qual tipo de evento passou de 25 s;
+- a fila pendente, sem tendência de alta;
 - nenhum timeout da rota;
 - `outbox.lost_race` e `worker.tick.skipped_overlap` zerados;
-- financeiro: um recebível por particular concluído, nenhum duplicado, conciliação sem divergência nova (Asaas e AbacatePay).
+- financeiro: um recebível por particular concluído, nenhum duplicado e nenhuma divergência nova na conciliação (Asaas e AbacatePay);
+- `billing.abacatepay.inbox_tick` sem queda de itens.
 
 **Critérios de interrupção:**
 - `duration_ms` acima de 45 s;
@@ -162,13 +172,14 @@ Os dois passam do limite: o risco já existe hoje.
 - `lost_race` ou `skipped_overlap`;
 - aumento de `failed`;
 - divergência financeira;
-- fila crescendo por mais de 15 min sem pico de atendimentos.
+- fila crescendo por mais de 15 min sem pico de atendimentos;
+- `outbox.handler_slow` repetido para o mesmo tipo de evento (mais de 3 numa hora). Esse último pede investigação do handler antes de seguir.
 
 **Retorno:**
-- variável de volta ao valor registrado e redeploy; ou rollback instantâneo da Vercel para o deploy anterior;
-- as opções do worker continuam desligadas sem a chamada nova.
+- **Etapa 2:** a variável volta ao valor registrado, com redeploy, ou a Vercel volta instantaneamente ao deploy anterior.
+- **Etapa 1:** volta ao deploy anterior. Sem a chamada nova, as opções do worker ficam desligadas.
 
-**Este documento não é o GO** de nenhum desses gates além do R61-A, que já foi autorizado.
+**Este documento não é o GO** de nenhum gate além do R61-A, que já estava autorizado, e da execução técnica do R61-B em DEV/Preview, autorizada em 20/11.
 
 ## 5.1 Operação anterior (19/11, substituída pela ficha acima)
 
@@ -326,3 +337,56 @@ O benchmark mede o efeito real; o valor é configurável na chamada.
 - com duas invocações simultâneas, uma só trabalha.
 
 **Este documento não é o GO.** O benchmark foi autorizado em ambiente sintético; a mudança em produção não.
+
+## 9. R61-B (20/11, noite): proteção no cron compartilhado, implementada e provada
+
+**Proprietário:**
+- A rota do cron é do **#53**. O patch `docs/convenios/r61b/r61b-para-53.patch` é para o #53 aplicar. Ele leva 5 arquivos: `route.ts`, `route.test.ts` e o worker byte a byte igual ao do #55.
+- O handoff formal, com 10 itens, está em `handoff-53-outbox-r61.md`.
+- O #55 não altera a branch nem o worktree do #53.
+
+**O que entrou no #55 (`85d37eb9`):**
+- **Worker:** a métrica `outbox.handler_slow` (tipo de evento, duração, desfecho) quando um handler iniciado passa de 25 s. Só observa, nada é interrompido.
+- **Conector TISS (parte exclusiva do #55):**
+  - teto total de 20 s por envio, somando as tentativas;
+  - cada tentativa usa no máximo o que sobra;
+  - nenhuma tentativa nova sem 2 s de folga;
+  - timeout de operadora acima de 20 s é recusado na configuração, em vez de ser cortado em silêncio.
+  - Antes, um envio com retentativa podia levar 3 × o timeout configurado, sem teto, e passar sozinho da janela do cron.
+- **Provas:** `outbox-shared-cron-db.ts` (6 cenários) e o job `r61b-composicao.yml`.
+
+**Invocação compartilhada da rota com o patch.** A prova `outbox-shared-cron-db.ts` roda num Postgres descartável, com o worker real e os pools reais (`dbWorker`, `db` e `dbAdmin`), e as quatro tarefas financeiras com os prazos da AbacatePay. Os números são do código do #55 (run `44856201797`); a composição #53 + patch (run `44856201899`) deu os mesmos números com diferença de milissegundos.
+
+| Cenário | Outbox | Invocação | Tarefas financeiras | Integridade |
+| --- | --- | --- | --- | --- |
+| Consumidores rápidos (150 + 50 sem consumidor) | 150 tratados + 50 descartados em bloco em 0,8 s | 33,2 s | as 4 dentro dos prazos | sem perda, duplicidade ou clínica errada |
+| Consumidor lento (pane: 60 de 6 s + 140 rápidos) | parou de reservar aos 30 s, terminou em 30,2 s; 25 tratados, 175 vagas adiadas | 33,1 s | dentro dos prazos | drenado depois, cada evento uma vez |
+| **Consumidor travado (70 s) + corte real aos 60 s** (processo morto com SIGKILL) | só o travado ficou em `processing`; os outros 70, `processed` | cortada aos 60,0 s | **as 4 terminaram e gravaram antes do corte** (último item aos 33,2 s) | o janitor devolveu o travado; a nova entrega não duplicou o efeito (2 entregas, 1 efeito) |
+| Prazo quase esgotado (começou há 29 s / 31 s) | 10 reservados e 190 adiados / nenhum reservado e 200 adiados | — | as sem prazo não começaram nada | nada preso |
+| Duas invocações sobrepostas | o outbox trabalhou numa só (150/0) | — | itens divididos (76/76), nenhum repetido | — |
+| Handler de CPU (60 blocos síncronos de 300 ms) | 18,6 s | 33,5 s | todas antes do prazo (a pior, 1,5 s antes); de 9% a 22% menos itens naquele minuto | event loop p99 306 ms |
+
+**Composição #53 + patch (run `44856201899`):**
+
+| Gate | Resultado |
+| --- | --- |
+| Patch aplicado sobre `fad3d5d3`; worker igual ao do #55 (`cmp`) | **PASS** |
+| Fusão futura com o #55 | **PASS**: só os 4 conflitos já conhecidos; nenhum no outbox nem na rota |
+| Typecheck, lint, gate do registro | **PASS** |
+| Testes da rota do cron e do worker | **PASS** (33/33, incluindo os 3 novos da rota) |
+| Suíte completa do #53 com o patch | **PASS** (7.411/7.411, 652 arquivos) |
+| Isolamento entre duas clínicas | **PASS** |
+| Build | **PASS** |
+| `outbox-budget-db.ts` e `outbox-shared-cron-db.ts` | **PASS** (6/6 e 6/6) |
+| Inventário de segurança | FAIL **da composição, não do patch**: a contagem incluiu os harnesses do #55 copiados para a pasta. O workflow foi corrigido para rodar os gates do #53 antes da cópia; o resultado da nova execução está no §9.1 |
+
+**O que a prova mostra e o que não mostra:**
+- **Mostra:**
+  - o outbox não reserva depois de 30 s;
+  - handler iniciado não é abandonado;
+  - as tarefas financeiras terminam e gravam no próprio prazo, qualquer que seja o estado do outbox, inclusive com um handler travado e a função cortada;
+  - nada se perde nem duplica;
+  - a recuperação é pelo janitor.
+- **Não mostra:**
+  - que a invocação nunca passa de 60 s: um handler que ignore os próprios timeouts ainda pode segurá-la;
+  - o comportamento das tarefas reais da AbacatePay, que são do #53 (as regressões do C3 ficam com ele).

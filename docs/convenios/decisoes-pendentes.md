@@ -2,19 +2,21 @@
 
 Cada linha é um **pedido de aprovação separado**. Nenhuma decisão é presumida a partir de silêncio, e um GO de uma não vale para outra. As alternativas e recomendações vêm do plano mestre (seções N e L), das provas e do código atual.
 
-## Resumo
+## Quadro consolidado (20/11, noite, ciclo R61-B)
 
-| Decisão | O que decidir | Bloqueia | Recomendação |
-| --- | --- | --- | --- |
-| **GO R61** (outbox) | ligar a proteção de tempo no cron e mudar `OUTBOX_BATCH_SIZE` em produção | **produção** (condição de liberação) | ver a ficha; a sequência de gates é R61-A a R61-E |
-| P12.6 | quem cria a regra de alerta no Sentry (ou entrega o acesso com escopo de alertas, fora do chat) | produção (observabilidade) | você cria pela tela, em 5 minutos |
-| B5 | operadora e clínica piloto para a homologação real | P9.4, P2.5, P13.6, P15.3, P15.4 | a operadora em que a piloto já fatura |
-| B6 | prazos legais de retenção e descarte | produção (LGPD) | orientação jurídica formal |
-| B7 | terceira camada de validação (Validador TISS para Windows) | P13.5 | VM isolada só com corpus sintético |
-| S1–S9 | perfil de segurança TISS da ANS | produção (P15.5 definitiva) | ficha detalhada em `perfil-seguranca-s1-s9.md` |
-| P4.7-b | importação histórica com convênio | P4.7 | registra forma e cobertura, sem gerar guia |
-| P15.6 | revisão financeira comigo, numa sessão | P15.8 | sessão sobre a clínica sintética |
-| P15.8 | aprovação final e piloto por flag | publicação | depois das anteriores |
+| Pendência | Critério | Evidência atual | Trabalho técnico já possível | Decisão humana | Risco sem a decisão | Próxima ação |
+| --- | --- | --- | --- | --- | --- | --- |
+| **R61-C** (GO de produção do outbox) | proteção ligada no cron real + lote escolhido + observação sem critério de interrupção | R61-A cumprido; R61-B: patch para o #53 provado em composição descartável (`r61b/r61b-para-53.patch`) | nada além: a ligação é do #53 (R61-B), e o lote é variável de produção | aprovar a opção B (ou C) e a janela da mudança | fila acumula acima de ~15 atendimentos/min; pane de provedor estoura a janela do cron | #53 aplica o patch; depois, pedir o GO R61-C (ficha em `outbox-capacidade.md` §5) |
+| P12.6 (alerta no Sentry) | alerta disparando em teste, com entrega conferida | manutenção só emite métrica; token local inválido (não reutilizado) | regra descrita; falha sintética controlada pronta para o Preview | criar a regra pela tela (ou dar acesso com escopo de alertas, fora do chat) | falha da manutenção TISS sem alerta ativo | você cria a regra; o agente provoca a falha no Preview e marca a P12.6 |
+| B5 (operadora e clínica piloto) | recibo real devolvido pelo webservice, conferido no XSD e no hash | conector testado só contra stub; registro de produção vazio | cenários H22–H26 e critério de PASS prontos (`homologacao-operadora.md` §4.0) | escolher operadora real, clínica piloto paga e responsável | P9.4, P2.5, P13.6, P15.3 e P15.4 seguem sem homologação | indicar a operadora; o agente configura só o ambiente de homologação |
+| B6 (retenção legal) | prazos de guarda, descarte e texto ao titular definidos | anonimização do paciente preservando a guia já implementada | rotina de descarte parametrizável depois do prazo | orientação jurídica formal | guardar além do necessário ou descartar antes de obrigação contratual | obter a orientação; o agente implementa prazos, rotina e testes LGPD |
+| B7 (Validador TISS para Windows) | corpus sintético validado na terceira camada | XSD oficial em dois motores (38/38) | roteiro para VM isolada | licença, VM isolada ou autorização do fornecedor | divergência de validação só aparecer na operadora | escolher o caminho; rodar o corpus na VM (P13.5/P13.6) |
+| S1–S9 (segurança ANS) | os 9 itens com decisão e teste | fichas com 10 campos (`perfil-seguranca-s1-s9.md`); nada ligado para usuário real | S2–S4 já preparados e testados, desligados | um pedido por item, na ordem sugerida (S9 primeiro) | P15.5 não fecha; produção bloqueada | decidir S9 (consulta formal) e S1 |
+| P4.7-b (importação com convênio) | regra do histórico definida e provada | importação hoje trata tudo como particular | coluna e validação por linha, sem gerar guia, depois da decisão | escolher (a), (b) ou (c) | faturar duas vezes o que a clínica já cobrou, se (c) | decidir; recomendação (b) |
+| P15.6 (revisão financeira) | conciliação ponta a ponta revisada com você | relatório por operadora, conciliação, repasse e benchmark com integridade | sessão preparada sobre a clínica sintética | marcar a sessão | P15.8 não pode ser pedida | marcar a sessão |
+| P15.8 (aprovação final) | release aprovado e piloto ligado por flag | contrato da P1.13 pronto; pré-condições abertas | nenhum até as pré-condições | aprovar depois de R61-C executado, B5, B6, S1–S4, P15.6 e P12.6 | — | aguardar as anteriores |
+| P9.4 (recibo real) | protocolo real com recibo conferido | 7/7 contra stub; teto de 20 s por envio (R61) | nenhum sem operadora | B5 | marcar homologação com XSD sintético seria falso | depende de B5 |
+| R54 (estornos no Sandbox) | dois estornos parciais reais, conciliados | pagamento de R$ 10 conciliado; 3 recusas pelo prazo do Asaas; 0 estornos | nenhum antes da janela | nenhuma nova (GO "SIM, TUDO" vale) | só a evidência incompleta | segunda, 23/11, a partir das 09h00: UMA tentativa de R$ 4, se a sessão for retomada |
 
 ## GO R61 — capacidade do outbox compartilhado
 
