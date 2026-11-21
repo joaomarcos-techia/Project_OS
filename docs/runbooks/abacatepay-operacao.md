@@ -1,5 +1,47 @@
 # Operação e recuperação AbacatePay
 
+## C3 live — 21/11/2026: corretivo publicado e ação humana pendente
+
+Horários deste checkpoint em UTC; as promoções ocorreram na noite de 20/11 em Brasília, às 23:18 e 23:25.
+
+**C — GATE A PASS; GATE B BLOQUEADO PELA EMISSÃO DO CONVITE COM MFA E PELO CADASTRO DO TITULAR.** Este checkpoint prevalece sobre as proibições históricas de execução abaixo. O fundador autorizou Gate A e Gate B para uma única clínica, confirmou ser titular/pagante e consentiu com R$ 197 mensais. Em seguida pediu continuidade autônoma enquanto dorme. O aceite de R1–R4/R51 é limitado ao piloto; B1-B continua diferido e não verificado. C4 e aquisição pública continuam não autorizados.
+
+### Publicação efetiva e controles
+
+| Item | Resultado observado |
+| --- | --- |
+| Fonte publicada | `e3cf8bbde70e922d66980d32a8be31aab97f19b1`, [CI 44835695236](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44835695236) SUCCESS, 7.405 testes/652 arquivos e 27 E2E, zero SKIP. O HEAD documental posterior é distinto e terá checks próprios no PR |
+| Anterior | C2 `25d01b17`, `dpl_J5FPbdLDxBwcoBuRMgrkcwJrVbHL` |
+| Gate A | `dpl_EUJWn37i3dGhjsmjT45Vi3aCfqaT`, promovido às 02:18:49 UTC. Primeiro build atestado e testado com todas as entradas fechadas |
+| Atual em app.qoro.dev | `dpl_6wv8nHVjT2nMWpqpwferz5caB48w`, mesmo SHA/pacote, promovido às 02:25:52 UTC. Apenas a entrada privada foi habilitada, depois de Gate A e consentimento passarem |
+| Pacote | 2.839 arquivos, 160 SQL até 0159, sem código funcional TISS/0160+. Manifesto completo SHA256 `10d76582ae62f418d908e1db0d33788fe05656bded874269f825efcd7e28ea3a`; manifesto das 1.680 fontes/configurações `62ba05ab77913f4198ea2e0ebd7fdbafb7705ef2d90ab174d3a5eb145a0a7e09` preservado |
+| Aquisição financeira | `SIGNUP_ENABLED=false`, `SAAS_SIGNUP_PROVIDER=asaas`, `ABACATEPAY_NEW_CHECKOUTS_ENABLED=false`, allowlist vazia e WAF v5 preservado. Nenhum checkout criado |
+| Admissão privada | Overrides apenas deste deployment: `ABACATEPAY_PILOT_PROVISIONING_ENABLED=true`, `SIGNUP_AUTH_ENABLED=true`, `SIGNUP_IDENTITY_ENABLED=true`. Configuração global do projeto não foi alterada. Emissão exige superadmin AAL2; bootstrap/provisionamento exigem convite individual válido |
+| Infraestrutura | Auth hook/deep health 200; banco, Redis, Asaas, outbox e signup OK. Loja central, cinco produtos live e webhook de oito eventos conferidos por GET e atestação no build com as credenciais efetivas, sem exportar segredos |
+| Banco e legado | 160 migrations reconhecidas por ordem/hash, nenhuma pendente ou aplicada. Cinco contratos Asaas, fingerprints de assinaturas/invoices/preços/planos preservados. Coorte, bindings, operações e inbox AbacatePay vazios |
+| Cron | Mesmos 21 crons; `OUTBOX_BATCH_SIZE` continua ausente na configuração. Nenhuma alteração R61. Outbox executou após as promoções; métricas de inbox, recovery, scanner e renewal watch foram observadas sem falhas na amostra ociosa. Isso não mede capacidade sob carga |
+
+Smoke no domínio definitivo: cadastro público fechado; Dashboard/Assinatura/admin sem sessão redirecionam; plano sem sessão retorna 401; bootstrap/provisionamento privado sem convite retornam 403; webhook sem autenticação retorna 401. O middleware bloqueia o POST de checkout sem sessão com 307 para `/login`, antes do handler; não é uma resposta financeira. Autenticação real do novo titular, entrega do OTP, aceite dos termos, trial/cotas nessa clínica e pagamento live ainda **NOT TESTED**, pois a identidade não foi criada.
+
+P-28 está integrado exatamente do patch mínimo revisado do PR #56, com provas controladas de senha/OTP/login, sem bypass e sem service role no bundle. A incidência histórica no Auth Production não foi reproduzida. P-29 não é necessário à jornada OTP; R51 continua parcial. Nenhum merge dos PRs UI/TISS/Console/Migrations, escrita SQL operacional, envio real, conta, clínica ou obrigação financeira foi executado pelo agente.
+
+### Ação do fundador ao retornar — nenhum novo GO genérico
+
+1. Abrir [Admin → operação financeira](https://app.qoro.dev/admin/billing/operacao), entrar com o superadmin existente e concluir o MFA. Em **Preparar convite do piloto**, informar clínica **Teste abacate**, titular **teste abacatete** e o e-mail aprovado nesta conversa. Clicar uma vez. O convite fica auditado e não cria cobrança; a reserva global impede outro piloto concorrente.
+2. Guardar o caminho do campo **Link individual** somente no navegador/cofre. Em uma janela anônima, abrir `https://app.qoro.dev` seguido desse caminho completo. Não enviar o link, a senha ou o código pelo chat. O convite dura 24 horas e fica ligado ao navegador que o inicia.
+3. Responder o questionário, escolher a própria senha uma vez, confirmar o código recebido por e-mail e aceitar os termos na interface. Conferir **Consultório, um médico, até três administrativos, R$ 197/mês**; iniciar a avaliação. Testar Dashboard/Assinatura, logout e novo login. Nenhum cartão é necessário nessa etapa.
+4. Informar apenas **“cadastro piloto concluído”**. A engenharia confere UUID, owner, senha presente, confirmação, claim/política/binding, trial e ausência de obrigação anterior. O GO existente cobre então a allowlist desse único UUID e um checkout live de R$ 197, após pré-voo atualizado. O titular efetua o pagamento; somente depois serão conferidos provedor, webhook, invoice, período, direitos e cotas e fechada a coorte.
+
+O bloqueio é interativo e de segurança: a sessão não possui superadmin AAL2 para emitir o convite e não pode escolher senha nem receber/validar OTP pelo titular. Não substituir esse processo por INSERT em Auth, confirmação administrativa sem prova ou sessão artificial. Consentimento financeiro preparatório está registrado; o aceite dos termos na interface ainda está pendente. Nenhum convite ou e-mail foi enviado.
+
+### C4 preparado, sem execução
+
+Preservar a progressão proposta **1 → 3 → 10**, com um GO independente por ampliação. Antes de 1 → 3: C3 realmente pago e reconciliado, fechamento live observado, 48 horas de operação saudável, nenhuma duplicidade/estado financeiro desconhecido, responsáveis e alertas disponíveis e renovação natural observada; qualquer exceção a essa última condição exige nova decisão expressa. O aceite atual de R2 para uma clínica não autoriza essa exceção. Antes de 3 → 10: mais sete dias estáveis, capacidade observada na coorte de três, ritmo de contratação revisado e nova avaliação R1–R4.
+
+Selecionar/consentir cada clínica e confirmar plano, preço, responsáveis e janela antes de habilitar seus UUIDs. Revisar R61 com a frente responsável; não alterar batch/cron por consequência deste GO. Duplicidade, valor/tenant divergente, estado externo desconhecido, falha persistente ou fila sem progresso interrompem novas aquisições, preservando webhook/consumidores/renovações e direitos legítimos. Fechar flags/allowlist não invalida por si só um link externo já emitido; reconciliar a obrigação existente, sem retry cego, estorno ou cancelamento não autorizado.
+
+[Evidência sanitizada da execução](../decoupling/asaas-to-abacatepay/evidencias/c3-live-20261121.json). Resultados da CI do HEAD documental e observações finais no PR #53. A classificação permanece C até a ação humana; não confundir preparação administrativa com clínica provisionada ou contratação paga.
+
 ## C3 — 20/11/2026, provas controladas concluídas e GO separado
 
 **Retomada do Actions em 20/11:** orçamento liberado pelo fundador. CI 44792495911/tentativa 2 no SHA `fad3d5d3` aprovou 7.405 testes e os gates até HTTP/bundle, mas terminou com 19/27 E2E aprovados: oito expectativas ainda buscavam o rótulo anterior à correção de cobrança antecipada. Ajustados somente os dois specs para `Mensalidade do plano`, mantendo preço, cotas, persistência e idempotência. A CI do novo HEAD precisa passar antes do pedido de execução do Gate A; conferir resultado e SHA no PR #53. Auditoria atual: 2 low/8 moderate, zero high/critical; os sete achados dos checkpoints anteriores são históricos. Sem alteração de aplicação, SQL, lockfile, configuração ou ação em Production.
