@@ -378,7 +378,7 @@ O benchmark mede o efeito real; o valor é configurável na chamada.
 | Isolamento entre duas clínicas | **PASS** |
 | Build | **PASS** |
 | `outbox-budget-db.ts` e `outbox-shared-cron-db.ts` | **PASS** (6/6 e 6/6) |
-| Inventário de segurança | FAIL **da composição, não do patch**: a contagem incluiu os harnesses do #55 copiados para a pasta. O workflow foi corrigido para rodar os gates do #53 antes da cópia; o resultado da nova execução está no §9.1 |
+| Inventário de segurança | FAIL nas duas primeiras execuções. Na 1ª, os harnesses copiados entravam na contagem (corrigido: os gates do #53 rodam antes da cópia). Na 2ª (run `44857925121`), a causa de fundo: o inventário do #53 guarda `route.ts:45#GET`, e o patch desce o `GET` para a linha 59. **Corrigido:** o patch passou a levar essa linha do `docs/security/acoes.md` do #53 (6 arquivos). Resultado da 3ª execução no §9.1 |
 
 **O que a prova mostra e o que não mostra:**
 - **Mostra:**
@@ -390,3 +390,36 @@ O benchmark mede o efeito real; o valor é configurável na chamada.
 - **Não mostra:**
   - que a invocação nunca passa de 60 s: um handler que ignore os próprios timeouts ainda pode segurá-la;
   - o comportamento das tarefas reais da AbacatePay, que são do #53 (as regressões do C3 ficam com ele).
+
+### 9.2 Benchmark comparativo do R61-B (run `44856201932`, commit `85d37eb9`)
+
+Mesmas condições do §8: runner do GitHub, worker e handlers reais, Postgres descartável, 3 clínicas, 60% convênio. **23 rodadas, com a integridade conferida em todas** (nenhuma perda, duplicidade ou clínica errada). Evidência: `evidence/outbox-capacidade-2026-11-20/benchmark-r61b.json`.
+
+**Entrada temporária e drenagem** (o regime "sustenta / não sustenta" não se aplica a 2 ou 3 minutos de entrada; o que conta é o atraso e o tempo para drenar):
+
+| Estratégia | 50/min por 3 min: atraso máx. | drena em | 100/min por 2 min: atraso máx. | drena em |
+| --- | :-: | :-: | :-: | :-: |
+| atual 50 | **8 min** (fora da meta de 5) | 11 min | **12 min** (fora da meta) | 14 min |
+| lote 150 | 2 min | 4 min | 4 min | 5 min |
+| lote 200 | 1 min | 3 min | 3 min | 4 min |
+| 150 + prazo + descarte | 1 min | 3 min | 2 min | 4 min |
+| **200 + prazo + descarte** | **1 min** | **3 min** | **2 min** | **3 min** |
+
+**Entrada sustentada** (igual ao §8):
+- **50/min por 15 min:** a atual cresce 106/min, com atraso de até 33 min; o lote 150 cresce 18/min; o lote 200 e as duas proteções ficam com fila zero e atraso de 1 min.
+- **100/min por 10 min:** nenhuma configuração sustenta. O lote 200 cresce 124/min; 150 com proteção, 77/min; 200 com proteção, 35/min, com atraso de 3 min no fim e crescendo.
+
+**Tempo do tick:**
+
+| Cenário | atual 50 | lote 200 | 200 + prazo + descarte |
+| --- | :-: | :-: | :-: |
+| Pico com consumidores lentos | — | 11,3 s | 9,1 s |
+| Pico com 10 ms de latência | — | 14,7 s | 11,8 s |
+| Pane de consumidor (60 de 6 s) | **60,3 s** (passa de 60) | **73,3 s** (passa de 60) | **30,2 s** |
+| **Consumidor travado** (1 de 70 s + 100 rápidos) | **70,1 s** (passa de 60); 51 ficaram na fila | — | **70,1 s** (passa de 60); os outros 101 saíram |
+
+**Leitura:**
+- O lote 200 com a proteção atende à meta de 5 min em todos os cenários contratados, inclusive o pico temporário de 100/min.
+- A proteção mantém a pane de provedor dentro da janela.
+- **Nenhuma configuração impede um handler travado de segurar o tick**, porque handler iniciado não é abandonado, de propósito. Nesse caso, a prova da invocação compartilhada (§9) mostra que as tarefas da AbacatePay já terminaram e gravaram antes do corte, que o evento travado volta pelo janitor e que a nova entrega não duplica efeito.
+- O tipo de evento que causa isso aparece em `outbox.handler_slow`.

@@ -21,6 +21,7 @@ Capacidade: com o lote 50, a plataforma sustenta cerca de 15 atendimentos/min. N
 | --- | --- | --- |
 | `src/app/api/cron/outbox/route.ts` | **#53** (a rota compartilhada é dele) | um relógio só para a invocação; `runOutboxOnce({ reserveUntil: início + 30 s, skipUnhandledInBulk: true })`; os prazos da AbacatePay derivados do mesmo relógio (mesmos valores de hoje) |
 | `src/app/api/cron/outbox/route.test.ts` | **#53** | 3 testes novos (janela do outbox, mesmo relógio, outbox adiado é tick bem-sucedido) |
+| `docs/security/acoes.md` | **#53** (inventário gerado) | a referência `route.ts:45#GET` vira `route.ts:59#GET` (o `GET` desceu 14 linhas); sem isso, o gate `security:inventory` do #53 reprova |
 | `src/lib/outbox/worker.ts`, `types.ts`, `worker-targeted.test.ts` | biblioteca compartilhada; já no #55 | opções `reserveUntil` e `skipUnhandledInBulk` (desligadas por padrão) e a métrica `outbox.handler_slow`. Vão no patch **byte a byte iguais** às do #55, porque o #53 entra antes na main |
 
 **Não muda:** `vercel.json`, `maxDuration`, as tarefas da AbacatePay, os contratos financeiros, as migrations e as flags.
@@ -50,7 +51,7 @@ Um handler que passe de 25 s depois de iniciado emite `outbox.handler_slow` (tip
 ## 5. Patch
 
 - **Arquivo:** `docs/convenios/r61b/r61b-para-53.patch`, na branch `feat/convenios-tiss-20261110`, gerado sobre o commit `fad3d5d3` do #53.
-- **Conteúdo:** 5 arquivos, +193/−12.
+- **Conteúdo:** 6 arquivos, +194/−13.
 - **Como aplicar na branch do #53:**
 
 ```bash
@@ -74,7 +75,7 @@ git show origin/feat/convenios-tiss-20261110:docs/convenios/r61b/r61b-para-53.pa
 
 ## 7. Resultados (runners do GitHub)
 
-Composição #53 + patch no runner (run `44856201899`): patch aplicado, worker igual ao do #55, fusão futura só com os 4 conflitos já conhecidos (nenhum no outbox ou na rota), typecheck, lint, registro, testes da rota e do worker 33/33, **suíte completa do #53 7.411/7.411**, isolamento entre clínicas, build, `outbox-budget-db.ts` 6/6 e `outbox-shared-cron-db.ts` 6/6. O inventário acusou diferença por causa dos harnesses do #55 copiados para a composição; o job foi reordenado para rodar os gates do #53 antes da cópia. Detalhes e números da invocação compartilhada (inclusive o corte real aos 60 s com as tarefas financeiras gravadas antes) em `outbox-capacidade.md` §9.
+Composição #53 + patch no runner (run `44856201899`): patch aplicado, worker igual ao do #55, fusão futura só com os 4 conflitos já conhecidos (nenhum no outbox ou na rota), typecheck, lint, registro, testes da rota e do worker 33/33, **suíte completa do #53 7.411/7.411**, isolamento entre clínicas, build, `outbox-budget-db.ts` 6/6 e `outbox-shared-cron-db.ts` 6/6. O inventário reprovou porque o #53 registra `route.ts:45#GET` e o patch desce o `GET` para a linha 59. O patch agora leva essa linha do `docs/security/acoes.md`. Na primeira execução, os harnesses copiados também entravam na contagem; o job passou a rodar os gates do #53 antes da cópia. Detalhes e números da invocação compartilhada (inclusive o corte real aos 60 s com as tarefas financeiras gravadas antes) em `outbox-capacidade.md` §9.
 
 ## 8. Riscos residuais
 
