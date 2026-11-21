@@ -25,6 +25,7 @@ import {
   Funnel,
   Heart,
   House,
+  IdCard,
   LayoutGrid,
   Lock,
   MessageCircle,
@@ -42,11 +43,11 @@ import {
   Stethoscope,
   Trash2,
   TriangleAlert,
+  type LucideIcon,
   Upload,
   Users,
   Wallet,
   X,
-  type LucideIcon,
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
 
@@ -63,6 +64,8 @@ const ICONS: Record<string, LucideIcon> = {
   chat: MessageCircle,
   chart: ChartColumn,
   shield: ShieldCheck,
+  // Convênios: a carteirinha do plano (o escudo já é de Equipe & Permissões).
+  insurance: IdCard,
   gear: Settings,
   ai: Sparkles,
   search: Search,
