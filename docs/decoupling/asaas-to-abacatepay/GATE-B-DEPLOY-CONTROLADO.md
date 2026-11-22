@@ -1,5 +1,11 @@
 # Gate B — proposta de deploy técnico com aquisição fechada
 
+## Checkpoint prevalente — C3 executado parcialmente em 21/11/2026
+
+O GO expresso do fundador autorizou o corretivo e a admissão de **uma** clínica com consentimento confirmado. **Gate A PASS**, aplicação `e3cf8bbd` publicada; atual `dpl_6wv8nHVjT2nMWpqpwferz5caB48w`, com apenas a entrada privada habilitada atrás de superadmin/MFA e convite. Cadastro público, checkout e allowlist permanecem fechados. Sem migrations, merge, R61, mudança de batch/cron ou contrato legado. Os 160 hashes e fingerprints financeiros foram conferidos.
+
+**Gate B/C3 aguarda a ação interativa do fundador; nenhuma conta ou obrigação foi criada.** Não se pede outro GO genérico. [Estado, instruções para emitir o convite e preparação C4](../../runbooks/abacatepay-operacao.md#c3-live--21112026-corretivo-publicado-e-ação-humana-pendente) · [Evidência](evidencias/c3-live-20261121.json). R1–R4/R51 aceitos somente no piloto, sem homologação externa nova; B1-B diferido e não verificado. A nomenclatura Gate A/B desta fase C3 não reabre as migrations B2/B3 históricas. As restrições de falta de autorização nos checkpoints antigos abaixo são históricas.
+
 ## Resultado da homologação — 19/11/2026
 
 [Qualificação44449938820](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44449938820) e [CI44449945066](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44449945066) SUCCESS em379ca766. Oito ensaios de banco/operacionais passaram, incluindo transição159→160, trial/cancelamento na exportação160 e build exato das fontes exportadas, sem harness injetado. Código financeiro/SQL congelados, nenhuma implantação. [Dossiê com resultados e condições do C3](ABACATEPAY-SaaS-GO-NO-GO-FINAL.md#homologação-renovada-e-proposta-c3--19112026). A CI do HEAD documental final deve ser conferida no PR, sem transferir a anterior.
