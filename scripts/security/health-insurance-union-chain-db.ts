@@ -253,6 +253,11 @@ try {
     values (${clinicId}::uuid, 'Operadora Um', '123456', 'codigoPrestadorNaOperadora', 'TESTE001', 'active', ${SYS}::uuid) returning id`;
   await sql`insert into public.hi_professional_profiles (clinic_id, professional_id, council, council_number, council_uf, cbo)
     values (${clinicId}::uuid, ${ownerId}::uuid, '06', '12345', '35', '225125')`;
+  // P2.2 (depois desta prova ter sido escrita): sem credenciamento na data, a sessão não vira guia
+  // pronta. Credenciamento da clínica e habilitação do profissional, como nos fixtures atuais.
+  await sql`insert into public.hi_credentials (clinic_id, insurer_id, plan_id, professional_id, valid_from, status, created_by)
+    values (${clinicId}::uuid, ${ins!.id}::uuid, null, null, '2020-01-01', 'active', ${SYS}::uuid),
+           (${clinicId}::uuid, ${ins!.id}::uuid, null, ${ownerId}::uuid, '2020-01-01', 'active', ${SYS}::uuid)`;
   await sql`insert into public.hi_procedure_contracts
       (clinic_id, insurer_id, guide_type, table_code, procedure_code, description, procedure_id,
        unit_value_cents, valid_from, copay_kind, copay_percentage, created_by)
@@ -260,6 +265,14 @@ try {
       ${proc!.id}::uuid, 15000, '2026-01-01', 'percentage', 30, ${SYS}::uuid)`;
   await sql`insert into public.tiss_terminology_versions (version, archive_url, archive_sha256, manifest_sha256)
     values ('202609', 'https://example.invalid/tuss.zip', ${'a'.repeat(64)}, ${'b'.repeat(64)}) on conflict (version) do nothing`;
+  // Termos TUSS mínimos da Consulta (os mesmos dos fixtures): a guia confere os códigos na terminologia.
+  await sql`insert into public.tiss_terms (version_id, table_code, code, term, starts_on)
+    select v.id, t.table_code, t.code, t.term, '2010-01-01' from public.tiss_terminology_versions v,
+      (values ('22', '10101012', 'Consulta em consultório (no horário normal ou preestabelecido)'), ('24', '225125', 'Médico clínico'),
+              ('26', '06', 'Conselho Regional de Medicina (CRM)'), ('36', '9', 'Não acidente'), ('52', '1', 'Primeira consulta'),
+              ('59', '35', 'São Paulo'), ('76', '01', 'Ambulatorial'), ('87', '22', 'Procedimentos e eventos em saúde')) t(table_code, code, term)
+     where v.version = '202609'
+       and not exists (select 1 from public.tiss_terms x where x.version_id = v.id and x.table_code = t.table_code and x.code = t.code)`;
   const pConv = await newPatient();
   const [card] = await sql`insert into public.hi_memberships
       (clinic_id, patient_id, insurer_id, card_number_encrypted, card_number_hash, card_last4, created_by)
@@ -272,8 +285,8 @@ try {
     membershipId: card!.id as string, authorizationId: null, actor: { kind: 'user', userId: ownerId },
   }), ownerId);
   await complete(aConv, pConv);
-  const [guide] = await sql`select status from public.hi_guides where idempotency_key = ${`appointment:${aConv}:consulta`}`;
-  assert.deepEqual([guide?.status, (await lanc(aConv)).length], ['ready_for_review', 0]);
+  const [guide] = await sql`select status, issues from public.hi_guides where idempotency_key = ${`appointment:${aConv}:consulta`}`;
+  assert.deepEqual([guide?.status, (await lanc(aConv)).length], ['ready_for_review', 0], `pendências da guia: ${JSON.stringify(guide?.issues ?? null)}`);
   const [cp] = await sql`select id from public.hi_copayments where appointment_id = ${aConv}::uuid`;
   await withTenant(clinicId, (tx) => checkCopay(tx, { clinicId, copaymentId: cp!.id as string, checkedCents: 4500, actorUserId: ownerId }), ownerId);
   await withTenant(clinicId, (tx) => confirmCopay(tx, { clinicId, copaymentId: cp!.id as string, confirmedCents: 4500, chargeableCents: 4500, actorUserId: ownerId, procedureName: 'Consulta' }), ownerId);

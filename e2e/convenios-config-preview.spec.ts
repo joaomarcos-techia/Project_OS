@@ -691,19 +691,26 @@ test('gestora: reajuste a partir de uma data cria versão; o passado não muda; 
   await s.context.close();
 });
 
-test('médica: sem ver o financeiro, não entra na configuração nem nas carteirinhas', async ({
+// Matriz I.2 (aprovada em 16/11, P1.12-b): a médica passou a ter `view:convenios` — lê a configuração
+// e as carteirinhas (número mascarado, só dos pacientes dela, provado no spec da I.2), sem cadastrar
+// nada e sem preço; o que é do faturamento continua fechado. Antes da matriz ela não entrava.
+test('médica (matriz I.2): lê a configuração sem cadastro nem preço; o faturamento continua fechado', async ({
   browser,
 }) => {
   test.setTimeout(120_000);
   const s = await login(browser, 'cfg-medica');
-  for (const path of [
-    '/convenios/configuracao',
-    '/convenios/carteirinhas',
-    '/convenios/atendimentos',
-  ]) {
+  await visit(s, '/convenios/configuracao');
+  await expect(s.page.getByRole('heading', { name: 'Configuração de convênios' })).toBeVisible();
+  await expect(s.page.getByRole('button', { name: 'Nova operadora' })).toHaveCount(0);
+  for (const path of ['/convenios/configuracao', '/convenios/carteirinhas', '/convenios/atendimentos']) {
+    await visit(s, path);
+    await expect(s.page.getByText('Sem acesso'), path).toHaveCount(0);
+  }
+  for (const path of ['/convenios/lotes', '/convenios/repasses', '/convenios/conciliacao']) {
     await visit(s, path);
     await expect(
-      s.page.getByText('Seu perfil não tem permissão para o faturamento de convênios.'),
+      s.page.getByText('Seu perfil não tem permissão para esta área de convênios.'),
+      path,
     ).toBeVisible();
   }
   expectNoPageErrors(s);
@@ -908,22 +915,24 @@ test('gestora: dados da Consulta antes de conferir (P4.6) — padrões, ajuste p
   expectNoPageErrors(mobile);
   await mobile.context.close();
 
-  // Recepção vê o financeiro, mas não o gerencia: vê o ajuste, sem botão de ajuste nem de conferir.
+  // Matriz I.2 (aprovada em 16/11, P1.12-b; seed da 0162): conferir e corrigir a guia = recepção
+  // (`operate:convenios`) ou faturamento; aprovar e emitir = só o faturamento.
   const r = await login(browser, 'cfg-recepcao');
   expect(await visit(r, journey.guideUrl!)).toBe(200);
   await expect(consultaPanel(r.page).getByText(CONSULTA_NOTE)).toBeVisible();
-  await expect(r.page.getByRole('button', { name: 'Ajustar dados da consulta' })).toHaveCount(0);
-  await expect(r.page.getByRole('button', { name: 'Marcar como conferida' })).toHaveCount(0);
+  await expect(r.page.getByRole('button', { name: 'Ajustar dados da consulta' })).toBeVisible();
+  await expect(r.page.getByRole('button', { name: 'Aprovar e emitir' })).toHaveCount(0);
   expectNoPageErrors(r);
   await r.context.close();
 
-  // Médica (sem o financeiro): a guia não abre.
+  // Médica (D-4): a PRÓPRIA guia abre, sem valores e sem ação de ajuste, conferência ou emissão.
   const m = await login(browser, 'cfg-medica');
-  await visit(m, journey.guideUrl!);
-  await expect(
-    m.page.getByText('Seu perfil não tem permissão para o faturamento de convênios.'),
-  ).toBeVisible();
-  await expect(m.page.getByTestId('consulta-fields')).toHaveCount(0);
+  expect(await visit(m, journey.guideUrl!)).toBe(200);
+  await expect(consultaPanel(m.page).getByText(CONSULTA_NOTE)).toBeVisible();
+  for (const name of ['Ajustar dados da consulta', 'Marcar como conferida', 'Aprovar e emitir']) {
+    await expect(m.page.getByRole('button', { name }), name).toHaveCount(0);
+  }
+  await expect(m.page.getByText('150,00')).toHaveCount(0);
   expectNoPageErrors(m);
   await m.context.close();
 });
@@ -1306,7 +1315,7 @@ test('coparticipação: recepção confere R$ 45,00, gestora confirma; só esse 
   await s.context.close();
 });
 
-test('ficha do paciente: aba Convênios com carteirinha mascarada, cobertura e guia; quem não vê o financeiro não tem a aba', async ({
+test('ficha do paciente: aba Convênios com carteirinha mascarada, cobertura e guia; a médica só lê (matriz I.2)', async ({
   browser,
 }) => {
   test.setTimeout(240_000);
@@ -1345,11 +1354,13 @@ test('ficha do paciente: aba Convênios com carteirinha mascarada, cobertura e g
   expectNoPageErrors(m);
   await m.context.close();
 
-  // Médica: vê o paciente, não vê o financeiro → sem a aba; o deep-link cai na visão geral.
+  // Médica (matriz I.2: `view:convenios`, sem `operate:convenios`): a aba abre só para leitura, com o
+  // número mascarado e sem o atalho de gestão das carteirinhas (que é da recepção).
   const d = await login(browser, 'cfg-medica');
   expect(await visit(d, `/pacientes/${state.patientId}?tab=convenios`)).toBe(200);
-  await expect(d.page.getByTestId('patient-insurance')).toHaveCount(0);
-  await expect(d.page.getByRole('link', { name: 'Convênios', exact: true })).toHaveCount(0);
+  await expect(d.page.getByTestId('patient-insurance')).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+  await expect(d.page.getByText(CARD)).toHaveCount(0);
+  await expect(d.page.getByRole('link', { name: 'Gerenciar carteirinhas' })).toHaveCount(0);
   expectNoPageErrors(d);
   await d.context.close();
 });

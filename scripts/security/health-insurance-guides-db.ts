@@ -973,6 +973,25 @@ try {
       (tx) => tx`update public.hi_guides set status = 'replaced' where id = ${orig.id}::uuid`,
     ),
   );
+  // P7.5 (0165): sem o cancelamento da original CONFIRMADO pela operadora (recibo, Tabela 46 = 1), a
+  // substituta não é aprovada; com o pedido e o recibo registrados na sessão, a aprovação passa.
+  await rejects('55000', () => approve(A, sub.id, 15000, A.doctorId), /cancelamento da guia original/u);
+  const [cancelReq] = await asTenant(
+    A.clinicId,
+    (tx) => tx`insert into public.hi_guide_cancellations
+        (clinic_id, guide_id, purpose, channel, requested_on, reason, guide_number, idempotency_key, created_by)
+      values (${A.clinicId}::uuid, ${orig.id}::uuid, 'substitution', 'portal', current_date - 1,
+        'Reenvio corrigido da guia (sintético)', 'x', ${`cancel:${orig.id}`}, ${SYS}::uuid)
+      returning id`,
+    A.doctorId,
+  );
+  await asTenant(
+    A.clinicId,
+    (tx) => tx`insert into public.hi_guide_cancellation_receipts
+        (clinic_id, cancellation_id, status_code, received_on, operator_protocol, idempotency_key, recorded_by)
+      values (${A.clinicId}::uuid, ${cancelReq!.id}::uuid, '1', current_date, '900000002', ${`receipt:${orig.id}`}, ${SYS}::uuid)`,
+    A.doctorId,
+  );
   await approve(A, sub.id, 15000, A.doctorId);
   const pair =
     await sql`select id, status, live from public.hi_guides where id in (${orig.id}::uuid, ${sub.id}::uuid)`;
