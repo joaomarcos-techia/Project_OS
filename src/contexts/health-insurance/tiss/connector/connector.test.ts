@@ -6,7 +6,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  CONNECTOR_TIMEOUT_MAX_MS,
   createConnector,
+  DEFAULT_CONNECTOR_OPTIONS,
   notHomologatedTransport,
   type ConnectorOutcome,
   type ConnectorTransport,
@@ -93,6 +95,45 @@ describe('conector da operadora (P2.5, sem endpoint real)', () => {
     });
     expect(await c2.submit(req)).toEqual({ kind: 'unavailable', reason: 'network' });
     expect(notIdem.calls()).toBe(1);
+  });
+
+  it('R61: o teto total corta as retentativas; tempo esgotado não ganha nova tentativa', async () => {
+    const h = scripted(['hang'], true);
+    const c = createConnector({
+      transport: h.transport,
+      timeoutMs: 40,
+      retries: 2,
+      totalBudgetMs: 60,
+      circuit: { failureThreshold: 9, cooldownMs: 1 },
+    });
+    const started = Date.now();
+    expect(await c.submit(req)).toEqual({ kind: 'unavailable', reason: 'timeout' });
+    // 1ª tentativa: 40 ms; sobram ~20 ms (< janela mínima de 40 ms): sem 2ª tentativa.
+    expect(h.calls()).toBe(1);
+    expect(Date.now() - started).toBeLessThan(200);
+  });
+
+  it('R61: falha rápida ainda é repetida dentro do teto, e a tentativa usa só o que sobra', async () => {
+    const idem = scripted(['throw', 'hang']);
+    const c = createConnector({
+      transport: idem.transport,
+      timeoutMs: 5_000,
+      retries: 2,
+      totalBudgetMs: 2_500,
+      circuit: { failureThreshold: 9, cooldownMs: 1 },
+    });
+    const started = Date.now();
+    expect(await c.submit(req)).toEqual({ kind: 'unavailable', reason: 'timeout' });
+    const elapsed = Date.now() - started;
+    expect(idem.calls()).toBe(2);
+    // A 2ª tentativa terminou no teto total (2,5 s), não no limite por tentativa (5 s).
+    expect(elapsed).toBeGreaterThanOrEqual(2_400);
+    expect(elapsed).toBeLessThan(4_000);
+  });
+
+  it('R61: o padrão do conector tem teto total igual ao teto de uma tentativa', () => {
+    expect(DEFAULT_CONNECTOR_OPTIONS.timeoutMs).toBe(CONNECTOR_TIMEOUT_MAX_MS);
+    expect(DEFAULT_CONNECTOR_OPTIONS.totalBudgetMs).toBe(CONNECTOR_TIMEOUT_MAX_MS);
   });
 
   it('circuito: abre com falhas seguidas, recusa sem tentar, deixa UMA tentativa depois do intervalo', async () => {

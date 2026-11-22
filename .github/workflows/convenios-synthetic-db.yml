@@ -28,6 +28,7 @@ on:
       - 'scripts/security/hi-fixtures.ts'
       - 'src/lib/outbox/**'
       - 'scripts/security/outbox-budget-db.ts'
+      - 'scripts/security/outbox-shared-cron-db.ts'
       - 'scripts/security/scratch-schema.ts'
       - 'scripts/security/dev-order-chain.ts'
       - 'drizzle/migrations/**'
@@ -45,7 +46,7 @@ jobs:
   synthetic-db:
     name: Convênios — Postgres descartável (sintético)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       # O commit enviado, exatamente como está (a cadeia do DEV é a do #55, sem merge com a main).
       - uses: actions/checkout@v4
@@ -150,6 +151,14 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55567           NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/outbox-budget-db.ts
+
+      # R61-B: a invocação compartilhada da rota do cron (outbox + 4 tarefas financeiras com os prazos da
+      # AbacatePay), com corte REAL da função aos 60 s (processo filho morto) e recuperação pelo janitor.
+      - name: Invocação compartilhada do cron (R61-B, 6 provas, corte real aos 60 s)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55568 NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs" \
+            ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/outbox-shared-cron-db.ts
 
       - name: Desempenho da H.2 com o código real (P14.4; metas e desvio registrado)
         if: ${{ !cancelled() }}

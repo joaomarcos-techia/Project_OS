@@ -26,6 +26,7 @@ import type { lookup as dnsLookup } from 'node:dns';
 import { isIP } from 'node:net';
 
 import {
+  CONNECTOR_TIMEOUT_MAX_MS,
   createConnector,
   DEFAULT_CONNECTOR_OPTIONS,
   type CircuitOptions,
@@ -136,6 +137,14 @@ export function createTissSoapTransport(config: TissSoapConfig, deps: TissSoapDe
   }
   if (endpoints.size === 0) throw new TissSoapConfigError('nenhuma operação com endereço homologado');
   if (!/^\d{6}$/u.test(config.registroANS)) throw new TissSoapConfigError('registro ANS da operadora inválido');
+  // R61: o envio roda dentro da janela do cron compartilhado. Uma configuração de operadora
+  // não pode esticar a chamada além do teto; ela é recusada na homologação, não cortada em silêncio.
+  if (
+    config.timeoutMs !== undefined &&
+    !(Number.isInteger(config.timeoutMs) && config.timeoutMs > 0 && config.timeoutMs <= CONNECTOR_TIMEOUT_MAX_MS)
+  ) {
+    throw new TissSoapConfigError(`tempo limite do webservice precisa ser de até ${CONNECTOR_TIMEOUT_MAX_MS / 1000} s`);
+  }
   const post = deps.post ?? guardedPost;
   const maxResponseBytes = config.maxResponseBytes ?? 16 * 1024 * 1024;
   // Por pedido: o que conferir na resposta (lote enviado). Nunca guarda o envelope.
