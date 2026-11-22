@@ -1,11 +1,12 @@
 {
-  "note": "Pedido de E2E no Preview (navegador remoto). Mudar este arquivo dispara convenios-preview-e2e.yml. HF22 fase 4: spec base inteiro com guias de Consulta novas (fixture setup --run HF22C).",
-  "run": "HF22-4",
+  "note": "Pedido de E2E no Preview (navegador remoto). Mudar este arquivo dispara convenios-preview-e2e.yml. HF22 fase 5: o último teste do spec base (parou no login pelo limite de tentativas por IP, antes de qualquer ação), num runner novo.",
+  "run": "HF22-5",
   "groups": [
     ["e2e/convenios-preview.spec.ts"]
   ],
   "env": {
     "E2E_HI_ACCOUNTS": "e2e-hi-accounts.json",
     "E2E_HI_FIXTURE": "e2e-hi-fixture.json"
-  }
+  },
+  "grep": "solicitação SP/SADT: registrar|o Preview usa o projeto DEV"
 }
