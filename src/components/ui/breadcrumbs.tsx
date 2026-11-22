@@ -16,7 +16,11 @@ export function Breadcrumbs({ items, className }: { items: Crumb[]; className?: 
           return (
             <li key={i} className="flex items-center gap-1.5">
               {item.href && !last ? (
-                <Link href={item.href} className="transition-colors hover:text-fg">
+                // Alvo de 24 px (WCAG 2.5.8): a margem negativa compensa, e a linha não cresce.
+                <Link
+                  href={item.href}
+                  className="-my-0.5 inline-flex min-h-6 items-center transition-colors hover:text-fg"
+                >
                   {item.label}
                 </Link>
               ) : (

@@ -11,7 +11,7 @@ import { Card, CardContent } from '@/components/ui/card';
  * pode alterar a cobrança, a agenda e o financeiro.
  */
 export const metadata: Metadata = {
-  title: 'Acompanhamento do pagamento — Qoro',
+  title: 'Acompanhamento do pagamento',
   robots: { index: false, follow: false },
 };
 

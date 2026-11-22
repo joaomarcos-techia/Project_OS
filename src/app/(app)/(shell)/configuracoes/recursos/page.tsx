@@ -1,16 +1,20 @@
+import type { Metadata } from 'next';
 import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 import { administersTeamSchedule } from '@/contexts/scheduling/internal/availability-scope';
 import { listSchedulableResources } from '@/contexts/scheduling/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { requirePageUser } from '@/lib/auth/page-guard';
+import { requireClinicId } from '@/lib/auth/tenant-context';
 
 import { ResourcesManager } from './resources-manager';
+
+export const metadata: Metadata = { title: 'Salas e equipamentos' };
 
 export const dynamic = 'force-dynamic';
 
 export default async function RecursosPage() {
-  const user = await requireUser();
+  const user = await requirePageUser();
   const clinicId = await requireClinicId();
 
   // AUTHZ-007 — sala/equipamento é recurso COMPARTILHADO: desativar um afeta a

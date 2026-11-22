@@ -605,8 +605,8 @@ test.describe.serial('produção: jornadas humanas por role na Clínica A', () =
       .getByText(financialDescription, { exact: true })
       .locator('xpath=ancestor::div[contains(@class,"rounded-(--card-radius)")][1]');
     await expect(financialCard).toBeVisible({ timeout: 30_000 });
-    await financialCard.getByRole('button', { name: 'Confirmar pagamento' }).click();
-    await financialCard.getByRole('button', { name: /Receber R\$/u }).click();
+    await financialCard.getByRole('button', { name: 'Registrar recebimento' }).click();
+    await financialCard.getByRole('button', { name: /Registrar R\$/u }).click();
     await expect(financialCard.getByText('Pago', { exact: true })).toBeVisible({
       timeout: 30_000,
     });

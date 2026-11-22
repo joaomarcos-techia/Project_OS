@@ -7,6 +7,7 @@ import {
   PaymentCredentialRejectedError,
   PaymentProviderUnavailableError,
 } from '@/contexts/payments';
+import { TrialAccessError } from '@/lib/trial-access/policy';
 
 export type ActionResult<T = undefined> =
   | { ok: true; data: T }
@@ -24,6 +25,7 @@ export function ok<T>(data: T): ActionResult<T> {
  * "erro ao salvar" faria alguém trocar uma chave que estava certa.
  */
 export function fail(err: unknown): ActionResult<never> {
+  if (err instanceof TrialAccessError) return { ok: false, code: err.code, message: err.message };
   if (err instanceof PaymentCredentialRejectedError) {
     return { ok: false, code: err.code, message: err.message };
   }

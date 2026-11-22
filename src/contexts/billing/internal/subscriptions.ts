@@ -12,6 +12,7 @@ import { and, eq, isNull, lt, or, sql } from 'drizzle-orm';
 import type { Tx } from '@/lib/db';
 import { metrics } from '@/lib/observability/metrics';
 import { publishEvent } from '@/lib/outbox/publish';
+import { releaseTrialAfterVerifiedPaymentTx } from '@/lib/trial-access';
 
 import { BILLING_EVENTS, type SubscriptionActivatedPayload } from '../events';
 import { isOffer2026PlanCode } from '../proposed-offer';
@@ -465,6 +466,9 @@ export async function markInvoicePaid(
   // Pagamento recebido reativa acesso + billing_status (decisão de ClinicaOS).
   await activateSubscription(tx, clinicId, opts.idemSuffix);
   await setClinicAccess(tx, clinicId, 'enabled', 'payment received', opts.idemSuffix);
+  if (opts.providerPaymentId) {
+    await releaseTrialAfterVerifiedPaymentTx(tx, clinicId, invoice.id);
+  }
 }
 
 /** Repara pagamento anual antecipado assim que a troca agendada entra em vigor. */

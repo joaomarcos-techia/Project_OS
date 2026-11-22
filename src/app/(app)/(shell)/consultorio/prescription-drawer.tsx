@@ -4,10 +4,9 @@ import { Pill, Plus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState, useTransition } from 'react';
 
-import {
-  createPrescriptionTemplate,
-  listMyPrescriptionTemplates,
-} from '@/contexts/clinical/actions-templates';
+import { listMyPrescriptionTemplates } from '@/contexts/clinical/actions-templates';
+import { createTemplateWithTrialLimit } from '../_actions/create-limited';
+import { unwrapAction } from '@/contexts/scheduling/action-result';
 import type { PrescriptionTemplateSummary } from '@/contexts/clinical';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -15,6 +14,7 @@ import {
   Drawer,
   DrawerBody,
   DrawerContent,
+  DrawerDescription,
   DrawerFooter,
   DrawerHeader,
   DrawerTitle,
@@ -129,15 +129,17 @@ export function PrescriptionDrawer({
     }
     startTpl(async () => {
       try {
-        await createPrescriptionTemplate(
-          {
-            nome,
-            categoria: saveCategoria.trim() || undefined,
-            kind,
-            medicamentos,
-            observacoes: observacoes.trim() || undefined,
-          },
-          uuidv4(),
+        await unwrapAction(
+          createTemplateWithTrialLimit(
+            {
+              nome,
+              categoria: saveCategoria.trim() || undefined,
+              kind,
+              medicamentos,
+              observacoes: observacoes.trim() || undefined,
+            },
+            uuidv4(),
+          ),
         );
         toast.success(`Modelo "${nome}" salvo.`);
         setSaveOpen(false);
@@ -190,6 +192,9 @@ export function PrescriptionDrawer({
       <DrawerContent size="lg">
         <DrawerHeader>
           <DrawerTitle>Emitir prescrição</DrawerTitle>
+          <DrawerDescription>
+            Receita deste atendimento, com validação das credenciais profissionais.
+          </DrawerDescription>
         </DrawerHeader>
         <DrawerBody className="flex flex-col gap-4">
           {error ? <Alert variant="danger">{error}</Alert> : null}

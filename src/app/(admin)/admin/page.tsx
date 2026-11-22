@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +15,8 @@ import { guardAdminAccess } from './_lib/guard';
 import { formatBRLCents, formatDateTime, formatPct } from './_lib/format';
 import { clinicRepository } from './_lib/repositories/clinics.repo';
 import { adminMetricsRepository } from './_lib/repositories/metrics.repo';
+
+export const metadata: Metadata = { title: 'Visão geral da plataforma' };
 
 export const dynamic = 'force-dynamic';
 

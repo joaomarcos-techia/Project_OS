@@ -4,11 +4,9 @@ import { Stethoscope } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState, useTransition } from 'react';
 
-import {
-  createProcedure,
-  deactivateProcedure,
-  updateProcedure,
-} from '@/contexts/scheduling/catalog-actions';
+import { deactivateProcedure, updateProcedure } from '@/contexts/scheduling/catalog-actions';
+import { createProcedureWithTrialLimit } from '../../_actions/create-limited';
+import { unwrapAction } from '@/contexts/scheduling/action-result';
 import type { ProcedureSummary } from '@/contexts/scheduling/types';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/components/ui/use-toast';
@@ -105,15 +103,17 @@ export function ProceduresManager({ initial }: { initial: ProcedureSummary[] }) 
             uuidv4(),
           );
         } else {
-          await createProcedure(
-            {
-              codigo: codigo.trim(),
-              descricao: descricao.trim(),
-              ...(categoria.trim() ? { categoria: categoria.trim() } : {}),
-              valorPadrao: valorNum,
-              duracaoPadraoMin: duracaoNum,
-            },
-            uuidv4(),
+          await unwrapAction(
+            createProcedureWithTrialLimit(
+              {
+                codigo: codigo.trim(),
+                descricao: descricao.trim(),
+                ...(categoria.trim() ? { categoria: categoria.trim() } : {}),
+                valorPadrao: valorNum,
+                duracaoPadraoMin: duracaoNum,
+              },
+              uuidv4(),
+            ),
           );
         }
         setEditing(null);

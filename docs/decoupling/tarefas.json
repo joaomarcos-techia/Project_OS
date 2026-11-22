@@ -1,0 +1,1168 @@
+{
+  "status": "PLANO_NAO_EXECUTADO",
+  "estimateUnit": "dias de engenharia focada, sem espera externa; não preço/compromisso",
+  "tasks": [
+    {
+      "id": "B00",
+      "phase": "0",
+      "title": "Congelar baseline operacional e recuperação",
+      "objective": "Inventariar somente metadados do ambiente alvo, datas/escopo dos backups e métricas sanitizadas",
+      "current": "Fotografia estática disponível; volumes, custos e restore atual não consultados.",
+      "change": "Inventariar somente metadados do ambiente alvo, datas/escopo dos backups e métricas sanitizadas; escolher snapshot e autorizar ensaio protegido antes de qualquer cópia.",
+      "location": [
+        "docs/decoupling/inventario-codigo.json",
+        "docs/runbooks/disaster-recovery.md",
+        ".github/workflows/db-backup.yml"
+      ],
+      "procedure": "Inventariar somente metadados do ambiente alvo, datas/escopo dos backups e métricas sanitizadas; escolher snapshot e autorizar ensaio protegido antes de qualquer cópia.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase"
+      ],
+      "dependencies": [],
+      "order": 1,
+      "effortEngineerDays": {
+        "min": 1,
+        "max": 2,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "Tech lead + SRE",
+      "risk": "Média/crítico",
+      "tests": "D03,D07,D16",
+      "evidence": "SHA e ambiente; execução identificada dos cenários D03,D07,D16; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Sem escrita de produto; retirar apenas inventário novo se incorreto.",
+      "gate": "G0",
+      "status": "PENDENTE",
+      "approval": "Mudança pequena de código pode ser proposta por PR; interfaces públicas e regras comerciais exigem aprovação específica."
+    },
+    {
+      "id": "B01",
+      "phase": "2",
+      "title": "Consolidar caracterização e fixtures",
+      "objective": "Catalogar suites atuais por cenário",
+      "current": "216 testes locais passaram; não existe prova completa nos destinos alternativos.",
+      "change": "Catalogar suites atuais por cenário; preparar duas clínicas sintéticas, operações financeiras com cleanup e relógio controlado; adicionar apenas lacunas da matriz.",
+      "location": [
+        "src/lib/auth/*.test.ts",
+        "src/lib/db/tenant.test.ts",
+        "e2e/",
+        "scripts/security/"
+      ],
+      "procedure": "Catalogar suites atuais por cenário; preparar duas clínicas sintéticas, operações financeiras com cleanup e relógio controlado; adicionar apenas lacunas da matriz.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["B00"],
+      "order": 2,
+      "effortEngineerDays": {
+        "min": 2,
+        "max": 4,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "QA + backend",
+      "risk": "Média/alto",
+      "tests": "A01-A19,F01-F24,D01-D16",
+      "evidence": "SHA e ambiente; execução identificada dos cenários A01-A19,F01-F24,D01-D16; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Remover somente fixtures identificadas após reconciliação; preservar evidências.",
+      "gate": "G2",
+      "status": "PENDENTE",
+      "approval": "Mudança pequena de código pode ser proposta por PR; interfaces públicas e regras comerciais exigem aprovação específica."
+    },
+    {
+      "id": "B02",
+      "phase": "1",
+      "title": "Aprovar fronteiras e contratos",
+      "objective": "Revisar D01-D12, fechar contratos/capacidades e owners",
+      "current": "Portas parciais e decisões propostas, sem segundo adapter homologado.",
+      "change": "Revisar D01-D12, fechar contratos/capacidades e owners; produzir ADRs e critérios quantitativos aceitos sem mudar regras comerciais.",
+      "location": [
+        "docs/architecture/04-arquitetura-to-be.md",
+        "docs/architecture/05-contratos-e-adaptadores.md",
+        "docs/adr/"
+      ],
+      "procedure": "Revisar D01-D12, fechar contratos/capacidades e owners; produzir ADRs e critérios quantitativos aceitos sem mudar regras comerciais.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["B00"],
+      "order": 3,
+      "effortEngineerDays": {
+        "min": 1,
+        "max": 2,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "Arquiteto + segurança + founder",
+      "risk": "Baixa/alto",
+      "tests": "Revisão adversarial e contratos versionados",
+      "evidence": "SHA e ambiente; execução identificada dos cenários Revisão adversarial e contratos versionados; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Revisar ADR proposta; nenhuma migração em runtime.",
+      "gate": "G1",
+      "status": "PENDENTE",
+      "approval": "Mudança pequena de código pode ser proposta por PR; interfaces públicas e regras comerciais exigem aprovação específica."
+    },
+    {
+      "id": "H01",
+      "phase": "3",
+      "title": "Independência de ambiente e origens",
+      "objective": "Introduzir APP_ENV/backend identity e DeploymentContext",
+      "current": "Preview depende de VERCEL_ENV e formato de host; coerência depende de Supabase ref.",
+      "change": "Introduzir APP_ENV/backend identity e DeploymentContext; preservar adapter Vercel e allowlist exata; cobrir URLs, CSRF, chaves públicas no build e config runtime.",
+      "location": [
+        "src/lib/env.ts",
+        "src/lib/env-coherence.ts",
+        "src/lib/http/application-url.ts",
+        "src/lib/http/content-security-policy.ts"
+      ],
+      "procedure": "Introduzir APP_ENV/backend identity e DeploymentContext; preservar adapter Vercel e allowlist exata; cobrir URLs, CSRF, chaves públicas no build e config runtime.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["B01", "B02"],
+      "order": 4,
+      "effortEngineerDays": {
+        "min": 2,
+        "max": 4,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "Backend + segurança",
+      "risk": "Média/crítico",
+      "tests": "H03,H06,H11; env/application-url tests",
+      "evidence": "SHA e ambiente; execução identificada dos cenários H03,H06,H11; env/application-url tests; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Manter leitores de env anteriores durante compatibilidade; desligar novo context antes de remover aliases.",
+      "gate": "G3-host",
+      "status": "PENDENTE",
+      "approval": "Mudança pequena de código pode ser proposta por PR; interfaces públicas e regras comerciais exigem aprovação específica."
+    },
+    {
+      "id": "H02",
+      "phase": "7",
+      "title": "Imagem Next reproduzível",
+      "objective": "Preparar imagem Node 22 non-root com lockfile e artefatos",
+      "current": "next build/start existem; não há imagem de produção alternativa no recorte.",
+      "change": "Preparar imagem Node 22 non-root com lockfile e artefatos; validar PDF/WASM, secrets lazy, startup/readiness e parada; não incluir env local na imagem.",
+      "location": ["NOVO Dockerfile", "NOVO .dockerignore", "next.config.ts", "package.json"],
+      "procedure": "Preparar imagem Node 22 non-root com lockfile e artefatos; validar PDF/WASM, secrets lazy, startup/readiness e parada; não incluir env local na imagem.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["H01"],
+      "order": 5,
+      "effortEngineerDays": {
+        "min": 3,
+        "max": 5,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "Platform engineer",
+      "risk": "Média/alto",
+      "tests": "H01-H04,H09,H11",
+      "evidence": "SHA e ambiente; execução identificada dos cenários H01-H04,H09,H11; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Retornar à imagem anterior; não remover Vercel.",
+      "gate": "G7",
+      "status": "PENDENTE",
+      "approval": "Aprovar mudança de build/deploy/CI antes de implementar configuração afetada."
+    },
+    {
+      "id": "H03",
+      "phase": "7",
+      "title": "Executor dos 21 schedules",
+      "objective": "Gerar lista de schedules independente com paridade verificável",
+      "current": "Manifesto Vercel tem 21 jobs; gate HTTP é Bearer.",
+      "change": "Gerar lista de schedules independente com paridade verificável; testar executor único, UTC, segredos destrutivos, leases, deadline e heartbeats em fixtures.",
+      "location": [
+        "vercel.json",
+        "src/lib/http/cron-auth.ts",
+        "src/app/api/cron/",
+        "src/lib/outbox/worker.ts",
+        "NOVO manifesto scheduler"
+      ],
+      "procedure": "Gerar lista de schedules independente com paridade verificável; testar executor único, UTC, segredos destrutivos, leases, deadline e heartbeats em fixtures.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["H01", "B01"],
+      "order": 6,
+      "effortEngineerDays": {
+        "min": 2,
+        "max": 4,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "SRE + backend",
+      "risk": "Alta/crítico",
+      "tests": "H07-H09,C01,C03",
+      "evidence": "SHA e ambiente; execução identificada dos cenários H07-H09,C01,C03; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Parar geração nova antes de religar antiga; drenar leases, reconciliar efeitos.",
+      "gate": "G7",
+      "status": "PENDENTE",
+      "approval": "Aprovar mudança de build/deploy/CI antes de implementar configuração afetada."
+    },
+    {
+      "id": "H04",
+      "phase": "7",
+      "title": "Landing em host estático alternativo",
+      "objective": "Configurar destinos de build allowlisted",
+      "current": "Vite/prerender ajuda; headers, redirects, Preview e Analytics dependem de Vercel.",
+      "change": "Configurar destinos de build allowlisted; reproduzir static 404/headers/redirects; testar CTA, Ads e experiência em dois tamanhos sem alterar trigger comercial.",
+      "location": [
+        "LANDING src/lib/comecar.ts",
+        "src/lib/eventos.ts",
+        "vercel.json",
+        "scripts/serve.mjs",
+        "scripts/prerender.mjs"
+      ],
+      "procedure": "Configurar destinos de build allowlisted; reproduzir static 404/headers/redirects; testar CTA, Ads e experiência em dois tamanhos sem alterar trigger comercial.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["H01", "B02"],
+      "order": 7,
+      "effortEngineerDays": {
+        "min": 1,
+        "max": 3,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "Frontend + platform",
+      "risk": "Média/alto",
+      "tests": "H05,H12; npm run comecar/conversao/seguranca",
+      "evidence": "SHA e ambiente; execução identificada dos cenários H05,H12; npm run comecar/conversao/seguranca; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Restaurar release estática e origens anteriores; preservar medição e não enviar ao prod em teste.",
+      "gate": "G7",
+      "status": "PENDENTE",
+      "approval": "Aprovar mudança de build/deploy/CI antes de implementar configuração afetada."
+    },
+    {
+      "id": "S01",
+      "phase": "3",
+      "title": "Extrair contrato de objetos",
+      "objective": "Criar FileStorage pequeno",
+      "current": "Quatro helpers usam diretamente storage do cliente admin Supabase.",
+      "change": "Criar FileStorage pequeno; implementar adapter Supabase atrás dos helpers existentes; testes de contrato para bytes, paginação, erros e overwrite.",
+      "location": [
+        "src/lib/storage/clinical.ts",
+        "exports.ts",
+        "admin-exports.ts",
+        "clinic-assets.ts",
+        "NOVO contracts.ts e supabase-adapter.ts"
+      ],
+      "procedure": "Criar FileStorage pequeno; implementar adapter Supabase atrás dos helpers existentes; testes de contrato para bytes, paginação, erros e overwrite.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["B01", "B02"],
+      "order": 8,
+      "effortEngineerDays": {
+        "min": 2,
+        "max": 3,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "Backend",
+      "risk": "Média/alto",
+      "tests": "D08-D13",
+      "evidence": "SHA e ambiente; execução identificada dos cenários D08-D13; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Facade compatível permite voltar ao helper anterior sem mover objetos.",
+      "gate": "G3-storage",
+      "status": "PENDENTE",
+      "approval": "Mudança pequena de código pode ser proposta por PR; interfaces públicas e regras comerciais exigem aprovação específica."
+    },
+    {
+      "id": "S02",
+      "phase": "5S",
+      "title": "Desvincular referências de URL proprietária",
+      "objective": "Inventariar leitores",
+      "current": "PDFs usam paths; logo_url e cinco templates embutem URL absoluta.",
+      "change": "Inventariar leitores; adicionar resolução compatível de objeto lógico/URL antiga; mover marca para URL própria aprovada; não reescrever snapshots assinados.",
+      "location": [
+        "src/contexts/tenancy/schema.ts",
+        "src/contexts/clinical/schema.ts",
+        "src/lib/email/templates/",
+        "src/lib/storage/"
+      ],
+      "procedure": "Inventariar leitores; adicionar resolução compatível de objeto lógico/URL antiga; mover marca para URL própria aprovada; não reescrever snapshots assinados.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["S01"],
+      "order": 9,
+      "effortEngineerDays": {
+        "min": 2,
+        "max": 3,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "Backend + frontend",
+      "risk": "Média/alto",
+      "tests": "D08,D11,D14; testes de templates/PDF",
+      "evidence": "SHA e ambiente; execução identificada dos cenários D08,D11,D14; testes de templates/PDF; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Manter leitura dos dois formatos; reverter apresentação antes de qualquer contract de schema.",
+      "gate": "G5S",
+      "status": "PENDENTE",
+      "approval": "Aprovar contrato/schema e destino; migration somente na janela/ambiente expressamente autorizado."
+    },
+    {
+      "id": "S03",
+      "phase": "5S",
+      "title": "Homologar Storage alternativo",
+      "objective": "Implementar apenas capacidades acordadas em destino S3 de teste aprovado",
+      "current": "Não existe adapter alternativo provado.",
+      "change": "Implementar apenas capacidades acordadas em destino S3 de teste aprovado; conferir MIME, tamanho, ACL, TTL e integridade por hash com dados sintéticos.",
+      "location": [
+        "NOVO src/lib/storage/s3-adapter.ts",
+        "NOVOS testes de contrato",
+        "scripts de manifesto"
+      ],
+      "procedure": "Implementar apenas capacidades acordadas em destino S3 de teste aprovado; conferir MIME, tamanho, ACL, TTL e integridade por hash com dados sintéticos.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["S01"],
+      "order": 10,
+      "effortEngineerDays": {
+        "min": 3,
+        "max": 5,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "Backend + segurança",
+      "risk": "Alta/crítico",
+      "tests": "D08-D13,D15",
+      "evidence": "SHA e ambiente; execução identificada dos cenários D08-D13,D15; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Desligar adapter novo e manter todos os objetos originais; excluir só fixtures próprias autorizadas.",
+      "gate": "G5S",
+      "status": "PENDENTE",
+      "approval": "Mudança pequena de código pode ser proposta por PR; interfaces públicas e regras comerciais exigem aprovação específica."
+    },
+    {
+      "id": "S04",
+      "phase": "5S",
+      "title": "Ensaiar cópia/delta e retorno de objetos",
+      "objective": "Criar manifesto cifrado e checkpoints",
+      "current": "Restore histórico Supabase não prova S3 nem exclusão concorrente.",
+      "change": "Criar manifesto cifrado e checkpoints; copiar sintéticos, simular overwrite/delete e tombstones; congelar escritor, verificar delta e testar retorno sem ressuscitar objetos.",
+      "location": [
+        "scripts/recovery/",
+        "docs/runbooks/disaster-recovery.md",
+        "NOVO roteiro Storage"
+      ],
+      "procedure": "Criar manifesto cifrado e checkpoints; copiar sintéticos, simular overwrite/delete e tombstones; congelar escritor, verificar delta e testar retorno sem ressuscitar objetos.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["S02", "S03", "O02"],
+      "order": 11,
+      "effortEngineerDays": {
+        "min": 2,
+        "max": 4,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "SRE + QA",
+      "risk": "Alta/crítico",
+      "tests": "D09-D15,C06",
+      "evidence": "SHA e ambiente; execução identificada dos cenários D09-D15,C06; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Restaurar roteamento só com delta/tombstones reconciliados; não apagar destino.",
+      "gate": "G5S",
+      "status": "PENDENTE",
+      "approval": "Mudança pequena de código pode ser proposta por PR; interfaces públicas e regras comerciais exigem aprovação específica."
+    },
+    {
+      "id": "F01",
+      "phase": "3",
+      "title": "Extrair portas financeiras e DTO canônico",
+      "objective": "Extrair recorrência, checkout e snapshots",
+      "current": "PaymentProvider e tipos estão em payments/asaas; consumidores conhecem status e ciclo proprietários.",
+      "change": "Extrair recorrência, checkout e snapshots; manter facade compatível; mapear cents, moeda, obrigação, settlement, refund e dispute sem perder unknown.",
+      "location": [
+        "src/lib/payments/asaas/index.ts",
+        "NOVO src/lib/payments/contracts/",
+        "src/contexts/billing/internal/provider-sync.ts"
+      ],
+      "procedure": "Extrair recorrência, checkout e snapshots; manter facade compatível; mapear cents, moeda, obrigação, settlement, refund e dispute sem perder unknown.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["B01", "B02"],
+      "order": 12,
+      "effortEngineerDays": {
+        "min": 3,
+        "max": 5,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "Backend financeiro",
+      "risk": "Alta/crítico",
+      "tests": "F01,F03,F11,F12,F24",
+      "evidence": "SHA e ambiente; execução identificada dos cenários F01,F03,F11,F12,F24; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Preservar chamadas antigas e remover só nova composição se houver regressão.",
+      "gate": "G3-finance",
+      "status": "PENDENTE",
+      "approval": "Mudança pequena de código pode ser proposta por PR; interfaces públicas e regras comerciais exigem aprovação específica."
+    },
+    {
+      "id": "F02",
+      "phase": "4",
+      "title": "Traduzir eventos e preservar confiança",
+      "objective": "Separar tradutor autenticado/readback do caso de uso",
+      "current": "Routes normalizam IDs e leem estado Asaas; dedup é específico.",
+      "change": "Separar tradutor autenticado/readback do caso de uso; manter HTTP budget e dedup transacional; decidir inbox somente com evidência de necessidade.",
+      "location": [
+        "src/app/api/webhooks/asaas/route.ts",
+        "patient/[ref]/route.ts",
+        "NOVO lib/payments/events.ts"
+      ],
+      "procedure": "Separar tradutor autenticado/readback do caso de uso; manter HTTP budget e dedup transacional; decidir inbox somente com evidência de necessidade.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["F01"],
+      "order": 13,
+      "effortEngineerDays": {
+        "min": 2,
+        "max": 4,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "Backend + segurança",
+      "risk": "Alta/crítico",
+      "tests": "F02-F06,F20,F23",
+      "evidence": "SHA e ambiente; execução identificada dos cenários F02-F06,F20,F23; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Continuar endpoints antigos; não reprocessar efeitos já confirmados; reconciliar namespace.",
+      "gate": "G4",
+      "status": "PENDENTE",
+      "approval": "Mudança pequena de código pode ser proposta por PR; interfaces públicas e regras comerciais exigem aprovação específica."
+    },
+    {
+      "id": "F03",
+      "phase": "4",
+      "title": "Persistir binding de provider e conta",
+      "objective": "Desenhar migration expand-only para binding e unicidades compostas",
+      "current": "IDs/dedup Asaas e single-gateway não permitem convivência segura.",
+      "change": "Desenhar migration expand-only para binding e unicidades compostas; backfill Asaas com hashes agregados de preservação; testar N/N-1 e colisão entre contas.",
+      "location": [
+        "src/contexts/billing/schema.ts",
+        "src/contexts/payments/schema.ts",
+        "NOVA migration após última atual"
+      ],
+      "procedure": "Desenhar migration expand-only para binding e unicidades compostas; backfill Asaas com hashes agregados de preservação; testar N/N-1 e colisão entre contas.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["F01", "B00"],
+      "order": 14,
+      "effortEngineerDays": {
+        "min": 3,
+        "max": 5,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "DBA + backend financeiro",
+      "risk": "Alta/crítico",
+      "tests": "F17,F20,F22; migration N/N-1",
+      "evidence": "SHA e ambiente; execução identificada dos cenários F17,F20,F22; migration N/N-1; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Manter colunas antigas e dual-read controlado; não apagar mapping se recebeu efeito externo.",
+      "gate": "G4",
+      "status": "PENDENTE",
+      "approval": "Aprovar contrato/schema e destino; migration somente na janela/ambiente expressamente autorizado."
+    },
+    {
+      "id": "F04",
+      "phase": "4",
+      "title": "Operações financeiras com resultado incerto",
+      "objective": "Levar reserva/checkpoint/readback ao contrato novo",
+      "current": "Há leases/external refs no fluxo atual; ainda não é contrato multi-provider.",
+      "change": "Levar reserva/checkpoint/readback ao contrato novo; provar timeout pós-criação, webhook antes da resposta e retry sem POST cego nem fallback entre gateways.",
+      "location": [
+        "src/contexts/onboarding/internal/signup-hosted-checkout.ts",
+        "src/contexts/billing/internal/plan-changes.ts",
+        "src/contexts/payments/internal/hosted-checkout.ts"
+      ],
+      "procedure": "Levar reserva/checkpoint/readback ao contrato novo; provar timeout pós-criação, webhook antes da resposta e retry sem POST cego nem fallback entre gateways.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["F01", "F02", "F03"],
+      "order": 15,
+      "effortEngineerDays": {
+        "min": 3,
+        "max": 5,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "Backend financeiro + QA",
+      "risk": "Alta/crítico",
+      "tests": "F04,F06-F09,C04",
+      "evidence": "SHA e ambiente; execução identificada dos cenários F04,F06-F09,C04; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Pausar criação, reconciliar operação pela origem e retomar somente após decisão autoritativa.",
+      "gate": "G4",
+      "status": "PENDENTE",
+      "approval": "Mudança pequena de código pode ser proposta por PR; interfaces públicas e regras comerciais exigem aprovação específica."
+    },
+    {
+      "id": "F05",
+      "phase": "4",
+      "title": "Segundo gateway em Sandbox",
+      "objective": "Selecionar pela matriz de capacidades",
+      "current": "Nenhum segundo gateway foi escolhido ou homologado.",
+      "change": "Selecionar pela matriz de capacidades; implementar adapter e passar suíte comum para cliente, recorrência, checkout e readback; unsupported bloqueia operação correspondente.",
+      "location": [
+        "NOVO src/lib/payments/adapters/<provider>/",
+        "testes de contrato compartilhados"
+      ],
+      "procedure": "Selecionar pela matriz de capacidades; implementar adapter e passar suíte comum para cliente, recorrência, checkout e readback; unsupported bloqueia operação correspondente.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["F01", "F04"],
+      "order": 16,
+      "effortEngineerDays": {
+        "min": 5,
+        "max": 10,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "Backend financeiro",
+      "risk": "Alta/crítico",
+      "tests": "F01-F24 segundo capacidades; X02",
+      "evidence": "SHA e ambiente; execução identificada dos cenários F01-F24 segundo capacidades; X02; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Desligar novas originações, preservar contratos/credenciais de fixtures até conciliação e cleanup.",
+      "gate": "G4",
+      "status": "PENDENTE",
+      "approval": "Aprovar provider/capacidades/custo e tratamento de dados/credenciais antes de operação externa."
+    },
+    {
+      "id": "F06",
+      "phase": "4",
+      "title": "Cohort financeiro e saída de recorrência",
+      "objective": "Preparar roteamento por contrato, runbook de consentimento/token e encerramento de cobranças futuras",
+      "current": "Uma env global não pode migrar contratos ativos ou cartões.",
+      "change": "Preparar roteamento por contrato, runbook de consentimento/token e encerramento de cobranças futuras; ensaiar origem recebendo refund depois da troca; zero alterações reais.",
+      "location": [
+        "src/contexts/billing/internal/plan-change-provider-sync.ts",
+        "billing-reconcile",
+        "docs/runbooks/provider-cutover.md"
+      ],
+      "procedure": "Preparar roteamento por contrato, runbook de consentimento/token e encerramento de cobranças futuras; ensaiar origem recebendo refund depois da troca; zero alterações reais.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["F03", "F04", "F05"],
+      "order": 17,
+      "effortEngineerDays": {
+        "min": 3,
+        "max": 6,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "Financeiro + backend + jurídico",
+      "risk": "Alta/crítico",
+      "tests": "F17-F22,C07",
+      "evidence": "SHA e ambiente; execução identificada dos cenários F17-F22,C07; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Voltar novas vendas à origem sem mover obrigações já criadas no destino; reconciliar ambos.",
+      "gate": "G4",
+      "status": "PENDENTE",
+      "approval": "Aprovar provider/capacidades/custo e tratamento de dados/credenciais antes de operação externa."
+    },
+    {
+      "id": "I01",
+      "phase": "3",
+      "title": "Porta de sessão verificada",
+      "objective": "Extrair verificação de sessão/subject e assurance",
+      "current": "tenant-context importa Supabase diretamente; authz Qoro já é própria.",
+      "change": "Extrair verificação de sessão/subject e assurance; preservar CurrentUser, claims_version e leitura autoritativa; adapter Supabase equivalência primeiro.",
+      "location": [
+        "src/lib/auth/tenant-context.ts",
+        "supabase-server.ts",
+        "NOVO lib/identity/contracts.ts"
+      ],
+      "procedure": "Extrair verificação de sessão/subject e assurance; preservar CurrentUser, claims_version e leitura autoritativa; adapter Supabase equivalência primeiro.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["B01", "B02"],
+      "order": 18,
+      "effortEngineerDays": {
+        "min": 2,
+        "max": 4,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "Backend identidade + segurança",
+      "risk": "Alta/crítico",
+      "tests": "A04-A11,A15",
+      "evidence": "SHA e ambiente; execução identificada dos cenários A04-A11,A15; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Facade mantém adapter Supabase e cookies atuais; não aceitar issuer desconhecido.",
+      "gate": "G3-identity",
+      "status": "PENDENTE",
+      "approval": "Mudança pequena de código pode ser proposta por PR; interfaces públicas e regras comerciais exigem aprovação específica."
+    },
+    {
+      "id": "I02",
+      "phase": "5I",
+      "title": "Mapear identidade interna e FKs",
+      "objective": "Projetar identity bindings issuer+subject, preservar UUIDs e autor original",
+      "current": "profiles.id tem vínculo com auth.users; e-mail não é chave segura.",
+      "change": "Projetar identity bindings issuer+subject, preservar UUIDs e autor original; adicionar esquema/compatibilidade e testar exclusão/revinculação sem cascata indevida.",
+      "location": [
+        "src/contexts/identity/schema.ts",
+        "migrations auth FK",
+        "NOVO identity-bindings repository/migration"
+      ],
+      "procedure": "Projetar identity bindings issuer+subject, preservar UUIDs e autor original; adicionar esquema/compatibilidade e testar exclusão/revinculação sem cascata indevida.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["I01", "B00"],
+      "order": 19,
+      "effortEngineerDays": {
+        "min": 3,
+        "max": 6,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "DBA + segurança",
+      "risk": "Alta/crítico",
+      "tests": "A12,A14-A16,D03,D06",
+      "evidence": "SHA e ambiente; execução identificada dos cenários A12,A14-A16,D03,D06; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Preservar auth.users e mapping antigo durante expansão; não contract antes de prova conjunta.",
+      "gate": "G5I",
+      "status": "PENDENTE",
+      "approval": "Aprovar contrato/schema e destino; migration somente na janela/ambiente expressamente autorizado."
+    },
+    {
+      "id": "I03",
+      "phase": "5I",
+      "title": "Homologar credenciais/MFA/refresh no alvo",
+      "objective": "Confirmar capacidades contratuais",
+      "current": "Não há prova de import de hashes/tokens/fatores para outro Auth.",
+      "change": "Confirmar capacidades contratuais; testar apenas contas sintéticas; escolher reautenticação/reset/re-enrollment se import não for seguro e suportado.",
+      "location": ["NOVO adapter identidade", "src/lib/auth/mfa.ts", "sessão/refresh/reset routes"],
+      "procedure": "Confirmar capacidades contratuais; testar apenas contas sintéticas; escolher reautenticação/reset/re-enrollment se import não for seguro e suportado.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["I01", "I02"],
+      "order": 20,
+      "effortEngineerDays": {
+        "min": 4,
+        "max": 7,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "Segurança + backend",
+      "risk": "Alta/crítico",
+      "tests": "A04-A14,A17",
+      "evidence": "SHA e ambiente; execução identificada dos cenários A04-A14,A17; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Retorno pode exigir novo login; manter issuer antigo só conforme política e revogações reconciliadas.",
+      "gate": "G5I",
+      "status": "PENDENTE",
+      "approval": "Aprovar provider/capacidades/custo e tratamento de dados/credenciais antes de operação externa."
+    },
+    {
+      "id": "I04",
+      "phase": "5I",
+      "title": "Continuar cadastro e trial através da porta",
+      "objective": "Preservar timestamp histórico e estado de jornada",
+      "current": "Trial novo usa created_at do Auth; jornada possui senha/código/checkout próprios.",
+      "change": "Preservar timestamp histórico e estado de jornada; adaptar operações de conta, código, reset e provisioning a subject interno sem novo trial/contrato.",
+      "location": [
+        "src/contexts/onboarding/internal/signup-auth-admin.ts",
+        "signup-auth-binding.ts",
+        "signup-trial.ts",
+        "signup-provision.ts"
+      ],
+      "procedure": "Preservar timestamp histórico e estado de jornada; adaptar operações de conta, código, reset e provisioning a subject interno sem novo trial/contrato.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["I02", "I03", "F01"],
+      "order": 21,
+      "effortEngineerDays": {
+        "min": 3,
+        "max": 5,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "Backend onboarding + QA",
+      "risk": "Alta/crítico",
+      "tests": "A01-A03,A16-A19,F13",
+      "evidence": "SHA e ambiente; execução identificada dos cenários A01-A03,A16-A19,F13; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Manter leituras antigas e versionar operação; reconciliar identidade/contrato antes de qualquer rollback.",
+      "gate": "G5I",
+      "status": "PENDENTE",
+      "approval": "Mudança pequena de código pode ser proposta por PR; interfaces públicas e regras comerciais exigem aprovação específica."
+    },
+    {
+      "id": "I05",
+      "phase": "5I",
+      "title": "Ensaio completo de identidade e autorização",
+      "objective": "Executar login/refresh/logout/MFA/reset/claims e duas clínicas em alvo isolado",
+      "current": "Sessão alternativa ainda não foi executada no Qoro.",
+      "change": "Executar login/refresh/logout/MFA/reset/claims e duas clínicas em alvo isolado; simular corte/retorno com sessões e recuperação pendentes.",
+      "location": [
+        "security-e2e/",
+        "e2e/",
+        "scripts/security/tenant-isolation.ts",
+        "NOVO ensaio identity"
+      ],
+      "procedure": "Executar login/refresh/logout/MFA/reset/claims e duas clínicas em alvo isolado; simular corte/retorno com sessões e recuperação pendentes.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["I03", "I04", "B01"],
+      "order": 22,
+      "effortEngineerDays": {
+        "min": 3,
+        "max": 5,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "QA segurança + SRE",
+      "risk": "Alta/crítico",
+      "tests": "A01-A19,C02",
+      "evidence": "SHA e ambiente; execução identificada dos cenários A01-A19,C02; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Manter escritores de identidade únicos; reconciliar senha/reset/ativo antes de permitir origem novamente.",
+      "gate": "G5I",
+      "status": "PENDENTE",
+      "approval": "Mudança pequena de código pode ser proposta por PR; interfaces públicas e regras comerciais exigem aprovação específica."
+    },
+    {
+      "id": "D01",
+      "phase": "6",
+      "title": "Catalogar dependências efetivas do Postgres",
+      "objective": "Gerar inventário de roles/policies/functions/FKs/extensões/publicações/partições e queries críticas da cópia autorizada",
+      "current": "136 migrations e 24 com auth; texto não é schema efetivo.",
+      "change": "Gerar inventário de roles/policies/functions/FKs/extensões/publicações/partições e queries críticas da cópia autorizada; separar recursos usados de resíduos históricos.",
+      "location": [
+        "drizzle/migrations/",
+        "scripts/security/scratch-schema.ts",
+        "src/lib/db/",
+        "docs/database/schema.md"
+      ],
+      "procedure": "Gerar inventário de roles/policies/functions/FKs/extensões/publicações/partições e queries críticas da cópia autorizada; separar recursos usados de resíduos históricos.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["B00", "B02"],
+      "order": 23,
+      "effortEngineerDays": {
+        "min": 2,
+        "max": 3,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "DBA",
+      "risk": "Média/crítico",
+      "tests": "D03-D07,D16",
+      "evidence": "SHA e ambiente; execução identificada dos cenários D03-D07,D16; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Somente inventário; nenhum DDL remoto.",
+      "gate": "G6",
+      "status": "PENDENTE",
+      "approval": "Mudança pequena de código pode ser proposta por PR; interfaces públicas e regras comerciais exigem aprovação específica."
+    },
+    {
+      "id": "D02",
+      "phase": "6",
+      "title": "Bootstrap Postgres genérico com segurança",
+      "objective": "Criar bootstrap explícito com extensões/roles mínimas e contexto Qoro",
+      "current": "Supabase oferece roles/functions/Auth que banco genérico não traz.",
+      "change": "Criar bootstrap explícito com extensões/roles mínimas e contexto Qoro; replay de migrations atuais + mudanças aditivas; testar RLS e runtime sem BYPASSRLS.",
+      "location": [
+        "NOVO bootstrap Postgres",
+        "src/lib/db/tenant.ts",
+        "migrations",
+        "scripts/security/"
+      ],
+      "procedure": "Criar bootstrap explícito com extensões/roles mínimas e contexto Qoro; replay de migrations atuais + mudanças aditivas; testar RLS e runtime sem BYPASSRLS.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["D01", "I02"],
+      "order": 24,
+      "effortEngineerDays": {
+        "min": 3,
+        "max": 6,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "DBA + segurança",
+      "risk": "Alta/crítico",
+      "tests": "D03-D07,A15; tenant real",
+      "evidence": "SHA e ambiente; execução identificada dos cenários D03-D07,A15; tenant real; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Descartar só cluster sintético identificado; não afrouxar policies para passar restore.",
+      "gate": "G6",
+      "status": "PENDENTE",
+      "approval": "Aprovar contrato/schema e destino; migration somente na janela/ambiente expressamente autorizado."
+    },
+    {
+      "id": "D03",
+      "phase": "6",
+      "title": "Snapshot e delta com escritor único",
+      "objective": "Escolher pausa ou CDC após medir volume",
+      "current": "Não há mecanismo multi-host de migração de dados homologado.",
+      "change": "Escolher pausa ou CDC após medir volume; preparar snapshot/manifesto/checkpoint; ensaiar deltas de registros/filas, sequence e timezone sem split-brain.",
+      "location": ["scripts/recovery/", "NOVO migrador/checker", "db/outbox schema"],
+      "procedure": "Escolher pausa ou CDC após medir volume; preparar snapshot/manifesto/checkpoint; ensaiar deltas de registros/filas, sequence e timezone sem split-brain.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["D02", "O02"],
+      "order": 25,
+      "effortEngineerDays": {
+        "min": 3,
+        "max": 5,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "DBA + SRE",
+      "risk": "Alta/crítico",
+      "tests": "D01-D07,C01,C05",
+      "evidence": "SHA e ambiente; execução identificada dos cenários D01-D07,C01,C05; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Guardar log de escritas pós-corte e reconciliar antes de retorno; não promover backup antigo como escritor.",
+      "gate": "G6",
+      "status": "PENDENTE",
+      "approval": "Aprovar contrato/schema e destino; migration somente na janela/ambiente expressamente autorizado."
+    },
+    {
+      "id": "D04",
+      "phase": "6",
+      "title": "Restore e operação real no Postgres alvo",
+      "objective": "Restaurar cópia autorizada ou sintéticos integrais",
+      "current": "Restore histórico foi em stack Supabase, não prova independência.",
+      "change": "Restaurar cópia autorizada ou sintéticos integrais; validar constraints/policies/crypto e fluxos principais com Auth alternativo; medir duração e retorno.",
+      "location": ["scripts/restore-test.ts", "security:tenant", "NOVO ensaio PG", "runbook DR"],
+      "procedure": "Restaurar cópia autorizada ou sintéticos integrais; validar constraints/policies/crypto e fluxos principais com Auth alternativo; medir duração e retorno.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["D03", "I05"],
+      "order": 26,
+      "effortEngineerDays": {
+        "min": 3,
+        "max": 5,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "DBA + QA",
+      "risk": "Alta/crítico",
+      "tests": "D01-D16,C01,C05",
+      "evidence": "SHA e ambiente; execução identificada dos cenários D01-D16,C01,C05; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Retornar escritor só após delta reconciliado; snapshot base permanece imutável.",
+      "gate": "G6",
+      "status": "PENDENTE",
+      "approval": "Aprovar contrato/schema e destino; migration somente na janela/ambiente expressamente autorizado."
+    },
+    {
+      "id": "O01",
+      "phase": "2",
+      "title": "SLIs e alertas por capacidade",
+      "objective": "Mapear métricas atuais ao host alvo",
+      "current": "JSON/health/heartbeats existem; coleta e alertas fora Vercel não foram provados.",
+      "change": "Mapear métricas atuais ao host alvo; instrumentar lacunas com IDs internos; validar alerta de falha e readback sem dados sensíveis.",
+      "location": [
+        "src/lib/observability/",
+        "src/app/api/health/",
+        "docs/runbooks/alerting-setup.md"
+      ],
+      "procedure": "Mapear métricas atuais ao host alvo; instrumentar lacunas com IDs internos; validar alerta de falha e readback sem dados sensíveis.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["B00", "B02"],
+      "order": 27,
+      "effortEngineerDays": {
+        "min": 1,
+        "max": 3,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "SRE",
+      "risk": "Média/alto",
+      "tests": "H07,H13,F05",
+      "evidence": "SHA e ambiente; execução identificada dos cenários H07,H13,F05; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Conservar collector e monitores anteriores durante sobreposição; não publicar raw payload.",
+      "gate": "G2",
+      "status": "PENDENTE",
+      "approval": "Mudança pequena de código pode ser proposta por PR; interfaces públicas e regras comerciais exigem aprovação específica."
+    },
+    {
+      "id": "O02",
+      "phase": "0/2",
+      "title": "Recuperação pertinente à nova migração",
+      "objective": "Reusar DR existente com snapshot aprovado para o corte",
+      "current": "Há provas históricas e aceite de backup independente adiado; RTO completo não medido.",
+      "change": "Reusar DR existente com snapshot aprovado para o corte; verificar decrypt/keys/Auth config/Storage e medir restore; não contratar PITR nem fazer upload real sem autorização.",
+      "location": [
+        "docs/runbooks/disaster-recovery.md",
+        "scripts/recovery/",
+        ".github/workflows/db-backup.yml"
+      ],
+      "procedure": "Reusar DR existente com snapshot aprovado para o corte; verificar decrypt/keys/Auth config/Storage e medir restore; não contratar PITR nem fazer upload real sem autorização.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["B00"],
+      "order": 28,
+      "effortEngineerDays": {
+        "min": 2,
+        "max": 4,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "SRE + segurança + founder",
+      "risk": "Alta/crítico",
+      "tests": "D09,D16; exercício de recuperação",
+      "evidence": "SHA e ambiente; execução identificada dos cenários D09,D16; exercício de recuperação; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Preservar originais/custódia; descartar apenas destino isolado autorizado; aceitar risco só formalmente.",
+      "gate": "G0 operacional / G2",
+      "status": "PENDENTE",
+      "approval": "Aprovar provider/capacidades/custo e tratamento de dados/credenciais antes de operação externa."
+    },
+    {
+      "id": "O03",
+      "phase": "3",
+      "title": "Impedir regressão de fronteiras",
+      "objective": "Adicionar regras mínimas de import/provider para fronteiras migradas e snapshot check quando aprovado",
+      "current": "ESLint boundaries, madge e AST DB guards já existem.",
+      "change": "Adicionar regras mínimas de import/provider para fronteiras migradas e snapshot check quando aprovado; testes não podem esconder acoplamento via reexports/dynamic import.",
+      "location": [
+        "eslint.config.mjs",
+        "scripts/arch-db-check.ts",
+        "scripts/arch-graphs.ts",
+        "NOVO contract-architecture tests"
+      ],
+      "procedure": "Adicionar regras mínimas de import/provider para fronteiras migradas e snapshot check quando aprovado; testes não podem esconder acoplamento via reexports/dynamic import.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["B02", "F01", "I01", "S01"],
+      "order": 29,
+      "effortEngineerDays": {
+        "min": 1,
+        "max": 2,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "Tech lead + QA",
+      "risk": "Baixa/alto",
+      "tests": "Reintroduzir import proibido em fixture e exigir falha",
+      "evidence": "SHA e ambiente; execução identificada dos cenários Reintroduzir import proibido em fixture e exigir falha; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Reverter regra específica só por ADR; não desativar gate para build passar.",
+      "gate": "G3",
+      "status": "PENDENTE",
+      "approval": "Aprovar mudança de build/deploy/CI antes de implementar configuração afetada."
+    },
+    {
+      "id": "O04",
+      "phase": "7/8",
+      "title": "Orçamento de capacidade e falhas",
+      "objective": "Medir latência, memória PDF, pool, jobs e retries em host alvo",
+      "current": "Pools são fixos por processo; performance/custos atuais não medidos.",
+      "change": "Medir latência, memória PDF, pool, jobs e retries em host alvo; simular rede lenta e saturação; definir limites e custo previsto antes de contratar escala.",
+      "location": ["src/lib/db/index.ts", "load scripts existentes", "NOVO relatório capacidade"],
+      "procedure": "Medir latência, memória PDF, pool, jobs e retries em host alvo; simular rede lenta e saturação; definir limites e custo previsto antes de contratar escala.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["H02", "H03", "O01"],
+      "order": 30,
+      "effortEngineerDays": {
+        "min": 2,
+        "max": 4,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "SRE + performance QA",
+      "risk": "Média/alto",
+      "tests": "H02,H08,H09,H11",
+      "evidence": "SHA e ambiente; execução identificada dos cenários H02,H08,H09,H11; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Reduzir réplicas/concurrency e reverter imagem; não relaxar isolamento.",
+      "gate": "G7/G8",
+      "status": "PENDENTE",
+      "approval": "Mudança pequena de código pode ser proposta por PR; interfaces públicas e regras comerciais exigem aprovação específica."
+    },
+    {
+      "id": "X01",
+      "phase": "8",
+      "title": "Exercício C: saída da Vercel",
+      "objective": "Subir app e landing aprovados em host não Vercel",
+      "current": "Não há execução externa homologada nesta rodada.",
+      "change": "Subir app e landing aprovados em host não Vercel; executar login/cadastro/pagamento fixture/Storage/jobs e rollback mantendo backend de teste autorizado.",
+      "location": ["docs/runbooks/provider-cutover.md", "e2e/", "landing verificadores"],
+      "procedure": "Subir app e landing aprovados em host não Vercel; executar login/cadastro/pagamento fixture/Storage/jobs e rollback mantendo backend de teste autorizado.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["H02", "H03", "H04", "O04", "B01"],
+      "order": 31,
+      "effortEngineerDays": {
+        "min": 2,
+        "max": 3,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "QA + SRE",
+      "risk": "Alta/alto",
+      "tests": "H01-H13,C03",
+      "evidence": "SHA e ambiente; execução identificada dos cenários H01-H13,C03; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Executar runbook de retorno com scheduler único e efeitos reconciliados.",
+      "gate": "G7",
+      "status": "PENDENTE",
+      "approval": "Mudança pequena de código pode ser proposta por PR; interfaces públicas e regras comerciais exigem aprovação específica."
+    },
+    {
+      "id": "X02",
+      "phase": "8",
+      "title": "Exercício B: saída do Asaas",
+      "objective": "Executar jornada SaaS e cenários de convivência em gateway B",
+      "current": "Sandbox anterior confirma Asaas, não outro gateway.",
+      "change": "Executar jornada SaaS e cenários de convivência em gateway B; documentar capacidades paciente não migradas e obrigações de origem; financeiro reconcilia números.",
+      "location": ["docs/runbooks/provider-cutover.md", "contratos e E2E financeiro"],
+      "procedure": "Executar jornada SaaS e cenários de convivência em gateway B; documentar capacidades paciente não migradas e obrigações de origem; financeiro reconcilia números.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["F06", "O01", "B01"],
+      "order": 32,
+      "effortEngineerDays": {
+        "min": 2,
+        "max": 4,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "QA financeiro + financeiro",
+      "risk": "Alta/crítico",
+      "tests": "F01-F24,C04,C07",
+      "evidence": "SHA e ambiente; execução identificada dos cenários F01-F24,C04,C07; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Pausar originações e reconciliar ambos; manter artifacts/fixture até fechamento.",
+      "gate": "G4",
+      "status": "PENDENTE",
+      "approval": "Mudança pequena de código pode ser proposta por PR; interfaces públicas e regras comerciais exigem aprovação específica."
+    },
+    {
+      "id": "X03",
+      "phase": "8",
+      "title": "Exercício A: saída do Supabase",
+      "objective": "Operar Qoro com identidade, objetos e Postgres alternativos",
+      "current": "Interfaces e restores históricos não substituem serviço alternativo completo.",
+      "change": "Operar Qoro com identidade, objetos e Postgres alternativos; demonstrar ausência de dependência operacional Supabase e recuperação dos três serviços.",
+      "location": ["docs/runbooks/provider-cutover.md", "security-e2e/", "restore/manifestos"],
+      "procedure": "Operar Qoro com identidade, objetos e Postgres alternativos; demonstrar ausência de dependência operacional Supabase e recuperação dos três serviços.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["S04", "I05", "D04", "O01"],
+      "order": 33,
+      "effortEngineerDays": {
+        "min": 2,
+        "max": 4,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "QA segurança + DBA + SRE",
+      "risk": "Alta/crítico",
+      "tests": "A01-A19,D01-D16,C02,C06",
+      "evidence": "SHA e ambiente; execução identificada dos cenários A01-A19,D01-D16,C02,C06; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Reconciliar três domínios antes de retorno; não habilitar duas identidades/escritores sem plano.",
+      "gate": "G5/G6",
+      "status": "PENDENTE",
+      "approval": "Mudança pequena de código pode ser proposta por PR; interfaces públicas e regras comerciais exigem aprovação específica."
+    },
+    {
+      "id": "X04",
+      "phase": "8",
+      "title": "Falhas combinadas e retorno completo",
+      "objective": "Executar C01-C07 com injeção de falha e escritor/scheduler definidos",
+      "current": "Zero ensaio composto executado.",
+      "change": "Executar C01-C07 com injeção de falha e escritor/scheduler definidos; medir perda/duplicação, RPO/RTO e necessidade de forward-fix.",
+      "location": ["NOVO relatório ensaio composto", "e2e e harnesses de falha"],
+      "procedure": "Executar C01-C07 com injeção de falha e escritor/scheduler definidos; medir perda/duplicação, RPO/RTO e necessidade de forward-fix.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["X01", "X02", "X03"],
+      "order": 34,
+      "effortEngineerDays": {
+        "min": 2,
+        "max": 4,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "QA + SRE + segurança",
+      "risk": "Alta/crítico",
+      "tests": "C01-C07",
+      "evidence": "SHA e ambiente; execução identificada dos cenários C01-C07; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Acionar freeze e forward-fix se inversão segura não comprovada; nenhum restore destrutivo automático.",
+      "gate": "G8",
+      "status": "PENDENTE",
+      "approval": "Mudança pequena de código pode ser proposta por PR; interfaces públicas e regras comerciais exigem aprovação específica."
+    },
+    {
+      "id": "X05",
+      "phase": "9",
+      "title": "Homologar operação e retirada gradual",
+      "objective": "Revisar evidências/ADRs, inventário residual, alertas, restore e runbooks",
+      "current": "Provedores atuais devem continuar disponíveis até aceites.",
+      "change": "Revisar evidências/ADRs, inventário residual, alertas, restore e runbooks; propor janela e retenção antigas; remover dependências somente após autorização e risco reconciliado.",
+      "location": ["docs/decoupling/", "runbooks", "package/config apenas em execução aprovada"],
+      "procedure": "Revisar evidências/ADRs, inventário residual, alertas, restore e runbooks; propor janela e retenção antigas; remover dependências somente após autorização e risco reconciliado.",
+      "prerequisites": [
+        "Contrato e ambiente de teste aprovados conforme escopo",
+        "Sem produção e sem efeitos reais até autorização da fase",
+        "Revisar evidência e diff da etapa dependente"
+      ],
+      "dependencies": ["X04", "O03"],
+      "order": 35,
+      "effortEngineerDays": {
+        "min": 1,
+        "max": 2,
+        "confidence": "baixa a media; reestimar depois da capacidade/volume alvo"
+      },
+      "owner": "Tech lead + operação + founder",
+      "risk": "Média/crítico",
+      "tests": "Gates e restore/rollback reproduzidos por outro operador",
+      "evidence": "SHA e ambiente; execução identificada dos cenários Gates e restore/rollback reproduzidos por outro operador; readback/artefatos sanitizados e cleanup rastreado",
+      "rollback": "Não deletar origem antes de critérios legais/operacionais; rollback de config mantém bindings e histórico.",
+      "gate": "G9",
+      "status": "PENDENTE",
+      "approval": "Mudança pequena de código pode ser proposta por PR; interfaces públicas e regras comerciais exigem aprovação específica."
+    }
+  ]
+}

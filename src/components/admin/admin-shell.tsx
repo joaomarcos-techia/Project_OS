@@ -12,6 +12,7 @@ import {
   ThemeFootToggle,
   Wordmark,
 } from '@/components/shared/shell-chrome';
+import { Logo } from '@/components/shared/logo';
 import { useTheme } from '@/components/shared/use-theme';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -23,6 +24,15 @@ import { AdminNav } from './admin-nav';
  * console (pill ADMIN + escopo Plataforma + selo ink) para o fundador nunca
  * confundir "estou na plataforma" com "estou numa clínica".
  */
+/** Selo do console: escuro, para não parecer um rótulo de clínica. */
+function AdminBadge() {
+  return (
+    <span className="rounded-(--tag-radius) bg-secondary px-1.5 py-0.5 font-mono text-(length:--fs-3xs) font-semibold tracking-(--tracking-label) text-secondary-fg uppercase">
+      Admin
+    </span>
+  );
+}
+
 export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { theme, toggle } = useTheme();
@@ -34,20 +44,33 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <MobileNavButton open={navOpen} onClick={() => setNavOpen((v) => !v)} />
       <ShellScrim show={navOpen} onClick={() => setNavOpen(false)} />
 
-      <div className="min-h-dvh nav:grid nav:grid-cols-[var(--sidebar-w)_1fr]">
+      {/* Tokens do app Qoro v5 (fontes, cores, raios), como no app da clínica e
+          nas telas públicas. A identidade de console — selo ADMIN e "Plataforma"
+          — continua, para nunca confundir o console com uma clínica. */}
+      <div
+        data-qoro-tokens="app-v5"
+        data-slot="admin-shell"
+        className="min-h-dvh bg-(--shell-bg) px-(--shell-gap) pb-(--shell-gap) nav:grid nav:grid-cols-[var(--sidebar-w)_1fr] nav:gap-(--shell-gap) nav:p-(--shell-gap)"
+      >
+        {/* Celular: barra do topo com a marca, o selo do console e o botão
+            Menu, como no app da clínica. O botão flutuante cobria o título. */}
+        <div className="flex h-15 items-center justify-between gap-2 nav:hidden">
+          <span className="flex items-center gap-2">
+            <Logo className="h-7 w-auto" />
+            <AdminBadge />
+          </span>
+          <MobileNavButton open={navOpen} onClick={() => setNavOpen((v) => !v)} />
+        </div>
         <ShellSidebar open={navOpen}>
           <div className="flex items-center justify-between pr-(--sp-5)">
             <Wordmark />
-            <span className="rounded-(--r-xs) bg-secondary px-1.5 py-0.5 font-mono text-(length:--fs-3xs) font-semibold tracking-(--tracking-label) text-secondary-fg uppercase">
-              Admin
-            </span>
+            <AdminBadge />
           </div>
 
           {/* Escopo do console — nunca confundir com uma clínica */}
-          <div className="mx-(--sp-4) flex items-center gap-2.5 rounded-(--r-md) border border-border bg-surface-2 px-3 py-2.5">
+          <div className="mx-(--sp-3) flex items-center gap-2.5 rounded-(--card-radius) border border-border bg-(--card) px-3 py-2.5 shadow-(--elev-1)">
             <span className="grid size-8 shrink-0 place-items-center rounded-(--r-sm) bg-secondary text-secondary-fg">
               <ShieldCheck className="size-4" />
             </span>
@@ -61,7 +84,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
           <AdminNav />
 
-          <div className="flex flex-col gap-1 border-t border-border p-(--sp-3)">
+          <div className="flex flex-col gap-1 border-t border-(--rail-sep) p-(--sp-3)">
             <ThemeFootToggle theme={theme} onToggle={toggle} />
             <form action="/logout" method="post">
               <SidebarFootButton type="submit" icon={<LogOut />} label="Sair" aria-label="Sair" />
@@ -72,10 +95,11 @@ export function AdminShell({ children }: { children: ReactNode }) {
           </div>
         </ShellSidebar>
 
-        <div className="flex min-w-0 flex-col bg-canvas">
+        {/* Painel de conteúdo: branco, borda fina e raio 16, como o da clínica. */}
+        <div className="flex min-w-0 flex-col rounded-(--panel-radius) border border-border bg-(--background)">
           <main
             data-page-layout="data"
-            className="mx-auto w-full max-w-(--page-maxw) flex-1 px-(--page-px) pt-(--page-pt) pb-(--page-pb) max-nav:pt-(--page-pt-mobile)"
+            className="mx-auto w-full max-w-(--page-maxw) flex-1 px-(--page-px) pt-(--sp-6) pb-(--page-pb)"
           >
             {children}
           </main>

@@ -17,7 +17,8 @@ import type {
 } from '@/contexts/financial/types';
 import type { ExcessRefundStatus } from '@/contexts/payments';
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+const nav = vi.hoisted(() => ({ refresh: vi.fn() }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: nav.refresh }) }));
 vi.mock('./actions', () => ({
   confirmPaymentAction: vi.fn(),
   cancelLancamentoAction: vi.fn(),
@@ -25,8 +26,13 @@ vi.mock('./actions', () => ({
   reviewProfessionalPayoutAction: vi.fn(),
 }));
 
-import { cancelLancamentoAction, reviewProfessionalPayoutAction } from './actions';
+import {
+  cancelLancamentoAction,
+  confirmPaymentAction,
+  reviewProfessionalPayoutAction,
+} from './actions';
 import { CaixaView, type FailedChargeItem, type ManualRefundItem } from './caixa-view';
+import { PENDING_KEYS_STORAGE_KEY, resumoDoPedido } from './pending-keys';
 
 const METHODS = [{ code: 'pix', label: 'PIX' }];
 const PAYMENT: PaymentTransactionSummary = {
@@ -109,6 +115,8 @@ const base = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // P-19: as chaves em aberto vivem na aba; cada teste começa com a aba limpa.
+  sessionStorage.clear();
   vi.mocked(cancelLancamentoAction).mockResolvedValue({ ok: true, data: item() });
 });
 
@@ -122,19 +130,510 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
     expect(screen.getByText(/Consulta · Dra\. Smoke/)).toBeTruthy();
   });
 
-  it('usa Confirmar pagamento para recebível e Pagar para pagável, mantendo os formulários inline', () => {
+  it('usa Registrar recebimento para recebível e Registrar pagamento para pagável, mantendo os formulários inline', () => {
     render(<CaixaView {...base} pendentes={[item()]} aPagar={[payable()]} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar pagamento' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar recebimento' }));
     expect(screen.getByLabelText('Valor recebido')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Receber R\$\s*200,00/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Registrar R\$\s*200,00/ })).toBeTruthy();
 
     // Sem abas: as filas convivem, então o pagável já está na tela.
     expect(screen.getByRole('region', { name: 'A pagar' })).toBeTruthy();
     expect(screen.getByText('Aluguel da sala')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Pagar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar pagamento' }));
     expect(screen.getByLabelText('Valor pago')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Pagar R\$\s*1\.200,00/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Registrar R\$\s*1\.200,00/ })).toBeTruthy();
+  });
+
+  /*
+    Invariante financeiro da UI (UX-015; docs/otimização_ui_final.md, 25.7): uma
+    falha de transporte nunca vira um segundo registro. A chave pertence à
+    operação (o pedido exato) e só o sucesso a encerra. O `servidorIdempotente`
+    abaixo reproduz o contrato do `idempotentMutation`: a primeira chamada de uma
+    chave grava; a repetição devolve o que ficou guardado; recusa não guarda nada.
+  */
+  describe('idempotência do registro (UX-015)', () => {
+    const AMBIGUO = /Não conseguimos confirmar o resultado deste registro/;
+
+    function servidorIdempotente() {
+      const respostas = new Map<string, Awaited<ReturnType<typeof confirmPaymentAction>>>();
+      const gravados: { chave: string; lancamentoId: string; valorPago: number }[] = [];
+      return {
+        gravados,
+        async registrar(input: { lancamentoId: string; valorPago: number }, chave: string) {
+          const guardada = respostas.get(chave);
+          if (guardada) return guardada;
+          gravados.push({ chave, lancamentoId: input.lancamentoId, valorPago: input.valorPago });
+          const resposta = {
+            ok: true as const,
+            data: item({ id: input.lancamentoId, status: 'parcial', valorPago: input.valorPago }),
+          };
+          respostas.set(chave, resposta);
+          return resposta;
+        },
+      };
+    }
+
+    const chavesDe = (action: typeof confirmPaymentAction | typeof cancelLancamentoAction) =>
+      vi.mocked(action).mock.calls.map((call) => call[1]);
+
+    async function registrar(valor: RegExp) {
+      const botao = screen.getByRole('button', { name: valor });
+      await waitFor(() => expect((botao as HTMLButtonElement).disabled).toBe(false));
+      fireEvent.click(botao);
+    }
+
+    const painelFechado = () =>
+      waitFor(() => expect(screen.queryByLabelText('Valor recebido')).toBeNull());
+
+    /** Abre o painel do cartão só quando a transição anterior terminou (o botão fica desabilitado nela). */
+    async function abrir(nome: string, indice = 0) {
+      const botao = screen.getAllByRole('button', { name: nome })[indice]!;
+      await waitFor(() => expect((botao as HTMLButtonElement).disabled).toBe(false));
+      fireEvent.click(botao);
+    }
+
+    it('resposta perdida depois de o servidor gravar: repetir não duplica o recebimento parcial', async () => {
+      const servidor = servidorIdempotente();
+      vi.mocked(confirmPaymentAction)
+        .mockReset()
+        .mockImplementationOnce(async (input, chave) => {
+          await servidor.registrar(input, chave);
+          throw new Error('Failed to fetch');
+        })
+        .mockImplementation((input, chave) => servidor.registrar(input, chave));
+      render(<CaixaView {...base} pendentes={[item()]} />);
+
+      await abrir('Registrar recebimento');
+      fireEvent.change(screen.getByLabelText('Valor recebido'), { target: { value: '80,00' } });
+      await registrar(/Registrar R\$\s*80,00/);
+      expect(await screen.findByText(AMBIGUO)).toBeTruthy();
+      // A tela não afirma que falhou: o resultado é desconhecido.
+      expect(screen.queryByText(/Não foi possível concluir/)).toBeNull();
+
+      await registrar(/Registrar R\$\s*80,00/);
+      await painelFechado();
+      expect(confirmPaymentAction).toHaveBeenCalledTimes(2);
+      expect(servidor.gravados).toEqual([
+        { chave: expect.any(String), lancamentoId: 'l1', valorPago: 80 },
+      ]);
+    });
+
+    it('timeout antes de qualquer resposta: mesma mensagem e mesma chave na repetição', async () => {
+      vi.mocked(confirmPaymentAction)
+        .mockReset()
+        .mockRejectedValueOnce(new DOMException('The operation timed out.', 'TimeoutError'))
+        .mockResolvedValueOnce({ ok: true, data: item({ status: 'pago', valorPago: 200 }) });
+      render(<CaixaView {...base} pendentes={[item()]} />);
+
+      await abrir('Registrar recebimento');
+      await registrar(/Registrar R\$\s*200,00/);
+      expect(await screen.findByText(AMBIGUO)).toBeTruthy();
+      await registrar(/Registrar R\$\s*200,00/);
+      await painelFechado();
+      const [primeira, segunda] = chavesDe(confirmPaymentAction);
+      expect(segunda).toBe(primeira);
+    });
+
+    it('"em processamento" no servidor não encerra a operação: a chave segue até a confirmação', async () => {
+      vi.mocked(confirmPaymentAction)
+        .mockReset()
+        .mockRejectedValueOnce(new Error('Failed to fetch'))
+        .mockResolvedValueOnce({
+          ok: false,
+          code: 'retry',
+          message: 'Pagamento em processamento — aguarde um instante e tente de novo.',
+        })
+        .mockResolvedValueOnce({ ok: true, data: item({ status: 'parcial', valorPago: 80 }) });
+      render(<CaixaView {...base} pendentes={[item()]} />);
+
+      await abrir('Registrar recebimento');
+      fireEvent.change(screen.getByLabelText('Valor recebido'), { target: { value: '80,00' } });
+      await registrar(/Registrar R\$\s*80,00/);
+      expect(await screen.findByText(AMBIGUO)).toBeTruthy();
+      await registrar(/Registrar R\$\s*80,00/);
+      expect(await screen.findByText(/Pagamento em processamento/)).toBeTruthy();
+      await registrar(/Registrar R\$\s*80,00/);
+      await painelFechado();
+
+      const chaves = chavesDe(confirmPaymentAction);
+      expect(chaves).toHaveLength(3);
+      expect(new Set(chaves).size).toBe(1);
+    });
+
+    it('erro inesperado depois do envio não vira "falhou": avisa que o resultado é incerto e reusa a chave', async () => {
+      vi.mocked(confirmPaymentAction)
+        .mockReset()
+        .mockResolvedValueOnce({
+          ok: false,
+          code: 'error',
+          message: 'Não foi possível concluir a ação. Tente novamente.',
+        })
+        .mockResolvedValueOnce({ ok: true, data: item({ status: 'pago', valorPago: 200 }) });
+      render(<CaixaView {...base} pendentes={[item()]} />);
+
+      await abrir('Registrar recebimento');
+      await registrar(/Registrar R\$\s*200,00/);
+      expect(await screen.findByText(AMBIGUO)).toBeTruthy();
+      expect(screen.queryByText(/Não foi possível concluir/)).toBeNull();
+      await registrar(/Registrar R\$\s*200,00/);
+      await painelFechado();
+      const [primeira, segunda] = chavesDe(confirmPaymentAction);
+      expect(segunda).toBe(primeira);
+    });
+
+    it('recusa definitiva mostra o motivo; repetir só refaz a checagem e outro valor é outra operação', async () => {
+      vi.mocked(confirmPaymentAction)
+        .mockReset()
+        .mockResolvedValueOnce({ ok: false, code: 'validation', message: 'Valor acima do saldo.' })
+        .mockResolvedValueOnce({ ok: false, code: 'validation', message: 'Valor acima do saldo.' })
+        .mockResolvedValueOnce({ ok: true, data: item({ status: 'parcial', valorPago: 150 }) });
+      render(<CaixaView {...base} pendentes={[item()]} />);
+
+      await abrir('Registrar recebimento');
+      await registrar(/Registrar R\$\s*200,00/);
+      expect(await screen.findByText('Valor acima do saldo.')).toBeTruthy();
+      expect(screen.queryByText(AMBIGUO)).toBeNull();
+      await registrar(/Registrar R\$\s*200,00/);
+      await waitFor(() => expect(confirmPaymentAction).toHaveBeenCalledTimes(2));
+      fireEvent.change(screen.getByLabelText('Valor recebido'), { target: { value: '150,00' } });
+      await registrar(/Registrar R\$\s*150,00/);
+      await painelFechado();
+
+      const [primeira, mesmaChecagem, outroValor] = chavesDe(confirmPaymentAction);
+      expect(mesmaChecagem).toBe(primeira);
+      expect(outroValor).not.toBe(primeira);
+    });
+
+    it('P-19: outra aba registrou antes (recusa de situação): fecha o painel, recarrega e descarta a chave', async () => {
+      const mudou =
+        'A situação deste lançamento mudou, talvez em outra aba ou aparelho. A lista foi atualizada; confira os valores antes de registrar de novo.';
+      nav.refresh.mockClear();
+      vi.mocked(confirmPaymentAction)
+        .mockReset()
+        .mockResolvedValueOnce({ ok: false, code: 'state', message: mudou })
+        .mockResolvedValueOnce({ ok: true, data: item({ status: 'parcial', valorPago: 200 }) });
+      render(<CaixaView {...base} pendentes={[item()]} />);
+
+      await abrir('Registrar recebimento');
+      await registrar(/Registrar R\$\s*200,00/);
+      expect(await screen.findByText(mudou)).toBeTruthy();
+      await painelFechado();
+      expect(nav.refresh).toHaveBeenCalledTimes(1);
+      expect(sessionStorage.getItem(PENDING_KEYS_STORAGE_KEY) ?? '').not.toContain(
+        String(chavesDe(confirmPaymentAction)[0]),
+      );
+
+      // Com a lista atualizada, registrar de novo é outra operação, com chave nova.
+      await abrir('Registrar recebimento');
+      await registrar(/Registrar R\$\s*200,00/);
+      await painelFechado();
+      const [antes, depois] = chavesDe(confirmPaymentAction);
+      expect(depois).not.toBe(antes);
+    });
+
+    it('P-19: conflito de chave também recarrega; recusa de validação mantém o painel e a chave', async () => {
+      nav.refresh.mockClear();
+      vi.mocked(confirmPaymentAction)
+        .mockReset()
+        .mockResolvedValueOnce({
+          ok: false,
+          code: 'conflict',
+          message: 'Requisição duplicada detectada.',
+        })
+        .mockResolvedValueOnce({ ok: false, code: 'validation', message: 'Valor acima do saldo.' });
+      render(<CaixaView {...base} pendentes={[item()]} />);
+
+      await abrir('Registrar recebimento');
+      await registrar(/Registrar R\$\s*200,00/);
+      await painelFechado();
+      expect(nav.refresh).toHaveBeenCalledTimes(1);
+
+      await abrir('Registrar recebimento');
+      await registrar(/Registrar R\$\s*200,00/);
+      expect(await screen.findByText('Valor acima do saldo.')).toBeTruthy();
+      expect(screen.getByLabelText('Valor recebido')).toBeTruthy();
+      expect(nav.refresh).toHaveBeenCalledTimes(1);
+    });
+
+    it('sucesso encerra a operação: o mesmo valor depois dele é um registro novo, com chave nova', async () => {
+      const servidor = servidorIdempotente();
+      vi.mocked(confirmPaymentAction)
+        .mockReset()
+        .mockImplementation((input, chave) => servidor.registrar(input, chave));
+      render(<CaixaView {...base} pendentes={[item({ status: 'parcial', valorPago: 50 })]} />);
+
+      for (let vez = 0; vez < 2; vez += 1) {
+        await abrir('Registrar o restante');
+        fireEvent.change(screen.getByLabelText('Valor recebido'), { target: { value: '50,00' } });
+        await registrar(/Registrar R\$\s*50,00/);
+        await painelFechado();
+      }
+
+      const [primeira, segunda] = chavesDe(confirmPaymentAction);
+      expect(segunda).not.toBe(primeira);
+      expect(servidor.gravados).toHaveLength(2);
+    });
+
+    it('duplo clique grava uma vez: o botão fica desabilitado enquanto o servidor responde', async () => {
+      let responder: (value: Awaited<ReturnType<typeof confirmPaymentAction>>) => void = () => {};
+      vi.mocked(confirmPaymentAction)
+        .mockReset()
+        .mockImplementation(
+          () =>
+            new Promise((resolve) => {
+              responder = resolve;
+            }),
+        );
+      render(<CaixaView {...base} pendentes={[item()]} />);
+
+      await abrir('Registrar recebimento');
+      const botao = screen.getByRole('button', { name: /Registrar R\$\s*200,00/ });
+      fireEvent.click(botao);
+      fireEvent.click(botao);
+      await waitFor(() => expect((botao as HTMLButtonElement).disabled).toBe(true));
+      fireEvent.click(botao);
+      expect(confirmPaymentAction).toHaveBeenCalledTimes(1);
+
+      responder({ ok: true, data: item({ status: 'pago', valorPago: 200 }) });
+      await painelFechado();
+      expect(confirmPaymentAction).toHaveBeenCalledTimes(1);
+    });
+
+    it('fechar o painel e voltar ao mesmo registro mantém a chave do que ficou sem confirmação', async () => {
+      vi.mocked(confirmPaymentAction)
+        .mockReset()
+        .mockRejectedValueOnce(new Error('Failed to fetch'))
+        .mockResolvedValueOnce({ ok: true, data: item({ status: 'pago', valorPago: 200 }) });
+      render(<CaixaView {...base} pendentes={[item()]} />);
+
+      await abrir('Registrar recebimento');
+      await registrar(/Registrar R\$\s*200,00/);
+      expect(await screen.findByText(AMBIGUO)).toBeTruthy();
+      await waitFor(() =>
+        expect((screen.getByRole('button', { name: 'Voltar' }) as HTMLButtonElement).disabled).toBe(
+          false,
+        ),
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Voltar' }));
+      expect(screen.queryByLabelText('Valor recebido')).toBeNull();
+
+      await abrir('Registrar recebimento');
+      await registrar(/Registrar R\$\s*200,00/);
+      await painelFechado();
+      const [primeira, depoisDeFechar] = chavesDe(confirmPaymentAction);
+      expect(depoisDeFechar).toBe(primeira);
+    });
+
+    it('registrar outro lançamento no meio não perde a chave do primeiro, e cada um tem a sua', async () => {
+      const servidor = servidorIdempotente();
+      vi.mocked(confirmPaymentAction)
+        .mockReset()
+        .mockImplementationOnce(async (input, chave) => {
+          await servidor.registrar(input, chave);
+          throw new Error('Failed to fetch');
+        })
+        .mockImplementation((input, chave) => servidor.registrar(input, chave));
+      const outro = item({ id: 'l2', pacienteNome: 'Maria Souza', patientId: 'p2' });
+      render(<CaixaView {...base} pendentes={[item(), outro]} />);
+
+      await abrir('Registrar recebimento', 0);
+      await registrar(/Registrar R\$\s*200,00/);
+      expect(await screen.findByText(AMBIGUO)).toBeTruthy();
+      const voltar = screen.getByRole('button', { name: 'Voltar' });
+      await waitFor(() => expect((voltar as HTMLButtonElement).disabled).toBe(false));
+      fireEvent.click(voltar);
+
+      await abrir('Registrar recebimento', 1);
+      await registrar(/Registrar R\$\s*200,00/);
+      await painelFechado();
+
+      await abrir('Registrar recebimento', 0);
+      await registrar(/Registrar R\$\s*200,00/);
+      await painelFechado();
+
+      const [primeiro, doOutro, repeticao] = vi.mocked(confirmPaymentAction).mock.calls;
+      expect(primeiro![0].lancamentoId).toBe('l1');
+      expect(doOutro![0].lancamentoId).toBe('l2');
+      expect(doOutro![1]).not.toBe(primeiro![1]);
+      expect(repeticao![1]).toBe(primeiro![1]);
+      expect(servidor.gravados.map((gravado) => gravado.lancamentoId)).toEqual(['l1', 'l2']);
+    });
+
+    it('mudar o valor é outra operação, com outra chave; voltar ao valor anterior retoma a dele', async () => {
+      vi.mocked(confirmPaymentAction)
+        .mockReset()
+        .mockRejectedValueOnce(new Error('Failed to fetch'))
+        .mockRejectedValueOnce(new Error('Failed to fetch'))
+        .mockResolvedValueOnce({ ok: true, data: item({ status: 'pago', valorPago: 200 }) });
+      render(<CaixaView {...base} pendentes={[item()]} />);
+
+      await abrir('Registrar recebimento');
+      await registrar(/Registrar R\$\s*200,00/);
+      expect(await screen.findByText(AMBIGUO)).toBeTruthy();
+      fireEvent.change(screen.getByLabelText('Valor recebido'), { target: { value: '150,00' } });
+      await registrar(/Registrar R\$\s*150,00/);
+      await waitFor(() => expect(confirmPaymentAction).toHaveBeenCalledTimes(2));
+      fireEvent.change(screen.getByLabelText('Valor recebido'), { target: { value: '200,00' } });
+      await registrar(/Registrar R\$\s*200,00/);
+      await painelFechado();
+
+      const [duzentos, centoECinquenta, duzentosDeNovo] = chavesDe(confirmPaymentAction);
+      expect(centoECinquenta).not.toBe(duzentos);
+      expect(duzentosDeNovo).toBe(duzentos);
+    });
+
+    it('outra clínica é outra página: a chave em aberto não atravessa a troca de clínica', async () => {
+      vi.mocked(confirmPaymentAction)
+        .mockReset()
+        .mockRejectedValueOnce(new Error('Failed to fetch'))
+        .mockResolvedValueOnce({ ok: true, data: item({ clinicId: 'c2', status: 'pago' }) });
+      const { unmount } = render(<CaixaView {...base} pendentes={[item()]} />);
+      await abrir('Registrar recebimento');
+      await registrar(/Registrar R\$\s*200,00/);
+      expect(await screen.findByText(AMBIGUO)).toBeTruthy();
+
+      // Trocar de clínica navega e remonta o Caixa; mesmo id de lançamento e mesmo
+      // valor não herdam a chave da clínica anterior.
+      unmount();
+      render(<CaixaView {...base} pendentes={[item({ clinicId: 'c2' })]} />);
+      await abrir('Registrar recebimento');
+      await registrar(/Registrar R\$\s*200,00/);
+      await painelFechado();
+      const [daPrimeira, daSegunda] = chavesDe(confirmPaymentAction);
+      expect(daSegunda).not.toBe(daPrimeira);
+    });
+
+    it('P-19: recarregar a página com o registro sem resposta mantém a chave e não duplica', async () => {
+      const servidor = servidorIdempotente();
+      vi.mocked(confirmPaymentAction)
+        .mockReset()
+        .mockImplementationOnce(async (input, chave) => {
+          await servidor.registrar(input, chave);
+          throw new Error('Failed to fetch');
+        })
+        .mockImplementation((input, chave) => servidor.registrar(input, chave));
+      const { unmount } = render(<CaixaView {...base} pendentes={[item()]} />);
+      await abrir('Registrar recebimento');
+      fireEvent.change(screen.getByLabelText('Valor recebido'), { target: { value: '80,00' } });
+      await registrar(/Registrar R\$\s*80,00/);
+      expect(await screen.findByText(AMBIGUO)).toBeTruthy();
+
+      // Recarregar = a página monta de novo na mesma aba; a memória do componente some.
+      unmount();
+      render(<CaixaView {...base} pendentes={[item()]} />);
+      await abrir('Registrar recebimento');
+      fireEvent.change(screen.getByLabelText('Valor recebido'), { target: { value: '80,00' } });
+      await registrar(/Registrar R\$\s*80,00/);
+      await painelFechado();
+
+      const [antes, depoisDeRecarregar] = chavesDe(confirmPaymentAction);
+      expect(depoisDeRecarregar).toBe(antes);
+      expect(servidor.gravados).toHaveLength(1);
+    });
+
+    it('P-19: a aba guarda só resumo e chave, e esquece a operação depois do sucesso', async () => {
+      vi.mocked(confirmPaymentAction)
+        .mockReset()
+        .mockRejectedValueOnce(new Error('Failed to fetch'))
+        .mockResolvedValueOnce({ ok: true, data: item({ status: 'pago', valorPago: 200 }) });
+      render(<CaixaView {...base} pendentes={[item()]} />);
+      await abrir('Registrar recebimento');
+      await registrar(/Registrar R\$\s*200,00/);
+      expect(await screen.findByText(AMBIGUO)).toBeTruthy();
+
+      const guardado = sessionStorage.getItem(PENDING_KEYS_STORAGE_KEY) ?? '';
+      expect(guardado).not.toBe('');
+      expect(guardado).not.toMatch(/l1|200|pix|comprovante/u);
+
+      await registrar(/Registrar R\$\s*200,00/);
+      await painelFechado();
+      expect(sessionStorage.getItem(PENDING_KEYS_STORAGE_KEY)).toBeNull();
+    });
+
+    it('P-19: chave guardada há mais de 30 min não é reaproveitada', async () => {
+      vi.mocked(confirmPaymentAction)
+        .mockReset()
+        .mockResolvedValue({ ok: true, data: item({ status: 'pago', valorPago: 200 }) });
+      const pedido = `confirm:c1:${JSON.stringify({ lancamentoId: 'l1', paymentMethod: 'pix', valorPago: 200, comprovante: null })}`;
+      sessionStorage.setItem(
+        PENDING_KEYS_STORAGE_KEY,
+        JSON.stringify({
+          [resumoDoPedido(pedido)]: { chave: 'chave-vencida', ate: Date.now() - 1 },
+        }),
+      );
+      render(<CaixaView {...base} pendentes={[item()]} />);
+      await abrir('Registrar recebimento');
+      await registrar(/Registrar R\$\s*200,00/);
+      await painelFechado();
+      expect(chavesDe(confirmPaymentAction)[0]).not.toBe('chave-vencida');
+    });
+
+    it('P-19: a mesma operação guardada e ainda no prazo é reaproveitada', async () => {
+      vi.mocked(confirmPaymentAction)
+        .mockReset()
+        .mockResolvedValue({ ok: true, data: item({ status: 'pago', valorPago: 200 }) });
+      const pedido = `confirm:c1:${JSON.stringify({ lancamentoId: 'l1', paymentMethod: 'pix', valorPago: 200, comprovante: null })}`;
+      sessionStorage.setItem(
+        PENDING_KEYS_STORAGE_KEY,
+        JSON.stringify({
+          [resumoDoPedido(pedido)]: { chave: 'chave-em-aberto', ate: Date.now() + 60_000 },
+        }),
+      );
+      render(<CaixaView {...base} pendentes={[item()]} />);
+      await abrir('Registrar recebimento');
+      await registrar(/Registrar R\$\s*200,00/);
+      await painelFechado();
+      expect(chavesDe(confirmPaymentAction)[0]).toBe('chave-em-aberto');
+    });
+
+    it('P-19: armazenamento da aba bloqueado não impede registrar (fica na memória)', async () => {
+      const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+        throw new Error('SecurityError');
+      });
+      const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new Error('QuotaExceededError');
+      });
+      try {
+        vi.mocked(confirmPaymentAction)
+          .mockReset()
+          .mockRejectedValueOnce(new Error('Failed to fetch'))
+          .mockResolvedValueOnce({ ok: true, data: item({ status: 'pago', valorPago: 200 }) });
+        render(<CaixaView {...base} pendentes={[item()]} />);
+        await abrir('Registrar recebimento');
+        await registrar(/Registrar R\$\s*200,00/);
+        expect(await screen.findByText(AMBIGUO)).toBeTruthy();
+        await registrar(/Registrar R\$\s*200,00/);
+        await painelFechado();
+        const [primeira, segunda] = chavesDe(confirmPaymentAction);
+        expect(segunda).toBe(primeira);
+      } finally {
+        getItem.mockRestore();
+        setItem.mockRestore();
+      }
+    });
+
+    it('cancelar cobrança segue a mesma regra: queda de rede mantém a chave do cancelamento', async () => {
+      vi.mocked(cancelLancamentoAction)
+        .mockReset()
+        .mockRejectedValueOnce(new Error('Failed to fetch'))
+        .mockResolvedValueOnce({ ok: true, data: item({ status: 'cancelado' }) });
+      render(<CaixaView {...base} pendentes={[item()]} />);
+
+      await abrir('Registrar recebimento');
+      fireEvent.click(screen.getByRole('button', { name: 'Cancelar cobrança de João Silva' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Sim, cancelar' }));
+      expect(await screen.findByText(AMBIGUO)).toBeTruthy();
+      await waitFor(() =>
+        expect(
+          (screen.getByRole('button', { name: 'Sim, cancelar' }) as HTMLButtonElement).disabled,
+        ).toBe(false),
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Sim, cancelar' }));
+      await waitFor(() => expect(cancelLancamentoAction).toHaveBeenCalledTimes(2));
+      const [primeira, segunda] = chavesDe(cancelLancamentoAction);
+      expect(segunda).toBe(primeira);
+    });
   });
 
   it('oferece somente a forma comercial acordada no recebível do atendimento', () => {
@@ -150,7 +649,7 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar pagamento' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar recebimento' }));
     const select = screen.getByLabelText('Forma de pagamento');
     expect(within(select).getAllByRole('option')).toHaveLength(1);
     expect(within(select).getByRole('option', { name: 'Dinheiro' })).toBeTruthy();
@@ -169,7 +668,7 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar pagamento' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar recebimento' }));
     const select = screen.getByLabelText('Forma de pagamento');
     expect(
       within(select)
@@ -178,7 +677,7 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
     ).toEqual(['PIX', 'Dinheiro']);
   });
 
-  it('Pagou em dinheiro: painel só com dinheiro e o saldo inteiro', () => {
+  it('Recebido em dinheiro: painel só com dinheiro e o saldo inteiro', () => {
     render(
       <CaixaView
         {...base}
@@ -192,7 +691,7 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pagou em dinheiro' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Recebido em dinheiro' }));
     const select = screen.getByLabelText('Forma de pagamento');
     expect(
       within(select)
@@ -205,7 +704,7 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
     ).toBeTruthy();
   });
 
-  it('com o sinal pago, a ação vira Pagou o restante em dinheiro', () => {
+  it('com o sinal pago, a ação vira Restante em dinheiro', () => {
     render(
       <CaixaView
         {...base}
@@ -219,12 +718,14 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pagou o restante em dinheiro' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Restante em dinheiro' }));
     expect((screen.getByLabelText('Valor recebido') as HTMLInputElement).value).toBe('100.00');
   });
 
   it('sem dinheiro no catálogo, nem conta a pagar, não há botão de dinheiro', () => {
     render(<CaixaView {...base} canOperate pendentes={[item(), payable()]} />);
+    expect(screen.queryByRole('button', { name: /(Recebido|Restante) em dinheiro/ })).toBeNull();
+    // Os nomes antigos também não podem voltar.
     expect(screen.queryByRole('button', { name: /Pagou (o restante )?em dinheiro/ })).toBeNull();
   });
 
@@ -232,12 +733,12 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
     // Cancelar vive DENTRO do painel de confirmação (uma ação por linha na
     // fila) — por isso o teste abre o painel antes de procurá-lo.
     const { unmount } = render(<CaixaView {...base} canOperate pendentes={[item()]} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar pagamento' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar recebimento' }));
     expect(screen.getByRole('button', { name: 'Cancelar cobrança de João Silva' })).toBeTruthy();
 
     unmount();
     render(<CaixaView {...base} canOperate={false} canRefund={false} pendentes={[item()]} />);
-    expect(screen.queryByRole('button', { name: 'Confirmar pagamento' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Registrar recebimento' })).toBeNull();
     expect(screen.queryByRole('button', { name: /Cancelar cobrança/ })).toBeNull();
   });
 
@@ -273,7 +774,7 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
   it('cancelamento exige confirmação contextual antes da action idempotente', async () => {
     render(<CaixaView {...base} pendentes={[item()]} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar pagamento' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar recebimento' }));
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar cobrança de João Silva' }));
     expect(cancelLancamentoAction).not.toHaveBeenCalled();
     expect(

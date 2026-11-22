@@ -1,0 +1,226 @@
+diff --git a/src/app/(app)/reset-password/actions.test.ts b/src/app/(app)/reset-password/actions.test.ts
+index 04f5ddeb..2a73c765 100644
+--- a/src/app/(app)/reset-password/actions.test.ts
++++ b/src/app/(app)/reset-password/actions.test.ts
+@@ -338,6 +338,55 @@ describe('resetPasswordAction', () => {
+     expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'global' });
+   });
+ 
++  // P-29 (20/11/2026): a conta confirmada que nunca concluiu a senha do cadastro (marker
++  // `pending`) e cujo draft expirou instala a primeira senha pelo link de recovery.
++  it('instala a primeira senha da conta confirmada pending depois que o draft expirou', async () => {
++    mocks.readGrant.mockReturnValue({
++      kind: 'pretenant_orphan',
++      userId,
++      epoch: Date.parse(authUpdatedAt),
++      signupRef,
++      expiresAt: Date.now() + 60_000,
++    });
++    // A conta autoritativa ainda está `pending` (sem marker `set`).
++    mocks.getAdminUser.mockResolvedValue({
++      data: { user: { ...authUser, app_metadata: { marker: 'pending' } } },
++      error: null,
++    });
++
++    await expect(resetPasswordAction({ error: null }, form())).rejects.toThrow(
++      'REDIRECT:/login?reason=password_updated',
++    );
++
++    expect(mocks.updateAdminUser).toHaveBeenCalledWith(userId, {
++      password: 'SenhaForte7',
++      app_metadata: {
++        marker: 'set',
++        qoro_password_recovery_epoch: Date.parse(authUpdatedAt),
++      },
++    });
++    expect(mocks.checkExposure).toHaveBeenCalledWith('SenhaForte7');
++    expect(mocks.orphanLock).toHaveBeenCalledWith(userId, expect.any(Function));
++    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'global' });
++  });
++
++  it('recusa grant de orphan sem marker do cadastro desta referência', async () => {
++    mocks.readGrant.mockReturnValue({
++      kind: 'pretenant_orphan',
++      userId,
++      epoch: Date.parse(authUpdatedAt),
++      signupRef,
++      expiresAt: Date.now() + 60_000,
++    });
++    mocks.readPasswordState.mockReturnValue(null);
++
++    const result = await resetPasswordAction({ error: null }, form());
++
++    expect(result.error).toContain('inválido');
++    expect(mocks.updateAdminUser).not.toHaveBeenCalled();
++    expect(mocks.cookieDelete).toHaveBeenCalledWith('qoro_rcv');
++  });
++
+   it('recusa grant de orphan quando Auth mudou depois da emissão', async () => {
+     mocks.readGrant.mockReturnValue({
+       kind: 'pretenant_orphan',
+diff --git a/src/app/(app)/reset-password/actions.ts b/src/app/(app)/reset-password/actions.ts
+index cb0f3d88..035fb5df 100644
+--- a/src/app/(app)/reset-password/actions.ts
++++ b/src/app/(app)/reset-password/actions.ts
+@@ -194,7 +194,10 @@ export async function resetPasswordAction(
+         !Number.isFinite(authEpoch) ||
+         authEpoch !== grant.epoch ||
+         isOrphanRecoveryEpochConsumed(authUser.app_metadata, grant.epoch) ||
+-        readSignupPasswordState(authUser, grant.signupRef) !== 'set'
++        // P-29: `pending` = conta confirmada que nunca concluiu a senha do cadastro; a prova do
++        // link de recovery deixa o dono do e-mail instalar a primeira. Sem marker desta
++        // referência, a troca continua recusada.
++        readSignupPasswordState(authUser, grant.signupRef) === null
+       ) {
+         return { ok: false as const, reason: 'stale' as const };
+       }
+diff --git a/src/contexts/onboarding/internal/signup-auth-admin.test.ts b/src/contexts/onboarding/internal/signup-auth-admin.test.ts
+index 50f73c13..eb0451f1 100644
+--- a/src/contexts/onboarding/internal/signup-auth-admin.test.ts
++++ b/src/contexts/onboarding/internal/signup-auth-admin.test.ts
+@@ -410,10 +410,27 @@ describe('ensureReadyOwnedSignupAuthBinding', () => {
+     expect(mocks.updateUserById).not.toHaveBeenCalled();
+   });
+ 
++  // P-29 (20/11/2026): quem confirmou pelo link e abandonou antes de criar a senha (ou a conta
++  // legada cuja senha não confirmada o Auth apagou) fica com marker `pending` e DB `completed`.
++  // O link de recovery prova o e-mail de novo; o grant curto deixa instalar a primeira senha.
++  it('emite recovery sem promover marker para pending exato com DB completed', async () => {
++    mocks.readOwnedSignupReference.mockResolvedValue({
++      ok: true,
++      signupRef: oldRef,
++      credentialState: 'completed',
++    });
++
++    await expect(ensureReadyOwnedSignupAuthBinding({ userId, email })).resolves.toEqual({
++      ok: true,
++      signupRef: oldRef,
++    });
++    expect(mocks.updateUserById).not.toHaveBeenCalled();
++  });
++
+   it.each([
+-    ['completed', oldRef],
+     ['reserved', oldRef],
+     ['uncertain', newRef],
++    ['completed', newRef],
+   ])('recusa recovery para marker pending com DB %s/ref %s', async (credentialState, signupRef) => {
+     mocks.readOwnedSignupReference.mockResolvedValue({
+       ok: true,
+@@ -474,10 +491,26 @@ describe('ensureReadyOwnedSignupAuthBinding', () => {
+     expect(mocks.updateUserById).not.toHaveBeenCalled();
+   });
+ 
+-  it('não promove marker pending quando o draft já expirou', async () => {
++  it('pending com draft expirado recebe o grant órfão de uso único, sem promover o marker', async () => {
++    const updatedAt = '2026-09-23T12:34:56.000Z';
++    mocks.readOwnedSignupReference.mockResolvedValueOnce({ ok: false, reason: 'gone' });
++    mocks.getUserById.mockResolvedValueOnce({
++      data: { user: { ...user(), updated_at: updatedAt } },
++      error: null,
++    });
++
++    await expect(ensureReadyOwnedSignupAuthBinding({ userId, email })).resolves.toEqual({
++      ok: true,
++      signupRef: oldRef,
++      orphanEpoch: Date.parse(updatedAt),
++    });
++    expect(mocks.updateUserById).not.toHaveBeenCalled();
++  });
++
++  it('pending com draft expirado e epoch do Auth inválido falha fechado', async () => {
+     mocks.readOwnedSignupReference.mockResolvedValueOnce({ ok: false, reason: 'gone' });
+     mocks.getUserById.mockResolvedValueOnce({
+-      data: { user: { ...user(), updated_at: '2026-09-23T12:34:56.000Z' } },
++      data: { user: { ...user(), updated_at: 'não é data' } },
+       error: null,
+     });
+ 
+@@ -486,6 +519,32 @@ describe('ensureReadyOwnedSignupAuthBinding', () => {
+       reason: 'obfuscated',
+     });
+   });
++
++  it.each([
++    ['não confirmada', { email_confirmed_at: null }],
++    ['convidada', { invited_at: '2026-09-23T12:00:00Z' }],
++    ['banida', { banned_until: '2099-01-01T00:00:00Z' }],
++    ['de outro e-mail', { email: 'outra@example.test' }],
++  ] as const)(
++    'P-29: conta pending %s continua sem grant, com draft vivo ou expirado',
++    async (_caso, override) => {
++      for (const owned of [
++        { ok: true, signupRef: oldRef, credentialState: 'completed' },
++        { ok: false, reason: 'gone' },
++      ]) {
++        mocks.readOwnedSignupReference.mockResolvedValueOnce(owned);
++        mocks.getUserById.mockResolvedValueOnce({
++          data: { user: { ...user(), updated_at: '2026-09-23T12:34:56.000Z', ...override } },
++          error: null,
++        });
++        await expect(ensureReadyOwnedSignupAuthBinding({ userId, email })).resolves.toEqual({
++          ok: false,
++          reason: 'obfuscated',
++        });
++      }
++      expect(mocks.updateUserById).not.toHaveBeenCalled();
++    },
++  );
+ });
+ 
+ describe('ensureVerifiedSignupAuthBinding', () => {
+diff --git a/src/contexts/onboarding/internal/signup-auth-admin.ts b/src/contexts/onboarding/internal/signup-auth-admin.ts
+index d6735796..a15dac6e 100644
+--- a/src/contexts/onboarding/internal/signup-auth-admin.ts
++++ b/src/contexts/onboarding/internal/signup-auth-admin.ts
+@@ -359,8 +359,15 @@ export async function ensurePasswordAuthenticatedSignupAuthBinding(input: {
+ 
+ /**
+  * Valida a autoridade usada pelo recovery sem aceitar divergência entre Auth e banco.
+- * Um marker `pending` só recebe grant quando a mesma referência está `uncertain`;
+- * marker `set` divergente falha fechado, e órfãos usam o epoch autoritativo do Auth.
++ * Marker `set` divergente falha fechado, e órfãos usam o epoch autoritativo do Auth.
++ *
++ * Marker `pending` (P-29, 20/11/2026): a conta já confirmada que nunca concluiu a senha do
++ * cadastro (por exemplo, quem confirmou pelo link e abandonou, ou a conta legada cuja senha
++ * não confirmada o Auth apagou na prova de recovery) recebe o grant curto, para que o dono do
++ * e-mail, provado pelo próprio link de recovery, instale a primeira senha. Só pela mesma
++ * referência do draft possuído e sem instalação em andamento (`completed`/`uncertain`, nunca
++ * `reserved`), ou pelo caminho órfão de uso único quando o draft já expirou. Conta não
++ * confirmada, convidada, banida ou com outra referência continua recusada.
+  */
+ export async function ensureReadyOwnedSignupAuthBinding(input: {
+   userId: string;
+@@ -397,16 +404,23 @@ export async function ensureReadyOwnedSignupAuthBinding(input: {
+       return { ok: false, reason: 'obfuscated' };
+     }
+     if (current?.passwordState === 'pending') {
+-      if (
+-        owned.ok &&
+-        current.signupRef === owned.signupRef &&
+-        owned.credentialState === 'uncertain'
+-      ) {
+-        // Não promove o marker e não toca a senha. O OTP de recovery emitirá um
+-        // grant curto; só ele poderá disputar o CAS `uncertain -> reserved`.
+-        return { ok: true, signupRef: owned.signupRef };
++      if (owned.ok) {
++        if (
++          current.signupRef === owned.signupRef &&
++          (owned.credentialState === 'uncertain' || owned.credentialState === 'completed')
++        ) {
++          // Não promove o marker e não toca a senha. O OTP de recovery emitirá um
++          // grant curto; só ele poderá disputar o CAS `completed|uncertain -> reserved`.
++          return { ok: true, signupRef: owned.signupRef };
++        }
++        return { ok: false, reason: 'obfuscated' };
+       }
+-      return { ok: false, reason: 'obfuscated' };
++      // Draft expirado: o grant órfão é de uso único pelo epoch do Auth e a troca relê a conta.
++      const orphanEpoch = Date.parse(user.updated_at ?? '');
++      if (!Number.isFinite(orphanEpoch) || orphanEpoch < 0) {
++        return { ok: false, reason: 'obfuscated' };
++      }
++      return { ok: true, signupRef: current.signupRef, orphanEpoch };
+     }
+     if (hasSignupAuthBindingMarker(user) && !current) {
+       return { ok: false, reason: 'obfuscated' };

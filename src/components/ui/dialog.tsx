@@ -2,7 +2,7 @@
 
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
-import type { ComponentProps, ReactNode } from 'react';
+import { useRef, type ComponentProps, type ReactNode, type RefObject } from 'react';
 
 import { cn } from '@/lib/ui/cn';
 
@@ -31,16 +31,62 @@ export function DialogOverlay({
   );
 }
 
+type FocusReturnOptions = {
+  returnFocusRef?: RefObject<HTMLElement | null> | undefined;
+  onOpenAutoFocus?: ((event: Event) => void) | undefined;
+  onCloseAutoFocus?: ((event: Event) => void) | undefined;
+};
+
+/**
+ * Devolução do foco ao fechar (WCAG 2.4.3). O Radix, no modo modal, devolve o foco ao
+ * `DialogTrigger`. Um diálogo aberto por estado, sem Trigger (botão comum, item de menu), deixava o
+ * foco no `body` (sonda A-02 de 17/11/2026, Fornecedores). Aqui o foco volta a quem o tinha quando o
+ * diálogo abriu; com Trigger, é o próprio Trigger. `returnFocusRef` vale quando quem abriu some
+ * (o item de um menu que já fechou): o alvo passa a ser o botão do menu.
+ */
+export function useFocusReturn({
+  returnFocusRef,
+  onOpenAutoFocus,
+  onCloseAutoFocus,
+}: FocusReturnOptions) {
+  const anterior = useRef<HTMLElement | null>(null);
+  return {
+    onOpenAutoFocus(event: Event) {
+      const ativo = document.activeElement;
+      anterior.current = ativo instanceof HTMLElement && ativo !== document.body ? ativo : null;
+      onOpenAutoFocus?.(event);
+    },
+    onCloseAutoFocus(event: Event) {
+      onCloseAutoFocus?.(event);
+      const alvo = returnFocusRef?.current ?? anterior.current;
+      anterior.current = null;
+      // Quem chamou já decidiu, ou não há para onde voltar: fica o padrão do Radix.
+      if (event.defaultPrevented || !alvo?.isConnected) return;
+      event.preventDefault();
+      alvo.focus();
+    },
+  };
+}
+
 export function DialogContent({
   className,
   children,
   showClose = true,
+  returnFocusRef,
+  onOpenAutoFocus,
+  onCloseAutoFocus,
   ...props
-}: ComponentProps<typeof DialogPrimitive.Content> & { showClose?: boolean }) {
+}: ComponentProps<typeof DialogPrimitive.Content> & {
+  showClose?: boolean;
+  returnFocusRef?: RefObject<HTMLElement | null> | undefined;
+}) {
+  const foco = useFocusReturn({ returnFocusRef, onOpenAutoFocus, onCloseAutoFocus });
   return (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Content
+        onOpenAutoFocus={foco.onOpenAutoFocus}
+        onCloseAutoFocus={foco.onCloseAutoFocus}
         className={cn(
           // transform (não translate utility): a animação modal-in anima `transform`,
           // e translate+transform COMPOEM — com utility o modal nascia deslocado e "descia"

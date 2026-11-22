@@ -44,10 +44,28 @@ const original: AIConversationThread = {
 };
 afterEach(cleanup);
 
+describe('horários da conversa', () => {
+  it('saem no fuso da clínica, não no do servidor', () => {
+    render(
+      <ConversationThread
+        timeZone="Asia/Tokyo"
+        thread={original}
+        canManage
+        currentUserId="user-1"
+        assignedToName={null}
+      />,
+    );
+
+    // 12:00Z é 21:00 em Tóquio e 09:00 em São Paulo.
+    expect(screen.getByText('21:00', { selector: 'time' })).toBeTruthy();
+  });
+});
+
 describe('continuidade do atendimento humano', () => {
   it('explica a pausa e a retomada sem prometer reprocessar mensagens antigas', () => {
     render(
       <ConversationThread
+        timeZone="America/Sao_Paulo"
         thread={original}
         canManage
         currentUserId="user-1"
@@ -68,7 +86,13 @@ describe('continuidade do atendimento humano', () => {
       },
     };
     render(
-      <ConversationThread thread={thread} canManage currentUserId="user-1" assignedToName={null} />,
+      <ConversationThread
+        timeZone="America/Sao_Paulo"
+        thread={thread}
+        canManage
+        currentUserId="user-1"
+        assignedToName={null}
+      />,
     );
     expect(screen.getByText(/Nenhuma pessoa assumiu/)).toBeTruthy();
     expect(screen.getByText(/revise com a equipe responsável/)).toBeTruthy();
@@ -79,6 +103,7 @@ describe('reenvio no histórico compartilhado', () => {
   it('mostra falha de entrega e reenvio para responsável autorizado dentro da janela', () => {
     render(
       <ConversationThread
+        timeZone="America/Sao_Paulo"
         thread={original}
         canManage
         currentUserId="user-1"
@@ -125,6 +150,7 @@ describe('reenvio no histórico compartilhado', () => {
   ])('não oferece reenvio: $name', ({ thread, canManage, currentUserId }) => {
     render(
       <ConversationThread
+        timeZone="America/Sao_Paulo"
         thread={thread}
         canManage={canManage}
         currentUserId={currentUserId}
@@ -140,6 +166,7 @@ describe('resposta da recepção pelo app do celular (coexistência)', () => {
   it('aparece como Recepção pelo celular, e não como a IA nem como o responsável', () => {
     render(
       <ConversationThread
+        timeZone="America/Sao_Paulo"
         thread={{
           ...original,
           messages: [
@@ -181,6 +208,7 @@ describe('identidade do contato na conversa', () => {
   it('assina a mensagem com o nome do WhatsApp quando não há cadastro', () => {
     render(
       <ConversationThread
+        timeZone="America/Sao_Paulo"
         thread={{
           ...original,
           patientDisplayName: null,
@@ -203,6 +231,7 @@ describe('identidade do contato na conversa', () => {
   it('sem nome nenhum, assina com o telefone formatado', () => {
     render(
       <ConversationThread
+        timeZone="America/Sao_Paulo"
         thread={{
           ...original,
           patientDisplayName: null,
@@ -222,6 +251,7 @@ describe('identidade do contato na conversa', () => {
   it('o nome do cadastro tem precedência sobre o do WhatsApp', () => {
     render(
       <ConversationThread
+        timeZone="America/Sao_Paulo"
         thread={{ ...original, contactName: 'Apelido no WhatsApp', messages: [inbound] }}
         canManage
         currentUserId="user-1"

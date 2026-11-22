@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { readWebhookBodyCapped } from './webhook-body';
+import { readWebhookBodyCapped, readWebhookBytesCapped } from './webhook-body';
 
 function streamRequest(stream: ReadableStream<Uint8Array>): Request {
   const init: RequestInit & { duplex: 'half' } = { method: 'POST', body: stream, duplex: 'half' };
@@ -53,5 +53,34 @@ describe('readWebhookBodyCapped', () => {
     });
     await expect(readWebhookBodyCapped(streamRequest(stream), 4)).rejects.toBe(failure);
     expect(stream.locked).toBe(false);
+  });
+});
+
+describe('readWebhookBytesCapped', () => {
+  it('preserves invalid UTF-8 and all bytes unchanged for signature verification', async () => {
+    const bytes = Uint8Array.from([0xff, 0x00, 0xc3, 0x28]);
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(bytes);
+        controller.close();
+      },
+    });
+    const actual = await readWebhookBytesCapped(streamRequest(stream), 4);
+    expect(actual).toBeInstanceOf(Uint8Array);
+    expect(actual?.byteLength).toBe(bytes.byteLength);
+    expect(Array.from(actual ?? [])).toEqual(Array.from(bytes));
+  });
+  it('returns zero bytes for an empty request', async () => {
+    expect(await readWebhookBytesCapped(new Request('http://localhost/webhook'), 4)).toEqual(
+      new Uint8Array(),
+    );
+  });
+  it('caps raw bytes without trusting Content-Length', async () => {
+    const request = new Request('http://localhost/webhook', {
+      method: 'POST',
+      body: '12345',
+      headers: { 'Content-Length': '1' },
+    });
+    expect(await readWebhookBytesCapped(request, 4)).toBeNull();
   });
 });

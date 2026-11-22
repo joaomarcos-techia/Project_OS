@@ -7,6 +7,10 @@ vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit } }));
 import type { Tx } from '@/lib/db';
 
 import { markInvoicePaid } from './subscriptions';
+import { releaseTrialAfterVerifiedPaymentTx } from '@/lib/trial-access';
+vi.mock('@/lib/trial-access', () => ({
+  releaseTrialAfterVerifiedPaymentTx: vi.fn(async () => {}),
+}));
 
 /**
  * O caminho do webhook `PAYMENT_CONFIRMED`/`PAYMENT_RECEIVED` e do reconcile.
@@ -80,6 +84,7 @@ describe('markInvoicePaid numa assinatura cancelada', () => {
       'update:status,paidAt,paymentMethod',
     ]);
     expect(ops).not.toContain('execute');
+    expect(releaseTrialAfterVerifiedPaymentTx).not.toHaveBeenCalled();
     expect(publishEvent).not.toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ eventType: 'billing.subscription.activated' }),
@@ -110,6 +115,7 @@ describe('markInvoicePaid numa assinatura cancelada', () => {
     await markInvoicePaid(tx, 'clinic_1', invoice, opts);
 
     expect(ops).toContain('execute'); // setClinicAccess('enabled')
+    expect(releaseTrialAfterVerifiedPaymentTx).toHaveBeenCalledWith(tx, 'clinic_1', 'inv_sobra');
   });
 
   it('cancelamento AGENDADO e cobrança paga: segue, mas sinaliza para revisão', async () => {
@@ -128,5 +134,18 @@ describe('markInvoicePaid numa assinatura cancelada', () => {
     expect(inserts).toContainEqual(
       expect.objectContaining({ type: 'invoice.paid_during_scheduled_cancellation' }),
     );
+  });
+  it('does not release evaluation quotas without a provider payment identifier', async () => {
+    const { tx } = scriptedTx({
+      billingStatus: 'active',
+      cancelAtPeriodEnd: false,
+      id: 'sub_1',
+      cycle: 'monthly',
+      currentPeriodEnd: null,
+      status: 'active',
+      planCode: 'solo',
+    });
+    await markInvoicePaid(tx, 'clinic_1', invoice, { ...opts, providerPaymentId: null });
+    expect(releaseTrialAfterVerifiedPaymentTx).not.toHaveBeenCalled();
   });
 });

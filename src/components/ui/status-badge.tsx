@@ -1,6 +1,4 @@
 import type { VariantProps } from 'class-variance-authority';
-import { Ban, CircleCheck, CircleDashed, CircleDot, RotateCcw, TriangleAlert } from 'lucide-react';
-import type { ComponentType } from 'react';
 
 import { Badge } from './badge';
 import type { badgeVariants } from './badge';
@@ -29,15 +27,21 @@ export type AppointmentStatus =
  * `chegou` é "Aguardando" e não "Chegou" pelo mesmo motivo: quem lê a agenda
  * precisa saber o que está acontecendo AGORA — que há alguém esperando —, não
  * registrar um fato que já passou.
+ *
+ * Tons do app v5 (novembro/2026), os mesmos em Agenda, Consultório e Dashboard:
+ * confirmada é verde (a boa notícia do dia), em atendimento é o azul da marca,
+ * finalizada é marinho (concluída, sem pedir nada), falta é laranja e só
+ * aguardando/falta ganham fundo colorido — são as que pedem alguém agir.
+ * Cancelada é só contorno: saiu da conta do dia.
  */
 const APPOINTMENT: Record<AppointmentStatus, { tone: Tone; label: string }> = {
   agendado: { tone: 'gray', label: 'Agendada' },
-  confirmado: { tone: 'blue', label: 'Confirmada' },
+  confirmado: { tone: 'green', label: 'Confirmada' },
   chegou: { tone: 'amber', label: 'Aguardando' },
-  em_atendimento: { tone: 'violet', label: 'Em atendimento' },
-  atendido: { tone: 'green', label: 'Finalizada' },
-  cancelado: { tone: 'gray', label: 'Cancelada' },
-  faltou: { tone: 'red', label: 'Falta' },
+  em_atendimento: { tone: 'blue', label: 'Em atendimento' },
+  atendido: { tone: 'navy', label: 'Finalizada' },
+  cancelado: { tone: 'line', label: 'Cancelada' },
+  faltou: { tone: 'orange', label: 'Falta' },
 };
 
 export function AppointmentStatusBadge({ status }: { status: AppointmentStatus }) {
@@ -80,20 +84,17 @@ export function DepositStatusBadge({ status }: { status: DepositStatus }) {
 
 export type PaymentStatus = 'pendente' | 'pago' | 'parcial' | 'cancelado' | 'estornado';
 
-type Glyph = ComponentType<{ className?: string; 'aria-hidden'?: boolean | 'true' | 'false' }>;
-
 /**
- * Cada status ganha um icone proprio, e nao o mesmo ponto colorido. Caixa e
- * Financeiro mostram estas fichas em fila: so a cor obriga a comparar dois
- * badges lado a lado para saber qual e qual, e falha de vez para quem nao
- * distingue ambar de verde.
+ * Mapa de status financeiro do app v5: ponto + texto, com fundo colorido só no
+ * que pede alguém agir (parcial e vencido). Cancelado e estornado são contorno:
+ * saíram da conta, não pedem nada.
  */
-const PAYMENT: Record<PaymentStatus, { tone: Tone; label: string; icon: Glyph }> = {
-  pendente: { tone: 'amber', label: 'Pendente', icon: CircleDashed },
-  pago: { tone: 'green', label: 'Pago', icon: CircleCheck },
-  parcial: { tone: 'blue', label: 'Parcial', icon: CircleDot },
-  cancelado: { tone: 'gray', label: 'Cancelado', icon: Ban },
-  estornado: { tone: 'red', label: 'Estornado', icon: RotateCcw },
+const PAYMENT: Record<PaymentStatus, { tone: Tone; label: string }> = {
+  pendente: { tone: 'gray', label: 'Pendente' },
+  pago: { tone: 'green', label: 'Pago' },
+  parcial: { tone: 'amber', label: 'Parcial' },
+  cancelado: { tone: 'line', label: 'Cancelado' },
+  estornado: { tone: 'line', label: 'Estornado' },
 };
 
 /**
@@ -119,20 +120,17 @@ export function PaymentStatusBadge({
   overdueDays?: number;
 }) {
   const vencido = overdue && (status === 'pendente' || status === 'parcial');
-  const { tone, label, icon } = vencido
+  const { tone, label } = vencido
     ? {
         tone: 'red' as Tone,
         label:
           overdueDays > 0
             ? `Vencido há ${overdueDays} ${overdueDays === 1 ? 'dia' : 'dias'}`
             : 'Vencido',
-        icon: TriangleAlert as Glyph,
       }
     : PAYMENT[status];
-  const Icon = icon;
   return (
-    <Badge tone={tone}>
-      <Icon aria-hidden="true" className="size-3 shrink-0" />
+    <Badge tone={tone} dot>
       {label}
     </Badge>
   );

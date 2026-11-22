@@ -490,9 +490,9 @@ test.describe('produção: mutações autorizadas em conta de teste', () => {
         await nextPage.click();
       }
       await expect(financialCard).toBeVisible({ timeout: 30_000 });
-      await financialCard.getByRole('button', { name: 'Confirmar pagamento' }).click();
+      await financialCard.getByRole('button', { name: 'Registrar recebimento' }).click();
       await expect(financialCard.getByLabel('Valor recebido')).toHaveValue('12.34');
-      await financialCard.getByRole('button', { name: /Receber R\$/ }).click();
+      await financialCard.getByRole('button', { name: /Registrar R\$/ }).click();
       await expect(financialCard).toHaveCount(0, { timeout: 30_000 });
       const refundButtons = receivedRegion.getByRole('button', { name: 'Reembolsar' });
       await expect(refundButtons).toHaveCount(initialRefundButtons + 1, { timeout: 30_000 });

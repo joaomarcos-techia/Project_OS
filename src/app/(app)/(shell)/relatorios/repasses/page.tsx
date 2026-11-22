@@ -1,3 +1,5 @@
+import type { Metadata } from 'next';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 
 import { billingApiV1 } from '@/contexts/billing/api';
@@ -6,6 +8,7 @@ import { listMonthlyPayoutSnapshots } from '@/contexts/financial/payout-queries'
 import { listCompletedAppointmentsForMonth } from '@/contexts/scheduling/queries';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { Alert } from '@/components/ui/alert';
+import { buttonVariants } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
 import {
   Table,
@@ -16,11 +19,14 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { requirePageUser } from '@/lib/auth/page-guard';
+import { requireClinicId } from '@/lib/auth/tenant-context';
 import { withQueryDeadline } from '@/lib/db/query-timeout';
 import { formatBRL } from '@/lib/format';
 
 import { adjacentMonth, buildMonthlyPayoutReport, resolveReportMonth } from './report';
+
+export const metadata: Metadata = { title: 'Repasses por mês' };
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +35,7 @@ export default async function RepassesPage({
 }: {
   searchParams: Promise<{ mes?: string }>;
 }) {
-  const user = await requireUser();
+  const user = await requirePageUser();
   const clinicId = await requireClinicId();
   const canManagePayouts = user.permissions.includes(PERMISSIONS.MANAGE_FINANCIAL);
   const ownOnly = !canManagePayouts && (await getCurrentPractitioner());
@@ -85,10 +91,25 @@ export default async function RepassesPage({
           ownOnly ? 'Seus atendimentos concluídos' : 'Atendimentos concluídos da clínica'
         }
       />
-      <nav aria-label="Mês de competência" className="mb-6 flex items-center gap-4">
-        <Link href={`/relatorios/repasses?mes=${adjacentMonth(month, -1)}`}>Mês anterior</Link>
+      <nav
+        aria-label="Mês de competência"
+        className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-2"
+      >
+        <Link
+          href={`/relatorios/repasses?mes=${adjacentMonth(month, -1)}`}
+          className={buttonVariants({ variant: 'secondary', size: 'sm' })}
+        >
+          <ChevronLeft aria-hidden="true" className="size-4" />
+          Mês anterior
+        </Link>
         <strong className="font-mono tabular-nums">{month}</strong>
-        <Link href={`/relatorios/repasses?mes=${adjacentMonth(month, 1)}`}>Próximo mês</Link>
+        <Link
+          href={`/relatorios/repasses?mes=${adjacentMonth(month, 1)}`}
+          className={buttonVariants({ variant: 'secondary', size: 'sm' })}
+        >
+          Próximo mês
+          <ChevronRight aria-hidden="true" className="size-4" />
+        </Link>
       </nav>
       <p className="mb-4 text-sm text-fg-muted">
         A competência é o mês em que a consulta foi concluída no fuso {timezone}. Os valores são

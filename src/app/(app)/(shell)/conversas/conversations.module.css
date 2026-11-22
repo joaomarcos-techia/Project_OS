@@ -47,7 +47,8 @@
 }
 
 .contacts {
-  max-height: calc(100dvh - 262px);
+  /* Shell v5: 26 px de moldura do painel + 74 px a mais no cabeçalho em duas faixas. */
+  max-height: calc(100dvh - 362px);
   min-height: 240px;
   overflow-y: auto;
   overscroll-behavior: contain;

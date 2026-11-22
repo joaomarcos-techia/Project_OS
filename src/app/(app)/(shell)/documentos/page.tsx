@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 /**
  * /documentos — feed unificado de documentos clínicos (prescrições + atestados/
  * declarações/exames/encaminhamentos) da clínica. Server component; só leitura.
@@ -5,19 +6,7 @@
  * Cada item linka para a página autenticada de PDF; o token do Storage não é
  * exposto ao navegador.
  */
-import {
-  CornerUpRight,
-  ExternalLink,
-  FileBadge,
-  FileCheck,
-  FileText,
-  Files,
-  ListFilter,
-  Search,
-  ShieldAlert,
-  TestTube,
-  type LucideIcon,
-} from 'lucide-react';
+import { ExternalLink, FileText, Files, ListFilter, Search } from 'lucide-react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
@@ -26,6 +15,7 @@ import {
   type ClinicalDocumentKind,
   type ClinicalDocumentType,
 } from '@/contexts/clinical/queries';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { PERMISSIONS, type Permission } from '@/lib/auth/permissions';
 import { pageGate } from '@/lib/auth/page-guard';
 import { PageNoAccess } from '@/components/shared/page-no-access';
@@ -34,37 +24,46 @@ import { DataTable } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
 import { EntityCell } from '@/components/ui/entity-cell';
 import { Badge } from '@/components/ui/badge';
-import { FilterBar, SearchField } from '@/components/ui/filter-bar';
+import { SearchField } from '@/components/ui/filter-bar';
+import { LinkSegmented } from '@/components/ui/link-segmented';
 import { PageHeader } from '@/components/ui/page-header';
-import { Select } from '@/components/ui/select';
-import { StatsInline } from '@/components/ui/stats-inline';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 import { documentosPageHref, parseDocumentosPage, type DocumentosSearchParams } from './pagination';
 import { NewClinicalDocumentDrawer } from './new-clinical-document-drawer';
 import styles from './documents.module.css';
 
+export const metadata: Metadata = { title: 'Documentos' };
+
 export const dynamic = 'force-dynamic';
 /**
- * Cada tipo tem ícone próprio — o badge é o que se varre numa lista de 184
- * linhas, e seis rótulos na mesma cor cinza obrigam a LER todos eles.
- *
- * Controle especial é o único em vermelho: é receituário de lista controlada,
- * com regra de dispensação própria, e a diferença precisa saltar de longe.
+ * Tom da etiqueta de tipo no app v5. Receita de controle especial é a única em
+ * âmbar: lista controlada, com regra de dispensação própria.
  */
-const TIPO: Record<ClinicalDocumentType, { Icon: LucideIcon; tone: 'blue' | 'red' | 'gray' }> = {
-  simples: { Icon: FileText, tone: 'blue' },
-  controle_especial: { Icon: ShieldAlert, tone: 'red' },
-  atestado: { Icon: FileCheck, tone: 'gray' },
-  exame: { Icon: TestTube, tone: 'gray' },
-  declaracao: { Icon: FileBadge, tone: 'gray' },
-  encaminhamento: { Icon: CornerUpRight, tone: 'gray' },
+const TIPO_TOM: Record<ClinicalDocumentType, 'blue' | 'amber' | 'gray' | 'navy'> = {
+  simples: 'blue',
+  controle_especial: 'amber',
+  atestado: 'gray',
+  exame: 'navy',
+  declaracao: 'gray',
+  encaminhamento: 'gray',
 };
 
 interface DocumentosPageUser {
   isSuperAdmin?: boolean;
   aal?: string | null;
   permissions: readonly string[];
+}
+
+/**
+ * Ciclo 3 (P1.7): com o botão "Novo documento" na tela, a descrição não manda emitir em outro
+ * lugar. O botão já leva ao prontuário do paciente, e a frase extra ocupava 4 linhas a 320 px.
+ * Sem o botão, o caminho continua dito.
+ */
+export function documentosDescription(canOpenLauncher: boolean): string {
+  return canOpenLauncher
+    ? 'Receitas, atestados e outros documentos já emitidos.'
+    : 'Receitas, atestados e outros documentos já emitidos. Para emitir um novo, use o Consultório ou o prontuário.';
 }
 
 /** Descoberta de UI; as Server Actions reaplicam os mesmos gates no backend. */
@@ -103,6 +102,7 @@ export default async function DocumentosPage({
     );
   }
   const { clinicId, user } = gate;
+  const timeZone = await getClinicTimezone(clinicId);
   const capabilities = documentosPageCapabilities(user);
   const { q: rawSearch, tipo, page: rawPage } = await searchParams;
   const q = rawSearch?.trim().slice(0, 64) || undefined;
@@ -130,6 +130,29 @@ export default async function DocumentosPage({
   return (
     <>
       <PageHeader
+        crumbs={[
+          {
+            label: (
+              <>
+                <FileText aria-hidden="true" />
+                Documentos
+              </>
+            ),
+          },
+        ]}
+        search={
+          <form id="documentos-busca" role="search">
+            {kind ? <input type="hidden" name="tipo" value={kind} /> : null}
+            <SearchField
+              name="q"
+              defaultValue={q ?? ''}
+              placeholder="Buscar por paciente"
+              aria-label="Buscar documentos por nome do paciente"
+              grow={false}
+              className="w-full"
+            />
+          </form>
+        }
         actions={
           capabilities.canOpenLauncher ? (
             <NewClinicalDocumentDrawer
@@ -138,53 +161,47 @@ export default async function DocumentosPage({
             />
           ) : undefined
         }
-        crumbs={[{ label: 'Clínico' }, { label: 'Documentos' }]}
         title="Documentos emitidos"
-        description="Histórico de receitas e documentos. A emissão acontece no Consultório e no prontuário."
-        meta={
-          <span className="font-mono tabular-nums">
-            {result.total.toLocaleString('pt-BR')} documento{result.total === 1 ? '' : 's'}
-          </span>
+        description={documentosDescription(capabilities.canOpenLauncher)}
+        controls={
+          <>
+            <LinkSegmented
+              label="Tipo de documento"
+              items={[
+                { label: 'Todos os tipos', kind: undefined },
+                { label: 'Receitas', kind: 'prescription' as const },
+                { label: 'Documentos médicos', kind: 'document' as const },
+              ].map((option) => ({
+                label: option.label,
+                href: documentosPageHref(
+                  { ...(q ? { q } : {}), ...(option.kind ? { kind: option.kind } : {}) },
+                  1,
+                ),
+                active: kind === option.kind,
+              }))}
+            />
+            <button
+              type="submit"
+              form="documentos-busca"
+              className={buttonVariants({ variant: 'secondary' })}
+            >
+              <ListFilter aria-hidden="true" className="size-4" />
+              Filtrar
+            </button>
+          </>
         }
       />
 
-      <FilterBar className="qoro-toolbar">
-        <form className="flex min-w-0 flex-wrap items-center gap-(--sp-2)" role="search">
-          <SearchField
-            name="q"
-            defaultValue={q ?? ''}
-            placeholder="Buscar por paciente…"
-            aria-label="Buscar documentos por nome do paciente"
-            className="min-w-0 sm:w-68 sm:flex-none"
-          />
-          <Select
-            name="tipo"
-            defaultValue={kind ?? ''}
-            aria-label="Filtrar por tipo de documento"
-            className="max-w-48"
-          >
-            <option value="">Todos os tipos</option>
-            <option value="prescription">Receitas</option>
-            <option value="document">Documentos médicos</option>
-          </Select>
-          <button type="submit" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
-            <ListFilter aria-hidden="true" className="size-4" />
-            Filtrar
-          </button>
-        </form>
-        <StatsInline
-          className="ml-auto"
-          items={[
-            {
-              label: `${result.total.toLocaleString('pt-BR')} documento${result.total === 1 ? '' : 's'}`,
-            },
-            ...(filtrando ? [{ label: 'filtro aplicado', tone: 'attention' as const }] : []),
-          ]}
-        />
-      </FilterBar>
-
       <DataTable
         className={styles.table ?? ''}
+        title={
+          kind === 'prescription'
+            ? 'Receitas'
+            : kind === 'document'
+              ? 'Documentos médicos'
+              : 'Todos os documentos'
+        }
+        description={`${result.total.toLocaleString('pt-BR')} documento${result.total === 1 ? '' : 's'} · mais recentes primeiro`}
         total={items.length === 0 ? 0 : result.total}
         page={page}
         pageCount={totalPages}
@@ -216,13 +233,7 @@ export default async function DocumentosPage({
           {items.map((d) => (
             <TableRow key={`${d.kind}:${d.id}`}>
               <TableCell>
-                <Badge tone={TIPO[d.type]?.tone ?? 'gray'} className={styles.tipo}>
-                  {(() => {
-                    const Icon = TIPO[d.type]?.Icon ?? FileText;
-                    return <Icon aria-hidden="true" className="size-3" />;
-                  })()}
-                  {d.label}
-                </Badge>
+                <Badge tone={TIPO_TOM[d.type] ?? 'gray'}>{d.label}</Badge>
                 {!d.hasPdf ? (
                   <p className="mt-1 text-(length:--fs-xs) text-fg-subtle">PDF pendente</p>
                 ) : null}
@@ -239,11 +250,14 @@ export default async function DocumentosPage({
                 ) : null}
               </TableCell>
               <TableCell className="font-mono text-fg-muted tabular-nums">
-                <span className="block">{new Date(d.createdAt).toLocaleDateString('pt-BR')}</span>
+                <span className="block">
+                  {new Date(d.createdAt).toLocaleDateString('pt-BR', { timeZone })}
+                </span>
                 <span className="mt-0.5 block text-(length:--fs-xs) text-fg-subtle">
                   {new Date(d.createdAt).toLocaleTimeString('pt-BR', {
                     hour: '2-digit',
                     minute: '2-digit',
+                    timeZone,
                   })}
                 </span>
               </TableCell>

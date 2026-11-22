@@ -10,13 +10,18 @@ import { authenticate } from '../auth';
  * Ordem = ordem de revisão no GATE 3.
  */
 const ROUTES = [
-  // O h1 do Dashboard é uma SAUDAÇÃO ("Boa tarde, Ana"): muda com a hora e com
-  // quem entrou, então a asserção é de padrão. O padrão também é mais forte que
-  // o texto fixo antigo — "Visão operacional" é o título do fallback de sessão
-  // SEM clínica, e a asserção literal ficava verde justamente no estado que a
-  // auditoria precisa reprovar.
+  // UX-011: o h1 do Dashboard é o nome da tela ("Dashboard") e a SAUDAÇÃO ("Boa
+  // tarde, Ana") virou a faixa grande do cabeçalho. O h1 sozinho seria fraco:
+  // ele também é "Dashboard" no fallback de sessão SEM clínica, justamente o
+  // estado que a auditoria precisa reprovar. Por isso a saudação continua
+  // exigida, agora no `headline` (no fallback ele diz "Visão operacional").
   // O `(?:,|$)` cobre a conta sem nome, em que a saudação fica sozinha.
-  { path: '/dashboard', slug: 'dashboard', heading: /^(?:Bom dia|Boa tarde|Boa noite)(?:,|$)/u },
+  {
+    path: '/dashboard',
+    slug: 'dashboard',
+    heading: 'Dashboard',
+    headline: /^(?:Bom dia|Boa tarde|Boa noite)(?:,|$)/u,
+  },
   { path: '/agenda', slug: 'agenda', heading: 'Agenda' },
   { path: '/consultorio', slug: 'consultorio', heading: 'Consultório' },
   { path: '/pacientes', slug: 'pacientes', heading: 'Pacientes' },
@@ -63,6 +68,11 @@ test.describe('auditoria visual autenticada das rotas críticas', () => {
             exact: typeof route.heading === 'string',
           }),
         ).toBeVisible({ timeout: 30_000 });
+        if ('headline' in route) {
+          await expect(page.locator('[data-slot="page-header-headline"]')).toHaveText(
+            route.headline,
+          );
+        }
         await expect(page.getByText('Sem acesso', { exact: true })).toHaveCount(0);
         await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
         await expect(page.locator('html')).toHaveClass(

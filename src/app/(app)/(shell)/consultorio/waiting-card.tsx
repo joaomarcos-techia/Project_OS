@@ -27,11 +27,13 @@ const WAIT_BADGE: Record<WaitTone, 'gray' | 'amber' | 'red'> = {
 function WaitingCardImpl({
   card,
   now,
+  timeZone,
   busy,
   onCall,
 }: {
   card: BoardCardDTO;
   now: number;
+  timeZone: string;
   busy: boolean;
   onCall: (id: string) => void;
 }) {
@@ -63,7 +65,7 @@ function WaitingCardImpl({
       {/* Horário à esquerda, espera à direita — a referência põe os dois na
           mesma linha porque a leitura é "marcado para X, esperando há Y". */}
       <div className="mt-2.5 flex items-center justify-between gap-2 text-(length:--fs-xs)">
-        <span className="text-fg-muted tabular-nums">{formatHora(card.horario)}</span>
+        <span className="text-fg-muted tabular-nums">{formatHora(card.horario, timeZone)}</span>
         <Badge tone={WAIT_BADGE[tone]} dot>
           {formatWait(mins)} aguardando
         </Badge>

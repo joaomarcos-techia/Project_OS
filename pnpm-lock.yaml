@@ -86,6 +86,9 @@ importers:
       react-dom:
         specifier: 19.2.6
         version: 19.2.6(react@19.2.6)
+      react-useanimations:
+        specifier: 3.1.1
+        version: 3.1.1(react@19.2.6)
       safe-stable-stringify:
         specifier: 2.5.0
         version: 2.5.0
@@ -4415,6 +4418,11 @@ packages:
     peerDependenciesMeta:
       '@types/react':
         optional: true
+
+  react-useanimations@3.1.1:
+    resolution: {integrity: sha512-hq5ItlbkHk1ztmAxFvWTMX9ZTpPdT9ZTvRpvoakrdsvDNRtUl6Yf5IUPGxP+bxVidgKXUeDhBioQE8g/8jsYMQ==}
+    peerDependencies:
+      react: '>=18'
 
   react@19.2.6:
     resolution: {integrity: sha512-sfWGGfavi0xr8Pg0sVsyHMAOziVYKgPLNrS7ig+ivMNb3wbCBw3KxtflsGBAwD3gYQlE/AEZsTLgToRrSCjb0Q==}
@@ -9335,6 +9343,10 @@ snapshots:
       tslib: 2.8.1
     optionalDependencies:
       '@types/react': 19.2.15
+
+  react-useanimations@3.1.1(react@19.2.6):
+    dependencies:
+      react: 19.2.6
 
   react@19.2.6: {}
 

@@ -1,0 +1,74 @@
+/*
+ * Complementos das telas do cadastro. A moldura, os campos e os botões vêm de
+ * `signup-frame.module.css`; aqui ficam só os arranjos próprios destas telas.
+ */
+
+/* Título acima do bloco cinza, no mesmo ritmo do `.wrap` da moldura. */
+.stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+  width: 100%;
+}
+
+/* Aviso que fica acima do título, na largura do bloco que vem depois dele. */
+.notice {
+  width: 100%;
+  max-width: 760px;
+}
+.noticeNarrow {
+  max-width: 480px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+/*
+ * A região aria-live precisa existir antes da mensagem para ser anunciada, então
+ * não dá para escondê-la. Vazia, ela não pode somar o `gap` do contêiner: o
+ * `.closing` a agrupa com o vizinho e só há espaço quando há mensagem.
+ */
+.closing {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.closing > .live:not(:empty):not(:last-child) {
+  margin-bottom: 20px;
+}
+.closing > .live:not(:empty):not(:first-child) {
+  margin-top: 20px;
+}
+
+.progress {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--border);
+}
+.progressFill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--primary);
+  transition: width 200ms ease-out;
+}
+
+/* Códigos numéricos do e-mail */
+.codeInput {
+  font-size: 24px;
+  letter-spacing: 0.35em;
+}
+.codeInputCompact {
+  letter-spacing: 0.18em;
+}
+
+@container (max-width: 900px) {
+  .stack {
+    gap: 20px;
+  }
+}

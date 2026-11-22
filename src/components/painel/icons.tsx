@@ -24,6 +24,7 @@ import {
   FlaskConical,
   Funnel,
   Heart,
+  House,
   LayoutGrid,
   Lock,
   MessageCircle,
@@ -51,6 +52,8 @@ import type { CSSProperties } from 'react';
 
 const ICONS: Record<string, LucideIcon> = {
   dashboard: LayoutGrid,
+  // App v5 da clínica: Dashboard é a casa. `dashboard` segue no /admin.
+  home: House,
   calendar: Calendar,
   stethoscope: Stethoscope,
   users: Users,

@@ -61,4 +61,89 @@ describe('fundação de movimento e alvos de interação', () => {
       expect(source).toContain("before:content-['']");
     }
   });
+
+  // UX-018 (docs/otimização_ui_final.md): os links legais do login tinham 19,5 px.
+  it('dá 24 px de alvo aos links do rodapé do login', () => {
+    const loginCss = readFileSync(
+      resolve(root, 'src/components/shared/login-frame.module.css'),
+      'utf8',
+    );
+    const regra = loginCss.match(/\.foot a \{[^}]*\}/)?.[0] ?? '';
+    expect(regra).toContain('min-height: 24px');
+    expect(regra).toContain('display: inline-flex');
+    // Ciclo 3: o "Criar conta" do topo (23 px na sonda do Preview) ganhou o mesmo alvo.
+    const topo = loginCss.match(/\.top p a \{[^}]*\}/)?.[0] ?? '';
+    expect(topo).toContain('min-height: 24px');
+    expect(topo).toContain('display: inline-flex');
+  });
+
+  // UX-021: no celular as ações ficam na linha do nome da tela, antes da busca (ordem 1).
+  it('põe as ações do cabeçalho na linha do nome da tela abaixo de 720 px', () => {
+    // O bloco de 720 px que reorganiza o cabeçalho (há outros blocos de 720 px no arquivo).
+    const inicio = css.lastIndexOf('@media (max-width: 720px)', css.indexOf('UX-021 (17/11/2026)'));
+    expect(inicio).toBeGreaterThan(-1);
+    const bloco = css.slice(inicio);
+    const regra = bloco.match(/\[data-slot='page-header-actions'\] \{[^}]*\}/u)?.[0] ?? '';
+    expect(regra).toContain('order: 1;');
+    const busca = bloco.match(/\[data-slot='page-header-search'\] \{[^}]*\}/u)?.[0] ?? '';
+    expect(busca).toContain('order: 2;');
+  });
+
+  // Varredura de 17/11/2026: com mouse, o link do card do Dashboard tinha 20 px de altura e as
+  // migalhas, 21 px. O mínimo da WCAG 2.5.8 é 24 px, sem crescer a linha (margem negativa).
+  it('dá 24 px de alvo ao link do cabeçalho de card e às migalhas, também com mouse', () => {
+    const inicio = css.indexOf('varredura de 17/11/2026: 20 px');
+    expect(inicio).toBeGreaterThan(-1);
+    const regra = css.slice(inicio).match(/\[data-slot='panel-header'\] > a \{[^}]*\}/u)?.[0] ?? '';
+    expect(regra).toContain('min-height: 24px;');
+    expect(regra).toContain('margin-block: -2px;');
+    const migalhas = readFileSync(resolve(root, 'src/components/ui/breadcrumbs.tsx'), 'utf8');
+    expect(migalhas).toContain('-my-0.5 inline-flex min-h-6 items-center');
+  });
+
+  // P-24 (18/11/2026): "Entrar" do cabeçalho do cadastro tinha 23 px de altura.
+  it('dá 44 px de área de toque ao "Entrar" do cabeçalho do cadastro, sem crescer o cabeçalho', () => {
+    const frame = readFileSync(
+      resolve(root, 'src/components/shared/signup-frame.module.css'),
+      'utf8',
+    );
+    const regra = frame.match(/\.headAside a \{[^}]*\}/u)?.[0] ?? '';
+    expect(regra).toContain('min-height: 44px;');
+    expect(regra).toContain('margin: -10px -8px;');
+  });
+
+  // P-26 (18/11/2026): a escala neutra é fixa (não muda no tema escuro); cor de dado e de estado
+  // usa token semântico.
+  it('não usa a escala neutra fixa como cor de fundo em componentes', () => {
+    const fixos = sourceFiles(resolve(root, 'src'))
+      .filter((path) => path.endsWith('.tsx'))
+      .filter((path) => /\bbg-neutral-[1-9]\d{1,2}\b/u.test(readFileSync(path, 'utf8')));
+    expect(fixos).toEqual([]);
+  });
+
+  // P-26 (ciclo 8, 20/11/2026): medido no Preview (página real, CSS real, dois temas): o ponto
+  // cinza `border-strong` tem 3,30:1 / 3,86:1; o âmbar `warning-500` tinha 2,26:1 no claro.
+  it('o ponto de status dos avisos do admin usa tons com contraste de elemento gráfico', () => {
+    const pagina = readFileSync(resolve(root, 'src/app/(admin)/admin/config/page.tsx'), 'utf8');
+    const ponto = pagina.match(/function HealthDot[\s\S]*?\n\}/u)?.[0] ?? '';
+    expect(ponto).toContain("'bg-border-strong'");
+    expect(ponto).toContain("'bg-warning-600'");
+    expect(ponto).not.toContain("'bg-warning-500'");
+  });
+
+  // Sidebar (founder, 18/11/2026): mais respiro, sem itens espremidos em telas baixas.
+  it('mantém o ritmo da sidebar: folga entre itens, título perto do próprio grupo, itens ≥ 36 px', () => {
+    const px = (nome: string) => Number(css.match(new RegExp(`${nome}:\\s*(\\d+)px`, 'u'))?.[1]);
+    expect(px('--rail-item-gap')).toBeGreaterThanOrEqual(4);
+    expect(px('--rail-group-gap')).toBeGreaterThanOrEqual(12);
+    expect(px('--rail-top-gap')).toBeGreaterThanOrEqual(12);
+    // Título → primeiro item (padding do título + folga do grupo) menor que o espaço acima dele.
+    const titulo = css.match(/\.qoro-rail-heading \{[^}]*\}/u)?.[0] ?? '';
+    const abaixo = Number(titulo.match(/padding: 0 8px (\d+)px/u)?.[1]) + px('--rail-item-gap');
+    expect(abaixo).toBeLessThanOrEqual(8);
+    expect(abaixo).toBeLessThan(px('--rail-group-gap'));
+    const alturas = [...css.matchAll(/--rail-item-h:\s*(\d+)px/gu)].map((m) => Number(m[1]));
+    expect(Math.min(...alturas)).toBeGreaterThanOrEqual(36);
+    expect(css).toContain("[data-qoro-shell='tenant'] .qoro-rail-group + .qoro-rail-group {");
+  });
 });

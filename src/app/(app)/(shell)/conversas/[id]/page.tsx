@@ -1,7 +1,9 @@
+import type { Metadata } from 'next';
 /** Rota direta preservada; reutiliza o mesmo histórico e atendimento da inbox. */
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 import { getConversationThread } from '@/contexts/ai-agent/queries';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { getProfileNames } from '@/contexts/identity/queries';
 import { pageGate } from '@/lib/auth/page-guard';
 import { PERMISSIONS } from '@/lib/auth/permissions';
@@ -10,6 +12,9 @@ import { identidadeDoContato } from '../contact-identity';
 import { ConversasNoAccess } from '../_components/no-access';
 import { ConversationAutoRefresh } from '../_components/conversation-auto-refresh';
 import { ConversationThread } from '../_components/conversation-thread';
+
+export const metadata: Metadata = { title: 'Conversa' };
+
 export const dynamic = 'force-dynamic';
 export default async function ConversaThreadPage({ params }: { params: Promise<{ id: string }> }) {
   const gate = await pageGate([PERMISSIONS.VIEW_CONVERSATIONS]);
@@ -18,7 +23,10 @@ export default async function ConversaThreadPage({ params }: { params: Promise<{
   const { id } = await params;
   const parsed = z.string().uuid().safeParse(id);
   if (!parsed.success) notFound();
-  const thread = await getConversationThread(clinicId, parsed.data);
+  const [thread, timeZone] = await Promise.all([
+    getConversationThread(clinicId, parsed.data),
+    getClinicTimezone(clinicId),
+  ]);
   if (!thread) notFound();
   const assigneeNames = await getProfileNames(
     clinicId,
@@ -42,6 +50,7 @@ export default async function ConversaThreadPage({ params }: { params: Promise<{
       />
       <ConversationThread
         thread={thread}
+        timeZone={timeZone}
         canManage={user.permissions.includes(PERMISSIONS.MANAGE_CONVERSATIONS)}
         currentUserId={user.userId}
         assignedToName={assignedToName}
