@@ -96,6 +96,9 @@ describe('portão das actions de Convênios (P12.2, matriz I.2)', () => {
       'health_insurance.guide.reviewed': 'operateOrBill',
       'health_insurance.guide.returned': 'operateOrBill',
       'health_insurance.guide.consulta_fields_updated': 'operateOrBill',
+      // P8.4: completar os itens executados na conferência é como corrigir a guia.
+      'health_insurance.extra_item.recorded': 'operateOrBill',
+      'health_insurance.extra_item.cancelled': 'operateOrBill',
       'health_insurance.guide.cancelled': 'bill',
       'health_insurance.guide.reconciled': 'bill',
       'health_insurance.batch.created': 'bill',

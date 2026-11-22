@@ -20,6 +20,7 @@ import { insurerRules } from './internal/insurer-rules';
 import { listInsurancePayoutPositionsTx, type InsurancePayoutPosition } from './internal/insurance-payout-service';
 import { listPayoutReviewsTx, type PayoutReviewRow } from './internal/payout-review-service';
 import { listGuideCancellationsTx, type GuideCancellationRow } from './internal/guide-cancellation-service';
+import { extraItemsAvailableTx, listExtraItemsTx, type ExtraItemView } from './internal/extra-executed-items';
 import { GUIDE_STATUS_LABELS } from './guide-status-labels';
 import {
   CONSULTA_CODE_FIELD_KEYS,
@@ -1429,5 +1430,67 @@ export async function getGuideSubstitution(clinicId: string, guideId: string): P
         WHERE g.clinic_id = ${clinicId}::uuid AND g.id = ${guideId}::uuid`)) as unknown as Row[];
     const pick = (r: Row | undefined) => (r ? { id: String(r.id), number: String(r.number), status: String(r.status) } : null);
     return { cancellations, substitute: pick(sub), replaces: pick(orig) };
+  });
+}
+
+// ── P8.4: itens executados adicionais da guia SP/SADT (candidata 0167) ──────
+
+export interface GuideExtraItemSession {
+  appointmentId: string;
+  executedOn: string;
+  items: ExtraItemView[];
+}
+export interface GuideExtraItems {
+  /** A tabela da candidata 0167 existe neste banco (no DEV e no Preview de hoje, não). */
+  available: boolean;
+  sessions: GuideExtraItemSession[];
+  /** Linhas de contrato SP/SADT da operadora (e do plano) da guia: só item de contrato. */
+  options: Array<{ id: string; label: string }>;
+}
+
+/** Sessões da guia SP/SADT com os itens adicionais de cada uma e as linhas de contrato possíveis. */
+export async function getGuideExtraItems(clinicId: string, guideId: string): Promise<GuideExtraItems> {
+  return withTenant(clinicId, async (tx) => {
+    if (!(await extraItemsAvailableTx(tx))) return { available: false, sessions: [], options: [] };
+    const sessions = (await tx.execute(sql`
+      SELECT i.appointment_id::text AS appointment_id, min(i.executed_on)::text AS executed_on
+        FROM public.hi_guide_items i
+        JOIN public.hi_guides g ON g.clinic_id = i.clinic_id AND g.id = i.guide_id
+       WHERE i.clinic_id = ${clinicId}::uuid AND i.guide_id = ${guideId}::uuid
+         AND g.guide_type = 'sp_sadt' AND i.appointment_id IS NOT NULL
+       GROUP BY i.appointment_id
+       ORDER BY 2, 1`)) as unknown as Array<{ appointment_id: string; executed_on: string }>;
+    if (sessions.length === 0) return { available: true, sessions: [], options: [] };
+    const out: GuideExtraItemSession[] = [];
+    for (const s of sessions) {
+      out.push({
+        appointmentId: s.appointment_id,
+        executedOn: s.executed_on,
+        items: await listExtraItemsTx(tx, { clinicId, appointmentId: s.appointment_id }),
+      });
+    }
+    const firstDay = sessions[0]!.executed_on;
+    const lines = (await tx.execute(sql`
+      SELECT l.id::text AS id, l.table_code, l.procedure_code, l.description, l.valid_until::text AS valid_until
+        FROM public.hi_procedure_contracts l
+        JOIN public.hi_guides g ON g.clinic_id = l.clinic_id AND g.insurer_id = l.insurer_id
+       WHERE g.clinic_id = ${clinicId}::uuid AND g.id = ${guideId}::uuid AND l.guide_type = 'sp_sadt'
+         AND (l.plan_id IS NULL OR l.plan_id IS NOT DISTINCT FROM g.plan_id)
+         AND (l.valid_until IS NULL OR l.valid_until >= ${firstDay}::date)
+       ORDER BY l.table_code, l.procedure_code, l.valid_from`)) as unknown as Array<{
+      id: string;
+      table_code: string;
+      procedure_code: string;
+      description: string;
+      valid_until: string | null;
+    }>;
+    return {
+      available: true,
+      sessions: out,
+      options: lines.map((l) => ({
+        id: l.id,
+        label: `${l.table_code} · ${l.procedure_code} — ${l.description}${l.valid_until ? ` (até ${l.valid_until})` : ''}`,
+      })),
+    };
   });
 }
