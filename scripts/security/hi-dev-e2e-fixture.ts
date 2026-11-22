@@ -292,9 +292,16 @@ async function setup() {
       RETURNING id::text AS id`);
     return (appointments[key] = a!.id);
   };
+  // `--run <MARCA>` (opcional): atendimentos e guias de Consulta NOVOS para esta execução. Sem a marca,
+  // o setup reaproveita os de antes, cujas guias outros specs já levaram adiante (conferida, em lote,
+  // exportada) — e o spec base precisa de guia em conferência. A data muda com a marca porque a agenda
+  // recusa sobreposição da mesma profissional.
+  const setupRun = arg('run');
+  if (setupRun !== undefined && !/^[A-Z0-9]{3,12}$/u.test(setupRun)) throw new Error('--run <marca> inválida (A-Z e 0-9)');
+  const runOffset = setupRun ? [...setupRun].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) % 26, 7) : 0;
   for (const [i, p] of patients.slice(0, 2).entries()) {
-    const date = `2026-11-0${3 + i}`;
-    const apId = await mk(`consulta-${i + 1}`, p, consulta, `${date}T13:00:00Z`, 'agendado');
+    const date = setupRun ? `2026-10-${String(1 + ((runOffset + i) % 28)).padStart(2, '0')}` : `2026-11-0${3 + i}`;
+    const apId = await mk(`consulta-${i + 1}${setupRun ? `-${setupRun}` : ''}`, p, consulta, `${date}T13:00:00Z`, 'agendado');
     // A cobertura é registrada ANTES do atendimento começar (regra do domínio); depois ele é atendido.
     const [st] = await exec<{ status: string }>(sql`SELECT status::text AS status FROM public.appointments WHERE id = ${apId}::uuid`);
     if (st?.status === 'agendado') {

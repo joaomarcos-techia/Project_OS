@@ -1114,11 +1114,11 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/hi-0161-restore-rehearsal.ts:79`                           | `<object>`                             | `process.env`                                                               |
 | `scripts/security/hi-dev-e2e-fixture.ts:35`                                  | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/hi-dev-e2e-fixture.ts:37`                                  | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
-| `scripts/security/hi-dev-e2e-fixture.ts:776`                                 | `E2E_RESEND_INBOX_ADDRESS`             | `process.env.E2E_RESEND_INBOX_ADDRESS`                                      |
-| `scripts/security/hi-dev-e2e-fixture.ts:777`                                 | `RESEND_API_KEY`                       | `process.env.RESEND_API_KEY`                                                |
-| `scripts/security/hi-dev-e2e-fixture.ts:777`                                 | `RESEND_API_KEY_DEV`                   | `process.env.RESEND_API_KEY_DEV`                                            |
-| `scripts/security/hi-dev-e2e-fixture.ts:1210`                                | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                                                |
-| `scripts/security/hi-dev-e2e-fixture.ts:1212`                                | `APP_BASE_URL`                         | `process.env.APP_BASE_URL`                                                  |
+| `scripts/security/hi-dev-e2e-fixture.ts:783`                                 | `E2E_RESEND_INBOX_ADDRESS`             | `process.env.E2E_RESEND_INBOX_ADDRESS`                                      |
+| `scripts/security/hi-dev-e2e-fixture.ts:784`                                 | `RESEND_API_KEY`                       | `process.env.RESEND_API_KEY`                                                |
+| `scripts/security/hi-dev-e2e-fixture.ts:784`                                 | `RESEND_API_KEY_DEV`                   | `process.env.RESEND_API_KEY_DEV`                                            |
+| `scripts/security/hi-dev-e2e-fixture.ts:1217`                                | `ASAAS_BASE_URL`                       | `process.env.ASAAS_BASE_URL`                                                |
+| `scripts/security/hi-dev-e2e-fixture.ts:1219`                                | `APP_BASE_URL`                         | `process.env.APP_BASE_URL`                                                  |
 | `scripts/security/hi-dev-migrator-rehearsal.ts:43`                           | `SECURITY_PG_BIN`                      | `process.env.SECURITY_PG_BIN`                                               |
 | `scripts/security/hi-dev-migrator-rehearsal.ts:49`                           | `PR53_REF`                             | `process.env.PR53_REF`                                                      |
 | `scripts/security/hi-dev-migrator-rehearsal.ts:50`                           | `OUT_DIR`                              | `process.env.OUT_DIR`                                                       |
