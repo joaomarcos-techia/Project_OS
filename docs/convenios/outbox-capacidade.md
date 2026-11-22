@@ -157,6 +157,25 @@ Os dois passam do limite: o risco já existe hoje.
    - Conferir o primeiro `worker.tick` com fila.
    - Observar 24 h.
 
+**Ficha de implantação por etapa (22/11).** Nenhuma etapa está autorizada; cada uma exige o GO R61-C específico.
+
+| Campo | Etapa 1: proteção, lote atual | Etapa 2: capacidade |
+| --- | --- | --- |
+| SHA exato | o commit do #53 **com o patch aplicado** (ainda não existe; hoje: `bc955f4e` sem o patch). O SHA entra aqui quando o #53 aplicar e a CI dele passar | o mesmo SHA da etapa 1 (só a variável muda) |
+| Configuração anterior | rota sem prazo de reserva nem descarte em bloco; `OUTBOX_BATCH_SIZE` ausente (padrão 50), segundo o registro do #53 de 21/11 | etapa 1 em produção; `OUTBOX_BATCH_SIZE` ausente (50) |
+| Configuração nova | rota com `reserveUntil` = início + 30 s e `skipUnhandledInBulk`; lote continua 50 | `OUTBOX_BATCH_SIZE=200` (opção B) ou 150 (opção C) |
+| Justificativa | o outbox para de reservar aos 30 s: a pane de provedor deixa de estourar a janela, e as tarefas da AbacatePay ficam protegidas | capacidade sustentada de cerca de 15 para cerca de 83 atendimentos/min; pico temporário de 100/min com 2 min de atraso |
+| Evidências | `outbox-budget-db.ts` 6/6; `outbox-shared-cron-db.ts` 6/6 (corte real aos 60 s); composição #53 + patch verde (run `45003465119`) | benchmark R61-B (23 rodadas, integridade em todas, §9.2) |
+| Métricas | `worker.tick` (`duration_ms`, `deferred`, `skipped_bulk`), `outbox.handler_slow`, `billing.abacatepay.inbox_tick`, heartbeat `outbox` | as mesmas, mais a fila pendente e o atraso do recebível particular |
+| Critério de sucesso (24 h) | `duration_ms` < 35 s; `deferred` só em pane; nenhum timeout da rota; nenhuma divergência financeira | fila sem tendência de alta; atraso ≤ 5 min nos picos; `duration_ms` < 35 s |
+| Limites | não muda lote, cron nem contrato da AbacatePay | não muda código |
+| Riscos | handler travado ainda segura o tick (visível em `outbox.handler_slow`) | lote maior aumenta o trabalho por tick (medido: 3 a 6 s com 2 a 10 ms de latência) |
+| Contenção | parar na primeira violação dos critérios de interrupção (abaixo) | idem |
+| Reversão | promover de novo o deploy anterior na Vercel (instantâneo) | voltar a variável ao valor registrado e redeployar o mesmo SHA, ou promover o deploy anterior |
+| Dependências | o #53 aplicar o patch, a CI do #53 e as regressões do C3; deploy aprovado à parte | etapa 1 observada por 24 h sem interrupção |
+| Responsável | #53 (código e deploy, com o seu GO); fundador (GO); #55 (provas e leitura do monitoramento) | fundador (GO e variável); #53 (deploy) |
+| Critério de parada | qualquer critério de interrupção abaixo | idem, mais fila crescendo por 15 min sem pico |
+
 **Monitoramento (R61-E):**
 - `worker.tick`: `duration_ms`, `deferred`, `skipped_bulk` e `processed`;
 - `outbox.handler_slow` (novo): qualquer ocorrência mostra qual tipo de evento passou de 25 s;

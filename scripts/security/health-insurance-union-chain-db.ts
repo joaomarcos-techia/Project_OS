@@ -37,23 +37,15 @@ import { pathToFileURL } from 'node:url';
 
 import { sql as dsql } from 'drizzle-orm';
 
-import { readMigrations, startScratchSchema } from './scratch-schema';
+import { readDevOrderChain } from './dev-order-chain';
+import { startScratchSchema } from './scratch-schema';
 
 const REF = process.argv[2] ?? process.env.PR53_REF ?? '8c591c8f';
 const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 << 20 });
-const pr53Files = git('ls-tree', '--name-only', REF, 'drizzle/migrations/')
-  .split('\n')
-  .map((l) => l.trim().replace(/^drizzle\/migrations\//u, ''))
-  .filter((f) => /^01(?:3[6-9]|4[0-2])_.*\.sql$/u.test(f));
-assert.equal(pr53Files.length, 7, `esperava 0136–0142 no #53 (${REF}), achei ${pr53Files.join(',')}`);
-const local = await readMigrations();
-assert.ok(!local.some((m) => /^01(?:3[6-9]|4[0-2])_/u.test(m.file)), 'a branch do convênio não deve ter 0136–0142');
-const chain = [
-  ...local,
-  ...pr53Files.map((file) => ({ file, body: git('show', `${REF}:drizzle/migrations/${file}`) })),
-].sort((a, b) => a.file.localeCompare(b.file));
-const prefixes = chain.map((m) => Number(m.file.slice(0, 4)));
-prefixes.forEach((p, i) => assert.equal(p, i, `prefixo ${p} na posição ${i}`));
+// Mesma cadeia do DEV que as outras provas: main → #53 0136–0142 → #55, com a 0159 do #53 (aplicada no
+// DEV, fora do journal dele; mesmos bytes, sha256 conferido) quando o #55 tem migration depois dela.
+// `readDevOrderChain` confere os 7 arquivos do #53, que o #55 não os tem, e os prefixos contíguos.
+const chain = await readDevOrderChain(REF);
 
 const cluster = await startScratchSchema({ port: 55507, maxConnections: 16, migrations: chain });
 const { sql } = cluster;
@@ -90,7 +82,7 @@ try {
   const has = async (table: string) =>
     ((await sql`select to_regclass(${`public.${table}`}) is not null as ok`)[0] as { ok: boolean }).ok;
   assert.ok((await has('trial_resource_usage')) && (await has('hi_billing_gaps')) && (await has('hi_batches')));
-  pass(`cadeia unida aplica inteira no Postgres 17: ${chain.length} migrations (0000–${String(chain.length - 1).padStart(4, '0')}), 0136–0142 do #53 em ${REF}, prefixos contíguos; ${applied} marcas de versão`);
+  pass(`cadeia unida aplica inteira no Postgres 17: ${chain.length} migrations (0000–${String(chain.length - 1).padStart(4, '0')}), 0136–0142 do #53 em ${REF} e a 0159 aplicada no DEV, prefixos contíguos; ${applied} marcas de versão`);
 
   // ── 2. Gatilhos das duas branches nas tabelas compartilhadas ─────────
   const triggers = await sql`select c.relname as tbl, t.tgname as name

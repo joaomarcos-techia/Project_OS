@@ -68,6 +68,9 @@ async function createClinic(label: string) {
   await grantPaidSubscription(sql, clinicId);
   await sql`insert into public.profiles (id, clinic_id, nome, role, ativo)
     values (${doctorId}::uuid, ${clinicId}::uuid, ${`Profissional ${label}`}, 'doctor', true)`;
+  // 0164: criar guia é operação nova da classe A, só com o módulo de Convênios ligado na clínica.
+  await sql`insert into public.hi_clinic_settings (clinic_id, enabled, enabled_at, enabled_by, provider_kind, cnes_status)
+    values (${clinicId}::uuid, true, now(), ${SYS}::uuid, 'PJ', 'none_declared')`;
   const [proc] = await sql`insert into public.procedures
       (clinic_id, codigo, descricao, valor_padrao, duracao_padrao_min, ativo)
     values (${clinicId}::uuid, 'CONS', 'Consulta sintética', 150, 30, true) returning id`;

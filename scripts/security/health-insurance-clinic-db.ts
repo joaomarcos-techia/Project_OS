@@ -371,6 +371,14 @@ try {
   pass('numeração: no limite do Padrão TISS (999999999999) recusa, nunca volta a 1');
 
   // ── Autorizações (0146, P1.7) ────────────────────────────────────────
+  // 0164: autorização é operação nova da classe A, barrada com o módulo desligado ANTES das chaves
+  // estrangeiras. Liga o módulo nas duas clínicas para a prova seguinte medir a chave estrangeira.
+  await sql`insert into public.hi_clinic_settings (clinic_id, enabled, enabled_at, enabled_by, provider_kind, cnes_status)
+    values (${A.clinicId}::uuid, true, now(), ${SYS}::uuid, 'PJ', 'none_declared')
+    on conflict (clinic_id) do update set enabled = true, enabled_at = now(), enabled_by = ${SYS}::uuid,
+      provider_kind = 'PJ', cnes_status = 'none_declared'`;
+  await sql`update public.hi_clinic_settings set enabled = true, enabled_at = now(), enabled_by = ${SYS}::uuid,
+      provider_kind = 'PJ', cnes_status = 'none_declared' where clinic_id = ${B.clinicId}::uuid`;
   const newAuth = (db: Sql, clinicId: string, membershipId: string, insurerId: string) =>
     db`insert into public.hi_authorizations (clinic_id, insurer_id, membership_id, guide_type, origin, created_by)
        values (${clinicId}::uuid, ${insurerId}::uuid, ${membershipId}::uuid, 'sp_sadt', 'manual', ${SYS}::uuid)
