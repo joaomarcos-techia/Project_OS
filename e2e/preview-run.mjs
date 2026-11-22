@@ -52,7 +52,9 @@ for (const [key, file] of Object.entries(merged)) {
 }
 
 const args = ['exec', 'playwright', 'test', ...specs, '--project=chromium', '--reporter=list', '--workers=1', '--retries=0'];
-if (request.grep) args.push('-g', String(request.grep));
+// `groupGrep[i]` (opcional) filtra só o grupo i; senão vale o `grep` do pedido inteiro.
+const grep = (request.groupGrep ?? [])[groupIndex] ?? request.grep;
+if (grep) args.push('-g', String(grep));
 const r = spawnSync('pnpm', args, { env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 let out = `${r.stdout ?? ''}\n${r.stderr ?? ''}`;
 for (const s of secrets) out = out.split(s).join('***');

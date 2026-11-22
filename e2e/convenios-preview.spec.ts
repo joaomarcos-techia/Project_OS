@@ -105,17 +105,19 @@ test('médica (matriz I.2): entra em Convênios sem o aviso de acesso e não bai
   await s.context.close();
 });
 
-test('recepção (vê, não gerencia o financeiro): telas abertas, nenhuma ação disponível', async ({ browser }) => {
+// Matriz I.2 (aprovada em 16/11, P1.12-b; seed da 0162): a recepção tem `operate:convenios` — registra a
+// solicitação SP/SADT e confere/corrige a guia; aprovar, cancelar guia e montar lote são do faturamento.
+test('recepção (matriz I.2): opera a solicitação e a conferência; não fatura (sem aprovar, cancelar nem montar lote)', async ({ browser }) => {
   test.setTimeout(150_000);
   const s = await login(browser, 'recepcao');
   expect(await visit(s, '/convenios', 'recepcao-painel')).toBe(200);
   await expect(s.page.getByText('Seu perfil não tem permissão')).toHaveCount(0);
   expect(await visit(s, `/convenios/guias/${fx!.guideIds[0]}`, 'recepcao-guia')).toBe(200);
-  for (const name of ['Marcar como conferida', 'Aprovar e emitir', 'Cancelar guia']) {
+  for (const name of ['Aprovar e emitir', 'Cancelar guia']) {
     await expect(s.page.getByRole('button', { name })).toHaveCount(0);
   }
   expect(await visit(s, '/convenios/solicitacoes', 'recepcao-solicitacoes')).toBe(200);
-  await expect(s.page.getByRole('button', { name: 'Registrar solicitação' })).toHaveCount(0);
+  await expect(s.page.getByRole('button', { name: 'Registrar solicitação' })).toBeVisible();
   expect(await visit(s, '/convenios/lotes', 'recepcao-lotes')).toBe(200);
   await expect(s.page.getByRole('button', { name: 'Montar lote' })).toHaveCount(0);
   expect(s.errors).toEqual([]);

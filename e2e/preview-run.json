@@ -1,19 +1,20 @@
 {
-  "note": "Pedido de E2E no Preview (navegador remoto). Mudar este arquivo dispara convenios-preview-e2e.yml. HF22 fase 2: matriz I.2 sozinha (limite de logins por IP), SP/SADT fase 2 + relatórios, base + lote assíncrono, jornada de configuração alinhada à matriz I.2.",
-  "run": "HF22-2",
+  "note": "Pedido de E2E no Preview (navegador remoto). Mudar este arquivo dispara convenios-preview-e2e.yml. HF22 fase 3: D-5 da recepção com a fase 3 (PDF completo só do faturamento), SP/SADT fase 2, spec base alinhado à matriz I.2 e a jornada de configuração (clínica nova, fixture base como 'outra clínica').",
+  "run": "HF22-3",
   "groups": [
     ["e2e/convenios-i2-preview.spec.ts"],
-    ["e2e/convenios-sadt-preview.spec.ts", "e2e/convenios-reports-preview.spec.ts"],
-    ["e2e/convenios-preview.spec.ts", "e2e/convenios-batch-async-preview.spec.ts"],
+    ["e2e/convenios-sadt-preview.spec.ts"],
+    ["e2e/convenios-preview.spec.ts"],
     ["e2e/convenios-config-preview.spec.ts"]
   ],
   "env": {
     "E2E_HI_ACCOUNTS": "e2e-hi-accounts.json"
   },
   "groupEnv": [
-    { "E2E_HI_I2_ACCOUNTS": "e2e-hi-i2-accounts.json", "E2E_HI_I2": "e2e-hi-i2.json" },
+    { "E2E_HI_I2_ACCOUNTS": "e2e-hi-i2-accounts.json", "E2E_HI_I2": "e2e-hi-i2.json", "E2E_HI_D5_PHASE": "3" },
     { "E2E_HI_SADT_ACCOUNTS": "e2e-hi-sadt-accounts.json", "E2E_HI_SADT": "e2e-hi-sadt.json", "E2E_HI_SADT_PHASE": "2", "E2E_HI_SADT_REQUEST": "94d58419-2452-4eab-bc67-1ac0fefa5a45" },
     { "E2E_HI_FIXTURE": "e2e-hi-fixture.json" },
-    { "E2E_HI_CFG_ACCOUNTS": "e2e-hi-cfg-accounts.json", "E2E_HI_FIXTURE": "e2e-hi-cfg-fixture.json" }
-  ]
+    { "E2E_HI_CFG_ACCOUNTS": "e2e-hi-cfg-accounts.json", "E2E_HI_FIXTURE": "e2e-hi-fixture.json" }
+  ],
+  "groupGrep": ["D-5: recepção baixa a via|o Preview usa o projeto DEV", "fase 2|o Preview usa o projeto DEV"]
 }
