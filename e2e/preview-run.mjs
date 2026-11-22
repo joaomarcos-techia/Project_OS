@@ -42,7 +42,11 @@ for (const [name, content] of Object.entries(bundle.files ?? {})) {
 const env = { ...process.env, E2E_BASE_URL: bundle.base };
 if (!env.MAGIC_TOKEN_SECRET_DEV) throw new Error('segredo da prova assinada ausente');
 delete env.PREVIEW_E2E_BUNDLE;
-for (const [key, file] of Object.entries(request.env ?? {})) {
+// `env` vale para todos os grupos; `groupEnv[i]` (opcional) completa ou troca só no grupo i —
+// specs diferentes usam a mesma variável (ex.: E2E_HI_FIXTURE) com fixtures diferentes.
+const groupIndex = Number(process.env.PREVIEW_E2E_GROUP ?? 0);
+const merged = { ...(request.env ?? {}), ...((request.groupEnv ?? [])[groupIndex] ?? {}) };
+for (const [key, file] of Object.entries(merged)) {
   if (!/^E2E_HI_[A-Z0-9_]+$/u.test(key)) throw new Error(`variável fora do escopo: ${key}`);
   env[key] = /\.json$/u.test(String(file)) ? join(dir, String(file)) : String(file);
 }
