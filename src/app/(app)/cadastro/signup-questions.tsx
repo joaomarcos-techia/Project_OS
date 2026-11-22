@@ -2,7 +2,7 @@
 
 import { ArrowLeft, ArrowRight, LockKeyhole } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 
 import {
   PublicBlock,
@@ -218,9 +218,15 @@ async function responseBody(response: Response): Promise<Record<string, unknown>
 export function SignupQuestions({
   identityEnabled = false,
   pilot = false,
+  intro,
 }: {
   identityEnabled?: boolean;
   pilot?: boolean;
+  /**
+   * Abertura da etapa 1 (convite do piloto), dentro da etapa e abaixo do título da pergunta: a
+   * página continua com um só `h1` e o texto não fica acima do logo.
+   */
+  intro?: ReactNode;
 }) {
   const pilotToken = useRef<string | null>(null);
   const [pilotIdentity, setPilotIdentity] = useState<
@@ -779,6 +785,7 @@ export function SignupQuestions({
           title={question.title}
           lead={question.hint}
         />
+        {intro ? <p className={cn(signupFrame.note, 'text-center')}>{intro}</p> : null}
         <PublicBlock role="group" aria-labelledby="signup-question-title">
           <div
             className={styles.progress}
