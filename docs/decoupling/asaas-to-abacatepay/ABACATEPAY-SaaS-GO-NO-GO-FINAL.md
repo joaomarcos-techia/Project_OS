@@ -1,5 +1,15 @@
 # AbacatePay SaaS — decisão final de release e piloto
 
+## Execução C3 — 21/11/2026, Gate A publicado e Gate B aguardando titular
+
+**C — GATE A PASS; GATE B BLOQUEADO POR PRÉ-REQUISITO INTERATIVO.** O fundador autorizou a execução, confirmou consentimento como titular/pagante e pediu continuidade autônoma enquanto dorme. O corretivo `e3cf8bbde70e922d66980d32a8be31aab97f19b1`, CI [44835695236](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44835695236) SUCCESS/7.405 testes/27 E2E, foi promovido sem merge ou migrations. Gate A `dpl_EUJWn37i3dGhjsmjT45Vi3aCfqaT` passou com todas as entradas fechadas. Depois, `dpl_6wv8nHVjT2nMWpqpwferz5caB48w`, mesmo SHA e pacote, habilitou apenas a entrada privada auditada/MFA para o piloto. Cadastro público e checkout permanecem fechados, allowlist vazia. Não houve conta, convite, e-mail, clínica ou checkout criado.
+
+Banco/Redis/Auth/Asaas/outbox saudáveis, 160 hashes e cinco contratos legados preservados. Os fingerprints de assinaturas, invoices, catálogo e preços conferem; nenhum R61, batch ou cron foi alterado. Loja, produtos e webhook live foram atestados no próprio build e por GET; consumidores executaram na nova revisão, sem evento financeiro real. P-28 já integra o candidato e suas provas; senha/OTP/login positivos do titular em Production ainda dependem de sua interação. Não foi contornado MFA nem criado usuário por SQL.
+
+**Próxima ação exata:** [entrar no admin com MFA, emitir o convite e concluir o cadastro privado](../../runbooks/abacatepay-operacao.md#ação-do-fundador-ao-retornar--nenhum-novo-go-genérico). Não falta outro GO genérico. Faltam a sessão AAL2 real e as credenciais/OTP escolhidas pelo titular. Depois será conferido o UUID antes de permitir um único checkout de R$ 197, pago humanamente. R1–R4/R51 têm aceite limitado a uma clínica; não passaram a homologação live. B1-B permanece diferido/risco aceito/não verificado. C4 foi preparado, não autorizado.
+
+[Execução e limites](../../runbooks/abacatepay-operacao.md#c3-live--21112026-corretivo-publicado-e-ação-humana-pendente) · [Prova permanente sanitizada](evidencias/c3-live-20261121.json). O HEAD documental posterior tem seus próprios checks vinculados no PR; Production continua explicitamente no SHA e deployment acima. Checkpoints anteriores sem autorização são históricos e permanecem preservados.
+
 ## Retomada da CI — 20/11/2026, expectativa E2E desatualizada
 
 O fundador liberou o orçamento do Actions. A tentativa 2 da [CI 44792495911](https://github.com/joaomarcos-techia/Project_OS/actions/runs/44792495911/attempts/2), SHA `fad3d5d3`, executou e aprovou 7.405 testes em 652 arquivos, cobertura, TypeScript, lint, arquitetura, inventário de segurança, isolamento PostgreSQL, build e fronteiras HTTP/bundle. O E2E terminou com 19 PASS e 8 FAIL, zero SKIP: todos os oito cenários desktop/mobile de 2–5 médicos pararam na expectativa textual antiga `Mensalidade após a avaliação`. A aplicação e seu teste de componente já usam `Mensalidade do plano`, para não prometer que a contratação antecipada só cobra depois do trial.
