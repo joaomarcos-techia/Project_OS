@@ -149,6 +149,14 @@ const guideOf = async (appointmentId: string) =>
 try {
   await sql`GRANT SELECT ON public.clinics, public.profiles TO authenticated`;
   await fx.seedTerminology();
+  // Terminologia sintética dos procedimentos SP/SADT desta prova e das tabelas da solicitação.
+  await sql`insert into public.tiss_terms (version_id, table_code, code, term, starts_on)
+    select v.id, t.table_code, t.code, t.term, '2010-01-01' from public.tiss_terminology_versions v,
+      (values ('22', ${CODE_MAIN}, 'Sessão de psicoterapia individual'), ('22', ${CODE_FREE}, 'Procedimento sintético livre'),
+              ('22', ${CODE_AUTH}, 'Procedimento sintético com autorização'), ('22', ${CODE_OLD}, 'Procedimento sintético vencido'),
+              ('22', '50000616', 'Procedimento sintético da conferência'), ('22', '50000624', 'Procedimento sintético tardio'),
+              ('23', '1', 'Eletiva'), ('23', '2', 'Urgência/Emergência'), ('50', '03', 'Outras terapias')) t(table_code, code, term)
+     where v.version = '202609'`;
   const A = await fx.setupClinic('Itens A', { insurers: [{ name: 'Operadora Um', ans: '123456' }, { name: 'Operadora Dois', ans: '654321' }] });
   const B = await fx.setupClinic('Itens B');
   await contract(A, A.insurerId, CODE_MAIN, 12000);
