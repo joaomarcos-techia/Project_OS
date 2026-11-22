@@ -57,7 +57,7 @@ vi.mock('./registry', () => ({
   getHandler: () => ({ execution: 'detached', handler: state.handler }),
 }));
 
-import { runOutboxEventsNow, runOutboxOnce } from './worker';
+import { OUTBOX_HANDLER_SLOW_MS, runOutboxEventsNow, runOutboxOnce } from './worker';
 
 function pendingRow(id: string) {
   return {
@@ -148,6 +148,57 @@ describe('runOutboxEventsNow', () => {
       'messaging.business_app_echo.received',
       'messaging.inbound.received',
     ]);
+  });
+});
+
+describe('handler lento (R61)', () => {
+  it('aponta o tipo de evento que passou da folga da janela, sem interromper o handler', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      state.available = [pendingRow('slow')];
+      state.handler.mockImplementationOnce(async () => {
+        vi.setSystemTime(Date.now() + OUTBOX_HANDLER_SLOW_MS + 1_000);
+      });
+
+      const summary = await runOutboxOnce({ batchSize: 1, parallelism: 1 });
+
+      expect(summary).toMatchObject({ processed: 1, failed: 0 });
+      expect(state.emit).toHaveBeenCalledWith('outbox.handler_slow', {
+        eventType: 'messaging.inbound.received',
+        handlerMs: OUTBOX_HANDLER_SLOW_MS + 1_000,
+        ok: true,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('marca o desfecho de um handler lento que falhou', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      state.available = [pendingRow('slow-fail')];
+      state.handler.mockImplementationOnce(async () => {
+        vi.setSystemTime(Date.now() + OUTBOX_HANDLER_SLOW_MS + 5);
+        throw new Error('Synthetic slow failure');
+      });
+
+      await runOutboxOnce({ batchSize: 1, parallelism: 1 });
+
+      expect(state.emit).toHaveBeenCalledWith(
+        'outbox.handler_slow',
+        expect.objectContaining({ ok: false, handlerMs: OUTBOX_HANDLER_SLOW_MS + 5 }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('handler dentro da folga não gera o aviso', async () => {
+    state.available = [pendingRow('fast')];
+
+    await runOutboxOnce({ batchSize: 1, parallelism: 1 });
+
+    expect(state.emit).not.toHaveBeenCalledWith('outbox.handler_slow', expect.anything());
   });
 });
 

@@ -266,6 +266,17 @@ describe('TissSoapAdapter contra o stub (P6.5)', () => {
     expect(transport({ endpoints: { eligibility: 'https://operadora.example/tiss' } }).operations).toEqual(new Set(['eligibility']));
   });
 
+  it('R61: tempo limite da operadora acima de 20 s (ou inválido) é recusado na configuração, não cortado em silêncio', () => {
+    for (const timeoutMs of [20_001, 60_000, 0, -1, 1.5e3 + 0.5, Number.NaN]) {
+      expect(() => transport({ timeoutMs }), String(timeoutMs)).toThrow(TissSoapConfigError);
+    }
+    expect(() => transport({ timeoutMs: 300 })).not.toThrow();
+    expect(() => transport({ timeoutMs: 20_000 })).not.toThrow();
+    // Sem o campo: vale o padrão do conector (20 s por tentativa e 20 s no total).
+    const { timeoutMs: _omitido, ...semTempo } = config();
+    expect(() => createTissSoapTransport(semTempo, { credentials: async () => null, xsd: wsXsd })).not.toThrow();
+  });
+
   it('senha em texto quando o manual da operadora pede (codificação é configuração da homologação)', async () => {
     const plain = await startStubOperator({ registroANS: SYNTHETIC.registroANS, login: LOGIN, senhaPrestador: PASSWORD, soapVersion: '1.2', xsd: wsXsd });
     try {

@@ -1,0 +1,227 @@
+{
+ "prova": "scripts/security/outbox-shared-cron-db.ts",
+ "commit": "85d37eb9",
+ "run": "44856201797 (Convênios — provas sintéticas de banco)",
+ "ambiente": "runner do GitHub, Postgres descartável, worker real, pools reais (dbWorker, db, dbAdmin), corte real por SIGKILL aos 60 s",
+ "cenarios": {
+  "normal": {
+   "outboxMs": 808,
+   "totalMs": 33191,
+   "financeiras": {
+    "recovery": {
+     "itens": 33,
+     "terminouEmMs": 33191,
+     "prazoMs": 35000
+    },
+    "inbox": {
+     "itens": 15,
+     "terminouEmMs": 15145,
+     "prazoMs": 35000
+    },
+    "closures": {
+     "itens": 18,
+     "terminouEmMs": 18154,
+     "prazoMs": 20000
+    },
+    "watch": {
+     "itens": 10,
+     "terminouEmMs": 10126,
+     "prazoMs": 12000
+    }
+   },
+   "integridade": {
+    "abertos": 0,
+    "falhos": 0,
+    "reexecutados": 0,
+    "orfaos": 0,
+    "clinicaErrada": 0,
+    "efeitoSemProcessado": 0,
+    "processadoSemEfeito": 0,
+    "itemFinanceiroDuplicado": 0
+   }
+  },
+  "consumidorLento": {
+   "outboxMs": 30231,
+   "totalMs": 33086,
+   "tratados": 25,
+   "vagasAdiadas": 175,
+   "ficaramParaDepois": 175,
+   "financeiras": {
+    "recovery": {
+     "itens": 33,
+     "terminouEmMs": 33086,
+     "prazoMs": 35000
+    },
+    "inbox": {
+     "itens": 15,
+     "terminouEmMs": 15046,
+     "prazoMs": 35000
+    },
+    "closures": {
+     "itens": 18,
+     "terminouEmMs": 18057,
+     "prazoMs": 20000
+    },
+    "watch": {
+     "itens": 10,
+     "terminouEmMs": 10039,
+     "prazoMs": 12000
+    }
+   },
+   "integridade": {
+    "abertos": 0,
+    "falhos": 0,
+    "reexecutados": 0,
+    "orfaos": 0,
+    "clinicaErrada": 0,
+    "efeitoSemProcessado": 0,
+    "processadoSemEfeito": 0,
+    "itemFinanceiroDuplicado": 0
+   }
+  },
+  "consumidorTravadoComCorte": {
+   "cortadoAosMs": 60011,
+   "financeirasAntesDoCorte": {
+    "watch": {
+     "itens": 10,
+     "terminouEmMs": 10123,
+     "prazoMs": 12000
+    },
+    "inbox": {
+     "itens": 15,
+     "terminouEmMs": 15155,
+     "prazoMs": 35000
+    },
+    "closures": {
+     "itens": 18,
+     "terminouEmMs": 18162,
+     "prazoMs": 20000
+    },
+    "recovery": {
+     "itens": 33,
+     "terminouEmMs": 33197,
+     "prazoMs": 35000
+    }
+   },
+   "ultimoItemFinanceiroGravadoMs": 33196,
+   "travadoNoCorte": "processing",
+   "demaisNoCorte": {
+    "processed": 70
+   },
+   "recuperacao": {
+    "devolvidosPeloJanitor": 1,
+    "entregasDoTravado": 2,
+    "efeitosDoTravado": 1
+   },
+   "integridade": {
+    "abertos": 0,
+    "falhos": 0,
+    "reexecutados": 0,
+    "orfaos": 0,
+    "clinicaErrada": 0,
+    "efeitoSemProcessado": 0,
+    "processadoSemEfeito": 0,
+    "itemFinanceiroDuplicado": 0
+   }
+  },
+  "prazoQuaseEsgotado": {
+   "comecouHa29s": {
+    "tratados": 10,
+    "vagasAdiadas": 190,
+    "outboxMs": 1197,
+    "financeiras": {
+     "recovery": {
+      "itens": 4,
+      "terminouEmMs": 33008,
+      "prazoMs": 35000
+     },
+     "inbox": {
+      "itens": 0,
+      "terminouEmMs": 29000,
+      "prazoMs": 35000
+     },
+     "closures": {
+      "itens": 0,
+      "terminouEmMs": 29000,
+      "prazoMs": 20000
+     },
+     "watch": {
+      "itens": 0,
+      "terminouEmMs": 29000,
+      "prazoMs": 12000
+     }
+    }
+   },
+   "comecouHa31s": {
+    "tratados": 0,
+    "vagasAdiadas": 200,
+    "descartadosEmBloco": 20
+   },
+   "integridade": {
+    "abertos": 0,
+    "falhos": 0,
+    "reexecutados": 0,
+    "orfaos": 0,
+    "clinicaErrada": 0,
+    "efeitoSemProcessado": 0,
+    "processadoSemEfeito": 0,
+    "itemFinanceiroDuplicado": 0
+   }
+  },
+  "sobrepostas": {
+   "outboxA": 150,
+   "outboxB": 0,
+   "itensFinanceirosA": 76,
+   "itensFinanceirosB": 76,
+   "integridade": {
+    "abertos": 0,
+    "falhos": 0,
+    "reexecutados": 0,
+    "orfaos": 0,
+    "clinicaErrada": 0,
+    "efeitoSemProcessado": 0,
+    "processadoSemEfeito": 0,
+    "itemFinanceiroDuplicado": 0
+   }
+  },
+  "handlerDeCpu": {
+   "outboxMs": 18563,
+   "totalMs": 33530,
+   "atrasoMaxFinanceiraMs": -1470,
+   "eventLoopP99Ms": 305.9,
+   "eventLoopMaxMs": 309.6,
+   "financeiras": {
+    "recovery": {
+     "itens": 30,
+     "terminouEmMs": 33530,
+     "prazoMs": 35000
+    },
+    "inbox": {
+     "itens": 12,
+     "terminouEmMs": 15065,
+     "prazoMs": 35000
+    },
+    "closures": {
+     "itens": 14,
+     "terminouEmMs": 18448,
+     "prazoMs": 20000
+    },
+    "watch": {
+     "itens": 8,
+     "terminouEmMs": 10498,
+     "prazoMs": 12000
+    }
+   },
+   "integridade": {
+    "abertos": 0,
+    "falhos": 0,
+    "reexecutados": 0,
+    "orfaos": 0,
+    "clinicaErrada": 0,
+    "efeitoSemProcessado": 0,
+    "processadoSemEfeito": 0,
+    "itemFinanceiroDuplicado": 0
+   }
+  }
+ }
+}
