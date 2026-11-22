@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { PublicPage, PublicHeading } from '@/components/shared/signup-frame';
+import { PublicPage } from '@/components/shared/signup-frame';
 import { env } from '@/lib/env';
 import { SignupQuestions } from '../signup-questions';
 
@@ -16,11 +16,12 @@ export default function PilotSignupPage() {
     notFound();
   return (
     <PublicPage>
-      <PublicHeading
-        title="Cadastro da sua clínica"
-        lead="Use seu convite individual para confirmar os dados e conhecer o Qoro. Nenhum pagamento é necessário para iniciar a avaliação."
+      {/* Um só título principal: a abertura do convite entra na etapa 1, abaixo da pergunta. */}
+      <SignupQuestions
+        identityEnabled
+        pilot
+        intro="Cadastro da sua clínica por convite individual: confirme os dados e conheça o Qoro. Nenhum pagamento é necessário para iniciar a avaliação."
       />
-      <SignupQuestions identityEnabled pilot />
     </PublicPage>
   );
 }

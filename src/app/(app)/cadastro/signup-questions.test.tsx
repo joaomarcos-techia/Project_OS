@@ -169,6 +169,16 @@ describe('cadastro — quatro perguntas impessoais', () => {
     ).toBeNull();
   });
 
+  it('mostra a abertura do convite na etapa 1, sem outro título principal', async () => {
+    fetchMock
+      .mockResolvedValueOnce(json(410, { error: 'gone' }))
+      .mockResolvedValueOnce(json(201, { session: EMPTY_SESSION }));
+    render(<SignupQuestions intro="Abertura do convite sintético." />);
+    await screen.findByRole('heading', { name: 'Quantos médicos atendem na clínica?' });
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.getByText('Abertura do convite sintético.')).toBeTruthy();
+  });
+
   it('retoma respostas persistidas por GET /me sem criar outra sessão', async () => {
     await renderReady(SAVED_SESSION);
 
