@@ -160,6 +160,12 @@ jobs:
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55568 NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs" \
             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/outbox-shared-cron-db.ts
 
+      # P8.4: itens executados adicionais da sessão SP/SADT, com a candidata 0167 depois da cadeia do DEV.
+      - name: Itens executados adicionais (P8.4, candidata 0167, 14 provas)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55569 NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-extra-items-db.ts
+
       - name: Desempenho da H.2 com o código real (P14.4; metas e desvio registrado)
         if: ${{ !cancelled() }}
         run: |
