@@ -324,6 +324,27 @@ describe('destino do webservice: só endereço público (P15.5, SSRF)', () => {
     }
     expect(stub.received).toHaveLength(0);
   }, 60_000);
+
+  it('redirecionamento da operadora nunca é seguido: o destino do Location não recebe nada', async () => {
+    const { createServer } = await import('node:http');
+    let hits = 0;
+    const target = createServer((_req, res) => {
+      hits += 1;
+      res.end('x');
+    });
+    await new Promise<void>((r) => target.listen(0, '127.0.0.1', () => r()));
+    const port = (target.address() as { port: number }).port;
+    try {
+      stub.setMode({ redirectTo: `http://127.0.0.1:${port}/interno` });
+      const t = transport({ retries: 0 });
+      expect(await t.submit(req('eligibility'))).toEqual({ kind: 'unavailable', reason: 'invalid_response' });
+      expect(await t.submit(req('submit_batch'))).toEqual({ kind: 'unavailable', reason: 'invalid_response' });
+      expect(hits).toBe(0);
+    } finally {
+      stub.setMode('accept');
+      await new Promise<void>((r) => target.close(() => r()));
+    }
+  }, 60_000);
 });
 
 describe('fronteira do stub e do registro (P6.5)', () => {
