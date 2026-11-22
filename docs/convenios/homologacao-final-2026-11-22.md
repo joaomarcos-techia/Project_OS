@@ -19,7 +19,7 @@ Nesta página, "simulador" quer dizer a operadora stub (`stub-operator.ts`), com
 | Provas sintéticas (Postgres descartável, código e handlers reais) | 25 harnesses | `d9bf25b6` | `45004606248` |
 | Benchmark do outbox (Postgres descartável) | 23 rodadas | `85d37eb9` | `44856201932` |
 | Composição #53 + patch R61-B | gates do #53 e provas do outbox | `dbddea9c` (#53 em `bc955f4e`) | `45003465119` |
-| E2E no Preview (Auth e banco do DEV, navegador remoto) | 4 pedidos, 10 specs | `75b23606` → `92151417` | `45005774431`, `45036917594`, `45039290730` e HF22-4 (ver §E2E) |
+| E2E no Preview (Auth e banco do DEV, navegador remoto) | 5 pedidos, 10 specs | `75b23606` → `ca199eb4` | `45005774431`, `45036917594`, `45039290730`, `45047483355`, `45048495503` (ver §E2E) |
 | Provas legadas (24 harnesses que estavam fora da CI) | Postgres descartável | `4a23bfb0` | `45036917671` |
 | Produção, só leitura | agregados do outbox | — | `evidence/tiss-homologacao-final-2026-11-22/r61-producao-leitura.json` |
 
@@ -67,7 +67,7 @@ O SHA final do PR fica registrado no plano mestre. Depois de `d9bf25b6`, os comm
 
 ## E2E no Preview (Auth e banco do DEV, navegador remoto)
 
-Quatro pedidos (HF22-1 a HF22-4), um grupo por runner, em série. O resultado de cada spec vem da última execução **completa**:
+Cinco pedidos (HF22-1 a HF22-5), um grupo por runner, em série. O resultado de cada spec vem da última execução **completa**:
 
 | Spec | Resultado | Pedido, run e commit |
 | --- | --- | --- |
@@ -80,7 +80,7 @@ Quatro pedidos (HF22-1 a HF22-4), um grupo por runner, em série. O resultado de
 | Autorizações | **5/5** | HF22-1 |
 | Relatórios por operadora e CSV | **5/5** | HF22-2 |
 | Lote grande assíncrono | **2/2** | HF22-2 |
-| Base (anônimo, papéis, Consulta → emissão → PDF, trial, lote, celular) | **ver HF22-4** | HF22-4, commit `92151417` |
+| Base (anônimo, papéis, Consulta → emissão → PDF, trial, solicitação SP/SADT, celular) | **12/12** (11 em HF22-4; o último, que parou no login pelo limite por IP, em HF22-5) | `45047483355` e `45048495503`, commits `92151417` e `ca199eb4` |
 
 **O que o E2E encontrou (nenhum defeito de produto):**
 - **Expectativas de papel anteriores à matriz I.2**, aprovada em 16/11, que a P1.12-b não atualizou nos specs: a médica "não entrava" e a recepção "não conferia nem registrava solicitação". Foram 5 pontos em 2 specs, alinhados ao seed da 0162, sem afrouxar o que continua fechado (faturamento, PDF completo e preços).

@@ -131,7 +131,7 @@
 | R61-B | composição verde sobre o head atual do #53 (`bc955f4e`, run `45003465119`); pedido de prioridade postado no #53; patch ainda não aplicado na branch dele |
 | P8.4 | candidata **0167** (fora do journal), serviço, política P8.4-r (4 alternativas, vigente "sem decisão"), painel da conferência e ações; banco 14/14, política 9/9, ações 5/5, painel 5/5; falta a decisão, a 0167 no DEV (D23) e o consultório (#56) |
 | Provas legadas | 24 harnesses que só rodavam no notebook agora rodam no runner (`convenios-synthetic-db-legacy.yml`): **24/24** (run `45036917671`); 4 desatualizados em relação à 0164, à 0165 e à 0159 foram corrigidos sem afrouxar asserção |
-| E2E no Preview | jornada de configuração 26/26; SP/SADT 8/8 e 2/2; matriz I.2 13/13 e overrides 3/3; P7.5 5/5; autorizações 5/5; relatórios 5/5; lote assíncrono 2/2; spec base no pedido HF22-4. Nenhum defeito de produto: 5 expectativas pré-matriz I.2 alinhadas, fixture que reaproveitava guias (`setup --run`), limite de logins por IP |
+| E2E no Preview | jornada de configuração 26/26; SP/SADT 8/8 e 2/2; matriz I.2 13/13 e overrides 3/3; P7.5 5/5; autorizações 5/5; relatórios 5/5; lote assíncrono 2/2; spec base 12/12 (HF22-4 e HF22-5). Nenhum defeito de produto: 5 expectativas pré-matriz I.2 alinhadas, fixture que reaproveitava guias (`setup --run`), limite de logins por IP |
 | Conector | redirecionamento da operadora nunca seguido (teste novo); adaptador SOAP 24/24 |
 | CI | `d9bf25b6` e `4a23bfb0`: verdes (7.378 testes); o CI de `209aa920` caiu por desligamento do runner, sem falha de código |
 | Integração | #53 `bc955f4e`: 4 conflitos; #56 `fe892902`: os mesmos 9 (nenhum em Convênios ou na central); #57: 1; #28: 2; #59: 0 |
