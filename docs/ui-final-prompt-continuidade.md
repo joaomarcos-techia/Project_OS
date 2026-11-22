@@ -1,4 +1,4 @@
-# Prompt de continuidade — Qoro, frente "Otimização UI final" (estado de 21/11/2026, ciclo 9: origem dos links no Preview, P-29 final, integração resolvida)
+# Prompt de continuidade — Qoro, frente "Otimização UI final" (estado de 22/11/2026, ciclo 10: frente UI encerrada, PR #56 em revisão)
 
 > Cole este texto, inteiro, numa sessão nova de IA com acesso ao repositório e à máquina do
 > fundador. Ele foi escrito para que quem o leia continue exatamente do ponto em que a frente parou.
@@ -58,6 +58,14 @@ código ficam como estão. O fundador é quem decide política, merge e Producti
    - evidências em `.tmp/ui-audit/evidence/2026-11-1{4,5,7}/`; o log da CI fica em `.tmp/ci/`.
 
 ## 3. Estado exato em que parou
+- **Ciclo 10 (22/11): frente UI encerrada.** O PR #56 está em revisão, sem merge, e o código não
+  mudou desde o `2b6d72b7`. O que resta é dos donos (handoff C10):
+  - `0159` e os testes de journal do #55 (#53 e #55);
+  - P-29 no #53 e no C3;
+  - P-19 no servidor (financeiro);
+  - P-27 (#53).
+
+  Reprodução: `docs/handoff/c10-reproduzir-composicao.sh`.
 - **Ciclo 9 (20–21/11):**
   - `fef8ec30`: origem dos links de Auth no Preview;
   - `2b6d72b7`: link de redefinição usado não reabre o formulário.

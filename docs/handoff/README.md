@@ -1,4 +1,4 @@
-# Handoff do PR #56 (ciclos 7 a 9, 19–21/11/2026)
+# Handoff do PR #56 (ciclos 7 a 10, 19–22/11/2026)
 
 Para os responsáveis pelo cadastro e pelo domínio financeiro (#53), por quem integra na `main`, e
 para o fundador. Nada aqui foi aplicado fora do PR #56: não houve push na `main`, nem alteração no
@@ -10,13 +10,141 @@ para o fundador. Nada aqui foi aplicado fora do PR #56: não houve push na `main
 | P-29: conta confirmada sem senha volta pelo "Esqueci a senha" | `p29-recuperacao-conta-pendente.patch` | no #56 (`26cb73ff`); aplica limpo no #53 `e3cf8bbd` e na `main` | dono do cadastro (#53) |
 | Origem dos links de Auth no Preview (ciclo 9) | `p29b-origem-links-auth-preview.patch` | no #56 (`fef8ec30`); aplica limpo no #53 e na `main` | dono do cadastro (#53) |
 | Link de redefinição já usado não reabre o formulário (ciclo 9) | `p29c-link-usado-nao-reabre-formulario-MAIN.patch` | no #56 (`2b6d72b7`); versão para a página da `main`/#53 | dono do cadastro (#53) |
-| Resolução dos conflitos #53, #55 e da ordem real | seção C9.4; branches `integracao/c9-*` | reproduzível; tripla bloqueada só no gate de migrations (#53 × #55) | #53 e #55 |
+| Resolução dos conflitos #53, #55 e da ordem real | seções C9.4 e C10.3; branches `integracao/c9-*`; `c10-reproduzir-composicao.sh` | reproduzível nos heads de 22/11; tripla bloqueada pela `0159` e pelos testes de journal do #55 | #53 e #55 |
+| Página do piloto com um só título principal | `p53-piloto-um-titulo-principal.patch` | pronta; aplica limpo no #53 `bc955f4e` | dono do cadastro (#53) |
 | P-29: premissas do spec oficial | aplicado no #56 (`947426b1`), com autorização do fundador | spec oficial verde no Preview | — |
 | P-19: contrato de concorrência do Caixa | seções C8.4 e 3 | UI pronta; servidor pendente | domínio financeiro |
 | P-27: conta compartilhada `2E2_UI` | seções C8.3 e 4 | recuperação coordenada pelo #53 | #53 |
 | Cartão incorporado na assinatura AbacatePay | seção 5 | decisão: página hospedada | fundador |
 
-## Ciclo 9 (20–21/11/2026): leia primeiro
+## Ciclo 10 (22/11/2026): encerramento da frente UI, leia primeiro
+
+### C10.1 Heads de 22/11 e o que mudou
+
+| Frente | Head | Mudança desde o ciclo 9 |
+| --- | --- | --- |
+| `main` | `5620a098` | nenhuma |
+| #53 | `bc955f4e` | só documentação: registro do C3 |
+| #55 | `c3f8f775` | R61-B do outbox (`85d37eb9`, `a2805c3b`, `5161c88e`, `c3f8f775`) |
+| #56 | `34950478` | nenhuma; CI 44899120756 verde |
+| #57 | `93a79601` | nenhuma |
+
+**C3 em Production (registro do próprio #53):** o head `e3cf8bbd` do #53 foi publicado em
+Production em 21/11 (Gate A), sem migrations e com o P-28. **O P-29 não está nele.**
+- Se a titular do piloto confirmar o e-mail pelo link e sair antes de criar a senha, ou se o
+  e-mail dela já tiver uma conta legada não confirmada, o "Esqueci a senha" responde "Link
+  inválido" em Production.
+- O `p29` resolve. Aplicar e publicar é decisão do dono do #53, com autorização própria, de
+  preferência antes da interação da titular no Gate B.
+
+### C10.2 Migration `0159`: diagnóstico e procedimento para os donos
+
+1. **Erro exato:** a CI para no gate de migrations do #53 (`scripts/check-migration-safety.ts:96`):
+
+   ```
+   Migration journal order invalid at index 159; preserve applied history and fix only unapplied entries
+   ```
+
+2. **Heads e composição:**
+   - frentes: `main` `5620a098`, #53 `bc955f4e`, #56 `34950478` (código igual ao `2b6d72b7`),
+     #55 `c3f8f775`;
+   - composição: `integracao/c9-53-56-55` `4bfaaad9`.
+3. **Arquivo esperado:** `drizzle/migrations/0159_saas_period_snapshot.sql`.
+   - Os bytes são os do SQL congelado do #53,
+     `docs/decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql`, com
+     sha256 `eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74`.
+   - A linha do journal vem do `release-manifest.json` do #53: `idx` 159, `version` 7, `when`
+     1795036973858, `breakpoints` true. O manifesto tem `productionAuthorized: false`.
+4. **Estado dos journals:**
+
+   | Journal | Conteúdo |
+   | --- | --- |
+   | #53 | `0000–0142` (143 entradas) |
+   | #55 | `0000–0135` + `0143–0158` + `0160–0166` (159 entradas) |
+   | Composição | `0000–0158` + `0160–0166` (166 entradas), lacuna em 159 |
+   | DEV | `0159` aplicada pelo migrador do #53, segundo a documentação dele |
+   | Production | não consultado (sem autorização). A evidência do C3 registra 0 migrations aplicadas |
+
+5. **Causa comprovada:** por desenho, a `0159` só pode entrar depois da cauda `0143–0158` do #55,
+   e nenhuma branch a carrega. Com a `0159` congelada do dono no journal, **o gate do #53 passa**:
+   `check:migrations OK`, journal contíguo com 167 entradas e `when` crescente.
+
+   A falha é ausência real, não composição desatualizada. Ela continua igual nos heads de 22/11.
+6. **Procedimento seguro, pelo dono do #53, na integração do #55** (a última da ordem):
+   - acrescentar o arquivo, com os bytes conferidos pelo sha256, e a linha do manifesto, no
+     mesmo commit que traz a cauda do #55;
+   - não renumerar nada;
+   - a `0159` precisa ser aplicada antes da `0160` em qualquer banco. Uma `0160` aplicada antes
+     faria o Drizzle pular a `0159` em silêncio, e o teste do próprio #55 recusa esse caso;
+   - aplicar em Production exige autorização própria.
+
+   **Segundo bloqueio, até agora invisível:** com a `0159` no journal, 8 testes de formato do
+   journal do #55 reprovam **por construção**. Eles supõem o journal da branch sozinha:
+   - `src/contexts/health-insurance/migration-ledger.test.ts` (4 testes);
+   - `src/lib/db/migration-composition.test.ts` (3 testes);
+   - `src/contexts/payments/external-refund-migration.test.ts` (1 teste).
+
+   Precisam de um modo "composto", que aceite as faixas do #53 dentro do journal quando forem
+   iguais às fixadas. O #53 já esboçou isso para o primeiro arquivo
+   (`docs/decoupling/asaas-to-abacatepay/migrations/tiss-ledger-integration.patch`), mas o esboço
+   **não aplica mais** no #55 `c3f8f775` (falha na linha 54). **Dono: #55, com o #53.**
+7. **Testes depois do ajuste:**
+   - `npx tsx scripts/check-migration-safety.ts`;
+   - os 3 arquivos acima e `src/lib/db/migration-journal.test.ts`;
+   - CI completa num PR descartável, incluindo o isolamento entre clínicas e o de Convênios com
+     Postgres temporário, que aplicam as 167 migrations.
+8. **Reprodução:**
+   - `bash docs/handoff/c10-reproduzir-composicao.sh <pasta>` mostra o erro;
+   - com `--prova-0159`, mostra o gate passando e os 8 testes do #55.
+
+   O script não publica nada e só copia o SQL depois de conferir o sha256.
+
+**Nada da `0159` entrou em branch nenhuma.** A prova roda só num worktree descartável.
+
+### C10.3 Composições nos heads de 22/11
+
+| Composição | Branch | Head | O que entrou |
+| --- | --- | --- | --- |
+| #53 → #56 | `integracao/c9-53-56` | `94dd8789` | #53 `bc955f4e` sem conflito; página do piloto com um só `h1` |
+| #56 + #55 | `integracao/c9-56-55` | `f56fa5d6` | #55 `c3f8f775`; só o inventário gerado conflitou e foi regenerado |
+| Ordem real | `integracao/c9-53-56-55` | `4bfaaad9` | #53 `bc955f4e` e #55 `c3f8f775`; só o inventário conflitou e foi regenerado |
+
+- Todas as resoluções anteriores continuam no lugar (conferido por busca no código):
+  - título e um só `h1` no piloto;
+  - sem `timeZone` duplicado;
+  - "Plano salvo" só depois de salvar;
+  - ícone `insurance`;
+  - degrau de 1040 px;
+  - link de ajuda;
+  - fórmula `l.valor - l.valorPago - l.valorGlosado`;
+  - regra da página de redefinição.
+- **Testes na tripla:** `tsc` 0; outbox, cron, cadastro, trilho, Convênios, redefinição e
+  contratos de design 529/529; cadastro e títulos 194/194 depois da correção do piloto.
+- **#57:** 0 conflito com o #56; 1 conflito com a tripla, em `docs/adr/README.md`.
+
+### C10.4 Pacote final para o #53 (validado no head `bc955f4e`)
+
+| Ordem | Patch | O que faz |
+| --- | --- | --- |
+| 1 | `p29-recuperacao-conta-pendente.patch` | conta confirmada sem senha recupera pelo link de redefinição |
+| 2 | `p29b-origem-links-auth-preview.patch` | links de Auth no Preview pelo alias da branch |
+| 3 | `p29c-link-usado-nao-reabre-formulario-MAIN.patch` | link já usado não reabre o formulário |
+| 4 | `p53-piloto-um-titulo-principal.patch` | a página do convite fica com um só `h1`; a abertura vira parágrafo. Teste novo; mutação 1/1 |
+
+- **Os 4 juntos no `bc955f4e`:** `tsc` 0; onboarding, identity, reset, login, auth, http,
+  `lib/auth`, signup, cadastro e email: **1927/1927 (128 arquivos)**. Nada financeiro.
+- **Na integração com o #56,** a página do piloto fica com a versão da composição: o texto entra
+  na etapa 1 pelo `intro` do `SignupQuestions`, em vez do parágrafo do patch 4. Ela substitui o
+  patch 4 naquele arquivo.
+
+### C10.5 P-19 e P-27 (22/11)
+
+- **P-19:** `valorPagoEsperado` não existe fora de teste em `main`, #53 nem #55. **UI PASS /
+  ponta a ponta PARTIAL**; dono: domínio financeiro (C8.4).
+- **P-27:** a `2E2_UI` continua sem senha, sem atividade desde 18/11 23:18 UTC (sonda só de
+  leitura). Segue com o #53; nenhum teste ou sonda do #56 depende dela.
+
+## Ciclo 9 (20–21/11/2026)
 
 ### C9.1 Origem dos links de Auth no Preview: resolvido em código (`fef8ec30`)
 

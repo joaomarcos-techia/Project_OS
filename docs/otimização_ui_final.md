@@ -12,8 +12,20 @@
 
 ## ESTADO ATUAL DA EXECUÇÃO
 
+- **CICLO 10 (22/11/2026) — ENCERRAMENTO DA FRENTE UI. LEIA PRIMEIRO.**
+  - PR #56 em revisão, sem merge: GO do fundador para sair do draft.
+  - Código do #56 inalterado desde o `2b6d72b7`.
+  - Handoff C10 (`docs/handoff/README.md`):
+    - **`0159`:** diagnóstico em 8 itens e procedimento do dono, provado por
+      `c10-reproduzir-composicao.sh --prova-0159`. Com a `0159` congelada do #53, o gate passa;
+      sobram 8 testes de formato do journal do #55 que supõem a branch sozinha (dono: #55, com o
+      #53).
+    - Composições nos heads de 22/11 (#53 `bc955f4e`, #55 `c3f8f775`).
+    - Patch do piloto com um só `h1`.
+    - Os 4 patches validados juntos no #53 (1927/1927).
+    - **O C3 roda em Production sem o P-29:** decisão do #53.
 - **CICLO 9 (20–21/11/2026) — ORIGEM DOS LINKS NO PREVIEW, REVISÃO FINAL DO P-29, INTEGRAÇÃO
-  #53 → #56 → #55 RESOLVIDA E PROVADA. LEIA PRIMEIRO.**
+  #53 → #56 → #55 RESOLVIDA E PROVADA.**
   - **Handoff em `docs/handoff/README.md`**, seção "Ciclo 9" (C9.1–C9.7).
   - **Origem dos links de Auth no Preview** (`fef8ec30`):
     - redefinição, convite da equipe e convite de clínica usam o alias da branch injetado pela
