@@ -1,13 +1,13 @@
 {
-  "note": "Pedido de E2E no Preview (navegador remoto). Mudar este arquivo dispara convenios-preview-e2e.yml. HS23-1: spec de estados da guia com fixture nova (setup-states --run HS23A) e o relé da fixture (estado da clínica, acesso e leitura da guia pedidos pelos status do commit, executados do lado do DEV).",
-  "run": "HS23-1",
+  "note": "Pedido de E2E no Preview (navegador remoto). Mudar este arquivo dispara convenios-preview-e2e.yml. HS23-2: spec de estados da guia no SHA final do ciclo de 23/11, com fixture nova (setup-states --run HS23B) e o relé da fixture.",
+  "run": "HS23-2",
   "groups": [
     ["e2e/convenios-guide-states-preview.spec.ts"]
   ],
   "env": {
     "E2E_HI_ACCOUNTS": "e2e-hi-accounts.json",
     "E2E_HI_CFG_ACCOUNTS": "e2e-hi-cfg-accounts.json",
-    "E2E_HI_STATES": "e2e-hi-states-hs23.json",
+    "E2E_HI_STATES": "e2e-hi-states-hs23b.json",
     "E2E_HI_CFG_GUIDE": "e2e-hi-cfg-guide.json",
     "E2E_HI_FIXTURE_CMD": "e2e/preview-fixture-relay.mjs"
   }

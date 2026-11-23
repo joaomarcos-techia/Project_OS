@@ -12,8 +12,8 @@
 | Item | Valor |
 | --- | --- |
 | Arquivo | `docs/convenios/migrations/0167_hi_appointment_extra_items.candidate.sql`, promovido no GO a `drizzle/migrations/0167_hi_appointment_extra_items.sql` com o mesmo conteúdo |
-| SHA do commit | **{SHA}** (branch `feat/convenios-tiss-20261110`, PR #55 draft) |
-| sha256 do arquivo | **{SHA256}**, o hash que o Drizzle grava no ledger |
+| SHA do commit | **`c066805a`** (branch `feat/convenios-tiss-20261110`, PR #55 draft), o último commit que mudou a candidata. Qualquer commit posterior serve, desde que o arquivo tenha o mesmo sha256 |
+| sha256 do arquivo | `22390fcc58a5f41f92323a67be9d8d33743ae29b918d10af9e7377114979ed5e`, o hash que o Drizzle grava no ledger |
 | Entrada no journal | idx 167, `when` 1795728173857 (0166 + 1 dia), tag `0167_hi_appointment_extra_items` |
 | Reversão | `docs/convenios/migrations/0167_hi_appointment_extra_items.rollback.sql` + a linha do ledger |
 
@@ -35,8 +35,8 @@ Todos em Postgres descartável, com dados sintéticos e o código real.
 
 | Prova | Resultado | Onde |
 | --- | --- | --- |
-| Banco + serviço da P8.4 (regras, RLS, comercial/módulo, guia fechada, Consulta, sem DELETE, concorrência, reprocessamento, XML exportado, recebível) | **{P84}** | `health-insurance-extra-items-db.ts`, run {RUN} |
-| Ensaio da aplicação com o migrador real (guarda de composição, lock ocupado, locks da aplicação, aplicação, segunda execução, reaplicação indevida, compatibilidade, reversão recusada com dados, reversão exata, reaplicação) | **{ENSAIO}** | `hi-0167-apply-rehearsal.ts`, run {RUN} |
+| Banco + serviço da P8.4 (regras, RLS, comercial/módulo, guia fechada, Consulta, sem DELETE, concorrência, reprocessamento, XML exportado, recebível) | **18/18** | `health-insurance-extra-items-db.ts`, run `45189165431` (`dbf8f5a5`); repetido no SHA final |
+| Ensaio da aplicação com o migrador real (guarda de composição, lock ocupado, locks da aplicação, aplicação, segunda execução, reaplicação indevida, compatibilidade, reversão recusada com dados, reversão exata, reaplicação) | **11/11** | `hi-0167-apply-rehearsal.ts`, run `45189165431` (`dbf8f5a5`); repetido no SHA final |
 | Política P8.4-r, ações, painel | 9/9, 5/5, 5/5 | CI |
 
 **Defeito encontrado e corrigido neste ciclo, antes de qualquer aplicação:**
@@ -93,7 +93,7 @@ Conferido hoje, só leitura no DEV e `git` nas branches:
 
 | Risco | Tamanho | Controle |
 | --- | --- | --- |
-| A transação toma **ShareRowExclusive** em `clinics`, `hi_appointment_coverages` e `hi_procedure_contracts` (as FKs). Escritas nessas tabelas esperam até o COMMIT | milissegundos (o ensaio mede o tempo total); nenhum AccessExclusive em tabela existente | `lock_timeout` 2 s: com escrita longa em andamento, o aplicador **desiste sem mudar nada** (prova 3 do ensaio) e repete-se na janela seguinte |
+| A transação toma **ShareRowExclusive** em `clinics`, `hi_appointment_coverages` e `hi_procedure_contracts` (as FKs). Escritas nessas tabelas esperam até o COMMIT | no ensaio, a aplicação inteira levou 1,1 s **contando a partida da CLI** (o corpo em si é menor); nenhum AccessExclusive em tabela existente; 51 objetos novos, todos da 0167 | `lock_timeout` 2 s: com escrita longa em andamento, o aplicador **desiste sem mudar nada** (prova 3 do ensaio: desistiu em ~3 s com a partida da CLI, catálogo e ledger iguais) e repete-se na janela seguinte |
 | DEV compartilhado com o Preview e com outros agentes | uma janela curta | avisar antes; o pré-voo confere sessões presas |
 | O painel da P8.4 passa a aparecer no Preview | esperado | sem faturamento (política "sem decisão") |
 | Divergência de numeração com o #59 | já existe | o #59 renumera para 0168+ (dono do #59) |
@@ -108,6 +108,6 @@ Conferido hoje, só leitura no DEV e `git` nas branches:
 
 ## 8. Texto exato da autorização
 
-> "Autorizo aplicar a migration 0167_hi_appointment_extra_items (commit {SHA}, sha256 {SHA256}) no banco DEV compartilhado, pelo aplicador limitado, com promoção ao journal, pré-voo, backup e pós-voo descritos em go-0167-dev.md, na janela de ____. Não autoriza produção nem faturamento de itens."
+> "Autorizo aplicar a migration 0167_hi_appointment_extra_items (commit c066805a, sha256 22390fcc58a5…) no banco DEV compartilhado, pelo aplicador limitado, com promoção ao journal, pré-voo, backup e pós-voo descritos em go-0167-dev.md, na janela de ____. Não autoriza produção nem faturamento de itens."
 
 Sem essa frase, a 0167 continua candidata, o DEV fica como está e o E2E da P8.4 continua **NOT RUN**.

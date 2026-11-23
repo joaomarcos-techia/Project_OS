@@ -163,7 +163,7 @@ jobs:
             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/outbox-shared-cron-db.ts
 
       # P8.4: itens executados adicionais da sessão SP/SADT, com a candidata 0167 depois da cadeia do DEV.
-      - name: Itens executados adicionais (P8.4, candidata 0167, 14 provas)
+      - name: Itens executados adicionais (P8.4, candidata 0167, 18 provas: + concorrência, reprocessamento, XML e recebível)
         if: ${{ !cancelled() }}
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55569 NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-extra-items-db.ts

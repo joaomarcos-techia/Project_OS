@@ -1,4 +1,4 @@
-# Dossiê de homologação — Convênios TISS (22/11/2026)
+# Dossiê de homologação — Convênios TISS (22/11/2026, atualizado em 23/11)
 
 **Escopo:** o que pode ser comprovado em DEV, Preview e Postgres descartável.
 - **Não é** homologação com operadora real: nenhuma operadora está homologada (B5).
@@ -11,7 +11,33 @@
 
 Nesta página, "simulador" quer dizer a operadora stub (`stub-operator.ts`), com o XSD oficial do webservice. Ela **não** é operadora real.
 
-## Ambientes e SHAs
+## Fechamento funcional (23/11/2026)
+
+Baseline `9225f9f2`. SHA final e runs na tabela abaixo. Nenhum código do app mudou neste ciclo: só testes, fixture, workflows, a candidata 0167 (fora do journal) e documentos.
+
+| Frente | Resultado | Evidência | Limitação |
+| --- | --- | --- | --- |
+| Estados da guia (E2E no Preview) | **13/13** em `cf182fdb` (run `45181012754`); repetido no SHA final pelo pedido HS23-2, com fixture nova HS23B (resultado no corpo do PR #55) | `evidence/tiss-e2e-estados-guia-2026-11-23/` | — |
+| R54 | **PARTIAL, bloqueado pelo provedor:** a tentativa única de 23/11 às 09h56 foi recusada ("só pode ser estornada parcialmente no próximo dia"), 4ª recusa igual; estado igual antes e depois | `evidence/tiss-r54-estorno-sandbox-2026-11-23/`; `homologacao-r54-sandbox.md` | pedido ao suporte do Asaas com o fundador |
+| P8.4 banco + serviço | **18/18** (14 anteriores + concorrência, registro × conferência nas duas ordens, reprocessamento e reentrega, XML exportado e recebível) | `health-insurance-extra-items-db.ts`, run `45189165431` (`dbf8f5a5`), repetido no SHA final (resultado no corpo do PR #55) | sem a decisão P8.4-r, o item não fatura |
+| 0167: ensaio da aplicação | **11/11** com o migrador real (guarda, lock ocupado, locks, aplicação, 2ª execução, reaplicação indevida, compatibilidade, reversão recusada com dados, reversão exata, reaplicação) | `hi-0167-apply-rehearsal.ts`, run `45189165431` (`dbf8f5a5`), repetido no SHA final (resultado no corpo do PR #55) | DEV só com o GO (`go-0167-dev.md`) |
+| Provas legadas | **24/24** | run `45189165514` (`dbf8f5a5`), repetido no SHA final (resultado no corpo do PR #55) | — |
+| Composição | R61-B aplica limpo no `bc955f4e`; #53 + #56: 9 conflitos (cadastro e plano); + #55: 11 (journal, `acoes.md`, 2 scripts, 7 telas que o #56 repaginou) | `handoff-56-p84-consultorio.md` | 0159 do #53 fora do journal bloqueia a tripla (dono: #53) |
+
+**Defeitos achados e corrigidos (nenhum em produção, nenhum aplicado no DEV):**
+1. **Candidata 0167, corrida guia × registro.** A checagem de "guia fechada" lia a etapa sem travar a guia. Em READ COMMITTED, um item podia entrar numa guia sendo conferida. Agora a checagem usa FOR SHARE, no padrão da 0165. A prova 16 testa as duas ordens.
+2. **Nota de reversão da 0167 incompleta.** Ela deixava a função `hi_extra_item_guide_closed` para trás. Agora há um arquivo executável que recusa reverter com item registrado; o ensaio prova o catálogo exato.
+3. **Prova legada da configuração com data-bomba.** "Hoje + 3 dias" contra a corrida que pode encerrar o contrato em 25/11: entre 23/11 e 27/11, a prova falhava sempre que o "encerrar" vencia. A data agora é fixa no período aberto do reajuste. **O defeito era do teste, não do produto.**
+
+**E2E sem credencial de banco no runner:**
+- O spec de estados da guia troca o estado da clínica e do acesso no meio da sessão e lê o banco para provar que as recusas não mudaram nada.
+- No runner, isso passa pelo relé `e2e/preview-fixture-relay.mjs`:
+  - o pedido vira status do commit, de uma lista fechada;
+  - o executor do lado do DEV roda a fixture e responde;
+  - ao terminar, o executor restaura a clínica e a conta, mesmo se o runner cair.
+- O runner só aceita o relé como comando da fixture.
+
+## Ambientes e SHAs (22/11)
 
 | Ambiente | O que roda | SHA do #55 | Run |
 | --- | --- | --- | --- |
@@ -35,7 +61,7 @@ O SHA final do PR fica registrado no plano mestre. Depois de `d9bf25b6`, os comm
 | 4 | Carteirinhas | filtro de posse (D-3), leitura auditada com finalidade, cifra | PASS (prova I.2 e testes) | `45004606248` | sem dado real |
 | 5 | Atendimento | estados da cobertura não bloqueiam o atendimento clínico (P5.1) 3/3; série recorrente 4/4 | PASS | `45004606248` | — |
 | 6 | Autorizações | consumo uma vez por sessão; série com autorização 4/4; comprovante em partes 4/4; avisos 9/9; manutenção 6/6 e concorrência 6/6 | PASS | `45004606248`; E2E de autorizações (§E2E) | — |
-| 7 | Guias | 0147 (numeração, vínculos, sem cobrança dupla, estados, substituição com recibo); SP/SADT 12/12; E2E da Consulta e da SP/SADT | PASS | legado `45036917671`; `45004606248`; E2E HF22 | spec de estados da guia: NOT RUN (comando de fixture durante a execução; última execução completa em 15/11, 12/12) |
+| 7 | Guias | 0147 (numeração, vínculos, sem cobrança dupla, estados, substituição com recibo); SP/SADT 12/12; E2E da Consulta e da SP/SADT | PASS | legado `45036917671`; `45004606248`; E2E HF22; **estados da guia 13/13 em 23/11** (seção acima) | — |
 | 8 | TISS 4.03.00 (XML, XSD, 7 operações) | adaptador SOAP 24/24 contra o simulador; conector 8/8; corpus XSD em dois motores | contrato técnico: PASS; simulador XSD: PASS; **recibo externo real: NOT VERIFIED** | CI `45004612135` | operadora simulada não é operadora homologada |
 | 9 | Envio | envio pelo conector 7/7 (recibo conferido, nunca reenvia sozinho); teto total de 20 s por envio | PASS (teto "Testado") | `45004606248` | sem operadora real (B5) |
 | 10 | Retorno | demonstrativos idempotentes pelo número da operadora; retorno duplicado (P9.5) | PASS | legado `45036917671` | — |
@@ -63,7 +89,7 @@ O SHA final do PR fica registrado no plano mestre. Depois de `d9bf25b6`, os comm
 | Política P8.4-r (alternativas a, b, c, d e "sem decisão") | 9/9 | `extra-item-policy.test.ts` |
 | Ações (regra de quem confere, validação, mensagens, auditoria) | 5/5 | `extra-item-actions.test.ts` |
 | Painel da conferência | 5/5 | `extra-items-ui.test.tsx` |
-| E2E | **NOT RUN** | a tabela não existe no DEV, e aplicar a 0167 no DEV exige autorização (D23) |
+| E2E | **NOT RUN** | a tabela não existe no DEV; o pedido de GO da 0167 está em `go-0167-dev.md` (23/11) |
 
 ## E2E no Preview (Auth e banco do DEV, navegador remoto)
 
@@ -89,7 +115,7 @@ Cinco pedidos (HF22-1 a HF22-5), um grupo por runner, em série. O resultado de 
 - **Dois erros meus no pedido:** a variável `E2E_HI_FIXTURE` da jornada e a fase da D-5.
 
 **Fora do E2E deste ciclo:**
-- **Estados da guia:** precisa de comando de fixture durante a execução (NOT RUN; a última execução completa foi em 15/11, 12/12).
+- **Estados da guia:** executado em 23/11, 13/13, pelo relé da fixture (seção de 23/11).
 - **Coparticipação no Asaas Sandbox:** precisa de pagamento humano com reCAPTCHA.
 - **Agente de IA com convênio:** depende do #28.
 - **P8.4:** a tabela candidata não existe no DEV.
