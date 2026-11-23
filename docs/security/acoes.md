@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 282 actions (0 inline); 69 métodos em 65 handlers; 92 props com referência de action; 949 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
+Contagem: 282 actions (0 inline); 69 métodos em 65 handlers; 92 props com referência de action; 959 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -1112,6 +1112,16 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/hi-0161-restore-rehearsal.ts:38`                           | `BACKUP_DIR`                           | `process.env.BACKUP_DIR`                                                    |
 | `scripts/security/hi-0161-restore-rehearsal.ts:39`                           | `PRE_FLIGHT`                           | `process.env.PRE_FLIGHT`                                                    |
 | `scripts/security/hi-0161-restore-rehearsal.ts:79`                           | `<object>`                             | `process.env`                                                               |
+| `scripts/security/hi-0167-apply-rehearsal.ts:46`                             | `PORT`                                 | `process.env.PORT`                                                          |
+| `scripts/security/hi-0167-apply-rehearsal.ts:67`                             | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
+| `scripts/security/hi-0167-apply-rehearsal.ts:68`                             | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
+| `scripts/security/hi-0167-apply-rehearsal.ts:69`                             | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
+| `scripts/security/hi-0167-apply-rehearsal.ts:70`                             | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
+| `scripts/security/hi-0167-apply-rehearsal.ts:71`                             | `CRYPTO_SECRET_BACKEND`                | `process.env.CRYPTO_SECRET_BACKEND`                                         |
+| `scripts/security/hi-0167-apply-rehearsal.ts:72`                             | `CRYPTO_MASTER_KEY_V1`                 | `process.env.CRYPTO_MASTER_KEY_V1`                                          |
+| `scripts/security/hi-0167-apply-rehearsal.ts:73`                             | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
+| `scripts/security/hi-0167-apply-rehearsal.ts:74`                             | `LOG_LEVEL`                            | `process.env.LOG_LEVEL`                                                     |
+| `scripts/security/hi-0167-apply-rehearsal.ts:104`                            | `<object>`                             | `process.env`                                                               |
 | `scripts/security/hi-dev-e2e-fixture.ts:35`                                  | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/hi-dev-e2e-fixture.ts:37`                                  | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
 | `scripts/security/hi-dev-e2e-fixture.ts:783`                                 | `E2E_RESEND_INBOX_ADDRESS`             | `process.env.E2E_RESEND_INBOX_ADDRESS`                                      |

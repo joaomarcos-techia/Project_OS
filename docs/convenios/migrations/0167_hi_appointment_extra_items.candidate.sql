@@ -29,11 +29,9 @@
 -- (item executado sem solicitação prévia); até ela, o código não muda a guia. Não toca em
 -- autorização, consumo, recebível, livro ou Caixa. O runtime não tem DELETE.
 --
--- Sem BEGIN/COMMIT. Reversão (com o código que conhece os itens fora do ar):
---   DROP TABLE IF EXISTS public.hi_appointment_extra_items;
---   DROP FUNCTION IF EXISTS public.hi_extra_item_update_guard();
---   DROP FUNCTION IF EXISTS public.hi_extra_item_insert_guard();
---   DELETE FROM public._schema_version WHERE version = '0167-hi-appointment-extra-items';
+-- Sem BEGIN/COMMIT. Reversão executável: `0167_hi_appointment_extra_items.rollback.sql` (recusa se
+-- houver item registrado; remove a tabela e as TRÊS funções, inclusive `hi_extra_item_guide_closed`,
+-- que a nota anterior deixava para trás) + a linha do ledger. Ensaio: hi-0167-apply-rehearsal.ts.
 -- =====================================================================
 
 CREATE TABLE public.hi_appointment_extra_items (

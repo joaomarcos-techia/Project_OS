@@ -31,6 +31,8 @@ on:
       - 'scripts/security/outbox-shared-cron-db.ts'
       - 'scripts/security/scratch-schema.ts'
       - 'scripts/security/dev-order-chain.ts'
+      - 'scripts/security/hi-0167-apply-rehearsal.ts'
+      - 'scripts/security/migration-composition-io.ts'
       - 'drizzle/migrations/**'
       - 'docs/convenios/migrations/**'
       - '.github/workflows/convenios-synthetic-db.yml'
@@ -165,6 +167,11 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55569 NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-extra-items-db.ts
+
+      - name: "Ensaio da aplicação da 0167 com o migrador real (lock, reaplicação, reversão; 11 provas)"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55570 NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/hi-0167-apply-rehearsal.ts
 
       - name: Desempenho da H.2 com o código real (P14.4; metas e desvio registrado)
         if: ${{ !cancelled() }}
