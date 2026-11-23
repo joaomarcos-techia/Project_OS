@@ -17,7 +17,7 @@ Baseline `9225f9f2`. SHA final e runs na tabela abaixo. Nenhum código do app mu
 
 | Frente | Resultado | Evidência | Limitação |
 | --- | --- | --- | --- |
-| Estados da guia (E2E no Preview) | **13/13** em `cf182fdb` (run `45181012754`); repetido no SHA final pelo pedido HS23-2, com fixture nova HS23B (resultado no corpo do PR #55) | `evidence/tiss-e2e-estados-guia-2026-11-23/` | — |
+| Estados da guia (E2E no Preview) | **13/13** em `cf182fdb` (run `45181012754`); repetido no SHA final pelo pedido HS23-3, com fixture nova HS23B (resultado no corpo do PR #55) | `evidence/tiss-e2e-estados-guia-2026-11-23/` | — |
 | R54 | **PARTIAL, bloqueado pelo provedor:** a tentativa única de 23/11 às 09h56 foi recusada ("só pode ser estornada parcialmente no próximo dia"), 4ª recusa igual; estado igual antes e depois | `evidence/tiss-r54-estorno-sandbox-2026-11-23/`; `homologacao-r54-sandbox.md` | pedido ao suporte do Asaas com o fundador |
 | P8.4 banco + serviço | **18/18** (14 anteriores + concorrência, registro × conferência nas duas ordens, reprocessamento e reentrega, XML exportado e recebível) | `health-insurance-extra-items-db.ts`, run `45189165431` (`dbf8f5a5`), repetido no SHA final (resultado no corpo do PR #55) | sem a decisão P8.4-r, o item não fatura |
 | 0167: ensaio da aplicação | **11/11** com o migrador real (guarda, lock ocupado, locks, aplicação, 2ª execução, reaplicação indevida, compatibilidade, reversão recusada com dados, reversão exata, reaplicação) | `hi-0167-apply-rehearsal.ts`, run `45189165431` (`dbf8f5a5`), repetido no SHA final (resultado no corpo do PR #55) | DEV só com o GO (`go-0167-dev.md`) |
