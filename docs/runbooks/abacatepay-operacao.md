@@ -1,5 +1,13 @@
 # Operação e recuperação AbacatePay
 
+## C3 — 23/11/2026: checkout Pix/cartão do único piloto aguardando pagamento
+
+O deployment `27195aa3` está em `app.qoro.dev` e passou smoke de Auth, banco, Redis, Asaas, outbox e cadastro fechado. O checkout CARD anterior `bill_eeHjDX0GzNMDYxTQHXJ2Z42a` foi encerrado sem pagamento. O novo checkout Production `bill_pbMYRx5JMSbB6cEkEBQKr6Np`, Consultório com um médico e até três administrativos, R$ 197 por mês, está **PENDING**; a API do provedor confirmou `CARD` e `PIX`. A clínica piloto e a assinatura local são as mesmas, e não houve pagamento nem invoice. Não emitir outro checkout.
+
+O titular deve abrir o novo link oficial fornecido nesta conversa, confirmar na página a opção Pix Automático, o valor e a recorrência, e pagar pessoalmente. Se Pix não aparecer, parar e informar antes de qualquer pagamento; não reutilizar o link CARD antigo. Após o aviso “paguei”, conferir pagamento no provedor, assinatura, evento autenticado, inbox/consumer, invoice única, período, cotas e fechamento do checkout. Não liberar direitos com base apenas no retorno visual. Aquisição pública e C4 continuam fechados.
+
+O patch SQL `substituicao-checkout-inicial.sql` foi aplicado fora do journal com autorização expressa do fundador; o journal continua em 160. A composição formal posterior deve preservar a sequência TISS, sem reaplicar o patch cegamente. Detalhes e evidências no [dossiê prevalente](../decoupling/asaas-to-abacatepay/ABACATEPAY-SaaS-GO-NO-GO-FINAL.md#checkpoint-prevalente--checkout-pixcartão-live-emitido-em-23112026).
+
 ## Substituição de checkout ainda não pago — preparação de 23/11/2026
 
 O titular confirmou não ter iniciado pagamento com cartão. Também confirmou que o link Sandbox excluído ficou indisponível e que o painel não permite editar métodos de um checkout emitido. Essas respostas não autorizam uma migration Production ou um segundo checkout live.
