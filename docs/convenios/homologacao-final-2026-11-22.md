@@ -52,7 +52,7 @@ O SHA final do PR fica registrado no plano mestre. Depois de `d9bf25b6`, os comm
 | 21 | Segurança | SSRF (IP na conexão, DNS trocado, IP literal, **redirecionamento nunca seguido**, novo); credenciais fora de log; XML com DTD recusado; RLS em todas as tabelas do módulo; auditoria de 100% das actions | PASS (técnico) | CI `45004612135` | P15.5 depende de S1–S9 |
 | 22 | Integrações | composição #53 + patch toda verde; fusão futura só com conflitos conhecidos; #56 sem conflito na central de ajuda | PASS (composição) | `45003465119` | R61-B só fica PASS quando o #53 aplicar o patch na branch dele |
 | 23 | Performance | H.2 7/7 (com o desvio registrado do lote 50) | PASS | `45004606248` | — |
-| 24 | R54 | pagamento de R$ 10 conciliado; 0 estornos (3 recusas pelo prazo do Asaas) | PARTIAL | `homologacao-r54-sandbox.md` | janela: segunda, 23/11, a partir das 09h00 |
+| 24 | R54 | pagamento de R$ 10 conciliado; 0 estornos (4 recusas do Asaas Sandbox; a única de 23/11 foi às 09h56; estado igual antes e depois) | PARTIAL (bloqueado pelo provedor) | `homologacao-r54-sandbox.md`; `evidence/tiss-r54-estorno-sandbox-2026-11-23/` | tentativas paradas; pedido ao suporte do Asaas pronto para o fundador enviar |
 | 25 | Decisões pendentes | quadro em `decisoes-pendentes.md` | — | — | — |
 
 ## P8.4 (itens executados adicionais), novo neste ciclo
