@@ -611,7 +611,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/abacatepay-checkout-recovery-db.ts:23`   | `<object>`                             | `process.env`                                                               |
 | `scripts/security/abacatepay-checkout-recovery-db.ts:47`   | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/security/abacatepay-checkout-recovery-db.ts:48`   | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
-| `scripts/security/abacatepay-checkout-recovery-db.ts:1055` | `GITHUB_ACTIONS`                       | `process.env.GITHUB_ACTIONS`                                               |
+| `scripts/security/abacatepay-checkout-recovery-db.ts:1055` | `GITHUB_ACTIONS`                       | `process.env.GITHUB_ACTIONS`                                                |
 | `scripts/security/abacatepay-checkout-recovery-db.ts:1068` | `<object>`                             | `process.env`                                                               |
 | `scripts/security/abacatepay-checkout-recovery-db.ts:1091` | `<object>`                             | `process.env`                                                               |
 | `scripts/security/abacatepay-code-composition.ts:16`       | `QORO_FINANCIAL_REF`                   | `process.env.QORO_FINANCIAL_REF`                                            |
