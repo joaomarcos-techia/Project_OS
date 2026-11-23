@@ -721,9 +721,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/signup-free-trial-db.ts:34`              | `<object>`                             | `process.env`                                                               |
 | `scripts/security/signup-free-trial-db.ts:57`              | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/security/signup-free-trial-db.ts:58`              | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
-| `scripts/security/signup-free-trial-db.ts:665`             | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
-| `scripts/security/signup-free-trial-db.ts:1095`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
-| `scripts/security/signup-free-trial-db.ts:1158`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
+| `scripts/security/signup-free-trial-db.ts:688`             | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
+| `scripts/security/signup-free-trial-db.ts:1119`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
+| `scripts/security/signup-free-trial-db.ts:1182`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
 | `scripts/security/signup-kill-switch-browser.ts:54`        | `<object>`                             | `process.env`                                                               |
 | `scripts/security/signup-local-backend.ts:87`              | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/signup-local-backend.ts:87`              | `<dynamic>`                            | `process.env[key]`                                                          |

@@ -47,8 +47,32 @@
     "skippedTests": 0,
     "lint": "PASS for changed TypeScript files",
     "format": "PASS",
-    "ci": "Pending new commit; previous baseline CI is not evidence for these changes",
-    "newPostgresChecks": "Prepared; not yet executed"
+    "codeSha": "07f96f2833b80c040ca335bdde7e14b84712a8dd",
+    "generalTestsPassed": 7426,
+    "generalTestFiles": 652,
+    "coverageBranchesPercent": 83.15,
+    "ci": "45188813799 passed tests, typecheck and lint; failed on three stale generated inventory line references before Build/E2E. New documentary SHA requires its own CI.",
+    "financialQualification": {
+      "run": 45188802630,
+      "status": "PASS",
+      "renewalChecksPerSchema": 132,
+      "trialChecks": [52, 53],
+      "quotaChecks": 45,
+      "checkoutRecoveryChecks": 29,
+      "exactComposedBuild": "PASS",
+      "sqlEntries": 160,
+      "lastMigration": "0159_saas_period_snapshot",
+      "sourceManifestSha256": "5ed3c0791b742a1e9f6bc58cc0b0fdc266317101b9c715445bec87e14df87fa9"
+    },
+    "pilotQualification": {
+      "run": 45188802462,
+      "status": "PASS",
+      "chromiumTests": 2,
+      "realLocalAuth": true
+    },
+    "snyk": "BLOCKED: private test quota exhausted; not a successful scan",
+    "semgrep": "PASS",
+    "prodDependencyAudit": "PASS"
   },
   "blockingSchemaRules": [
     "gateway_initial_checkout_subscription_unique: one create_checkout operation per local subscription",
