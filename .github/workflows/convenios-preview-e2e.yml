@@ -13,7 +13,12 @@ name: Convênios — E2E no Preview (navegador remoto)
 #     specs fazem a prova antes de qualquer passo) e `PREVIEW_E2E_BUNDLE` (URL do Preview, contas
 #     SINTÉTICAS e2e-hi-* e ids da fixture, em base64). Nenhuma credencial de banco, de Supabase,
 #     de cifra, de Asaas ou de produção vem para cá: a fixture é preparada fora, antes do pedido;
-#   - token do GitHub só de leitura; nenhum deploy; nenhum trace, vídeo ou screenshot (podem levar
+#   - relé da fixture (23/11/2026): specs que mudam estado no meio da sessão (trial, suspensa, acesso
+#     desativado) ou leem o banco pedem isso por `e2e/preview-fixture-relay.mjs`. O pedido vira um
+#     status `e2e-fixture/request` do commit (por isso `statuses: write`); o executor do lado do
+#     DEV, fora do runner, confere a lista fechada (set-state, set-active, guide-state; só clínicas
+#     e2e-hi-*), executa e responde em `e2e-fixture/result`. O runner continua sem credencial de banco;
+#   - token do GitHub: leitura do código e escrita só de status de commit; nenhum deploy; nenhum trace, vídeo ou screenshot (podem levar
 #     cookie e cabeçalho); o único artefato é a saída em texto do Playwright;
 #   - sem nova tentativa automática: os specs são seriais e mudam estado.
 
@@ -25,7 +30,7 @@ on:
 
 permissions:
   contents: read
-  statuses: read
+  statuses: write
 
 concurrency:
   group: convenios-preview-e2e
@@ -92,6 +97,8 @@ jobs:
           PREVIEW_E2E_BUNDLE: ${{ secrets.PREVIEW_E2E_BUNDLE }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.PREVIEW_E2E_BYPASS }}
           MAGIC_TOKEN_SECRET_DEV: ${{ secrets.PREVIEW_E2E_MAGIC }}
+          # Só para o relé da fixture (status do commit); o token do job não tem escrita de código.
+          GH_TOKEN: ${{ github.token }}
           CI: '1'
           PREVIEW_E2E_GROUP: ${{ matrix.group }}
         run: node e2e/preview-run.mjs

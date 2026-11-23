@@ -48,6 +48,9 @@ const groupIndex = Number(process.env.PREVIEW_E2E_GROUP ?? 0);
 const merged = { ...(request.env ?? {}), ...((request.groupEnv ?? [])[groupIndex] ?? {}) };
 for (const [key, file] of Object.entries(merged)) {
   if (!/^E2E_HI_[A-Z0-9_]+$/u.test(key)) throw new Error(`variável fora do escopo: ${key}`);
+  // No runner, o comando da fixture só pode ser o relé (o runner não tem credencial de banco).
+  if (key === 'E2E_HI_FIXTURE_CMD' && file !== 'e2e/preview-fixture-relay.mjs')
+    throw new Error('E2E_HI_FIXTURE_CMD no runner só pode ser e2e/preview-fixture-relay.mjs');
   env[key] = /\.json$/u.test(String(file)) ? join(dir, String(file)) : String(file);
 }
 

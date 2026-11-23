@@ -21,8 +21,10 @@
  *
  * Fixture: `hi-dev-e2e-fixture.ts setup-states` cria três guias novas na clínica `e2e-hi-paga`; o
  * spec troca estados por `set-state`/`set-active` (só clínicas e2e-hi-*, restaurados em `finally`)
- * e lê o banco por `guide-state` através de E2E_HI_FIXTURE_CMD, um script local que roda a fixture
- * com o ambiente DEV: o spec não recebe credencial de banco. Dados 100% sintéticos.
+ * e lê o banco por `guide-state` através de E2E_HI_FIXTURE_CMD: um script local que roda a fixture
+ * com o ambiente DEV ou, no runner do GitHub, o relé `e2e/preview-fixture-relay.mjs` (pedido e
+ * resposta pelos status do commit, executados do lado do DEV). Nos dois casos o spec não recebe
+ * credencial de banco. Dados 100% sintéticos.
  *
  *   E2E_BASE_URL=<preview> E2E_HI_ACCOUNTS=<contas.json> E2E_HI_CFG_ACCOUNTS=<contas-cfg.json> \
  *   E2E_HI_STATES=<guias.json> E2E_HI_CFG_GUIDE=<id de guia da clínica de configuração> \
@@ -53,7 +55,12 @@ const BASE = process.env.E2E_BASE_URL;
 const ACCOUNTS = process.env.E2E_HI_ACCOUNTS;
 const CFG_ACCOUNTS = process.env.E2E_HI_CFG_ACCOUNTS;
 const STATES = process.env.E2E_HI_STATES;
-const CFG_GUIDE = process.env.E2E_HI_CFG_GUIDE;
+// O id da guia da clínica de configuração vem direto ou num arquivo `{ "id": … }` (pacote do runner).
+const CFG_GUIDE_RAW = process.env.E2E_HI_CFG_GUIDE;
+const CFG_GUIDE =
+  CFG_GUIDE_RAW && /.json$/u.test(CFG_GUIDE_RAW)
+    ? (JSON.parse(readFileSync(CFG_GUIDE_RAW, 'utf8')) as { id: string }).id
+    : CFG_GUIDE_RAW;
 const FIXTURE_CMD = process.env.E2E_HI_FIXTURE_CMD;
 const SHOTS = process.env.E2E_HI_SHOTS;
 

@@ -1,12 +1,14 @@
 {
-  "note": "Pedido de E2E no Preview (navegador remoto). Mudar este arquivo dispara convenios-preview-e2e.yml. HF22 fase 5: o último teste do spec base (parou no login pelo limite de tentativas por IP, antes de qualquer ação), num runner novo.",
-  "run": "HF22-5",
+  "note": "Pedido de E2E no Preview (navegador remoto). Mudar este arquivo dispara convenios-preview-e2e.yml. HS23-1: spec de estados da guia com fixture nova (setup-states --run HS23A) e o relé da fixture (estado da clínica, acesso e leitura da guia pedidos pelos status do commit, executados do lado do DEV).",
+  "run": "HS23-1",
   "groups": [
-    ["e2e/convenios-preview.spec.ts"]
+    ["e2e/convenios-guide-states-preview.spec.ts"]
   ],
   "env": {
     "E2E_HI_ACCOUNTS": "e2e-hi-accounts.json",
-    "E2E_HI_FIXTURE": "e2e-hi-fixture.json"
-  },
-  "grep": "solicitação SP/SADT: registrar|o Preview usa o projeto DEV"
+    "E2E_HI_CFG_ACCOUNTS": "e2e-hi-cfg-accounts.json",
+    "E2E_HI_STATES": "e2e-hi-states-hs23.json",
+    "E2E_HI_CFG_GUIDE": "e2e-hi-cfg-guide.json",
+    "E2E_HI_FIXTURE_CMD": "e2e/preview-fixture-relay.mjs"
+  }
 }
