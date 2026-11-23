@@ -1,5 +1,17 @@
 # AbacatePay SaaS — decisão final de release e piloto
 
+## Checkpoint prevalente — substituição do checkout inicial, 23/11/2026
+
+O titular confirmou nesta sessão: apenas abriu o checkout CARD de R$ 197, sem iniciar pagamento; o checkout sintético Sandbox excluído mostra “indisponível ou não encontrado”; o painel não permite editar os métodos mantendo o ID. Essa observação humana comprova a indisponibilidade do link Sandbox examinado, sem equivaler a uma prova live. O checkout live anterior permanece intacto.
+
+Foi preparada a proposta privada [substituicao-checkout-inicial.sql](propostas/substituicao-checkout-inicial.sql), **fora do journal e sem aplicação remota**. Ela preserva a operação original e registra um único histórico corretivo. Só permite avançar o vínculo do checkout após os journals de encerramento não pago e criação substituta estarem confirmados. Conta, clínica, assinatura, cliente já vinculado e resultados originais continuam protegidos. Não é permitido limpar o vínculo ou desativar triggers.
+
+O operador não tem rota pública nem execução automática. As fases são `prepared → closed → bound`; durante a troca a UI não reutiliza o link antigo. A aplicação continua compatível com o schema anterior: se a tabela não existir, o fluxo anterior permanece. Respostas perdidas são recuperadas por GET, nunca por novo POST cego. Uma cobrança detectada no link antigo interrompe a substituição; um pagamento tardio incompatível deve seguir revisão financeira, sem atualização manual de invoice ou entitlement.
+
+**Limite operacional:** o GO C3 anterior exclui migrations Production e cobriu um único checkout, já emitido. Aplicar a nova estrutura, compor sua numeração com as migrations compartilhadas e executar a substituição live exigem aprovação específica. Nenhuma migration, deployment, exclusão do link live ou segunda emissão está autorizada por este checkpoint. Não incorporar TISS funcional ou renumerar migrations históricas para facilitar a troca.
+
+Validação deste incremento: 66 testes dirigidos passaram (52 existentes e 14 de fechamento não pago). Lint dirigido passou. A qualificação PostgreSQL foi ampliada para identidade, concorrência, histórico original, retomada após respostas perdidas e ativação Pix sem duplicidade; aguarda execução no runner isolado e CI do novo SHA. A CI de `0d619856` continua sendo evidência do incremento anterior, sem substituir a nova validação.
+
 ## Checkpoint prevalente — 23/11/2026: Pix Automático solicitado, sem substituição live
 
 O fundador solicitou Pix recorrente e cartão no mesmo checkout, preservando os cinco valores mensais e a restrição de Production ao único piloto de R$ 197. Às 13:39 UTC, a API live confirmou `bill_eeHjDX0GzNMDYxTQHXJ2Z42a` PENDING, `methods=[CARD]`, `paidAmount=null` e nenhuma assinatura vinculada. A leitura SQL com TLS verificado confirmou trial, nenhuma invoice, nenhum vínculo de assinatura externa e cotas ainda não liberadas. Não houve POST financeiro live, alteração de Production ou pagamento nesta rodada.

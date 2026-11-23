@@ -1,5 +1,13 @@
 # Operação e recuperação AbacatePay
 
+## Substituição de checkout ainda não pago — preparação de 23/11/2026
+
+O titular confirmou não ter iniciado pagamento com cartão. Também confirmou que o link Sandbox excluído ficou indisponível e que o painel não permite editar métodos de um checkout emitido. Essas respostas não autorizam uma migration Production ou um segundo checkout live.
+
+A proposta SQL e os operadores estão no [dossiê](../decoupling/asaas-to-abacatepay/ABACATEPAY-SaaS-GO-NO-GO-FINAL.md). A proposta permanece fora do journal; não executar isoladamente em DEV compartilhado/Production. Após aprovação específica e composição formal de schema, a sequência prevista é: conferir novamente ausência de pagamento/assinatura; preparar histórico; encerrar o link antigo com journal; conferir ausência na listagem e nenhum pagamento; criar uma substituição com Pix/cartão no mesmo preço; vincular por transação auditada; entregar o novo link; conferir o pagamento humano pelos fluxos existentes. Não alterar a operação inicial confirmada, desativar triggers ou limpar o vínculo.
+
+Timeout no encerramento: recuperar o efeito por consulta com `recoverClose`, sem repetir a exclusão. Timeout na criação: recuperar por `recover`, sem repetir a criação. Ausência, duplicidade, pagamento no link antigo ou divergência de conta/valor exige interromper a emissão e revisar. A troca permite apenas um histórico corretivo por assinatura inicial e não cancela nem reembolsa uma assinatura.
+
 ## Checkpoint — Pix Automático, 23/11/2026
 
 Solicitação atual: cada contratação deve oferecer Pix Automático e cartão no mesmo checkout do preço escolhido. O único piloto live continua limitado a R$ 197/mês, um médico e até três administrativos. A API live confirmou o checkout CARD anterior pendente e sem assinatura; nenhum novo checkout live foi emitido nesta rodada.

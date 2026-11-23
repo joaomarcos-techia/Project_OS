@@ -69,6 +69,14 @@ const closeInput = subscriptionInput
     expectedAmountMinor: amount,
   })
   .strict();
+const closeUnpaidInput = operation
+  .extend({
+    checkoutId: prefixedId('bill_'),
+    externalId,
+    productId: prefixedId('prod_'),
+    expectedAmountMinor: amount,
+  })
+  .strict();
 const closeResult = z
   .object({
     checkoutId: prefixedId('bill_'),
@@ -209,6 +217,100 @@ export function createAbacatePayCommands(
 
   return {
     account,
+    /** Operator-only replacement seam. Never cancels or refunds a subscription. */
+    async closeUnpaidCheckout(raw: z.input<typeof closeUnpaidInput>) {
+      const input = inputValue(closeUnpaidInput, raw);
+      const parameters = { ...input, operationId: undefined };
+      const resultSchema = z.object({
+        checkoutId: z.literal(input.checkoutId),
+        productId: z.literal(input.productId),
+        amountMinor: z.literal(input.expectedAmountMinor),
+        closed: z.literal(true),
+      });
+      return execute(
+        input.operationId,
+        'close_unpaid_checkout',
+        parameters,
+        resultSchema,
+        async () => {
+          const product = await read.readProduct(input.productId);
+          if (
+            product.price !== input.expectedAmountMinor ||
+            product.cycle !== 'MONTHLY' ||
+            product.trialDays != null
+          )
+            throw new GatewayReadError('binding_mismatch');
+          const listed = async () =>
+            parseBillingValue(
+              z.object({
+                success: z.literal(true),
+                data: z
+                  .array(
+                    z.object({
+                      id: prefixedId('bill_'),
+                      externalId,
+                      devMode: z.literal(expectedDevMode),
+                    }),
+                  )
+                  .max(1),
+                pagination: z.object({ hasMore: z.literal(false), next: z.null() }),
+              }),
+              await request({
+                method: 'GET',
+                path: '/subscriptions/checkouts/list',
+                params: new URLSearchParams({ externalId: input.externalId, limit: '100' }),
+              }),
+            ).data;
+          const unpaid = async () => {
+            const checkout = await read.readSubscriptionCheckoutFinancials(input.checkoutId);
+            if (
+              checkout.status !== 'PENDING' ||
+              checkout.customerId !== null ||
+              checkout.amount !== input.expectedAmountMinor ||
+              (checkout.paidAmount ?? 0) !== 0 ||
+              checkout.items.length !== 1 ||
+              checkout.items[0]?.id !== input.productId ||
+              checkout.items[0]?.quantity !== 1 ||
+              (await read.listSubscriptionsForCheckout(input.checkoutId)).length !== 0
+            )
+              throw new GatewayReadError('binding_mismatch');
+          };
+          const before = await listed();
+          if (
+            before.length !== 1 ||
+            before[0]?.id !== input.checkoutId ||
+            before[0]?.externalId !== input.externalId
+          )
+            throw new GatewayReadError('binding_mismatch');
+          await unpaid();
+          const response = parseBillingValue(
+            z.object({
+              success: z.literal(true),
+              data: z.object({
+                id: z.literal(input.checkoutId),
+                devMode: z.literal(expectedDevMode),
+              }),
+            }),
+            await request({
+              method: 'POST',
+              path: '/subscriptions/checkouts/delete',
+              params: new URLSearchParams({ id: input.checkoutId }),
+              body: {},
+            }),
+          );
+          if (!response.success || (await listed()).length !== 0)
+            throw new GatewayReadError('binding_mismatch');
+          // Deleted links remain readable by GET. It must still show no payment or subscription.
+          await unpaid();
+          return {
+            checkoutId: input.checkoutId,
+            productId: input.productId,
+            amountMinor: input.expectedAmountMinor,
+            closed: true as const,
+          };
+        },
+      );
+    },
     async closePaidCheckout(raw: z.input<typeof closeInput>) {
       const input = inputValue(closeInput, raw);
       const parameters = {

@@ -4,7 +4,9 @@
   "liveReadback": {
     "observedAt": "2026-11-23T13:39:25.576Z",
     "checkoutId": "bill_eeHjDX0GzNMDYxTQHXJ2Z42a",
-    "methods": ["CARD"],
+    "methods": [
+      "CARD"
+    ],
     "status": "PENDING",
     "amountMinor": 19700,
     "paidAmount": null,
@@ -21,7 +23,10 @@
   "sandboxCreation": {
     "observedAt": "2026-11-23T13:40:15.252Z",
     "checkoutId": "bill_WDmDg06Za3fcYfESKcu2NWgZ",
-    "methods": ["PIX", "CARD"],
+    "methods": [
+      "PIX",
+      "CARD"
+    ],
     "amountMinor": 19700,
     "devMode": true,
     "status": "PENDING",
@@ -56,7 +61,10 @@
       "run": 45188802630,
       "status": "PASS",
       "renewalChecksPerSchema": 132,
-      "trialChecks": [52, 53],
+      "trialChecks": [
+        52,
+        53
+      ],
       "quotaChecks": 45,
       "checkoutRecoveryChecks": 29,
       "exactComposedBuild": "PASS",
@@ -90,5 +98,12 @@
     "https://docs.abacatepay.com/pages/subscriptions/create",
     "https://docs.abacatepay.com/pages/bank-statement/list",
     "https://docs.abacatepay.com/pages/webhooks/events/subscriptions"
-  ]
+  ],
+  "humanConfirmations": {
+    "date": "2026-11-23",
+    "cardPaymentInitiated": false,
+    "deletedSandboxCheckoutUnavailable": true,
+    "providerDashboardCanEditMethods": false,
+    "source": "User replies in this session; link proof applies only to the examined Sandbox checkout"
+  }
 }

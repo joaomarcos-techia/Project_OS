@@ -1,7 +1,7 @@
 /** Real migration/application transactions; only loopback PostgreSQL and synthetic API fixtures. */
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 
 import { readMigrations, startScratchSchema } from './scratch-schema';
 
@@ -13,6 +13,7 @@ const catalog = {
   clinica_2026_5: { productId: 'prod_five', amountMinor: 83800 },
 } as const;
 type PlanCode = keyof typeof catalog;
+const callback = 'https://qoro.example/configuracoes/assinatura';
 const cluster = await startScratchSchema({ port: 55493 });
 assert.equal(new URL(cluster.url).hostname, '127.0.0.1');
 const sql = cluster.sql;
@@ -68,6 +69,9 @@ type Checkout = {
   createdAt: string;
 };
 const remote = new Map<string, Checkout[]>();
+const deleted = new Set<string>();
+const pixPayments = new Set<string>();
+let lostDeletionResponse = false;
 globalThis.fetch = async (raw, init) => {
   const url = new URL(String(raw));
   if (url.origin !== 'https://api.abacatepay.com') {
@@ -99,7 +103,15 @@ globalThis.fetch = async (raw, init) => {
       trialDays: null,
       devMode: true,
     };
-  else if (url.pathname.endsWith('/subscriptions/create')) {
+  else if (url.pathname.endsWith('/subscriptions/checkouts/delete')) {
+    assert.equal(init?.method, 'POST');
+    posts++;
+    const id = url.searchParams.get('id');
+    assert.ok(id && [...remote.values()].flat().some((item) => item.id === id));
+    deleted.add(id);
+    if (lostDeletionResponse) throw new Error('Synthetic deletion acknowledgement lost');
+    data = { id, devMode: true };
+  } else if (url.pathname.endsWith('/subscriptions/create')) {
     assert.equal(init?.method, 'POST');
     posts++;
     if (beforeSendFailure) throw new Error('Synthetic failure before processing');
@@ -135,7 +147,10 @@ globalThis.fetch = async (raw, init) => {
     if (responseLost) throw new Error('Synthetic response lost after provider effect');
     data = { id: item.id };
   } else if (url.pathname.endsWith('/checkouts/list')) {
-    data = remote.get(url.searchParams.get('externalId') ?? '') ?? [];
+    const filter = url.searchParams.get('externalId');
+    data = (filter ? (remote.get(filter) ?? []) : [...remote.values()].flat()).filter(
+      (item) => !deleted.has(item.id),
+    );
     return Response.json({ success: true, data, pagination: { hasMore: false, next: null } });
   } else if (url.pathname.endsWith('/checkouts/get')) {
     data = [...remote.values()].flat().find((item) => item.id === url.searchParams.get('id'));
@@ -157,7 +172,7 @@ globalThis.fetch = async (raw, init) => {
               customerId: 'cust_synthetic',
               amount: item.amount,
               currency: 'BRL',
-              method: 'CARD',
+              method: pixPayments.has(item.id) ? 'PIX' : 'CARD',
               status: 'ACTIVE',
               devMode: true,
               trialEndsAt: null,
@@ -177,7 +192,7 @@ globalThis.fetch = async (raw, init) => {
       customerId: 'cust_synthetic',
       amount: item.amount,
       currency: 'BRL',
-      method: 'CARD',
+      method: item && pixPayments.has(item.id) ? 'PIX' : 'CARD',
       status: 'ACTIVE',
       devMode: true,
       trialEndsAt: null,
@@ -240,6 +255,7 @@ async function seed(code: PlanCode = 'clinica_2026_2') {
   assert.ok(row);
   return {
     ...row,
+    requestedBy: userId,
     ...catalog[code],
     authCreatedAt,
     clinicId: trial.clinicId,
@@ -768,6 +784,185 @@ try {
       },
     );
   }
+  // The unnumbered proposal is exercised ONLY in this owned synthetic cluster.
+  // It is deliberately absent from drizzle's deployable migration journal.
+  await sql.unsafe(
+    await readFile(
+      'docs/decoupling/asaas-to-abacatepay/propostas/substituicao-checkout-inicial.sql',
+      'utf8',
+    ),
+  );
+  const {
+    prepareInitialCheckoutReplacement: prepare,
+    createInitialCheckoutReplacementOperator: operator,
+    readInitialReplacementCheckout: replacementCheckout,
+  } = await import('../../src/contexts/billing/internal/abacatepay-initial-checkout-replacement');
+  const replacementOperator = operator(dbAdmin, {
+    apiKey: 'synthetic-loopback-only',
+    storeId: 'store_synthetic',
+    probeProductId: 'prod_probe',
+    environment: 'sandbox',
+    timeoutMs: 2000,
+  });
+  const replacementScope = (f: Fixture) => ({
+    subscriptionId: f.subscriptionId,
+    clinicId: f.clinicId,
+  });
+  async function prepareOldCard() {
+    const f = await seed('consultorio_2026');
+    await reserveWithLostAcknowledgement(f);
+    assert.equal((await recover(dbAdmin, replacementScope(f))).state, 'recovered');
+    const old = remote.get(f.reference)?.[0];
+    assert.ok(old);
+    assert.deepEqual(old.methods, ['CARD']);
+    const original =
+      await sql`SELECT operation_id,request_hash,result FROM billing_gateway.operations WHERE subscription_id=${f.subscriptionId}::uuid AND kind='create_checkout'`;
+    await prepare(dbAdmin, {
+      ...replacementScope(f),
+      oldCheckoutId: old.id,
+      requestedBy: f.requestedBy,
+      noPaymentInitiated: true,
+    });
+    return { f, old, original };
+  }
+  await check(
+    'REPLACE audited CARD to Pix/card correction preserves original journal and activates exactly once',
+    async () => {
+      const { f, old, original } = await prepareOldCard();
+      const scope = replacementScope(f),
+        before = posts;
+      await assert.rejects(
+        create({ clinicId: f.clinicId }),
+        'Pending replacement must not return the old URL',
+      );
+      await assert.rejects(replacementOperator.issue(scope, callback));
+      assert.equal(posts, before);
+      await assert.rejects(
+        sql`UPDATE billing_gateway.bindings SET external_checkout_id='bill_unapproved' WHERE subscription_id=${f.subscriptionId}::uuid`,
+      );
+      await replacementOperator.close(scope);
+      await replacementOperator.close(scope);
+      assert.equal(posts, before + 1);
+      const checkout = await replacementOperator.issue(scope, callback);
+      assert.ok(checkout);
+      await replacementOperator.issue(scope, callback);
+      assert.equal(posts, before + 2);
+      assert.notEqual(checkout.checkoutId, old.id);
+      const target = remote.get(checkout.externalId)?.[0];
+      assert.ok(target);
+      assert.deepEqual(target.methods, ['CARD', 'PIX']);
+      assert.equal((await create({ clinicId: f.clinicId })).checkoutUrl, checkout.checkoutUrl);
+      await prepare(dbAdmin, {
+        ...scope,
+        oldCheckoutId: old.id,
+        requestedBy: f.requestedBy,
+        noPaymentInitiated: true,
+      });
+      assert.equal(posts, before + 2);
+      assert.deepEqual(
+        await sql`SELECT operation_id,request_hash,result FROM billing_gateway.operations WHERE subscription_id=${f.subscriptionId}::uuid AND kind='create_checkout'`,
+        original,
+      );
+      assert.equal((await state(f)).invoices, 0);
+      assert.equal((await state(f)).released, false);
+      pixPayments.add(target.id);
+      target.status = 'PAID';
+      target.paidAmount = 19700;
+      target.customerId = 'cust_synthetic';
+      assert.equal((await applyPayment({ subscriptionId: f.subscriptionId })).applied, 1);
+      assert.equal((await applyPayment({ subscriptionId: f.subscriptionId })).applied, 0);
+      assert.equal((await state(f)).invoices, 1);
+      assert.equal((await state(f)).released, true);
+      const [invoice] =
+        await sql`SELECT payment_method FROM public.invoices WHERE subscription_id=${f.subscriptionId}::uuid`;
+      assert.equal(invoice?.payment_method, 'PIX');
+      await assert.rejects(
+        sql`UPDATE billing_gateway.bindings SET external_checkout_id=${old.id} WHERE subscription_id=${f.subscriptionId}::uuid`,
+      );
+      await assert.rejects(
+        sql`UPDATE billing_gateway.initial_checkout_replacements SET phase='prepared' WHERE subscription_id=${f.subscriptionId}::uuid`,
+      );
+    },
+  );
+  await check(
+    'REPLACE timeout after creation recovers by GET without a second creation',
+    async () => {
+      const { f } = await prepareOldCard(),
+        scope = replacementScope(f);
+      await replacementOperator.close(scope);
+      const before = posts;
+      responseLost = true;
+      await assert.rejects(replacementOperator.issue(scope, callback));
+      responseLost = false;
+      await assert.rejects(replacementOperator.issue(scope, callback));
+      assert.equal(posts, before + 1);
+      const recovered = await replacementOperator.recover(scope, callback);
+      assert.ok(recovered);
+      assert.equal(posts, before + 1);
+      assert.equal((await replacementCheckout(dbAdmin, scope))?.checkoutId, recovered.checkoutId);
+      assert.equal((await state(f)).invoices, 0);
+    },
+  );
+  await check(
+    'REPLACE lost deletion acknowledgement is recovered by GET, never another deletion',
+    async () => {
+      const { f } = await prepareOldCard(),
+        scope = replacementScope(f),
+        before = posts;
+      lostDeletionResponse = true;
+      await assert.rejects(replacementOperator.close(scope));
+      lostDeletionResponse = false;
+      await assert.rejects(replacementOperator.close(scope));
+      assert.equal(posts, before + 1);
+      await replacementOperator.recoverClose(scope);
+      assert.equal(posts, before + 1);
+      await replacementOperator.issue(scope, callback);
+      assert.equal(posts, before + 2);
+    },
+  );
+  await check(
+    'REPLACE concurrent issue dispatches once and preserves tenant isolation',
+    async () => {
+      const { f } = await prepareOldCard(),
+        scope = replacementScope(f),
+        other = await seed();
+      await assert.rejects(replacementOperator.close({ ...scope, clinicId: other.clinicId }));
+      await assert.rejects(
+        prepare(dbAdmin, {
+          ...scope,
+          oldCheckoutId: 'bill_wrong',
+          requestedBy: other.requestedBy,
+          noPaymentInitiated: true,
+        }),
+      );
+      await replacementOperator.close(scope);
+      const before = posts;
+      const attempts = await Promise.allSettled(
+        Array.from({ length: 6 }, () => replacementOperator.issue(scope, callback)),
+      );
+      assert.ok(attempts.some((result) => result.status === 'fulfilled'));
+      assert.equal(posts, before + 1);
+      assert.equal((await state(other)).external_checkout_id, null);
+      const [privileges] =
+        await sql`SELECT has_table_privilege('authenticated','billing_gateway.initial_checkout_replacements','SELECT') can_read,
+      has_table_privilege('service_role','billing_gateway.initial_checkout_replacements','DELETE') can_delete`;
+      assert.equal(privileges?.can_read, false);
+      assert.equal(privileges?.can_delete, false);
+    },
+  );
+  await check('REPLACE old payment racing closure halts before replacement creation', async () => {
+    const { f, old } = await prepareOldCard(),
+      scope = replacementScope(f),
+      before = posts;
+    old.status = 'PAID';
+    old.paidAmount = 19700;
+    old.customerId = 'cust_synthetic';
+    await assert.rejects(replacementOperator.close(scope));
+    await assert.rejects(replacementOperator.issue(scope, callback));
+    assert.equal(posts, before);
+    assert.equal((await applyPayment({ subscriptionId: f.subscriptionId })).applied, 1);
+    assert.equal((await state(f)).invoices, 1);
+  });
   assert.equal(networkCalls, 0);
 } catch (error) {
   failure = error;
