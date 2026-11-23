@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 201 actions (0 inline); 68 métodos em 64 handlers; 19 props com referência de action; 572 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
+Contagem: 201 actions (0 inline); 68 métodos em 64 handlers; 19 props com referência de action; 575 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -608,9 +608,12 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/run-signup-recovery-dev.ts:11`                    | `APP_BASE_URL`                         | `process.env.APP_BASE_URL`                                                  |
 | `scripts/run-signup-recovery-dev.ts:12`                    | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/run-signup-recovery-dev.ts:13`                    | `VERCEL_BRANCH_URL`                    | `process.env.VERCEL_BRANCH_URL`                                             |
-| `scripts/security/abacatepay-checkout-recovery-db.ts:20`   | `<object>`                             | `process.env`                                                               |
-| `scripts/security/abacatepay-checkout-recovery-db.ts:44`   | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
-| `scripts/security/abacatepay-checkout-recovery-db.ts:45`   | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
+| `scripts/security/abacatepay-checkout-recovery-db.ts:23`   | `<object>`                             | `process.env`                                                               |
+| `scripts/security/abacatepay-checkout-recovery-db.ts:47`   | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
+| `scripts/security/abacatepay-checkout-recovery-db.ts:48`   | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
+| `scripts/security/abacatepay-checkout-recovery-db.ts:1055` | `GITHUB_ACTIONS`                       | `process.env.GITHUB_ACTIONS`                                               |
+| `scripts/security/abacatepay-checkout-recovery-db.ts:1068` | `<object>`                             | `process.env`                                                               |
+| `scripts/security/abacatepay-checkout-recovery-db.ts:1091` | `<object>`                             | `process.env`                                                               |
 | `scripts/security/abacatepay-code-composition.ts:16`       | `QORO_FINANCIAL_REF`                   | `process.env.QORO_FINANCIAL_REF`                                            |
 | `scripts/security/abacatepay-code-composition.ts:20`       | `QORO_TISS_REF`                        | `process.env.QORO_TISS_REF`                                                 |
 | `scripts/security/abacatepay-composition-checks-db.ts:79`  | `<object>`                             | `process.env`                                                               |

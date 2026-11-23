@@ -1,7 +1,10 @@
 /** Real migration/application transactions; only loopback PostgreSQL and synthetic API fixtures. */
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { z } from 'zod';
 
 import { readMigrations, startScratchSchema } from './scratch-schema';
 
@@ -310,6 +313,7 @@ async function reserveWithLostAcknowledgement(f: Fixture) {
   );
 }
 let failure: unknown;
+let report: Record<string, unknown> = {};
 try {
   await sql`UPDATE public.plans SET ativo=true WHERE code IN ('consultorio_2026','clinica_2026_2','clinica_2026_3','clinica_2026_4','clinica_2026_5')`;
   await check(
@@ -1021,36 +1025,103 @@ try {
 } finally {
   globalThis.fetch = originalFetch;
   await mkdir('dist', { recursive: true });
-  await writeFile(
-    'dist/abacatepay-checkout-recovery-db.json',
-    JSON.stringify(
-      {
-        observedAt: new Date().toISOString(),
-        environment: 'loopback_synthetic',
-        migrations: (await readMigrations()).length,
-        results,
-        networkCalls,
-        fixtureCalls,
-        syntheticPostAttempts: posts,
-        replacementSchemaProposal:
-          'Unnumbered SQL applied only in this owned disposable cluster; not in the deployable migration journal',
-        replacementSqlSha256: createHash('sha256')
-          .update(
-            await readFile(
-              'docs/decoupling/asaas-to-abacatepay/propostas/substituicao-checkout-inicial.sql',
-            ),
-          )
-          .digest('hex'),
-        productionWrites: 0,
-        status: failure ? 'FAIL' : 'PASS',
-      },
-      null,
-      2,
-    ),
-  );
+  report = {
+    observedAt: new Date().toISOString(),
+    environment: 'loopback_synthetic',
+    migrations: (await readMigrations()).length,
+    results,
+    networkCalls,
+    fixtureCalls,
+    syntheticPostAttempts: posts,
+    replacementSchemaProposal:
+      'Unnumbered SQL applied only in this owned disposable cluster; not in the deployable migration journal',
+    replacementSqlSha256: createHash('sha256')
+      .update(
+        await readFile(
+          'docs/decoupling/asaas-to-abacatepay/propostas/substituicao-checkout-inicial.sql',
+        ),
+      )
+      .digest('hex'),
+    productionWrites: 0,
+    status: failure ? 'FAIL' : 'PASS',
+  };
+  await writeFile('dist/abacatepay-checkout-recovery-db.json', JSON.stringify(report, null, 2));
   await cluster.stop();
 }
 if (failure) throw failure;
+// Qualify the same proposal against the exact 160-entry SaaS composition, too.
+// This stays on the disposable cloud runner and never edits CI configuration,
+// the source journal, another worktree or a shared database.
+if (process.env.GITHUB_ACTIONS === 'true' && !process.argv.includes('--shared-schema')) {
+  try {
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+    execFileSync(
+      process.execPath,
+      [
+        '--import',
+        'tsx',
+        'scripts/abacatepay-saas-release.ts',
+        '--output-suffix',
+        'replacement-proof',
+      ],
+      {
+        env: { ...process.env, QORO_FINANCIAL_REF: head },
+        stdio: 'inherit',
+        timeout: 120_000,
+      },
+    );
+    const target = path.resolve(`dist/abacatepay-saas-${head.slice(0, 8)}-replacement-proof`);
+    assert.ok(target.startsWith(path.resolve('dist') + path.sep));
+    await symlink(
+      path.resolve('node_modules'),
+      path.join(target, 'node_modules'),
+      process.platform === 'win32' ? 'junction' : 'dir',
+    );
+    execFileSync(
+      process.execPath,
+      [
+        '--conditions=react-server',
+        '--import',
+        'tsx',
+        'scripts/security/abacatepay-checkout-recovery-db.ts',
+        '--shared-schema',
+      ],
+      {
+        cwd: target,
+        env: { ...process.env },
+        stdio: 'inherit',
+        timeout: 180_000,
+      },
+    );
+    const sharedProof = z
+      .object({
+        status: z.literal('PASS'),
+        migrations: z.literal(160),
+        networkCalls: z.literal(0),
+        productionWrites: z.literal(0),
+        replacementSqlSha256: z.string().regex(/^[a-f0-9]{64}$/),
+        results: z.array(
+          z.object({ name: z.string(), status: z.literal('PASS'), durationMs: z.number() }),
+        ),
+      })
+      .parse(
+        JSON.parse(
+          await readFile(path.join(target, 'dist/abacatepay-checkout-recovery-db.json'), 'utf8'),
+        ),
+      );
+    assert.equal(
+      sharedProof.replacementSqlSha256,
+      report.replacementSqlSha256,
+      'The composed schema must exercise the same reviewed replacement proposal',
+    );
+    report.sharedSchemaProof = sharedProof;
+  } catch (error) {
+    report.status = 'FAIL';
+    await writeFile('dist/abacatepay-checkout-recovery-db.json', JSON.stringify(report, null, 2));
+    throw error;
+  }
+  await writeFile('dist/abacatepay-checkout-recovery-db.json', JSON.stringify(report, null, 2));
+}
 console.log(
   JSON.stringify({
     status: 'PASS',
