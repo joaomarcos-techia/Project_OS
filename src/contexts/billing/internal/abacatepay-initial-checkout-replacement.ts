@@ -56,6 +56,7 @@ const rowSchema = z.object({
   amount_minor: z.coerce.number().int().positive(),
   result: z.unknown(),
   current_checkout_id: reference('bill_'),
+  eligible: z.boolean(),
 });
 type Replacement = z.infer<typeof rowSchema>;
 type Scope = z.input<typeof scopeSchema>;
@@ -82,10 +83,20 @@ async function read(database: BillingGatewaySql, raw: Scope): Promise<Replacemen
     SELECT r.id::text,r.subscription_id::text,r.clinic_id::text,r.account_id::text,
       r.old_checkout_id,origin.result->>'externalId' old_external_id,r.close_operation_id::text,r.create_operation_id::text,
       r.phase,r.new_checkout_id,a.external_account_id,a.environment,i.product_id,i.amount_minor::text,
-      b.external_checkout_id current_checkout_id,created.result
+      b.external_checkout_id current_checkout_id,created.result,
+      (s.billing_status='trial' AND NOT s.cancel_at_period_end AND b.external_customer_id IS NULL
+        AND b.external_subscription_id IS NULL AND b.external_checkout_id=r.old_checkout_id
+        AND EXISTS(SELECT 1 FROM public.profiles WHERE id=r.requested_by AND clinic_id=r.clinic_id AND role='owner' AND ativo)
+        AND EXISTS(SELECT 1 FROM public.trial_access_policies WHERE subscription_id=r.subscription_id AND clinic_id=r.clinic_id AND released_at IS NULL)
+        AND s.price_id=i.price_id AND EXISTS(SELECT 1 FROM public.prices p WHERE p.id=s.price_id
+          AND p.amount*100=i.amount_minor AND p.currency='BRL' AND p.billing_cycle='monthly')
+        AND NOT EXISTS(SELECT 1 FROM billing_gateway.recontracts WHERE subscription_id=r.subscription_id)
+        AND NOT EXISTS(SELECT 1 FROM public.invoices WHERE subscription_id=r.subscription_id)) eligible
     FROM billing_gateway.initial_checkout_replacements r
     JOIN billing_gateway.accounts a ON a.id=r.account_id AND a.provider='abacatepay'
     JOIN billing_gateway.bindings b ON b.account_id=r.account_id AND b.subscription_id=r.subscription_id AND b.clinic_id=r.clinic_id
+    JOIN public.subscriptions s ON s.id=r.subscription_id AND s.clinic_id=r.clinic_id
+      AND s.billing_provider='abacatepay' AND s.asaas_subscription_id IS NULL
     JOIN billing_gateway.checkout_intents i ON i.account_id=r.account_id AND i.subscription_id=r.subscription_id AND i.clinic_id=r.clinic_id
     JOIN billing_gateway.operations origin ON origin.account_id=r.account_id AND origin.operation_id=r.old_operation_id
     LEFT JOIN billing_gateway.operations created ON created.account_id=r.account_id AND created.operation_id=r.create_operation_id
@@ -157,7 +168,8 @@ export function createInitialCheckoutReplacementOperator(
     if (
       !row ||
       row.external_account_id !== config.storeId ||
-      row.environment !== config.environment
+      row.environment !== config.environment ||
+      (row.phase !== 'bound' && !row.eligible)
     )
       throw new GatewayReadError('binding_mismatch');
     if ((await client.readStore()).id !== config.storeId)

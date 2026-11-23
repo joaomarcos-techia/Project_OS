@@ -15,6 +15,8 @@ CREATE TABLE billing_gateway.initial_checkout_replacements (
   old_operation_id uuid NOT NULL,
   close_operation_id uuid NOT NULL UNIQUE,
   create_operation_id uuid NOT NULL UNIQUE,
+  close_proof_operation_id uuid,
+  create_proof_operation_id uuid,
   requested_by uuid NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
   no_payment_initiated boolean NOT NULL CHECK (no_payment_initiated),
   phase text NOT NULL DEFAULT 'prepared' CHECK (phase IN ('prepared','closed','bound')),
@@ -26,9 +28,17 @@ CREATE TABLE billing_gateway.initial_checkout_replacements (
     REFERENCES billing_gateway.bindings(subscription_id,clinic_id,account_id) ON DELETE RESTRICT,
   FOREIGN KEY(account_id,old_operation_id)
     REFERENCES billing_gateway.operations(account_id,operation_id) ON DELETE RESTRICT,
+  FOREIGN KEY(account_id,close_proof_operation_id)
+    REFERENCES billing_gateway.operations(account_id,operation_id) ON DELETE RESTRICT,
+  FOREIGN KEY(account_id,create_proof_operation_id)
+    REFERENCES billing_gateway.operations(account_id,operation_id) ON DELETE RESTRICT,
   UNIQUE(account_id,old_checkout_id),
   UNIQUE(account_id,new_checkout_id),
   CHECK (new_checkout_id IS NULL OR new_checkout_id <> old_checkout_id),
+  CHECK ((phase='prepared' AND close_proof_operation_id IS NULL AND create_proof_operation_id IS NULL)
+    OR (phase='closed' AND close_proof_operation_id IS NOT NULL AND close_proof_operation_id=close_operation_id AND create_proof_operation_id IS NULL)
+    OR (phase='bound' AND close_proof_operation_id IS NOT NULL AND create_proof_operation_id IS NOT NULL
+      AND close_proof_operation_id=close_operation_id AND create_proof_operation_id=create_operation_id)),
   CHECK ((phase='prepared' AND closed_at IS NULL AND bound_at IS NULL AND new_checkout_id IS NULL)
     OR (phase='closed' AND closed_at IS NOT NULL AND bound_at IS NULL AND new_checkout_id IS NULL)
     OR (phase='bound' AND closed_at IS NOT NULL AND bound_at IS NOT NULL AND new_checkout_id IS NOT NULL))
@@ -59,7 +69,7 @@ BEGIN
   IF v_price IS NULL OR v_old IS DISTINCT FROM NEW.old_checkout_id OR v_product IS NULL
     OR EXISTS(SELECT 1 FROM public.invoices WHERE subscription_id=NEW.subscription_id)
     OR EXISTS(SELECT 1 FROM billing_gateway.paid_checkouts WHERE subscription_id=NEW.subscription_id)
-    OR EXISTS(SELECT 1 FROM public.trial_access_policies WHERE subscription_id=NEW.subscription_id AND released_at IS NOT NULL)
+    OR NOT EXISTS(SELECT 1 FROM public.trial_access_policies WHERE subscription_id=NEW.subscription_id AND clinic_id=NEW.clinic_id AND released_at IS NULL)
     OR EXISTS(SELECT 1 FROM billing_gateway.recontracts WHERE subscription_id=NEW.subscription_id)
     OR NOT EXISTS(SELECT 1 FROM public.profiles WHERE id=NEW.requested_by AND clinic_id=NEW.clinic_id AND role='owner' AND ativo)
     OR NOT EXISTS(SELECT 1 FROM billing_gateway.operations o WHERE o.account_id=NEW.account_id
@@ -86,6 +96,7 @@ BEGIN
       OR v_result->>'amountMinor' IS DISTINCT FROM v_amount::text
       OR v_result->>'productId' IS DISTINCT FROM v_product
     THEN RAISE EXCEPTION 'Unpaid closure proof missing' USING ERRCODE='23514'; END IF;
+    NEW.close_proof_operation_id:=NEW.close_operation_id;
     IF NEW.phase='closed' THEN NEW.closed_at:=now();
     ELSE
       SELECT o.result INTO v_result FROM billing_gateway.operations o
@@ -98,6 +109,7 @@ BEGIN
         OR NEW.closed_at IS DISTINCT FROM OLD.closed_at
       THEN RAISE EXCEPTION 'Replacement creation proof missing' USING ERRCODE='23514'; END IF;
       NEW.bound_at:=now();
+      NEW.create_proof_operation_id:=NEW.create_operation_id;
     END IF;
   END IF;
   RETURN NEW;

@@ -608,9 +608,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/run-signup-recovery-dev.ts:11`                    | `APP_BASE_URL`                         | `process.env.APP_BASE_URL`                                                  |
 | `scripts/run-signup-recovery-dev.ts:12`                    | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/run-signup-recovery-dev.ts:13`                    | `VERCEL_BRANCH_URL`                    | `process.env.VERCEL_BRANCH_URL`                                             |
-| `scripts/security/abacatepay-checkout-recovery-db.ts:19`   | `<object>`                             | `process.env`                                                               |
-| `scripts/security/abacatepay-checkout-recovery-db.ts:43`   | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
-| `scripts/security/abacatepay-checkout-recovery-db.ts:44`   | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
+| `scripts/security/abacatepay-checkout-recovery-db.ts:20`   | `<object>`                             | `process.env`                                                               |
+| `scripts/security/abacatepay-checkout-recovery-db.ts:44`   | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
+| `scripts/security/abacatepay-checkout-recovery-db.ts:45`   | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/security/abacatepay-code-composition.ts:16`       | `QORO_FINANCIAL_REF`                   | `process.env.QORO_FINANCIAL_REF`                                            |
 | `scripts/security/abacatepay-code-composition.ts:20`       | `QORO_TISS_REF`                        | `process.env.QORO_TISS_REF`                                                 |
 | `scripts/security/abacatepay-composition-checks-db.ts:79`  | `<object>`                             | `process.env`                                                               |

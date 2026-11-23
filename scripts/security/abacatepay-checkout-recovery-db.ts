@@ -840,9 +840,19 @@ try {
       await assert.rejects(
         sql`UPDATE billing_gateway.bindings SET external_checkout_id='bill_unapproved' WHERE subscription_id=${f.subscriptionId}::uuid`,
       );
+      await assert.rejects(
+        sql`UPDATE billing_gateway.initial_checkout_replacements SET phase='closed',closed_at=now()
+        WHERE subscription_id=${f.subscriptionId}::uuid`,
+        'Cannot advance without closure proof',
+      );
       await replacementOperator.close(scope);
       await replacementOperator.close(scope);
       assert.equal(posts, before + 1);
+      await assert.rejects(
+        sql`UPDATE billing_gateway.initial_checkout_replacements SET phase='bound',new_checkout_id='bill_forged',bound_at=now()
+        WHERE subscription_id=${f.subscriptionId}::uuid`,
+        'Cannot attach without creation proof',
+      );
       const checkout = await replacementOperator.issue(scope, callback);
       assert.ok(checkout);
       await replacementOperator.issue(scope, callback);
@@ -865,6 +875,26 @@ try {
       );
       assert.equal((await state(f)).invoices, 0);
       assert.equal((await state(f)).released, false);
+      // An unexpected late payment on the retired generation must not activate
+      // the new generation or manufacture a matching invoice.
+      old.status = 'PAID';
+      old.paidAmount = 19700;
+      old.customerId = 'cust_synthetic';
+      const lateOldPayment = await createAbacatePayInitialPaymentReader(
+        { provider: 'abacatepay', environment: 'sandbox', accountId: 'store_synthetic' },
+        { apiKey: 'synthetic', environment: 'sandbox' },
+      ).readInitialPayment({
+        subscriptionId: `subs_${old.id.slice(5)}`,
+        customerId: 'cust_synthetic',
+        checkoutId: old.id,
+        productId: f.productId,
+        expectedAmountMinor: 19700,
+      });
+      assert.equal(await dbAdmin.transaction((tx) => applyInitial(tx, lateOldPayment)), 'review');
+      assert.equal((await state(f)).invoices, 0);
+      old.status = 'PENDING';
+      old.paidAmount = null;
+      old.customerId = null;
       pixPayments.add(target.id);
       target.status = 'PAID';
       target.paidAmount = 19700;
@@ -935,6 +965,16 @@ try {
           noPaymentInitiated: true,
         }),
       );
+      const originalLink = remote.get(f.reference)?.[0];
+      assert.ok(originalLink);
+      await assert.rejects(
+        prepare(dbAdmin, {
+          ...scope,
+          oldCheckoutId: originalLink.id,
+          requestedBy: other.requestedBy,
+          noPaymentInitiated: true,
+        }),
+      );
       await replacementOperator.close(scope);
       const before = posts;
       const attempts = await Promise.allSettled(
@@ -963,6 +1003,18 @@ try {
     assert.equal((await applyPayment({ subscriptionId: f.subscriptionId })).applied, 1);
     assert.equal((await state(f)).invoices, 1);
   });
+  await check(
+    'REPLACE changed local commercial state halts before an external command',
+    async () => {
+      const { f } = await prepareOldCard(),
+        scope = replacementScope(f),
+        before = posts;
+      await sql`UPDATE public.subscriptions SET billing_status='cancelled' WHERE id=${f.subscriptionId}::uuid`;
+      await assert.rejects(replacementOperator.close(scope));
+      await assert.rejects(replacementOperator.issue(scope, callback));
+      assert.equal(posts, before);
+    },
+  );
   assert.equal(networkCalls, 0);
 } catch (error) {
   failure = error;
@@ -980,6 +1032,15 @@ try {
         networkCalls,
         fixtureCalls,
         syntheticPostAttempts: posts,
+        replacementSchemaProposal:
+          'Unnumbered SQL applied only in this owned disposable cluster; not in the deployable migration journal',
+        replacementSqlSha256: createHash('sha256')
+          .update(
+            await readFile(
+              'docs/decoupling/asaas-to-abacatepay/propostas/substituicao-checkout-inicial.sql',
+            ),
+          )
+          .digest('hex'),
         productionWrites: 0,
         status: failure ? 'FAIL' : 'PASS',
       },
