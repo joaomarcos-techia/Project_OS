@@ -76,14 +76,31 @@ CREATE INDEX hi_extra_items_appointment_idx ON public.hi_appointment_extra_items
 --> statement-breakpoint
 
 -- Guia da sessão já fechada? (aprovada em diante: o conteúdo emitido não muda por aqui)
+-- Trava as guias vivas da sessão (FOR SHARE, mesmo padrão da 0165) ANTES de ler a etapa: uma
+-- conferência ou aprovação concorrente espera este registro terminar, ou o registro espera a guia
+-- mudar e lê a etapa nova. Sem a trava, em READ COMMITTED, um item podia ser gravado no instante em
+-- que a guia era fechada (prova 16 de health-insurance-extra-items-db.ts).
 CREATE FUNCTION public.hi_extra_item_guide_closed(p_clinic uuid, p_appointment uuid) RETURNS boolean
-  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.hi_guide_items i
-      JOIN public.hi_guides g ON g.clinic_id = i.clinic_id AND g.id = i.guide_id
-     WHERE i.clinic_id = p_clinic AND i.appointment_id = p_appointment AND i.live
-       AND g.status NOT IN ('pending_data', 'ready_for_review')
-  );
+  LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+  v_closed boolean := false;
+  v_status text;
+BEGIN
+  FOR v_status IN
+    SELECT g.status::text FROM public.hi_guides g
+     WHERE g.clinic_id = p_clinic
+       AND EXISTS (SELECT 1 FROM public.hi_guide_items i
+                    WHERE i.clinic_id = g.clinic_id AND i.guide_id = g.id
+                      AND i.appointment_id = p_appointment AND i.live)
+     ORDER BY g.id
+       FOR SHARE OF g
+  LOOP
+    IF v_status NOT IN ('pending_data', 'ready_for_review') THEN
+      v_closed := true;
+    END IF;
+  END LOOP;
+  RETURN v_closed;
+END;
 $$;
 --> statement-breakpoint
 REVOKE ALL ON FUNCTION public.hi_extra_item_guide_closed(uuid, uuid) FROM PUBLIC, anon, authenticated;

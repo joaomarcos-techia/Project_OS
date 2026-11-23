@@ -10,6 +10,10 @@
  * (vigência na data da sessão, atendimento executado, mensagens de regra); e que, com a política
  * P8.4-r ainda sem decisão, a guia NÃO muda.
  *
+ * Provas 15 a 18 (23/11): concorrência (dois registros do mesmo procedimento; registro × conferência
+ * da guia nas duas ordens, com a trava FOR SHARE da guia), reprocessamento e reentrega da conclusão,
+ * conteúdo exportado (XML do lote validado no XSD, decifrado) e recebível da sessão.
+ *
  *   SECURITY_PG_BIN=... PORT=55569 NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs" \
  *     ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-extra-items-db.ts
  */
@@ -47,11 +51,23 @@ const { applyTransition } = await import('../../src/contexts/scheduling/internal
 const { recordAppointmentCoverage } = await import('../../src/contexts/health-insurance/internal/coverage-service');
 const req = await import('../../src/contexts/health-insurance/internal/sadt-request-service');
 const extra = await import('../../src/contexts/health-insurance/internal/extra-executed-items');
-const { loadHiFixtures, SYS_ACTOR } = await import('./hi-fixtures');
+const { issueSpSadtGuide } = await import('../../src/contexts/health-insurance/internal/sadt-issuance');
+const { processInsuranceBilling } = await import('../../src/contexts/health-insurance/internal/billing-recovery');
+const { loadXmllintValidator } = await import('../../src/contexts/health-insurance/tiss/xml/xsd-validator');
+const { decryptForTenant } = await import('../../src/lib/crypto/encryption');
+const { loadHiFixtures, SYNTHETIC_CARD, SYS_ACTOR } = await import('./hi-fixtures');
 
+const xsd = loadXmllintValidator();
+if (!xsd) throw new Error('validador XSD do app indisponível (TISS_XMLLINT_WASM_DIR fora do CI)');
+// Guarda o que a exportação grava (XML cifrado), para a prova do conteúdo exportado.
+const objects = new Map<string, Uint8Array>();
 const fx = await loadHiFixtures(sql, {
-  store: { async put() {}, async get() { return new Uint8Array(); }, async remove() {} },
-  validateXsd: null,
+  store: {
+    async put(ref: string, bytes: Uint8Array) { objects.set(ref, bytes); },
+    async get(ref: string) { return objects.get(ref)!; },
+    async remove(ref: string) { objects.delete(ref); },
+  },
+  validateXsd: xsd,
 });
 type Clinic = Awaited<ReturnType<typeof fx.setupClinic>>;
 const q = fx.sqlTag;
@@ -323,7 +339,140 @@ try {
   await sql`ALTER TABLE public.hi_appointment_extra_items_off RENAME TO hi_appointment_extra_items`;
   pass('sem a tabela (DEV e Preview sem a 0167), o serviço responde "indisponível" e a lista vem vazia, sem erro técnico');
 
-  console.log(`\n${passed}/14 provas dos itens executados adicionais (P8.4, candidata 0167) passaram.`);
+  // ── 15–18 (23/11): concorrência, reprocessamento, conteúdo exportado e recebível ──
+  const ledgerDigest = async () =>
+    (await sql`select count(*)::int n, md5(coalesce(string_agg(md5(l::text), ',' order by md5(l::text)), '')) h
+       from public.lancamentos l where l.clinic_id = ${A.clinicId}::uuid`)[0] as { n: number; h: string };
+  const waitingOnLock = async () => {
+    for (let i = 0; i < 200; i++) {
+      const [w] = await sql`select count(*)::int n from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'`;
+      if (Number(w!.n) > 0) return true;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    return false;
+  };
+  const p5 = await patientWithCard(A, 'cinco');
+  const r5 = await readyRequest(A, p5, CODE_MAIN, 2);
+  assert.equal(r5.kind, 'ready');
+  const ap5 = await session(A, p5, r5.itemId, '2026-11-13');
+  const ap6 = await session(A, p5, r5.itemId, '2026-11-14');
+  await sql`update public.appointments set status = 'em_atendimento' where id in (${ap5}::uuid, ${ap6}::uuid)`;
+
+  // 15. Dois registros simultâneos do mesmo procedimento: um grava, o outro recebe "já registrado".
+  const ledger15 = await ledgerDigest();
+  const race = await Promise.all(
+    [1, 2].map(() =>
+      outcome(() => asUser(A, (tx) => extra.recordExtraItemTx(tx, { clinicId: A.clinicId, appointmentId: ap5, contractLineId: lineConf, quantity: 1, source: 'conferencia' }))),
+    ),
+  );
+  assert.deepEqual([...race].sort(), ['ok', 'regra:DUPLICATE']);
+  const [act5] = await sql`select count(*)::int n from public.hi_appointment_extra_items
+    where appointment_id = ${ap5}::uuid and status = 'active' and procedure_code = '50000616'`;
+  assert.equal(Number(act5!.n), 1);
+  assert.deepEqual(await ledgerDigest(), ledger15, 'registrar item não toca no livro');
+  pass('dois registros simultâneos do mesmo procedimento na mesma sessão: um grava, o outro recebe "já registrado" (índice único); um só item ativo; o livro financeiro não muda');
+
+  // 16. Registro × conferência da guia, nas duas ordens (a guia fica travada FOR SHARE pelo registro).
+  await asUser(A, (tx) => extra.recordExtraItemTx(tx, { clinicId: A.clinicId, appointmentId: ap6, contractLineId: lineConf, quantity: 2, source: 'conferencia' }));
+  await complete(A, ap5, p5.patientId);
+  await complete(A, ap6, p5.patientId);
+  const g5 = await guideOf(ap5);
+  const g6 = await guideOf(ap6);
+  assert.deepEqual([g5!.status, g5!.items, g5!.total, g6!.status, g6!.items, g6!.total], ['ready_for_review', 1, 12000, 'ready_for_review', 1, 12000]);
+  const closeGuideTx = async (tx: Parameters<Parameters<typeof withTenant>[1]>[0], guideId: string) => {
+    const [g] = await sql`select version from public.hi_guides where id = ${guideId}::uuid`;
+    await tx.execute(q`UPDATE public.hi_guides SET status = 'reviewed', reviewed_by = ${A.doctorId}::uuid
+      WHERE clinic_id = ${A.clinicId}::uuid AND id = ${guideId}::uuid AND version = ${g!.version}`);
+  };
+  // (a) a conferência fecha primeiro e segura a transação: o registro espera e, liberado, lê "fechada".
+  let releaseA!: () => void;
+  const heldA = new Promise<void>((r) => (releaseA = r));
+  let closedA!: () => void;
+  const isClosedA = new Promise<void>((r) => (closedA = r));
+  const closingA = asUser(A, async (tx) => {
+    await closeGuideTx(tx, g5!.id as string);
+    closedA();
+    await heldA;
+  });
+  await isClosedA;
+  const recordingA = outcome(() => asUser(A, (tx) => extra.recordExtraItemTx(tx, { clinicId: A.clinicId, appointmentId: ap5, contractLineId: lineLate, quantity: 1, source: 'conferencia' })));
+  const waitedA = await waitingOnLock();
+  releaseA();
+  await closingA;
+  const resA = await recordingA;
+  assert.equal(waitedA, true, 'o registro deveria esperar a conferência em andamento');
+  assert.equal(resA, 'regra:GUIDE_CLOSED');
+  const [lateA] = await sql`select count(*)::int n from public.hi_appointment_extra_items where appointment_id = ${ap5}::uuid and procedure_code = '50000624'`;
+  assert.equal(Number(lateA!.n), 0);
+  // (b) o registro grava primeiro e segura a transação: a conferência espera; os dois terminam, o item antes do fechamento.
+  let releaseB!: () => void;
+  const heldB = new Promise<void>((r) => (releaseB = r));
+  let insertedB!: () => void;
+  const isInsertedB = new Promise<void>((r) => (insertedB = r));
+  const recordingB = asUser(A, async (tx) => {
+    await extra.recordExtraItemTx(tx, { clinicId: A.clinicId, appointmentId: ap6, contractLineId: lineFree, quantity: 1, source: 'conferencia' });
+    insertedB();
+    await heldB;
+  });
+  await isInsertedB;
+  const closingB = asUser(A, (tx) => closeGuideTx(tx, g6!.id as string));
+  const waitedB = await waitingOnLock();
+  releaseB();
+  await recordingB;
+  await closingB;
+  const [stB] = await sql`select g.status, (select count(*)::int from public.hi_appointment_extra_items e
+      where e.appointment_id = ${ap6}::uuid and e.status = 'active') as n from public.hi_guides g where g.id = ${g6!.id}::uuid`;
+  assert.equal(waitedB, true, 'a conferência deveria esperar o registro em andamento');
+  assert.deepEqual([stB!.status, Number(stB!.n)], ['reviewed', 2]);
+  pass('registro × conferência da guia: com a conferência primeiro, o registro espera e é recusado ("guia fechada"), sem item; com o registro primeiro, a conferência espera e fecha depois, com o item gravado antes do fechamento (trava FOR SHARE da guia; sem ela, o item entrava numa guia já fechada)');
+
+  // 17. Reprocessamento (3×) e reentrega do evento de conclusão: nada duplica nem muda.
+  const itemsSnap = async () =>
+    (await sql`select id::text, status from public.hi_appointment_extra_items where clinic_id = ${A.clinicId}::uuid order by id`)
+      .map((r) => `${r.id}:${r.status}`)
+      .join(',');
+  const items17 = await itemsSnap();
+  const guides17 = JSON.stringify([await guideOf(ap1), await guideOf(ap5), await guideOf(ap6)]);
+  const ledger17 = await ledgerDigest();
+  for (let k = 0; k < 3; k++) {
+    for (const ap of [ap1, ap5, ap6]) {
+      await withTenant(A.clinicId, (tx) => processInsuranceBilling(tx, { clinicId: A.clinicId, appointmentId: ap, detectedBy: 'event', eventState: 'processed', lock: 'wait' }));
+    }
+  }
+  const redelivered = await sql`insert into public.outbox (clinic_id, event_type, payload, idempotency_key)
+    select clinic_id, event_type, payload, idempotency_key || ':reentrega' from public.outbox
+     where clinic_id = ${A.clinicId}::uuid and event_type = 'scheduling.appointment.insurance_completed' returning id`;
+  assert.ok(redelivered.length >= 3, `reentrega de ${redelivered.length} eventos`);
+  for (let i = 0; i < 4; i++) await runOutboxOnce({ batchSize: 50, parallelism: 1 });
+  const [pendingEv] = await sql`select count(*)::int n from public.outbox where id = any(${redelivered.map((r) => r.id as string)}::uuid[]) and status <> 'processed'`;
+  assert.equal(Number(pendingEv!.n), 0, 'os eventos reentregues foram processados');
+  assert.equal(await itemsSnap(), items17);
+  assert.equal(JSON.stringify([await guideOf(ap1), await guideOf(ap5), await guideOf(ap6)]), guides17);
+  assert.deepEqual(await ledgerDigest(), ledger17);
+  pass(`reprocessamento (3× por sessão) e reentrega de ${redelivered.length} eventos de conclusão: as guias seguem com 1 item e 12.000 centavos cada, os itens adicionais iguais (mesmos ids e estados), o livro igual`);
+
+  // 18. Conteúdo exportado e recebível: o XML do lote leva só o procedimento agendado.
+  await asUser(A, async (tx) => req.setClinicalIndicationInTx(tx, { clinicId: A.clinicId, requestId: r5.requestId, version: await version(r5.requestId), text: 'Indicação sintética de teste.', actorUserId: A.doctorId }));
+  await asUser(A, (tx) => issueSpSadtGuide(tx, {
+    clinicId: A.clinicId, guideId: g6!.id as string, card: { membershipId: p5.membershipId, cardNumber: SYNTHETIC_CARD, auditEventId: randomUUID() },
+    newborn: false, professionalName: 'Dra. Sintética', actorUserId: A.doctorId, today: '2026-11-15',
+  }));
+  const batchId = await fx.createBatch(A, [g6!.id as string], { guideType: 'sp_sadt' });
+  const exported = await fx.exportBatch(A, batchId);
+  assert.equal(exported.kind, 'exported');
+  const [file] = await sql`select storage_ref from public.hi_files where kind = 'batch_xml' and batch_id = ${batchId}::uuid`;
+  const cipher = Buffer.from(objects.get(file!.storage_ref as string)!).toString('utf8');
+  const xml = Buffer.from(await decryptForTenant(A.clinicId, cipher), 'base64').toString('utf8');
+  const codes = [...xml.matchAll(/codigoProcedimento>\s*([0-9]+)\s*</gu)].map((m) => m[1]);
+  assert.deepEqual([...new Set(codes)], [CODE_MAIN], `procedimentos no XML: ${codes.join(',')}`);
+  for (const c of [CODE_FREE, CODE_AUTH, '50000616', '50000624']) assert.ok(!xml.includes(`>${c}<`), `o item adicional ${c} não vai ao XML`);
+  const [recv] = await sql`select count(*)::int n, coalesce(sum(valor), 0)::numeric(12,2)::text total from public.lancamentos
+    where clinic_id = ${A.clinicId}::uuid and tipo = 'receber' and (appointment_id = ${ap6}::uuid or source_hi_guide_id = ${g6!.id}::uuid)`;
+  assert.ok(Number(recv!.n) === 0 || recv!.total === '120.00', `recebível da sessão: ${recv!.n} lançamento(s), ${recv!.total}`);
+  const [activeG6] = await sql`select count(*)::int n from public.hi_appointment_extra_items where appointment_id = ${ap6}::uuid and status = 'active'`;
+  pass(`conteúdo exportado: a guia emitida da sessão com ${activeG6!.n} itens adicionais ativos vai ao lote; o XML (validado no XSD oficial, decifrado) leva só o procedimento agendado (${CODE_MAIN}); recebível da sessão: ${recv!.n} lançamento(s), total ${recv!.total} (nunca o agendado + os adicionais)`);
+
+  console.log(`\n${passed}/18 provas dos itens executados adicionais (P8.4, candidata 0167) passaram.`);
 } finally {
   await cluster.stop();
 }

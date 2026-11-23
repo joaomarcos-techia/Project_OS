@@ -204,6 +204,8 @@ try {
   const led0 = await ledger();
   assert.deepEqual([led0.n, led0.last], [167, WHEN_0166]);
 
+  // Privilégio padrão do Supabase ausente no cluster local (antes da fotografia do catálogo).
+  await sql`GRANT SELECT ON public.clinics, public.profiles TO authenticated`;
   const { loadHiFixtures } = await import('./hi-fixtures');
   const fx = await loadHiFixtures(sql, {
     store: { async put() {}, async get() { return new Uint8Array(); }, async remove() {} },
@@ -213,10 +215,9 @@ try {
   const clinic = await fx.setupClinic('Ensaio 0167');
   const g1 = await clinic.approvedGuide();
   const g2 = await clinic.approvedGuide();
-  const [{ guides, appts }] = (await sql<{ guides: number; appts: number }[]>`
-    select (select count(*)::int from public.hi_guides) guides, (select count(*)::int from public.appointments) appts`) as [
-    { guides: number; appts: number },
-  ];
+  const [counts] = await sql<{ guides: number; appts: number }[]>`
+    select (select count(*)::int from public.hi_guides) guides, (select count(*)::int from public.appointments) appts`;
+  const { guides, appts } = counts!;
   assert.ok(guides >= 2 && appts >= 2);
   const cat0 = await catalog();
   const data0 = await data();

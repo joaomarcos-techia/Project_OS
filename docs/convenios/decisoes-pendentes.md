@@ -1,15 +1,15 @@
-# Decisões humanas pendentes do módulo Convênios (atualizado em 22/11/2026)
+# Decisões humanas pendentes do módulo Convênios (atualizado em 23/11/2026)
 
 Cada linha é um **pedido de aprovação separado**. Nenhuma decisão é presumida a partir de silêncio, e um GO de uma não vale para outra. As alternativas e recomendações vêm do plano mestre (seções N e L), das provas e do código atual.
 
-## Quadro executivo (22/11, homologação final)
+## Quadro executivo (23/11, fechamento funcional)
 
 Em ordem de prioridade: primeiro o que destrava teste ou funcionalidade. "Bloqueia" diz se a decisão segura **desenvolvimento**, **homologação externa** ou **produção**.
 
 | Decisão | Descrição | Evidência atual | Opções | Recomendação técnica | Risco | Impacto | Depois da aprovação | Bloqueia |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| **0167 no DEV** (D23) | aplicar a candidata 0167 (itens executados adicionais) só no DEV | 14/14 em Postgres descartável; tabela nova, nada em tabela existente | aplicar no DEV / esperar | aplicar no DEV, com o roteiro de pré-voo, backup e pós-voo dos ciclos anteriores | o DEV é compartilhado com o Preview | destrava o E2E da P8.4 | pré-voo, aplicação, pós-voo e E2E da conferência | homologação da P8.4 |
-| **P8.4-r** | o que fazer, no faturamento, com o item executado sem solicitação prévia | 4 alternativas implementadas e testadas (9/9); vigente "sem decisão": registra e não fatura | (a) bloquear o faturamento; (b) pendência de regularização que trava a aprovação; (c) autorização posterior (fatura quando o contrato não exige ou há saldo autorizado); (d) só registro | (c): segue a própria regra de autorização do contrato e nunca fatura acima do autorizado. Se a operadora exigir solicitação prévia, (b). **Decisão sua** (regra de negócio e de contrato) | (c) sem regra da operadora pode gerar glosa; (a) e (d) deixam de cobrar o que foi feito | define se a SP/SADT com vários itens é faturada | trocar a política vigente (uma linha), prova do faturamento da alternativa e E2E | funcionalidade (faturamento dos itens) |
+| **0167 no DEV** (D23) | aplicar a migration 0167 (itens executados adicionais) só no DEV compartilhado | **pedido de GO completo em `go-0167-dev.md`** (SHA, SQL, objetos, testes, compatibilidade, journal, ordem, riscos, recuperação); banco da P8.4 18/18 e ensaio com o migrador real 11/11 em Postgres descartável; corrida guia × registro achada e corrigida antes de aplicar | aplicar no DEV / esperar | aplicar no DEV pelo aplicador limitado, com promoção ao journal, pré-voo, backup e pós-voo | toma ShareRowExclusive em `clinics` e em duas tabelas de convênio até o COMMIT (milissegundos; desiste sozinho em 2 s com escrita longa); DEV compartilhado | destrava o E2E da P8.4 no Preview | promoção ao journal, pré-voo, aplicação, pós-voo e E2E da conferência | homologação da P8.4 |
+| **P8.4-r** | o que fazer, no faturamento, com o item executado sem solicitação prévia | **ficha em `decisao-p84r.md`** com A, B e C, consequências, testes e texto exato; vigente "sem decisão": registra e não fatura | A registrar e manter pendente; B regularização posterior com autorização válida e auditoria; C conferência antes de qualquer transmissão (combináveis) | combinação A + B + C (a sua preferência de segurança): registrar sempre, nunca faturar sozinho, incluir só com autorização e saldo ou com a confirmação do faturamento, aprovar sem o item só com motivo. Junto: "exceção do médico" no consultório (sim/não). **Decisão sua** | A sozinha deixa de cobrar o que foi feito; B sem C pode faturar sem conferência humana | define se a SP/SADT com vários itens é faturada e quem registra no consultório | política nova, ações "incluir" e "aprovar sem o item", montagem da guia, aviso na conferência e os 14 casos de teste da ficha | funcionalidade (faturamento dos itens) |
 | **P12.6** | regra de alerta no Sentry disparando em teste | manutenção só emite métrica; token local inválido (não reutilizado) | (a) você cria pela tela; (b) token com escopo de alertas como segredo do repositório; (c) outro provedor | (a), cerca de 5 minutos | falha da manutenção TISS sem alerta | fecha a P12.6 | falha sintética no Preview e conferência da entrega | produção |
 | **B5** | operadora e clínica piloto para a homologação real | conector com recibo provado contra o simulador; registro de produção vazio | indicar operadora com ambiente de homologação TISS 4.03.00 e clínica paga | a operadora em que a piloto já fatura | sem B5 não há recibo real | P9.4, P2.5, P13.6, P15.3 e P15.4 | configurar só o ambiente de homologação; H22–H26 | homologação externa |
 | **S9 e S1** (segurança ANS) | consulta formal (S9) e alcance só nas clínicas com convênio (S1) | fichas com 10 campos; nada ligado para usuário real | ver `perfil-seguranca-s1-s9.md` | S9 primeiro; S1 só nas clínicas com convênio | P15.5 não fecha | perfil de segurança TISS | ligar S2–S4 no Preview depois dos E2E | produção |
@@ -47,10 +47,13 @@ O R54 não precisa de decisão nova: o GO "SIM, TUDO" vale, e a próxima tentati
 ## R54 — estorno externo no Asaas Sandbox
 
 - **Situação:** decidida ("SIM, TUDO"). O pagamento de R$ 10,00 está conciliado.
-- **Estornos:** o parcial foi recusado três vezes pelo prazo do Asaas; nenhum foi criado.
-- **Próxima tentativa:** uma única, em 23/11 a partir das 09h, se alguém retomar a sessão. Não há agendamento automático.
-- **Se recusar de novo:** enviar a pergunta ao suporte do Asaas (rascunho em `homologacao-r54-sandbox.md`).
-- **Nada a decidir agora.**
+- **Estornos:** o parcial de R$ 4,00 foi recusado **quatro** vezes, a última na tentativa única de 23/11 às 09h56. A mensagem é sempre a mesma ("só pode ser estornada parcialmente no próximo dia"). Nenhum estorno foi criado, e o estado do Asaas e do Qoro ficou igual antes e depois.
+- **Tentativas paradas,** conforme a regra do ciclo:
+  - sem nova tentativa;
+  - sem estorno integral de R$ 10,00;
+  - sem novo checkout.
+- **Ação sua (2 minutos):** enviar ao suporte do Asaas, pelo painel do Sandbox, o texto pronto em `homologacao-r54-sandbox.md`, seção "Pedido ao suporte do Asaas". Copie o identificador da cobrança do painel. Não mande dado de cartão nem chave.
+- **Depois da resposta:** voltar a este item. Com o caminho que o Asaas indicar, o estorno parcial e o restante podem ser feitos numa sessão com GO.
 
 ## P12.6 — alerta do provedor disparando em teste
 
