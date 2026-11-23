@@ -24,6 +24,7 @@ export interface InitialPaymentEvidence {
   amountMinor: number;
   paidAmountMinor: number | null;
   currency: 'BRL';
+  method: 'card' | 'pix';
   state: 'paid' | 'pending' | 'expired' | 'cancelled' | 'refunded' | 'unknown';
   rawStatus: string;
   /** Provider charge/receipt confirmation does not prove available funds. */
@@ -61,6 +62,7 @@ export function createAbacatePayInitialPaymentReader(
       const subscription = await read.readSubscription(expected.subscriptionId);
       if (
         subscription.customerId !== expected.customerId ||
+        !['CARD', 'PIX'].includes(subscription.method) ||
         subscription.checkoutId !== expected.checkoutId ||
         subscription.trialEndsAt !== null ||
         subscription.amount !== expected.expectedAmountMinor
@@ -104,6 +106,7 @@ export function createAbacatePayInitialPaymentReader(
         amountMinor: checkout.amount,
         paidAmountMinor: checkout.paidAmount,
         currency: 'BRL',
+        method: subscription.method === 'PIX' ? 'pix' : 'card',
         state,
         rawStatus: checkout.status,
         settlement: 'unknown',

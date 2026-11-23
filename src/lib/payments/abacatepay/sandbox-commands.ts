@@ -33,6 +33,12 @@ const checkoutInput = operation
     expectedAmountMinor: amount,
     expectedCycle: cycle,
     expectedNativeTrialDays: z.number().int().min(1).max(90).nullable(),
+    methods: z
+      .array(z.enum(['CARD', 'PIX']))
+      .min(1)
+      .max(2)
+      .refine((methods) => new Set(methods).size === methods.length)
+      .optional(),
     returnUrl: z
       .url()
       .refine((value) => new URL(value).protocol === 'https:')
@@ -126,6 +132,10 @@ const checkoutDetailsShape = z.object({
     customerId: z.null(),
     url: hostedUrl,
     items: z.array(z.object({ id: prefixedId('prod_'), quantity: z.literal(1) })).length(1),
+    methods: z
+      .array(z.enum(['CARD', 'PIX']))
+      .min(1)
+      .max(2),
   }),
 });
 
@@ -235,7 +245,7 @@ export function createAbacatePayCommands(
             checkout.items[0]?.quantity !== 1 ||
             before.checkoutId !== input.checkoutId ||
             before.customerId !== input.customerId ||
-            before.method !== 'CARD' ||
+            !['CARD', 'PIX'].includes(before.method) ||
             before.trialEndsAt !== null ||
             !['ACTIVE', 'CANCELLED'].includes(before.status) ||
             linked.length !== 1 ||
@@ -265,6 +275,7 @@ export function createAbacatePayCommands(
             after.checkoutId !== before.checkoutId ||
             after.customerId !== before.customerId ||
             after.status !== before.status ||
+            after.method !== before.method ||
             after.amount !== before.amount ||
             remaining.length !== 1 ||
             remaining[0]?.id !== before.id ||
@@ -310,6 +321,8 @@ export function createAbacatePayCommands(
     },
     async createSubscriptionCheckout(raw: z.input<typeof checkoutInput>) {
       const input = inputValue(checkoutInput, raw);
+      if (input.methods?.includes('PIX') && input.expectedNativeTrialDays !== null)
+        throw new GatewayReadError('invalid_input');
       const parameters = { ...input, operationId: undefined };
       const schema = checkoutResult.refine(
         (value) =>
@@ -333,13 +346,15 @@ export function createAbacatePayCommands(
           }
           const body = {
             items: [{ id: product.id, quantity: 1 }],
-            methods: ['CARD'],
+            methods: input.methods ?? ['CARD'],
             externalId: input.externalId,
             metadata:
               account.environment === 'sandbox'
                 ? { qoroSandboxReference: input.externalId }
                 : { qoroReference: input.externalId },
-            retryPolicy: { maxRetry: 3, retryEvery: 1 },
+            ...((input.methods ?? ['CARD']).includes('CARD')
+              ? { retryPolicy: { maxRetry: 3, retryEvery: 1 } }
+              : {}),
             ...(input.returnUrl ? { returnUrl: input.returnUrl } : {}),
             ...(input.completionUrl ? { completionUrl: input.completionUrl } : {}),
           };
@@ -358,6 +373,7 @@ export function createAbacatePayCommands(
           if (
             details.id !== response.data.id ||
             details.items[0]?.id !== input.productId ||
+            JSON.stringify(details.methods) !== JSON.stringify(body.methods) ||
             details.externalId !== input.externalId
           )
             throw new GatewayReadError('binding_mismatch');
@@ -415,6 +431,8 @@ export function createAbacatePayCommands(
         if (
           subscription.customerId !== input.customerId ||
           subscription.status !== 'ACTIVE' ||
+          !['CARD', 'PIX'].includes(subscription.method) ||
+          (subscription.method === 'PIX' && subscription.amount !== input.expectedAmountMinor) ||
           originalCycle !== input.expectedCycle ||
           product.cycle !== input.expectedCycle ||
           product.price !== input.expectedAmountMinor ||

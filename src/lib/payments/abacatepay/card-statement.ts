@@ -15,6 +15,7 @@ export const cardStatementInputSchema = z.object({
   periodEnd: z.iso.datetime({ offset: true }),
   paymentId: opaqueBillingId.optional(),
   requireCustomer: z.boolean().optional(),
+  paymentMethod: z.enum(['CARD', 'PIX']).optional(),
 });
 export const cardStatementSchema = z.object({
   id: resource('tran_'),
@@ -109,13 +110,17 @@ export function selectApprovedCardStatement(items: CardStatement[], raw: CardSta
       (item.customer && item.customer.publicId !== expected.customerId)
     )
       throw new GatewayReadError('binding_mismatch');
-    const gross = item.movements.filter((movement) => movement.kind === 'CARD_APPROVED');
+    const paymentMethod = expected.paymentMethod ?? 'CARD';
+    const gross = item.movements.filter(
+      (movement) => movement.kind === (paymentMethod === 'PIX' ? 'DEPOSIT' : 'CARD_APPROVED'),
+    );
     if (
       gross.length !== 1 ||
       gross[0]?.amount !== expected.expectedAmountMinor ||
-      gross[0]?.method !== 'CARD' ||
+      gross[0]?.method !== paymentMethod ||
       gross[0]?.category !== 'transaction' ||
-      gross[0]?.balanceEffect === 'debit'
+      gross[0]?.balanceEffect === 'debit' ||
+      (paymentMethod === 'PIX' && gross[0]?.balanceEffect !== 'credit')
     )
       throw new GatewayReadError('binding_mismatch');
     candidates.push({
@@ -147,8 +152,8 @@ export async function readApprovedCardStatement(
   for (let page = 0; page < MAX_PAGES; page++) {
     const params = new URLSearchParams({
       limit: '100',
-      method: 'CARD',
-      kind: 'CARD_APPROVED',
+      method: expected.paymentMethod ?? 'CARD',
+      kind: expected.paymentMethod === 'PIX' ? 'DEPOSIT' : 'CARD_APPROVED',
       status: 'APPROVED',
       startDate: cardStatementBrazilDate(start - RECEIPT_CLOCK_SKEW_MS),
       endDate: cardStatementBrazilDate(end),

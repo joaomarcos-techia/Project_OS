@@ -42,7 +42,11 @@ const checkoutSchema = z.object({
   paidAmount: z.number().int().nonnegative().refine(Number.isSafeInteger).nullable(),
   customerId: resource('cust_').nullable(),
   items: z.array(z.object({ id: resource('prod_'), quantity: z.literal(1) })).length(1),
-  methods: z.array(z.literal('CARD')).length(1),
+  methods: z
+    .array(z.enum(['CARD', 'PIX']))
+    .min(1)
+    .max(2)
+    .refine((methods) => new Set(methods).size === methods.length),
   returnUrl: httpsUrl.nullish(),
   completionUrl: httpsUrl.nullish(),
   createdAt: z.iso.datetime({ offset: true }),
@@ -149,8 +153,18 @@ export function createAbacatePayCheckoutRecoveryReader(
           candidate.items[0]?.id !== expected.productId ||
           Date.parse(candidate.createdAt) < Date.parse(expected.reservedAt) - CLOCK_SKEW_MS ||
           Date.parse(candidate.createdAt) > Date.now() + CLOCK_SKEW_MS ||
-          commandOperationFingerprint('create_subscription_checkout', parameters) !==
-            expected.requestFingerprint
+          // Preserve recovery of CARD-only operations created before methods
+          // were explicit. New requests bind the exact method order as well.
+          (commandOperationFingerprint('create_subscription_checkout', {
+            ...parameters,
+            methods: candidate.methods,
+          }) !== expected.requestFingerprint &&
+            !(
+              candidate.methods.length === 1 &&
+              candidate.methods[0] === 'CARD' &&
+              commandOperationFingerprint('create_subscription_checkout', parameters) ===
+                expected.requestFingerprint
+            ))
         )
           throw new GatewayReadError('binding_mismatch');
         return {

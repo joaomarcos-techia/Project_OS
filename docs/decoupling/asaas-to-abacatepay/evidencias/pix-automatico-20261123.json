@@ -1,0 +1,70 @@
+{
+  "date": "2026-11-23",
+  "scope": "Pix Automatico and card choice; no live financial mutation or deployment",
+  "liveReadback": {
+    "observedAt": "2026-11-23T13:39:25.576Z",
+    "checkoutId": "bill_eeHjDX0GzNMDYxTQHXJ2Z42a",
+    "methods": ["CARD"],
+    "status": "PENDING",
+    "amountMinor": 19700,
+    "paidAmount": null,
+    "devMode": false,
+    "linkedProviderSubscriptions": 0,
+    "localInvoices": 0,
+    "localStatus": "trial",
+    "trialQuotasReleased": false,
+    "sqlMode": "read-only, TLS verify-full",
+    "providerTls": "verified with Node --use-system-ca; no validation bypass",
+    "productionWrites": 0,
+    "productionFinancialPosts": 0
+  },
+  "sandboxCreation": {
+    "observedAt": "2026-11-23T13:40:15.252Z",
+    "checkoutId": "bill_WDmDg06Za3fcYfESKcu2NWgZ",
+    "methods": ["PIX", "CARD"],
+    "amountMinor": 19700,
+    "devMode": true,
+    "status": "PENDING",
+    "httpStatus": 200,
+    "posts": 1,
+    "paymentsPerformed": 0,
+    "proof": "Distinct credential and existing monthly no-native-trial product verified devMode=true before POST"
+  },
+  "sandboxCleanup": {
+    "deleteIntentRecorded": true,
+    "observedAt": "2026-11-23T13:54:14.640Z",
+    "checkoutListCountAfterDelete": 0,
+    "listHasMore": false,
+    "linkedSubscriptions": 0,
+    "getStillReadable": true,
+    "getStatus": "PENDING",
+    "additionalDeletePosts": 0,
+    "classification": "Removed from list; payment-link invalidation NOT VERIFIED. Do not infer unpayable from deletion alone. No payment performed."
+  },
+  "targetedValidation": {
+    "passedTests": 509,
+    "failedTests": 0,
+    "skippedTests": 0,
+    "lint": "PASS for changed TypeScript files",
+    "format": "PASS",
+    "ci": "Pending new commit; previous baseline CI is not evidence for these changes",
+    "newPostgresChecks": "Prepared; not yet executed"
+  },
+  "blockingSchemaRules": [
+    "gateway_initial_checkout_subscription_unique: one create_checkout operation per local subscription",
+    "bindings_preserve_origin: non-null external_checkout_id cannot be replaced or cleared"
+  ],
+  "remaining": [
+    "Validate the exact new SHA in CI, including PostgreSQL activation and renewal checks",
+    "Prepare and obtain specific approval for an audited replacement generation; preserve the immutable original and journal",
+    "Verify that closing an unpaid provider checkout prevents another payment; GET/list evidence alone does not prove this",
+    "Resolve any in-flight CARD attempt before issuing a replacement",
+    "Do not issue a second live checkout or claim a live Pix payment before those prerequisites"
+  ],
+  "officialSources": [
+    "https://docs.abacatepay.com/pages/cobrar/pix-automatico",
+    "https://docs.abacatepay.com/pages/subscriptions/create",
+    "https://docs.abacatepay.com/pages/bank-statement/list",
+    "https://docs.abacatepay.com/pages/webhooks/events/subscriptions"
+  ]
+}

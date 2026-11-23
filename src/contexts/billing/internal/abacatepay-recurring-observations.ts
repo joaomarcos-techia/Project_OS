@@ -30,7 +30,7 @@ const evidenceSchema = z
     currency: z.literal('BRL'),
     confirmedAt: z.iso.datetime({ offset: true }),
     chargeCreatedAt: z.iso.datetime({ offset: true }),
-    method: z.literal('card'),
+    method: z.enum(['card', 'pix']),
     recurrence: z.enum(['running', 'stopped']),
     obligation: z.literal('paid'),
     settlement: z.literal('unknown'),

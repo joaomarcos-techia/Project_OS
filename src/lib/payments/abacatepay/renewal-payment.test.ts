@@ -129,9 +129,11 @@ function fixture(options: Options = {}) {
         };
         break;
       case '/v2/bank-statement/list':
-        expect(url.searchParams.get('kind')).toBe('CARD_APPROVED');
+        expect(url.searchParams.get('kind')).toBe(
+          subscription.method === 'PIX' ? 'DEPOSIT' : 'CARD_APPROVED',
+        );
         expect(url.searchParams.get('status')).toBe('APPROVED');
-        expect(url.searchParams.get('method')).toBe('CARD');
+        expect(url.searchParams.get('method')).toBe(subscription.method);
         if (options.statementStatus) return new Response('{}', { status: options.statementStatus });
         body = {
           success: true,
@@ -165,6 +167,38 @@ function fixture(options: Options = {}) {
 }
 
 describe('renewal charge readback (no billing-period assertion or access grant)', () => {
+  const pixMovement = {
+    amount: 39700,
+    kind: 'DEPOSIT',
+    method: 'PIX',
+    category: 'transaction',
+    balanceEffect: 'credit',
+  };
+  it('verifies a recurring Pix deposit and retains its actual payment method', async () => {
+    const f = fixture({
+      subscription: { method: 'PIX' },
+      statements: [statement({ movements: [pixMovement] })],
+    });
+    expect(await f.reader.readRenewalPayment(input)).toMatchObject({
+      state: 'paid',
+      evidence: { method: 'pix', paymentId: input.paymentId, paidAmountMinor: 39700 },
+    });
+  });
+  it.each([
+    { ...pixMovement, balanceEffect: 'none' },
+    { ...pixMovement, balanceEffect: 'debit' },
+    { ...pixMovement, method: 'CARD' },
+    { ...pixMovement, amount: 39699 },
+    { ...pixMovement, kind: 'REFUND' },
+  ])('rejects an invalid Pix receipt without advancing access: %j', async (movement) => {
+    const f = fixture({
+      subscription: { method: 'PIX' },
+      statements: [statement({ movements: [movement] })],
+    });
+    await expect(f.reader.readRenewalPayment(input)).rejects.toMatchObject({
+      code: 'binding_mismatch',
+    });
+  });
   const discoveryInput = {
     subscriptionId: input.subscriptionId,
     customerId: input.customerId,
@@ -454,7 +488,7 @@ describe('renewal charge readback (no billing-period assertion or access grant)'
     { checkout: { amount: 54400 } },
     { checkout: { items: [{ id: 'prod_extra', quantity: 1 }] } },
     { checkout: { items: [{ id: 'prod_fixture', quantity: 2 }] } },
-    { subscription: { method: 'PIX' } },
+    { subscription: { method: 'BOLETO' } },
     { subscription: { trialEndsAt: input.windowEnd } },
   ])(
     'REN-017 price/product/method/trial changes require review, never infer new quota: %j',

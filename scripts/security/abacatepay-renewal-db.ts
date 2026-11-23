@@ -653,6 +653,34 @@ if (process.env.QORO_ABACATEPAY_SCALE === '1') {
 }
 try {
   await sql`UPDATE public.plans SET ativo=true WHERE code IN ('clinica_2026_2','clinica_2026_3','clinica_2026_4','clinica_2026_5','consultorio_2026')`;
+  await check(
+    'PIX renewal records the actual method once and prevents unsupported amount changes',
+    async () => {
+      const pix = await seed();
+      pix.evidence.method = 'pix';
+      await sql`UPDATE public.invoices SET payment_method='PIX' WHERE subscription_id=${pix.subscription_id}::uuid`;
+      await accept(pix);
+      assert.equal(await apply(pix), 'applied');
+      assert.equal(await apply(pix), 'duplicate');
+      const rows = await sql<{ payment_method: string; status: string }[]>`
+      SELECT payment_method,status FROM public.invoices WHERE subscription_id=${pix.subscription_id}::uuid`;
+      assert.equal(rows.length, 2);
+      assert(rows.every((row) => row.payment_method === 'PIX' && row.status === 'paid'));
+      await assert.rejects(
+        changePlan(dbAdmin, {
+          clinicId: pix.clinicId,
+          requestedBy: pix.userId,
+          contractId: pix.subscription_id,
+          targetPlanId: await targetPlan('clinica_2026_3'),
+        }),
+        { code: 'not_eligible' },
+      );
+      const [pending] = await sql<
+        { count: number }[]
+      >`SELECT count(*)::int count FROM billing_gateway.plan_changes WHERE subscription_id=${pix.subscription_id}::uuid`;
+      assert.equal(pending?.count, 0);
+    },
+  );
   const first = await seed();
   await accept(first);
   await check(
@@ -3233,6 +3261,7 @@ try {
           paidAmountMinor: 39700,
           currency: 'BRL' as const,
           state: 'paid' as const,
+          method: 'card' as const,
           rawStatus: 'PAID',
           settlement: 'unknown' as const,
           subscriptionCreatedAt: new Date().toISOString(),

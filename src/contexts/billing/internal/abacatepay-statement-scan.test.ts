@@ -79,6 +79,27 @@ const request = () =>
     );
 beforeEach(() => vi.clearAllMocks());
 describe('durable statement scan boundary (SQL doubles; PostgreSQL proof is separate)', () => {
+  it('does not use the CARD cache to confirm a Pix deposit', async () => {
+    const db = database([]);
+    const read = request().mockResolvedValue({
+      ...page,
+      data: [
+        {
+          ...payload,
+          movements: [
+            { ...payload.movements[0], kind: 'DEPOSIT', method: 'PIX', balanceEffect: 'credit' },
+          ],
+        },
+      ],
+    });
+    expect(await reader(db, account)(read, { ...expected, paymentMethod: 'PIX' })).toMatchObject({
+      paymentId: 'char_one',
+      amountMinor: 39700,
+    });
+    expect(db.execute).not.toHaveBeenCalled();
+    expect(read.mock.calls[0]?.[0].params?.get('method')).toBe('PIX');
+    expect(read.mock.calls[0]?.[0].params?.get('kind')).toBe('DEPOSIT');
+  });
   it('N-1 performs no scan or provider call before the approved schema exists', async () => {
     const db = database([[{ ready: false }]]),
       read = request();

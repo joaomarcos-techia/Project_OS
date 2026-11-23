@@ -29,6 +29,7 @@ function setup(consumedOrigin = false, environment: 'sandbox' | 'production' = '
     price: number;
     trialDays: number | null;
     subscriptionStatus: string;
+    subscriptionMethod: string;
     subscriptionAmount: number;
     subscriptionCustomer: string;
     subscriptionCycle: string | undefined;
@@ -42,12 +43,14 @@ function setup(consumedOrigin = false, environment: 'sandbox' | 'production' = '
     originPaid: boolean;
     closed: boolean;
     extraSubscription: boolean;
+    checkoutMethods: ('CARD' | 'PIX')[];
   } = {
     storeId: 'store_test',
     devMode: true,
     price: 100,
     trialDays: 14,
     subscriptionStatus: 'ACTIVE',
+    subscriptionMethod: 'CARD',
     subscriptionAmount: 19700,
     subscriptionCustomer: 'cust_test',
     subscriptionCycle: 'MONTHLY',
@@ -61,6 +64,7 @@ function setup(consumedOrigin = false, environment: 'sandbox' | 'production' = '
     originPaid: false,
     closed: false,
     extraSubscription: false,
+    checkoutMethods: ['CARD'],
   };
   const journal = new TestCommandJournal();
   const fetcher = vi.fn<typeof fetch>(async (target, options) => {
@@ -69,7 +73,11 @@ function setup(consumedOrigin = false, environment: 'sandbox' | 'production' = '
     if (options?.method === 'POST') {
       if (scenario.postFailure) throw new Error('private fixture-key');
       if (url.pathname.endsWith('/products/create')) return envelope({ id: 'prod_created' });
-      if (url.pathname.endsWith('/subscriptions/create')) return envelope({ id: 'bill_test' });
+      if (url.pathname.endsWith('/subscriptions/create')) {
+        const payload: { methods: ('CARD' | 'PIX')[] } = JSON.parse(String(options.body));
+        scenario.checkoutMethods = payload.methods;
+        return envelope({ id: 'bill_test' });
+      }
       if (url.pathname.endsWith('/subscriptions/checkouts/delete')) {
         expect(url.searchParams.get('id')).toBe('bill_test');
         scenario.closed = true;
@@ -118,6 +126,7 @@ function setup(consumedOrigin = false, environment: 'sandbox' | 'production' = '
         customerId: scenario.originPaid ? scenario.subscriptionCustomer : null,
         url: scenario.checkoutUrl,
         items: [{ id: scenario.checkoutProduct, quantity: 1 }],
+        methods: scenario.checkoutMethods,
       });
     }
     if (url.pathname.endsWith('/subscriptions/list'))
@@ -130,7 +139,7 @@ function setup(consumedOrigin = false, environment: 'sandbox' | 'production' = '
             checkoutId: 'bill_test',
             amount: scenario.subscriptionAmount,
             status: scenario.subscriptionStatus,
-            method: 'CARD',
+            method: scenario.subscriptionMethod,
             devMode: scenario.devMode,
             trialEndsAt: null,
           },
@@ -158,7 +167,7 @@ function setup(consumedOrigin = false, environment: 'sandbox' | 'production' = '
         customerId: scenario.subscriptionCustomer,
         amount: scenario.subscriptionAmount,
         status: scenario.subscriptionStatus,
-        method: 'CARD',
+        method: scenario.subscriptionMethod,
         devMode: scenario.devMode,
         trialEndsAt: null,
         ...(scenario.subscriptionCycle === undefined
@@ -186,6 +195,86 @@ function setup(consumedOrigin = false, environment: 'sandbox' | 'production' = '
 }
 
 describe('explicit live commands with synthetic transport only', () => {
+  it('does not reinterpret a confirmed CARD checkout as a new Pix operation', async () => {
+    const f = setup();
+    f.scenario.trialDays = null;
+    const original = { ...checkoutInput, expectedNativeTrialDays: null };
+    const first = await f.client.createSubscriptionCheckout(original);
+    await expect(
+      f.client.createSubscriptionCheckout({ ...original, methods: ['PIX'] }),
+    ).rejects.toMatchObject({ code: 'operation_conflict' });
+    expect(await f.client.createSubscriptionCheckout(original)).toEqual(first);
+    expect(f.posts()).toHaveLength(1);
+  });
+  it('refuses a provider readback that silently omitted the requested Pix option', async () => {
+    const f = setup();
+    f.scenario.trialDays = null;
+    const fetcher: typeof fetch = async (target, init) => {
+      const response = await f.fetcher(target, init);
+      if (!String(target).includes('/subscriptions/checkouts/get')) return response;
+      const body: { success: boolean; data: { methods: string[] } } = await response.json();
+      body.data.methods = ['CARD'];
+      return Response.json(body);
+    };
+    const client = createAbacatePayCommands(
+      {
+        apiKey: 'fixture-key',
+        storeId: 'store_test',
+        probeProductId: 'prod_probe',
+        environment: 'sandbox',
+      },
+      f.journal,
+      fetcher,
+    );
+    await expect(
+      client.createSubscriptionCheckout({
+        ...checkoutInput,
+        expectedNativeTrialDays: null,
+        methods: ['CARD', 'PIX'],
+      }),
+    ).rejects.toMatchObject({ code: 'operation_unknown' });
+    expect(f.posts()).toHaveLength(1);
+  });
+  it.each([19700, 39700, 54400, 69100, 83800])(
+    'offers Pix and card at the exact monthly price %i',
+    async (price) => {
+      const f = setup(false, 'production');
+      f.scenario.trialDays = null;
+      f.scenario.price = price;
+      f.scenario.checkoutAmount = price;
+      const methods: ('CARD' | 'PIX')[] = ['CARD', 'PIX'];
+      const input = {
+        ...checkoutInput,
+        expectedAmountMinor: price,
+        expectedNativeTrialDays: null,
+        methods,
+      };
+      await expect(f.client.createSubscriptionCheckout(input)).resolves.toMatchObject({
+        amountMinor: price,
+      });
+      await f.client.createSubscriptionCheckout(input);
+      expect(f.posts()).toHaveLength(1);
+      expect(JSON.parse(String(f.posts()[0]?.[1]?.body))).toMatchObject({
+        methods: ['CARD', 'PIX'],
+        items: [{ id: 'prod_created', quantity: 1 }],
+      });
+    },
+  );
+  it('does not offer a native free trial or card retries in a Pix-only checkout', async () => {
+    const f = setup();
+    await expect(
+      f.client.createSubscriptionCheckout({ ...checkoutInput, methods: ['PIX'] }),
+    ).rejects.toMatchObject({ code: 'invalid_input' });
+    expect(f.posts()).toHaveLength(0);
+    f.scenario.trialDays = null;
+    await f.client.createSubscriptionCheckout({
+      ...checkoutInput,
+      expectedNativeTrialDays: null,
+      methods: ['PIX'],
+    });
+    expect(JSON.parse(String(f.posts()[0]?.[1]?.body))).toMatchObject({ methods: ['PIX'] });
+    expect(JSON.parse(String(f.posts()[0]?.[1]?.body))).not.toHaveProperty('retryPolicy');
+  });
   it('creates one journaled live checkout with false devMode and no Sandbox metadata', async () => {
     const { client, scenario, posts } = setup(false, 'production');
     scenario.trialDays = null;
@@ -236,18 +325,36 @@ describe('AbacatePay commands isolated to Sandbox', () => {
     productId: 'prod_created',
     expectedAmountMinor: 19700,
   };
-  it('closes a paid link once while preserving the subscription and immutable journal result', async () => {
-    const { client, scenario, posts } = setup();
-    scenario.originPaid = true;
-    scenario.checkoutAmount = 19700;
-    expect(await client.closePaidCheckout(closeInput)).toMatchObject({
-      closed: true,
-      checkoutId: 'bill_test',
-      amountMinor: 19700,
-    });
-    expect(scenario.subscriptionStatus).toBe('ACTIVE');
-    await client.closePaidCheckout(closeInput);
-    expect(posts()).toHaveLength(1);
+  it.each(['CARD', 'PIX'])(
+    'closes a paid %s link once while preserving the subscription and immutable journal result',
+    async (method) => {
+      const { client, scenario, posts } = setup();
+      scenario.originPaid = true;
+      scenario.subscriptionMethod = method;
+      scenario.checkoutAmount = 19700;
+      expect(await client.closePaidCheckout(closeInput)).toMatchObject({
+        closed: true,
+        checkoutId: 'bill_test',
+        amountMinor: 19700,
+      });
+      expect(scenario.subscriptionStatus).toBe('ACTIVE');
+      await client.closePaidCheckout(closeInput);
+      expect(posts()).toHaveLength(1);
+    },
+  );
+  it('refuses a Pix amount change before dispatching any change-plan command', async () => {
+    const f = setup();
+    f.scenario.subscriptionMethod = 'PIX';
+    f.scenario.trialDays = null;
+    await expect(
+      f.client.requestPlanChange({
+        ...subscriptionInput,
+        productId: 'prod_created',
+        expectedAmountMinor: 100,
+        expectedCycle: 'MONTHLY',
+      }),
+    ).rejects.toMatchObject({ code: 'operation_unknown' });
+    expect(f.posts()).toHaveLength(0);
   });
   it('preserves a subscription whose current plan differs from the consumed original price', async () => {
     const { client, scenario } = setup();

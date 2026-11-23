@@ -22,6 +22,7 @@ interface Props {
   cancellationState?: 'none' | 'requested' | 'confirmed';
   canRecontract?: boolean;
   planChanges?: {
+    amountChangeBlocked?: boolean;
     options: { id: string; name: string; code: string; amountMinor: number }[];
     pending: { planId: string; confirmed: boolean; effectiveNotBefore: string } | null;
   } | null;
@@ -270,7 +271,13 @@ export function DeferredSubscription(props: Props) {
         )
       ) : null}
       {message ? <Alert variant="warning">{message}</Alert> : null}
-      {props.planChanges ? (
+      {props.planChanges?.amountChangeBlocked ? (
+        <Alert variant="info" title="Pagamento por Pix Automático">
+          O valor autorizado no banco é fixo. Para mudar o plano ou a quantidade de médicos com
+          outro valor, será necessária uma nova contratação e autorização bancária. Fale com o
+          suporte antes de alterar sua assinatura.
+        </Alert>
+      ) : props.planChanges ? (
         <div className="space-y-3">
           <h3 className="font-semibold">Plano e médicos adicionais</h3>
           <p className="text-sm text-fg-muted">

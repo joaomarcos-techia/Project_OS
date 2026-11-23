@@ -213,6 +213,7 @@ export async function createDeferredSubscriptionCheckout(input: { clinicId: stri
       expectedAmountMinor: amountMinor,
       expectedCycle: 'MONTHLY',
       expectedNativeTrialDays: null,
+      methods: ['CARD', 'PIX'],
       returnUrl: callbackUrl,
       completionUrl: callbackUrl,
     });

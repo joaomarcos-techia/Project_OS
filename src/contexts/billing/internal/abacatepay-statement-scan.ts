@@ -430,6 +430,9 @@ export function createPersistentAbacatePayStatementReader(
 ): CardStatementReader {
   return async (request, raw) => {
     const expected = validateCardStatementInput(raw);
+    // The durable cache contains CARD_APPROVED only. Never let its empty CARD
+    // partition hide a real PIX deposit, or treat a card receipt as Pix evidence.
+    if (expected.paymentMethod === 'PIX') return readApprovedCardStatement(request, expected);
     const payloads = await cachedStatementPayloads(database, account, request, {
       start: expected.periodStart,
       end: expected.periodEnd,

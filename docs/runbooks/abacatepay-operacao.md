@@ -1,5 +1,37 @@
 # Operação e recuperação AbacatePay
 
+## Checkpoint — Pix Automático, 23/11/2026
+
+Solicitação atual: cada contratação deve oferecer Pix Automático e cartão no mesmo checkout do preço escolhido. O único piloto live continua limitado a R$ 197/mês, um médico e até três administrativos. A API live confirmou o checkout CARD anterior pendente e sem assinatura; nenhum novo checkout live foi emitido nesta rodada.
+
+O Sandbox aceitou `methods=[PIX,CARD]` no checkout sintético `bill_WDmDg06Za3fcYfESKcu2NWgZ`, por R$ 197, `devMode=true`, sem pagamento. Não confundir isso com homologação de Pix live. A habilitação é feita por loja e o provedor pode recusar Pix quando indisponível. Consultar [a documentação oficial de Pix Automático](https://docs.abacatepay.com/pages/cobrar/pix-automatico).
+
+O Pix Automático exige autorização no banco, cobra a primeira parcela nessa autorização e mantém valor fixo. Não tem trial nativo, cupom, cobrança por uso nem troca para outro valor na mesma autorização; `retryPolicy` pertence ao cartão. O trial de 14 dias continua no Qoro. Não oferecer Pix avulso como substituto da recorrência. Nunca pedir senha bancária, cartão, PAN ou CVV pelo Qoro/chat.
+
+**Não substituir o checkout atual por SQL manual:** a origem e o journal são imutáveis. Não apagar operação, desativar trigger, limpar `external_checkout_id` ou enviar um segundo POST inicial. Para trocar o método de um link já emitido, preparar uma geração de substituição auditada e obter o GO específico de schema/implantação. Antes de encerrar qualquer link, reconferir que não existe pagamento ou assinatura e esclarecer eventual tentativa de cartão em andamento. Fechar a aquisição do Qoro não invalida o link externo.
+
+No incremento candidato, o meio real vem da API e acompanha invoice e renovação. Comprovante Pix exige DEPOSIT/PIX com `balanceEffect=credit`; um CARD_APPROVED não comprova Pix. O leitor Pix tem teto explícito de cinco páginas e não utiliza o cache exclusivo de cartão. Falha, ausência ou ambiguidade não libera direitos; manter reconciliação e encaminhar revisão quando necessário. A renovação natural continua sem prova externa nova.
+
+## C3 — 22/11/2026: cadastro concluído e único checkout live pendente
+
+**B — GATE A PASS; PILOTO PROVISIONADO, AGUARDANDO PAGAMENTO HUMANO.** O fundador concluiu o cadastro e confirmou expressamente usar os nomes efetivos **clínica “teste”, titular “cec”**, no e-mail aprovado, em substituição aos nomes preparatórios. Mesmo piloto, sem segunda clínica. UUID `10bfc9a6-b210-4ad8-b645-074a8ed62afa`; owner `4fcff640-3aa1-4f45-ad4f-aa30ecc3fa31`; contrato `6638f7ae-a1bb-47e1-a945-3cfe1fc1a119`. E-mail confirmado, senha bcrypt e binding `set`, owner ativo, convite concluído. Consultório, **um médico, até três administrativos, R$ 197/mês**, sem Asaas associado. Trial até 06/12/2026 às 14:56:08 Brasília; normalização JavaScript de 0,512 ms em relação ao timestamp Auth, sem mudança de dias de avaliação.
+
+Criado **um único checkout Production** `bill_eeHjDX0GzNMDYxTQHXJ2Z42a`, às **15:15:22 Brasília**, no produto `prod_SsBGWnFA5Qk1dED3DLRkzSDT`, `externalId=qoro-initial-6638f7ae-a1bb-47e1-a945-3cfe1fc1a119`, R$ 197, mensal, cartão, sem trial nativo. Operação `3de9f1d1-d3ba-4443-8ef0-d1549571a22f` confirmada no journal; checkout associado ao binding. **PENDING, zero assinatura externa e zero invoice; direitos pagos não liberados.** O link oficial será entregue privadamente ao titular; não existe data de expiração garantida pela resposta observada. O valor integral será cobrado ao concluir o pagamento humano, sem somar os dias restantes do trial.
+
+A fonte continua `e3cf8bbd`, sem mudança de aplicação, SQL ou dependências. Deployment restrito `dpl_BNkdQWgK64gTCyTt7d9CK23shEau` validou no build loja/chave central, Redis local versus Production, cinco produtos, webhook e allowlist exata de um UUID; 24 verificações sintéticas da atestação, oito do guard de POST e 42 testes de comandos financeiros passaram. Promovido às 15:13:31. Após emitir e reconciliar, **app.qoro.dev voltou às 15:17:13 para `dpl_EUJWn37i3dGhjsmjT45Vi3aCfqaT`**, mesmo código, aquisição e admissão privadas fechadas, allowlist vazia. Mesmos 21 crons, consumidores ativos, sem migrations, R61, alteração de configuração global ou merge. O deployment intermediário imutável mantém apenas o UUID autorizado; a restrição única do journal impede outra obrigação inicial. Fechar as flags do Qoro não invalida o checkout externo já emitido.
+
+Houve um timeout de GET antes de qualquer operação financeira; readbacks confirmaram zero checkout/operação antes da primeira emissão. Depois do único POST, uma checagem do operador usou `externalId` num DTO que não o expõe; corrigida a interpretação com GET nativo e journal confirmado, sem repetir criação ou alterar status pago. A associação foi concluída pelo mesmo padrão de binding do fluxo normal. Última conferência 15:18 Brasília: health Auth/banco/Redis/Asaas/outbox OK, heartbeats após o fechamento, sem backlog; cinco contratos Asaas e fingerprints de assinaturas/invoices/preços/planos preservados.
+
+**Próxima ação:** titular paga somente o link desse checkout e informa “paguei”. Então consultar fonte financeira autoritativa, confirmar webhook/inbox/consumer, uma invoice, período, liberação das nove cotas de trial e manutenção dos limites do plano 1+3, fechamento automático e ausência de duplicidade. Não emitir novo checkout, simular pagamento, marcar invoice como paga ou reabrir aquisição para validar. R1–R4/R51 continuam com aceite restrito ao piloto; B1-B diferido/não verificado; C4 não autorizado. [Evidência sanitizada](../decoupling/asaas-to-abacatepay/evidencias/c3-checkout-live-20261122.json). Checkpoints abaixo são históricos quando divergirem.
+
+## Ocorrência QORO-3D/3G — 21/11/2026
+
+Recuperação observada sem alteração em Production. Entre 10:04 e 10:15 Brasília, a consulta de ambiente da AbacatePay sofreu timeouts e HTTP 521; a pausa distribuída do Qoro gerou `rate_limited` antes de despachar novas leituras. Não foram observadas respostas HTTP 429 do provedor nesse recorte. O worker compartilhado e os outros jobs continuaram; recuperação natural às 10:16:28. Conferência às 13:57: quinze ticks naturais recentes sem erro, health/banco/Redis/Asaas saudáveis, sem backlog e sem alteração dos registros financeiros legados. GET do produto live respondeu 200/426 ms após uma consulta local anterior expirar.
+
+Antes de atribuir `rate_limited` ao provedor, correlacionar `worker.job_failed`, `billing.abacatepay.read_transport_failed` e `billing.abacatepay.request_control`: `deferred` pode ser circuito/admissão local; `provider_rate_limited` evidencia a recepção de HTTP 429. O cron mantém o erro observável quando a recuperação falha e só retoma por execução posterior. Não limpar o circuito, alterar credenciais, aumentar limites ou repetir POST para obter PASS.
+
+[Diagnóstico e alcance das evidências](../decoupling/asaas-to-abacatepay/ABACATEPAY-SaaS-GO-NO-GO-FINAL.md#ocorrência-qoro-3d3g--21112026-recuperação-observada-sem-nova-publicação). Executados 72 testes dirigidos, todos aprovados. Intermitência não encerrada definitivamente; nenhuma prova nova de contratação, pagamento ou renovação. O titular ainda precisa concluir a ação abaixo; aquisição pública e checkout permanecem fechados.
+
 ## C3 live — 21/11/2026: corretivo publicado e ação humana pendente
 
 Horários deste checkpoint em UTC; as promoções ocorreram na noite de 20/11 em Brasília, às 23:18 e 23:25.

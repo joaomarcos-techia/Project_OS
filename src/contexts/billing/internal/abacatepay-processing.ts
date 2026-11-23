@@ -106,6 +106,7 @@ export async function applyInitialAbacatePayPaymentTx(
     evidence.account.provider !== 'abacatepay' ||
     !['sandbox', 'production'].includes(evidence.account.environment) ||
     evidence.currency !== 'BRL' ||
+    !['card', 'pix'].includes(evidence.method) ||
     evidence.state !== 'paid' ||
     evidence.recurrence !== 'running' ||
     evidence.amountMinor <= 0 ||
@@ -178,7 +179,7 @@ export async function applyInitialAbacatePayPaymentTx(
       dueDate: period.start.toISOString().slice(0, 10),
       periodStart: period.start.toISOString().slice(0, 10),
       periodEnd: period.end.toISOString().slice(0, 10),
-      paymentMethod: 'CARD',
+      paymentMethod: evidence.method === 'pix' ? 'PIX' : 'CARD',
     })
     .returning();
   if (!invoice) throw new Error('Initial SaaS invoice persistence failed');
@@ -197,7 +198,7 @@ export async function applyInitialAbacatePayPaymentTx(
     .where(eq(subscriptions.id, binding.subscription_id));
   await markInvoicePaid(tx, binding.clinic_id, invoice, {
     provider: 'abacatepay',
-    paymentMethod: 'CARD',
+    paymentMethod: evidence.method === 'pix' ? 'PIX' : 'CARD',
     providerPaymentId: billingResourceKey(evidence.account, 'checkout', evidence.checkoutId),
     idemSuffix: `abacatepay:${binding.account_id}:${evidence.checkoutId}`,
     deferPeriodAdvance: true,
