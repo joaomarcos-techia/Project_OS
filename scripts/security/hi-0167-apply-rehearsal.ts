@@ -338,7 +338,7 @@ try {
 
   // ── 8. Compatibilidade: o serviço vê a tabela; RLS forçada; sem DELETE no runtime ─
   const extra = await import('../../src/contexts/health-insurance/internal/extra-executed-items');
-  const [appt] = await sql<{ id: string }[]>`select appointment_id::text id from public.hi_guides where id = ${g1}::uuid`;
+  const [appt] = await sql<{ id: string }[]>`select appointment_id::text id from public.hi_guide_items where guide_id = ${g1}::uuid limit 1`;
   const seen = await fx.withTenant(clinic.clinicId, async (tx) => ({
     available: await extra.extraItemsAvailableTx(tx),
     items: await extra.listExtraItemsTx(tx, { clinicId: clinic.clinicId, appointmentId: appt!.id }),

@@ -439,8 +439,8 @@ try {
       await withTenant(A.clinicId, (tx) => processInsuranceBilling(tx, { clinicId: A.clinicId, appointmentId: ap, detectedBy: 'event', eventState: 'processed', lock: 'wait' }));
     }
   }
-  const redelivered = await sql`insert into public.outbox (clinic_id, event_type, payload, idempotency_key)
-    select clinic_id, event_type, payload, idempotency_key || ':reentrega' from public.outbox
+  const redelivered = await sql`insert into public.outbox (clinic_id, event_type, payload, idempotency_key, payload_hash, correlation_id)
+    select clinic_id, event_type, payload, idempotency_key || ':reentrega', payload_hash, correlation_id from public.outbox
      where clinic_id = ${A.clinicId}::uuid and event_type = 'scheduling.appointment.insurance_completed' returning id`;
   assert.ok(redelivered.length >= 3, `reentrega de ${redelivered.length} eventos`);
   for (let i = 0; i < 4; i++) await runOutboxOnce({ batchSize: 50, parallelism: 1 });
