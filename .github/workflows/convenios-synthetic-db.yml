@@ -19,6 +19,8 @@ name: Convênios — provas sintéticas de banco
 # `push` na branch do #55 (não `pull_request`): o filtro de caminhos olha só os commits enviados,
 # então um push só de documentação não gasta minutos do Actions.
 on:
+  # Só na branch descartável da composição: disparo manual para rodar as provas na tripla.
+  workflow_dispatch:
   push:
     branches: [feat/convenios-tiss-20261110]
     paths:
