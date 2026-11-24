@@ -29,13 +29,27 @@ export const dynamic = 'force-dynamic';
 // Application budget. Verify the platform plan separately; this is not its quota.
 export const maxDuration = 60;
 
-async function runRegisteredOutbox() {
+// R61 (shared minute tick): the outbox stops RESERVING new events this long after the
+// invocation starts. Handlers already started are never abandoned; they finish through
+// their own timeouts. 60 s maxDuration − up to 5 s of function start − 20 s for a
+// started handler (largest single external timeout) − 5 s margin = 30 s. Deferred events
+// stay `pending` for the next minute. Unreleased exports are not valid in a route file,
+// so the window lives here and the worker contract stays in `runOutboxOnce`.
+const OUTBOX_RESERVATION_WINDOW_MS = 30_000;
+
+async function runRegisteredOutbox(invocationStartedAt: number) {
   // Handler boot belongs to the shared event worker, not to SaaS reconciliation.
   // A module import failure must remain observable without preventing the other
   // financial jobs from starting and finishing their independent transactions.
   await import('@/lib/db/schema');
   await import('./handlers');
-  return runOutboxOnce();
+  return runOutboxOnce({
+    reserveUntil: invocationStartedAt + OUTBOX_RESERVATION_WINDOW_MS,
+    // Catalog types without a consumer (F-14 "producer ahead") end `skipped` in one
+    // UPDATE, with the same terminal fields as the per-event path, instead of
+    // taking batch slots from events that do have a consumer.
+    skipUnhandledInBulk: true,
+  });
 }
 
 // `errorEvent: 'worker.error'` foge do padrão `<domínio>.error` das outras
@@ -48,11 +62,13 @@ export const GET = withCron(
     // Reuse the existing minute tick without changing vercel.json. This branch
     // selects its explicit environment. Independent work runs beside the outbox
     // rather than consuming the daily Asaas reconciler's remaining time budget.
+    // One clock for the whole invocation: every job derives its budget from it.
+    const invocationStartedAt = Date.now();
     const [outbox, recovery, inbox, closures, watch] = await Promise.allSettled([
-      runRegisteredOutbox(),
-      reconcileAbacatePayRecoveryTick(Date.now() + 35_000),
+      runRegisteredOutbox(invocationStartedAt),
+      reconcileAbacatePayRecoveryTick(invocationStartedAt + 35_000),
       reconcileAbacatePayInboxTick(),
-      reconcileAbacatePayCheckoutClosuresTick(Date.now() + 20_000),
+      reconcileAbacatePayCheckoutClosuresTick(invocationStartedAt + 20_000),
       reconcileAbacatePayRenewalWatchTick(),
     ]);
     for (const [job, result] of [

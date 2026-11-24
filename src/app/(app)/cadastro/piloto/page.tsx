@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { PublicPage, PublicHeading } from '@/components/shared/signup-frame';
+import { PublicPage } from '@/components/shared/signup-frame';
 import { env } from '@/lib/env';
 import { SignupQuestions } from '../signup-questions';
 
@@ -13,10 +13,13 @@ export default function PilotSignupPage() {
     notFound();
   return (
     <PublicPage>
-      <PublicHeading
-        title="Cadastro da sua clínica"
-        lead="Use seu convite individual para confirmar os dados e conhecer o Qoro. Nenhum pagamento é necessário para iniciar a avaliação."
-      />
+      {/* Um só título principal: o `h1` é o da pergunta, dentro de SignupQuestions. A abertura
+          do convite é um parágrafo, não outro `h1` (pendência de acessibilidade do ciclo 9). */}
+      <p className="mx-auto max-w-[52ch] text-pretty text-center text-sm leading-relaxed text-fg-muted">
+        <strong className="font-semibold text-fg">Cadastro da sua clínica.</strong> Use seu convite
+        individual para confirmar os dados e conhecer o Qoro. Nenhum pagamento é necessário para
+        iniciar a avaliação.
+      </p>
       <SignupQuestions identityEnabled pilot />
     </PublicPage>
   );

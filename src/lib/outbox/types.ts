@@ -71,7 +71,17 @@ export type WorkerTickSummary = {
   stuck_reclaimed: number;
   circuit_paused: number;
   duration_ms: number;
+  /**
+   * R61 (opcional, só com `reserveUntil`): vagas do lote que NÃO reservaram evento porque o
+   * prazo de reserva da invocação passou. Os eventos continuam `pending` para o próximo tick.
+   */
+  deferred?: number;
+  /**
+   * R61 (opcional, só com `skipUnhandledInBulk`): eventos do catálogo SEM handler registrado
+   * finalizados como `skipped` em bloco, no início do tick, sem ocupar vaga do lote.
+   */
+  skipped_bulk?: number;
 };
 
 /** Outcome of a single processOne() invocation (exhaustive). */
-export type ProcessOneResult = 'empty' | 'processed' | 'failed' | 'skipped';
+export type ProcessOneResult = 'empty' | 'processed' | 'failed' | 'skipped' | 'deferred';

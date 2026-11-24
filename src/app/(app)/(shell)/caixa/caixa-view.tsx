@@ -123,6 +123,7 @@ export function CaixaView({
           lancamentoId: item.id,
           paymentMethod: method,
           valorPago,
+          valorPagoEsperado: item.valorPago,
           comprovante: comprovante.trim()
             ? { type: 'comprovante', fileStoragePath: comprovante.trim() }
             : null,

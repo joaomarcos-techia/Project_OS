@@ -55,11 +55,17 @@ export default async function ResetPasswordPage({
   // gerenciador de senhas não sabe de que conta é a senha nova, não atualiza a
   // salva e, no login seguinte, preenche a ANTIGA. Não decide nada: quem mostra
   // o formulário continua sendo o grant.
+  //
+  // O grant só abre o formulário junto da sessão que o próprio link abriu, a mesma regra da
+  // action. Depois da troca, o logout global revoga essa sessão; cookies capturados antes não
+  // reabrem o formulário de um link já usado (o envio já era recusado).
   let username: string | null = null;
+  let live = false;
   if (grant) {
     const supabase = await createServerClient();
     const { data } = await supabase.auth.getUser();
-    if (data.user?.id === grant.userId && data.user.email) username = data.user.email;
+    live = data.user?.id === grant.userId;
+    if (live && data.user?.email) username = data.user.email;
   }
 
   return (
@@ -73,7 +79,7 @@ export default async function ResetPasswordPage({
         <Card>
           <CardContent className="flex flex-col gap-4">
             <h1 className="text-base font-semibold">Nova senha</h1>
-            {grant ? (
+            {live ? (
               <ResetPasswordForm username={username} />
             ) : (
               <Alert variant="danger" title="Link inválido ou expirado">

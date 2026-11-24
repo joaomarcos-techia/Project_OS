@@ -25,7 +25,11 @@ vi.mock('./actions', () => ({
   reviewProfessionalPayoutAction: vi.fn(),
 }));
 
-import { cancelLancamentoAction, reviewProfessionalPayoutAction } from './actions';
+import {
+  cancelLancamentoAction,
+  confirmPaymentAction,
+  reviewProfessionalPayoutAction,
+} from './actions';
 import { CaixaView, type FailedChargeItem, type ManualRefundItem } from './caixa-view';
 
 const METHODS = [{ code: 'pix', label: 'PIX' }];
@@ -135,6 +139,25 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Pagar' }));
     expect(screen.getByLabelText('Valor pago')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Pagar R\$\s*1\.200,00/ })).toBeTruthy();
+  });
+
+  it('envia ao servidor o valor já pago que a tela mostrou para detectar concorrência', async () => {
+    vi.mocked(confirmPaymentAction).mockResolvedValue({ ok: true, data: item() });
+    render(<CaixaView {...base} parciais={[item({ status: 'parcial', valorPago: 75 })]} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Receber saldo' }));
+    fireEvent.click(screen.getByRole('button', { name: /Receber R\$\s*125,00/ }));
+
+    await waitFor(() => {
+      expect(confirmPaymentAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          lancamentoId: 'l1',
+          valorPago: 125,
+          valorPagoEsperado: 75,
+        }),
+        expect.any(String),
+      );
+    });
   });
 
   it('oferece somente a forma comercial acordada no recebível do atendimento', () => {
