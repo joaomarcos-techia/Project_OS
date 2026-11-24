@@ -39,9 +39,9 @@
 
 | Campo | Valor |
 | --- | --- |
-| Data da última atualização | 23/11/2026 (fechamento funcional: estados da guia 13/13 no Preview pelo relé da fixture; R54 recusado pela 4ª vez e parado; P8.4 com a corrida da 0167 corrigida e provas novas; ensaio da 0167 com o migrador real; ficha P8.4-r e pedido de GO da 0167 no DEV; ver o checkpoint de 23/11 e o dossiê) |
+| Data da última atualização | 24/11/2026 (integração definitiva: 0159 na integração por script com os bytes do #53, 8 testes de journal nos dois estados, composição tripla no PR #63, R61-B incorporado pelo #53; ver o checkpoint de 24/11) |
 | Fase atual | **P1 concluída**; P9 (lotes, XMLs, recurso) e P12 (armazenamento) validadas; ponte financeira (P1.10/P10.2/P10.3) pronta como candidata 0153; interface (P7.7/P9.9) implementada e testada; P9.5, P8.7/P6.2, P10.4 e P10.5 pendentes |
-| Tarefa em andamento | **23/11:** P8.4 (decisão P8.4-r com a "exceção do médico" e GO da 0167 no DEV); R61-B no #53 (patch aplica limpo no `bc955f4e`, falta o dono aplicar); R54 parado à espera do suporte do Asaas |
+| Tarefa em andamento | **24/11:** integração #53 → #56 → #55 (composição no PR #63); P8.4 (decisão P8.4-r e GO da 0167 no DEV); R61-B no #53 sem deploy; R54 parado à espera do suporte do Asaas |
 | Última tarefa concluída | **P15.1** (20/11): ajuda do TISS na central de documentação existente (5 tópicos, categoria Financeiro, testes 18/18), além de runbooks, domínio e known-limitations. Mesmo ciclo: P9.4 no teto "Testado" (envio pelo conector com recibo conferido, 7/7), destino do conector só público (P15.5), benchmark do outbox (25 rodadas no runner) |
 | Progresso | **87 de 117 tarefas concluídas (74,4%)** (20/11: **P15.1 entrou**; P9.4 no teto "Testado", não contada; 19/11, madrugada: **P6.5, P12.5 e P14.4 entraram** — P6.5 e P12.5 no alcance sem operadora, P14.4 com um desvio registrado; 18/11, 2º ciclo: **P9.10 e P5.1 entraram**; P4.7 e P15.5 PARCIAIS; achado da P4.7 corrigido; ver o checkpoint de 18/11, 2º ciclo) (P8.6 entrou em 15/11, noite, 2ª rodada: XML SP/SADT do fluxo real validado no XSD oficial no job sintético; ver a linha da P8.6): P0.1–P0.9, P1.1–P1.10, P4.5, P6.2, P7.1, P7.2, P7.3, P7.4, P7.6, P7.7, P8.1, P8.2, P8.3, P8.5, P8.6, P8.7, P9.1, P9.2, P9.3, P9.5, P9.6, P9.7, P10.1, P10.2, P10.3, P10.4, P10.5, P12.7, P12.14, P13.1, P13.2, P13.3, P13.4, P13.7, P14.1, P15.7, P2.1, P2.3, P2.4, P2.6, P3.1, P4.1, P4.4, P9.8, P9.9, P2.2, P4.3, P2.7, P5.3, P12.1, P3.2, P14.2, P4.6, P6.1, P6.4, P7.5, P1.12, P6.3, P6.6, P12.2, P0.10, P1.14, P4.2, P12.4, P9.10, P5.1, P6.5, P12.5, P14.4, P15.1. P10.5 **homologada no alcance do Asaas Sandbox** (13/11). P4.3, P2.7, P3.2 e P4.6 **validadas no Preview DEV**. R54 provado em banco descartável com o Asaas simulado; **homologação de estorno no Sandbox não executada** (procedimento em docs/convenios/homologacao-r54-sandbox.md). P6.5 e P12.5 contadas no teto "Testado" (sem operadora); a homologação de cada operadora segue em L.2 (B5). Nada em produção; nenhuma homologação com operadora real. |
 | CI oficial (GitHub Actions) | **Liberada em 14/11** (GitHub Pro; o job voltou a iniciar). `0d2aa4f3` reexecutado: **CI e ADR advisory verdes** (run 43591045113, 15 min 28 s, 25 passos). SHA final do ciclo: ver o registro M de 14/11 (noite). Até `1b09267e` verde; `e6e91139`…`a77e0aea` não iniciaram por cobrança (não reexecutados: a CI do HEAD cobre a mesma árvore e mais) **Fim da noite de 14/11:** CI 43672065842 verde no `4078a474`, com o passo novo da P12.1 em Postgres temporário (5/5); também verdes `2d3c79e6` (43667255805) e `e552a692` (43669520460). **15/11 (manhã):** CI 43711988363 verde no `2273f96d` e CI 43714907677 verde no `c5fce3fa` (todos os passos, inclusive isolamento entre clínicas e de todas as tabelas de Convênios em Postgres temporário, build e E2E público). **15/11 (tarde):** verde em `6de3c14e` (43745643994) e `a87fbded` (43746993053); vermelha em `0206d7d1` (inventário desatualizado, corrigido) |
@@ -50,7 +50,7 @@
 | Bloqueios ativos | B4 (integração: #53 primeiro, depois reconciliar o #55, D22; **colisão de migrations**: ver o aviso abaixo), B5 (operadora e clínica piloto), B6 (retenção legal), B7 (Validador TISS para Windows: **instalação não autorizada**), **B10** (segurança ANS: direção do fundador para S1–S10 em 11/11; **nada ligado para usuários reais**), **B11** (AbacatePay: com o agente do #53; Asaas: sandbox ok) |
 | Decisões | D1–D12 aprovadas ou adotadas; D13–D17 adotadas no escopo delegado; D18 aprovada; D19 adotada e mantida, **com o ensaio no DEV substituído pela D23**; **D20 aprovada em direção técnica em 11/11** (arquivos cifrados em armazenamento privado; o alcance do requisito 56 segue em consulta formal); **D21** adotada; **D22 corrigida em 11/11** (L.1); **D23 do fundador em 11/11 (noite):** nenhum ensaio de DDL no DEV compartilhado sem aprovação específica |
 | Arquivos alterados | este documento; `docs/adr/072-convenios-e-tiss.md` (era 067); `src/contexts/health-insurance/**`; `src/lib/xlsx/**`; `src/lib/validation/cnpj.ts`, `document.ts`; `src/lib/masks.ts`; campos de CNPJ do perfil, fornecedores e `/join`; `scripts/tiss/**`; `data/tiss/**`; `evidence/tiss-validadores-2026-11-10/**`; `docs/architecture/*` |
-| Próxima ação exata | **Fundador:** (1) GO da 0167 no DEV (`docs/convenios/go-0167-dev.md`); (2) decisão P8.4-r (`docs/convenios/decisao-p84r.md`); (3) enviar o pedido ao suporte do Asaas (`homologacao-r54-sandbox.md`). **#53:** aplicar `docs/convenios/r61b/r61b-para-53.patch` e pôr a 0159 no journal. **#59:** renumerar a candidata para 0168+. Produção: NO-GO; PR #55 draft |
+| Próxima ação exata | **Fundador:** (1) GO da 0167 no DEV (`go-0167-dev.md`); (2) P8.4-r: APROVAR/AJUSTAR/REJEITAR (`decisao-p84r.md`); (3) suporte do Asaas (R54); (4) autorização do deploy do R61-B (etapa 1, lote 50). **Merge real:** #53 → #56 → #55, com `scripts/integrate-pr53-0159.ts` no rebase do #55. **#59:** renumerar para 0168+. Produção: NO-GO; PR #55 draft |
 
 > **⚠ Risco de colisão de migrations (registrado em 11/11; leia antes de criar qualquer migration).**
 > - **Ledger real** (DEV, só leitura, conferido por SHA-256): 144 linhas. 0000–0135 da `main`; 0136–0142 do #53 (**aplicadas**); 0143 `tiss_catalog` do #55 (**aplicada**, última linha, `when` 1794330000000).
@@ -121,6 +121,69 @@
 | Progresso | **68 de 117 (58,1%)** |
 | Coordenação | UI: janela de testes pesados aceita e usada (23:33–00:10); terminologia de guias decidida pela UI e aplicada; títulos de página nas 13 telas; divisão de arquivos (handoff-ui.md §8). #53: release congela a cauda TISS do `4d0ed1d5` |
 | Próximo passo exato | ver "Próxima ação exata" acima |
+
+### Checkpoint de 24/11/2026 — integração definitiva
+
+| Item | Estado |
+| --- | --- |
+| Contagem | **87 de 117** (nenhuma nova: ver a classificação de 24/11 abaixo) |
+| 0159 | solução validada: entra na integração por `scripts/integrate-pr53-0159.ts` (bytes do #53, sha256 conferido); composição com 167 entradas contíguas e o gate do #53 verde (`coordenacao-migrations.md` §25) |
+| Testes de journal | os 8 que supunham a branch sozinha valem nos dois estados; adversariais novos (faltante, duplicada, ordem, histórico alterado, composição parcial) |
+| R61-B | incorporado pelo #53 (`9e6ed4c7`), CI do #53 verde (`cf712ab4`); sem deploy |
+| Composição | PR descartável #63 (#53 + #56 + #55, heads de 24/11); conflitos de TISS só no inventário; os do #53 × #56 resolvidos na composição |
+
+### Classificação das 30 tarefas abertas (24/11/2026)
+
+Categorias do ciclo de 24/11: **1** executável agora · **2** parcialmente executável · **3** depende do #53 · **4** depende do #56 · **5** depende do #28 · **6** depende de operadora · **7** depende de acesso externo · **8** depende de decisão humana.
+
+As tarefas da categoria 4 ficam para o rebase do #55 sobre o #56, porque as telas são do #56 e ele está congelado para revisão. Fazê-las antes seria criar tela paralela.
+
+| ID | Tarefa (critério do plano) | Cat. | Estado em 24/11 | O que falta |
+| --- | --- | --- | --- | --- |
+| P1.13 | flag por clínica + interruptor e disponibilidade comercial na plataforma | 3/8 | banco, telas e contrato do backend prontos e provados | o console da plataforma (#57) e a liberação comercial |
+| P2.5 | configurações por operadora | 6 | regras, credenciais e contrato do conector testados | checklist C1–C10 com operadora real (B5) |
+| P3.3 | pendências pré-consulta na agenda do dia | 4 | `/convenios/atendimentos` validado | o selo na agenda (tela do #56), no rebase |
+| P4.7 | séries e importação com convênio | 8 | série com autorização feita (4/4) | parte b (importação de agenda com convênio): decisão P4.7-b |
+| P5.2 | resumo administrativo na agenda e no consultório | 4 | dados prontos (P5.1) | as duas telas do #56, no rebase |
+| P8.4 | itens executados adicionais | 2/8 | backend, conferência e 0167 provados (18/18, 11/11) | decisão P8.4-r, GO da 0167 no DEV, consultório (#56 + "exceção do médico") |
+| P9.4 | envio com recibo real | 6 | conector e stub 7/7 | recibo de operadora homologada (B5) |
+| P10.6 | Caixa e relatórios separam paciente × operadora | 4 | análise com a UI feita | telas do Caixa (#56), no rebase |
+| P11.1 | agente de IA: convênio no agendamento | 5 | — | frente do agente (#28) |
+| P11.2 | jornadas do agente com convênio | 5 | — | depende da P11.1 |
+| P12.3 | LGPD: exportação, anonimização, retenção | 8 | parte técnica feita | prazos legais (B6) |
+| P12.6 | alerta disparando em teste | 7 | métricas, buscas salvas, instrumentação | acesso legítimo ao Sentry (credencial do provedor) |
+| P12.8 | aderência ao componente de segurança ANS | 8 | matriz pronta | S1–S9 |
+| P12.9 | perfil de segurança TISS ligado | 8 | políticas preparadas | S1–S4 |
+| P12.10 | auditoria imutável 180 dias | 8 | — | S5 |
+| P12.11 | identificação do software nas telas e PDFs | 4 | — | telas do #56, no rebase |
+| P12.12 | último acesso e fail-safe do login | 8 | — | S8 |
+| P12.13 | exclusão LGPD de paciente com guia | 8 | técnico feito | B6 |
+| P12.15 | D24 nos fluxos do #53 | 3 | central de direitos no #53 | conferência pelo #53 |
+| P13.5 | validador C (Windows) | 8 | substituto 38/38 | B7 (instalação) |
+| P13.6 | ciclo de divergências dos validadores | 6 | A e B classificados | operadora (B5) e camada C (B7) |
+| P14.3 | E2E no Preview de todas as jornadas | 2 | todas as do TISS rodam; estados da guia agora também na tripla | as jornadas da P11 (#28) e do consultório (#56) |
+| P14.5 | gates completos | 2 | CI verde a cada SHA, inclusive na tripla | só no fim, depois das dependências |
+| P15.2 | homologação interna por perfil | 2 | perfis provados nos E2E | depende da P14.3 |
+| P15.3 | homologação com operadora: Consulta | 6 | roteiro H1–H12 | B5 |
+| P15.4 | homologação com operadora: SP/SADT | 6 | roteiro | B5 |
+| P15.5 | revisão de segurança | 2/8 | técnica feita, sem defeito crítico aberto | S1–S9 |
+| P15.6 | revisão financeira com o fundador | 8 | conciliações provadas | sessão com você |
+| P15.8 | prontidão de release + piloto por flag | 8 | contrato pronto | aprovação humana |
+| P15.9 | monitoramento pós-implantação | 6/8 | — | depende da P15.8 (produção) |
+
+**Resumo:** categoria 1 (executável agora), nenhuma. As demais:
+
+| Categoria | Tarefas |
+| --- | --- |
+| 2 (parcial) | P8.4, P14.3, P14.5, P15.2, P15.5 |
+| 3 (#53) | P1.13, P12.15 |
+| 4 (#56) | P3.3, P5.2, P10.6, P12.11 |
+| 5 (#28) | P11.1, P11.2 |
+| 6 (operadora) | P2.5, P9.4, P13.6, P15.3, P15.4, P15.9 |
+| 7 (acesso externo) | P12.6 |
+| 8 (decisão humana) | P4.7, P12.3, P12.8, P12.9, P12.10, P12.12, P12.13, P13.5, P15.6, P15.8, além das partes humanas de P8.4, P1.13 e P15.5 |
+
+Nenhuma tarefa nova fecha: todas as que faltam têm um critério obrigatório fora do alcance do #55 sozinho.
 
 ### Checkpoint de 23/11/2026 — fechamento funcional
 

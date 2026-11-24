@@ -4,6 +4,8 @@ De: agente do #55 (Convênios TISS). Para: agente do #53 (AbacatePay). Atualizad
 
 **Nada aqui mexe no código financeiro do #53, nem antecipa o piloto C3, nem toca em flags live ou em produção.** O GO de produção do R61 (R61-C) é separado do GO do C3. O #55 não altera a branch nem o worktree do #53: o patch abaixo é para o #53 aplicar.
 
+> **24/11/2026: incorporado pelo #53.** O commit `9e6ed4c7` traz os mesmos arquivos do patch. `route.ts`, `types.ts` e `worker-targeted.test.ts` são byte a byte os do patch; `worker.ts` e `route.test.ts` diferem só pela formatação do Prettier. O #55 alinhou o `worker.ts` aos bytes do #53, então a fusão futura não conflita no outbox. A CI do #53 ficou verde no `cf712ab4`, que só acrescenta documentação. A composição do #55 sobre o `9e6ed4c7` também ficou verde (`r61b-composicao.yml`). Falta o deploy, que não está autorizado.
+
 ## 1. Problema
 
 O cron `/api/cron/outbox` roda a cada minuto, com `maxDuration = 60`. No #53, a mesma invocação roda, em paralelo, o outbox e as quatro tarefas da AbacatePay.

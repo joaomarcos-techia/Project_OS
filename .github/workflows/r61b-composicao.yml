@@ -41,8 +41,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 75
     env:
-      # HEAD do PR #53 em 22/11/2026 (o patch foi gerado sobre fad3d5d3 e aplica limpo aqui). Mudou o #53? Atualize aqui.
-      PR53_SHA: bc955f4ed633aa7e07dc1cf3423a14c2fbed4493
+      # HEAD do PR #53 em 24/11/2026: o #53 INCORPOROU o R61-B (9e6ed4c7, mesmos arquivos do patch;
+      # worker e teste da rota só com formatação do Prettier). O job confere que está lá em vez de
+      # reaplicar o patch. Mudou o #53? Atualize aqui.
+      PR53_SHA: 9e6ed4c75aefbf1c97b996e0248c7e70449f074e
       COMP: /tmp/c53
     steps:
       - uses: actions/checkout@v4
@@ -54,12 +56,18 @@ jobs:
           git fetch --no-tags origin "$PR53_SHA"
           git config --local --unset-all http.https://github.com/.extraheader || true
           git worktree add --detach "$COMP" "$PR53_SHA"
-          git -C "$COMP" apply --index "$GITHUB_WORKSPACE/docs/convenios/r61b/r61b-para-53.patch"
-          # O worker do outbox na composição precisa ser byte a byte o do #55 (merge limpo depois).
+          # O #53 já incorporou o R61-B? (orçamento da invocação na rota + métrica do handler lento)
+          if grep -q 'reserveUntil' "$COMP/src/app/api/cron/outbox/route.ts" \
+            && grep -q 'OUTBOX_HANDLER_SLOW_MS' "$COMP/src/lib/outbox/worker.ts"; then
+            echo "R61-B já incorporado no #53 ($PR53_SHA): o patch não é reaplicado"
+          else
+            git -C "$COMP" apply --index "$GITHUB_WORKSPACE/docs/convenios/r61b/r61b-para-53.patch"
+            git -C "$COMP" -c user.name=ci -c user.email=ci@example.invalid commit -qm "composicao descartavel R61-B"
+          fi
+          # O worker do outbox precisa ser byte a byte o do #55 (merge limpo depois, sem conflito no outbox).
           for f in src/lib/outbox/worker.ts src/lib/outbox/types.ts src/lib/outbox/worker-targeted.test.ts; do
             cmp "$f" "$COMP/$f"
           done
-          git -C "$COMP" -c user.name=ci -c user.email=ci@example.invalid commit -qm "composicao descartavel R61-B"
           git -C "$COMP" diff --stat "$PR53_SHA" HEAD
 
       - name: "Fusão futura (#53 + patch) com o #55: só os conflitos já conhecidos"
