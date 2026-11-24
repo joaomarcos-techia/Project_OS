@@ -87,6 +87,13 @@ async function setSubscription(clinicId: string, state: SubState): Promise<void>
     await grantPaidSubscription(sql, clinicId, state.plan);
     return;
   }
+  // Integrado sobre o #53, o gatilho do trial (0136, `enroll_new_subscription_trial_limits`) exige
+  // um titular (`owner`) ativo na clínica antes da assinatura de trial; a branch sozinha não tem esse
+  // gatilho, mas o titular não muda nada nela. Sem ele, a fixture falhava com "trial owner missing".
+  const ownerId = randomUUID();
+  await sql`insert into auth.users (id, email) values (${ownerId}::uuid, ${`${ownerId}@example.invalid`})`;
+  await sql`insert into public.profiles (id, clinic_id, nome, role, ativo)
+    values (${ownerId}::uuid, ${clinicId}::uuid, 'Titular sintético', 'owner', true)`;
   await sql`insert into public.subscriptions (clinic_id, plan_id, price_id, billing_status, trial_ends_at, enforce_trial_deadline)
     select ${clinicId}::uuid, pl.id, pr.id, 'trial', now() + ${state.endsIn}::interval, true
       from public.plans pl join public.prices pr on pr.plan_id = pl.id

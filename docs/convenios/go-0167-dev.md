@@ -59,10 +59,10 @@ Conferido hoje, só leitura no DEV e `git` nas branches:
 | Onde | Estado |
 | --- | --- |
 | DEV, `drizzle.__drizzle_migrations` | **167 linhas**; última `created_at` 1795641773857 = 0166 (`ccf1639b…`); nenhum objeto da 0167 no banco |
-| 0159 (`saas_period_snapshot`, do #53) | **aplicada no DEV** (`eb00a4e3…`, `when` 1795036973858), mas **fora do journal de qualquer branch** (pacote congelado do #53). É a lacuna que bloqueia a composição tripla; o dono é o #53. **Não** se resolve com migration vazia nem renumeração |
+| 0159 (`saas_period_snapshot`, do #53) | **aplicada no DEV** (`eb00a4e3…`, `when` 1795036973858). Fica fora do journal do #55 sozinho e entra na integração sobre o #53 por `scripts/integrate-pr53-0159.ts` (bytes congelados do #53, sha256 conferido; ver `coordenacao-migrations.md` §25). Provado na composição descartável de 24/11 (PR #63). Sem migration vazia e sem renumeração |
 | 0164, 0165, 0166 | aplicadas no DEV; no journal do #55; fixadas no manifesto de composição |
 | #55 | journal com 159 entradas (0000–0135, 0143–0158, 0160–0166); as 0136–0142 e a 0159 do #53 entram como exceções conferidas por hash no ledger |
-| #53 (`bc955f4e`) | journal até 0142; a 0159 só no pacote; **sem conflito com 0167** |
+| #53 (`cf712ab4`, 24/11) | journal até 0142; a 0159 só no pacote congelado; o R61-B incorporado no `9e6ed4c7`; **sem conflito com 0167** |
 | #56 (`fe892902`) | journal até 0136; sem migration nova |
 | #57 (`93a79601`) | sem migration |
 | #59 (`c6e91bf1`) | candidata **ainda chamada 0165** (`0165_super_admin_actions_append_only.candidate.sql`), mas a 0165 e a 0166 já são do #55 no DEV. Com a 0167 aplicada, a próxima livre é a **0168**. O #59 precisa renumerar antes de qualquer aplicação; a mudança de número já existia antes deste pedido |

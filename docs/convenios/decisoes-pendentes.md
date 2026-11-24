@@ -26,7 +26,7 @@ O R54 não precisa de decisão nova: o GO "SIM, TUDO" vale, e a próxima tentati
 
 - **O que decidir:** cinco gates, cada um com aprovação própria:
   - **R61-A:** homologação técnica (já autorizada e em andamento no #55).
-  - **R61-B:** revisão conjunta com o #53 (handoff `handoff-53-outbox-r61.md`).
+  - **R61-B:** **feito em 24/11.** O #53 incorporou o patch no `9e6ed4c7`, com os mesmos arquivos e diferenças só de formatação (Prettier). A CI da branch dele ficou verde no `cf712ab4`, e a composição do #55 sobre esse código (gates do #53, prazo de reserva 6/6, invocação compartilhada 6/6) também ficou verde. Ainda **sem deploy** (não autorizado).
   - **R61-C:** sua aprovação explícita.
   - **R61-D:** mudança controlada em produção.
   - **R61-E:** observação operacional.
@@ -36,6 +36,8 @@ O R54 não precisa de decisão nova: o GO "SIM, TUDO" vale, e a próxima tentati
   - A pane de consumidor fica em 30,5 s (hoje passa de 60 s).
   - Capacidade sustentada de cerca de 83 atendimentos/min na plataforma. A configuração atual sustenta cerca de 15.
   - Detalhes, riscos, monitoramento e retorno em `outbox-capacidade.md` (§4, §5 e §8).
+- **Produção, leitura de 24/11** (`evidence/tiss-r61-producao-2026-11-24/`): fila saudável, nada pendente nem falho, nada devolvido pelo janitor em 7 dias, tick de 708 ms. O tráfego foi quase nulo nas últimas 48 h, então isso não prova capacidade de pico.
+- **Próximo pedido:** o deploy do R61-B com o lote atual (50). Ele é a etapa 1 do rollout e exige autorização de deploy. O R61-C (lote 200) só pode ser pedido depois dele e da observação.
 - **Bloqueia:** produção (condição de liberação do TISS). Não bloqueia DEV nem a integração.
 - **Depois do GO R61-C:**
   - aplicar a ligação no cron (com o #53, na integração);

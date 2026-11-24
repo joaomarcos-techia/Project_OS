@@ -1,4 +1,4 @@
-# Dossiê de homologação — Convênios TISS (22/11/2026, atualizado em 23/11)
+# Dossiê de homologação — Convênios TISS (22/11/2026, atualizado em 23/11 e 24/11)
 
 **Escopo:** o que pode ser comprovado em DEV, Preview e Postgres descartável.
 - **Não é** homologação com operadora real: nenhuma operadora está homologada (B5).
@@ -10,6 +10,22 @@
 - nenhuma credencial ou identificador.
 
 Nesta página, "simulador" quer dizer a operadora stub (`stub-operator.ts`), com o XSD oficial do webservice. Ela **não** é operadora real.
+
+## Integração definitiva (24/11/2026)
+
+Baseline `6e6f7def`. Os runs do SHA final do #55 e da composição estão nos corpos dos PRs #55 e #63.
+
+| Frente | Resultado | Evidência | Limitação |
+| --- | --- | --- | --- |
+| Migration 0159 | **solução validada:** entra na integração do #55 sobre o #53 por `scripts/integrate-pr53-0159.ts`, com os bytes congelados do #53 (sha256 `eb00a4e3…` conferido contra o `release-manifest.json` e o pino); na composição, journal com 167 entradas contíguas e `check-migration-safety` do #53 verde | `coordenacao-migrations.md` §25; PR descartável #63 | quem roda o script é o #55, no rebase final; produção exige autorização própria |
+| 8 testes de journal | corrigidos: valem nos dois estados (sozinha e integrada), com 5 casos adversariais novos sobre a união real; na composição, as versões antigas reprovam exatamente os 8 e as novas passam | `migration-journal-shape.ts`; `integrate-pr53-0159.test.ts` | — |
+| R61-B | **incorporado pelo #53** no `9e6ed4c7` (mesmos arquivos; diferenças só de formatação); CI do #53 verde no `cf712ab4`; composição do #55 sobre o código do #53 verde | `handoff-53-outbox-r61.md`; `r61b-composicao.yml` | sem deploy (não autorizado) |
+| R61 em produção | leitura de 24/11: nada pendente nem falho, nada devolvido pelo janitor em 7 dias, tick de 708 ms, tráfego quase nulo | `evidence/tiss-r61-producao-2026-11-24/` | não prova pico |
+| Composição tripla | #53 + #56 + #55 nos heads de 24/11. Conflitos de TISS: só o inventário. Conflitos #53 × #56, resolvidos na composição: piloto, redefinição de senha, caixa e dois testes da caixa | PR #63 | — |
+| Estados da guia | 13/13 no #55 (23/11, duas vezes). Na tripla: 12/13 na primeira execução; o 13º caiu numa leitura do banco pelo executor do relé (`CONNECT_TIMEOUT` do DEV no notebook, infraestrutura), e o executor passou a repetir falha transitória | `evidence/tiss-e2e-estados-guia-2026-11-23/`; PR #63 | — |
+| Prova legada do bloqueio comercial | na tripla, a fixture criava trial sem titular, e o gatilho do #53 (0136) recusa; corrigida (cria o `owner` antes do trial) | `health-insurance-premium-gate-db.ts` | defeito do teste, não do produto |
+| R54 | leitura de 24/11: igual ao estado depois da recusa de 23/11; nenhuma tentativa nova | `evidence/tiss-r54-estorno-sandbox-2026-11-23/estado-2026-11-24.json` | suporte do Asaas pendente (fundador) |
+| P8.4-r | ficha com APROVAR, AJUSTAR ou REJEITAR e a conferência de compatibilidade | `decisao-p84r.md` | decisão do fundador |
 
 ## Fechamento funcional (23/11/2026)
 

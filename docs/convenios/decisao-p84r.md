@@ -77,15 +77,38 @@ Hoje a troca de política é uma linha (`ACTIVE_EXTRA_ITEM_POLICY`). Com a recom
 13. Recebível: o valor da guia é a soma do agendado e dos incluídos. A fórmula do livro (`valor − valorPago − valorGlosado`) não muda.
 14. Auditoria: inclusão, decisão e motivo, sem dado clínico.
 
-## Texto exato da decisão necessária
+## Compatibilidade da regra recomendada (conferida em 24/11)
 
-Responda com **uma** das opções. As três primeiras são as completas; as outras, variações:
+| Ponto | Como a regra recomendada se comporta | Onde já existe no código |
+| --- | --- | --- |
+| Contrato do convênio | o item só vale se for linha SP/SADT da operadora do atendimento, vigente na data da sessão; código, descrição e "exige autorização" vêm da linha | gatilho da 0167 e `recordExtraItemTx` (provas 2 e 4) |
+| Regras de autorização | contrato que exige: só autorização **concedida**, com saldo, ligada ao item; a emissão consome o saldo exato e nunca passa do autorizado | política (c) testada (prova 9; `extra-item-policy.test.ts`) |
+| Guia | só o agendado até a regularização; depois de conferida, nada entra nem sai (prova 10); a mudança passa pela substituição P7.5 | 0165 e 0167 |
+| Exigências de faturamento | XML e recebível só com o que foi incluído; hoje provado que o adicional não vai ao XML nem ao recebível (prova 18) | `exportBatch`, livro |
+| Responsável pela regularização | **faturamento** (`bill:faturamento_convenio`) inclui ou aprova sem o item; a recepção registra e liga a autorização, mas não inclui | regra de direitos a criar com a política (hoje registrar = operar ou faturar) |
+| Auditoria | registro e cancelamento já auditados; inclusão e "aprovar sem o item" ganham evento próprio com quem, quando, qual autorização e o motivo | `extra-item-actions.test.ts` |
+| Consequência para a operadora | ela recebe só o regularizado: sem item sem autorização (evita glosa por falta de senha); o que não foi incluído não é cobrado depois, a não ser por substituição | — |
+| Estados da tela | "registrado — aguardando autorização", "registrado — pronto para entrar na guia", "incluído na guia", "não faturado por decisão (motivo)", "cancelado (motivo)"; a tela **nunca** mostra como faturado o que está pendente | painel da conferência (`extra-items-ui.tsx`), a ampliar |
+| Negativa da operadora | autorização negada: o item fica "não faturável — autorização negada", visível e auditado; a guia é aprovada sem ele, com o motivo; nada é refeito sozinho | estados da autorização (P6.1) |
 
-1. **"Aprovo a regra recomendada da P8.4-r:** registrar sempre; nunca faturar automaticamente; o item só entra na guia com autorização concedida e saldo quando o contrato exige, ou com a confirmação do faturamento quando o contrato não exige; guia com item pendente só é aprovada depois de incluir o item ou de aprovar sem ele com motivo obrigatório."
-2. **"Aprovo a regra recomendada, mas com contrato sem exigência de autorização o item entra na guia sem confirmação."** Isso troca o passo 3, segundo ponto, por inclusão automática. É fatura automática **só** do item que o contrato dispensa de autorização.
-3. **"Aprovo só a alternativa A:** registrar e nunca faturar o item executado sem solicitação."
-4. **"Aprovo A + C, sem B":** registrar; a conferência decide e registra, mas o item nunca entra na guia.
-5. **"Ainda não decido":** fica o comportamento atual (registra, sinaliza e não fatura).
+## Sua resposta: APROVAR, AJUSTAR ou REJEITAR
+
+**APROVAR** (a regra recomendada, inteira):
+
+> "Aprovo a regra recomendada da P8.4-r: registrar sempre; nunca faturar automaticamente; o item só entra na guia com autorização concedida e saldo quando o contrato exige, ou com a confirmação do faturamento quando o contrato não exige; guia com item pendente só é aprovada depois de incluir o item ou de aprovar sem ele com motivo obrigatório."
+
+**AJUSTAR** (escolha uma variação, ou escreva a sua):
+- **(a)** "Aprovo a regra recomendada, mas com contrato sem exigência de autorização o item entra na guia sem confirmação." É fatura automática **só** do item que o contrato dispensa de autorização.
+- **(b)** "Aprovo A + C, sem B": registrar; a conferência decide e registra, mas o item nunca entra na guia.
+- **(c)** Outra regra, escrita por você. Ela volta como ficha nova antes de qualquer código.
+
+**REJEITAR** (nenhuma das propostas):
+
+> "Rejeito a P8.4-r proposta: o item executado sem solicitação é só registro e nunca é faturado."
+
+Isso é a alternativa A sozinha; o comportamento atual continua como regra definitiva.
+
+**Sem resposta:** fica o comportamento atual (registra, sinaliza e não fatura). A P8.4 continua PARTIAL.
 
 **Antes de responder, confirme também duas coisas:**
 - **Operadora que não aceita.** Existe alguma operadora que você já sabe que **não aceita** item executado sem solicitação prévia, nem regularizado depois? Se existir, a regra dela vale por operadora: o item fica pendente e nunca entra na guia dessa operadora.

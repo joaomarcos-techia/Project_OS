@@ -844,3 +844,47 @@ fluxo do §18, nunca à mão.
 **Estado depois:** DEV com 167 entradas (última 0166, `when` 1795641773857). **Próxima migration livre: 0167.**
 A candidata `0165_super_admin_actions_append_only.candidate.sql` do #59 está fora do journal; ela recebe o próximo
 número livre **na autorização dela** (hoje, 0167 ou acima), conferindo de novo o journal do #55 e do #53.
+
+## 25. 24/11: a 0159 do #53 na integração (solução validada) e os testes de journal nos dois estados
+
+**O bloqueio.** A `0159_saas_period_snapshot` é do #53. Ela está aplicada no DEV (`eb00a4e3…`, `when` 1795036973858), mas não está no journal de nenhuma branch:
+- **Só no #53 não dá.** O gate de ordem do #53 (`assertMigrationJournalOrder`) recusa a lacuna 0143–0158 antes dela.
+- **Só no #55 não dá.** O SQL altera e cria tabelas do schema `billing_gateway`, que nasce nas 0136–0142 do #53. A cadeia só do #55, que a CI aplica no isolamento de Convênios, não tem esse schema.
+
+Por isso a composição da ordem real parava em `Migration journal order invalid at index 159`.
+
+**A solução (no #55, sem tocar no #53):**
+- **Quando:** a 0159 entra no journal **na integração do #55 sobre o #53**, que é a última da ordem #53 → #56 → #55.
+- **Como:** por `scripts/integrate-pr53-0159.ts`, cuja lógica pura está em `src/lib/db/integrate-pr53-0159.ts`. O script:
+  - copia os bytes congelados do #53 (`docs/decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql`);
+  - confere o sha256 contra o `release-manifest.json` do #53 **e** contra o pino do manifesto de composição;
+  - acrescenta a linha `financialEntry` do manifesto do #53 (idx 159, version 7, `when` 1795036973858).
+- **O que ele recusa:**
+  - a branch sozinha, sem as 0136–0142 do #53 exatamente como fixadas;
+  - hash diferente, CR, linha diferente do pino ou idx 159 ocupado;
+  - resultado fora do gate de ordem.
+- **Propriedades:** é idempotente. Nada é renumerado, nenhuma migration vazia é criada e o SQL não muda.
+- **No #55 sozinho, a 0159 continua fora**, como deve.
+
+**Os testes de journal passam a valer nos dois estados legítimos** (`src/lib/db/migration-journal-shape.ts`):
+- **Estados aceitos:** `standalone` (sem nenhuma do #53) e `composed` (com todas, iguais às fixadas).
+- **Estados recusados, com o motivo:** composição parcial, histórico alterado, idx ocupado e duplicata.
+- **Testes cobertos:** os 8 que supunham a branch sozinha (`migration-ledger` 4, `migration-composition` 3, `external-refund-migration` 1) agora provam o mesmo contrato nos dois estados.
+- **Casos adversariais novos sobre a união real:** migration faltante, duplicada, `when` fora de ordem, alteração histórica de uma do #53 e composição parcial.
+
+**Prova:**
+- **Composição descartável** `integracao/c11-53-56-55` (PR descartável #63), nos heads de 24/11: #53 `9e6ed4c7`, #56 `fe892902`, #55.
+- **0159:** o script integrou com os bytes reais (sha256 `eb00a4e3…`); o journal ficou com 167 entradas contíguas e o `check-migration-safety` do #53 passou.
+- **Testes:** os novos passam (72 testes de migration); na mesma árvore, as versões antigas reprovam exatamente os 8.
+- **CI e provas de banco da tripla:** corpo do PR #63.
+
+**Ordem no merge real:**
+1. O #53 entra na `main`.
+2. O #56 entra na `main`.
+3. O #55 é rebaseado sobre a `main`.
+4. No rebase, roda-se `npx tsx scripts/integrate-pr53-0159.ts` e o resultado entra no mesmo commit (o `--check` precisa passar).
+5. Sobe o #55.
+
+A 0159 já está aplicada no DEV com o mesmo hash e `when`; em produção, a aplicação exige autorização própria.
+
+**Numeração depois disso:** 0167 é a próxima livre (candidata da P8.4, `go-0167-dev.md`). A candidata do #59 ainda se chama 0165 e precisa ir para 0168 ou acima.
