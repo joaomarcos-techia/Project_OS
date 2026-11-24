@@ -1,12 +1,12 @@
 {
-  "note": "Composição descartável #53 → #56 → #55 (heads de 24/11): estados da guia (fixture HS24F, relé da fixture) e cancelamento/substituição P7.5 (fixture HS24P) no Preview da tripla.",
+  "note": "Composição descartável #53 → #56 → #55 (heads de 24/11): estados da guia (fixture HS24F, relé da fixture) e cancelamento/substituição P7.5 (fixture HS24P) no Preview da tripla. A P7.5 roda primeiro (contas próprias) para espaçar os logins da gestora dos estados da guia.",
   "run": "HS24-C2",
   "groups": [
     [
-      "e2e/convenios-guide-states-preview.spec.ts"
+      "e2e/convenios-p75-preview.spec.ts"
     ],
     [
-      "e2e/convenios-p75-preview.spec.ts"
+      "e2e/convenios-guide-states-preview.spec.ts"
     ]
   ],
   "env": {
@@ -14,14 +14,14 @@
   },
   "groupEnv": [
     {
+      "E2E_HI_P75_ACCOUNTS": "e2e-hi-p75-accounts.json",
+      "E2E_HI_P75": "e2e-hi-p75-hs24.json"
+    },
+    {
       "E2E_HI_CFG_ACCOUNTS": "e2e-hi-cfg-accounts.json",
       "E2E_HI_STATES": "e2e-hi-states-hs24f.json",
       "E2E_HI_CFG_GUIDE": "e2e-hi-cfg-guide.json",
       "E2E_HI_FIXTURE_CMD": "e2e/preview-fixture-relay.mjs"
-    },
-    {
-      "E2E_HI_P75_ACCOUNTS": "e2e-hi-p75-accounts.json",
-      "E2E_HI_P75": "e2e-hi-p75-hs24.json"
     }
   ]
 }
