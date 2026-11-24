@@ -106,18 +106,24 @@ async function setupClinic(label: string, sub: SubState, clinicStatus = 'active'
   // banco recusa outro perfil além dele (`team_invites`, "Evaluation feature requires verified
   // subscription payment"). Na clínica em trial, o profissional é o próprio titular; a branch
   // sozinha não tem esses gatilhos, e nada nas provas abaixo depende do papel do profissional.
+  // O procedimento nasce antes da assinatura de trial: com a avaliação já vencida, o #53 recusa
+  // recurso novo ("Evaluation expired", `enforce_trial_resource_limit`), e a clínica de trial vencido
+  // só precisa existir com o que já tinha.
   const trial = sub.kind === 'trial';
   if (trial) {
     await sql`insert into public.profiles (id, clinic_id, nome, role, ativo)
       values (${doctorId}::uuid, ${clinicId}::uuid, 'Profissional sintético (titular)', 'owner', true)`;
   }
+  const newProcedure = async () =>
+    (await sql`insert into public.procedures (clinic_id, codigo, descricao, valor_padrao, duracao_padrao_min, ativo)
+      values (${clinicId}::uuid, 'CONS', 'Consulta sintética', 150, 30, true) returning id`)[0]!.id as string;
+  const trialProcedure = trial ? await newProcedure() : null;
   await setSubscription(clinicId, sub);
   if (!trial) {
     await sql`insert into public.profiles (id, clinic_id, nome, role, ativo)
       values (${doctorId}::uuid, ${clinicId}::uuid, 'Profissional sintético', 'doctor', true)`;
   }
-  const [proc] = await sql`insert into public.procedures (clinic_id, codigo, descricao, valor_padrao, duracao_padrao_min, ativo)
-    values (${clinicId}::uuid, 'CONS', 'Consulta sintética', 150, 30, true) returning id`;
+  const proc = { id: trialProcedure ?? (await newProcedure()) };
   return { clinicId, doctorId, procedureId: proc!.id as string, label };
 }
 type Clinic = Awaited<ReturnType<typeof setupClinic>>;
@@ -436,6 +442,21 @@ try {
     await sql`update public.subscriptions set billing_status = 'active', trial_ends_at = null,
         current_period_start = now(), current_period_end = now() + interval '30 days'
       where clinic_id = ${c.clinicId}::uuid`;
+    // Integrado sobre o #53, o pagamento verificado também libera a política de trial (0136) pela
+    // fatura paga da assinatura, como `releaseTrialAfterVerifiedPaymentTx` faz; enquanto ela não é
+    // liberada, a decisão comercial é "payment_pending". A branch sozinha não tem a política.
+    const [{ policy }] = (await sql`select to_regclass('public.trial_access_policies') is not null as policy`) as unknown as [
+      { policy: boolean },
+    ];
+    if (policy) {
+      assert.equal(await denial(c.clinicId), 'payment_pending', 'só o status ativo não libera sem a fatura paga');
+      const [inv] = await sql`insert into public.invoices (clinic_id, subscription_id, total_amount, status, due_date, paid_at)
+        select s.clinic_id, s.id, 199.00, 'paid', current_date, now() from public.subscriptions s
+         where s.clinic_id = ${c.clinicId}::uuid returning id`;
+      await sql`update public.trial_access_policies set released_at = now(), released_by_invoice_id = ${inv!.id}::uuid,
+          updated_at = now() where clinic_id = ${c.clinicId}::uuid and released_at is null`;
+      assert.equal(await denial(c.clinicId), null, 'com a política liberada pela fatura paga, Convênios libera');
+    }
     assert.equal(await denial(c.clinicId), null);
     const ins = await enableInsurance(c);
     const patientId = await newPatient(c);
