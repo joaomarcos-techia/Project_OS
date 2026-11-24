@@ -8,6 +8,8 @@ name: "TEMP composição — só a prova do bloqueio comercial"
 
 on:
   workflow_dispatch:
+  push:
+    branches: [integracao/c11-premium-check]
 
 permissions:
   contents: read
