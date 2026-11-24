@@ -120,6 +120,8 @@ export async function createConsultaGuideForAppointment(
     /** Versão de terminologia em uso (`tiss_terminology_versions.version`). */
     terminologyVersion: string | null;
     actor: { kind: 'automation' } | { kind: 'user'; userId: string };
+    /** Chave da guia nova depois de uma CANCELADA antes do envio (guide-reissue). Padrão: a do atendimento. */
+    idempotencyKey?: string;
   },
 ): Promise<ConsultaGuideOutcome> {
   const { clinicId, appointment: ap } = args;
@@ -134,7 +136,7 @@ export async function createConsultaGuideForAppointment(
     .limit(1);
   if (!settings?.enabled) return { kind: 'module_disabled' };
 
-  const key = consultaGuideKey(ap.id);
+  const key = args.idempotencyKey ?? consultaGuideKey(ap.id);
   const existing = await findByKey(tx, clinicId, key);
   if (existing) return { kind: 'existing', guideId: existing.id, number: existing.number };
   if (!args.coverage) return { kind: 'needs_coverage' };

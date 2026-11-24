@@ -87,6 +87,11 @@ export async function recordSadtExecutionForAppointment(
     appointment: CompletedAppointment;
     terminologyVersion: string | null;
     actor: { kind: 'automation' } | { kind: 'user'; userId: string };
+    /**
+     * Chave da guia nova quando a anterior da sessão foi CANCELADA antes do envio (guide-reissue:
+     * uma guia nova por cancelamento). Sem ela, a chave é a da sessão (uma guia por sessão).
+     */
+    idempotencyKey?: string;
   },
 ): Promise<SadtExecutionOutcome> {
   const { clinicId, appointment: ap } = args;
@@ -322,7 +327,7 @@ export async function recordSadtExecutionForAppointment(
     }
   }
   if (!guide) {
-    let key = sadtSessionGuideKey(ap.id);
+    let key = args.idempotencyKey ?? sadtSessionGuideKey(ap.id);
     if (grouped) {
       const [{ n }] = (await tx.execute(sql`
         SELECT count(*)::int AS n FROM public.hi_guides

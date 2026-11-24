@@ -168,6 +168,12 @@ jobs:
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55569 NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-extra-items-db.ts
 
+      # Guia nova depois de uma guia cancelada antes do envio (defeito de 24/11): identidade própria, uma por cancelamento.
+      - name: "Guia nova depois de cancelada (SP/SADT e Consulta; 14 provas)"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55571 NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-guide-reissue-db.ts
+
       - name: "Ensaio da aplicação da 0167 com o migrador real (lock, reaplicação, reversão; 11 provas)"
         if: ${{ !cancelled() }}
         run: |

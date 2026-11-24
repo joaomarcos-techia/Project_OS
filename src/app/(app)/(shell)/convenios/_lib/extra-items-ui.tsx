@@ -235,7 +235,7 @@ export function ExtraItemsPanel({
                 {current.map((i) => {
                   const st = STAGE[i.decision.stage];
                   return (
-                    <li key={i.id} data-stage={i.decision.stage} className="flex flex-col gap-(--sp-1) text-(length:--fs-sm)">
+                    <li key={i.id} data-item={i.id} data-stage={i.decision.stage} className="flex flex-col gap-(--sp-1) text-(length:--fs-sm)">
                       <span>
                         <span className="tabular-nums">{i.tableCode} · {i.procedureCode}</span> — {i.description} ·{' '}
                         <span className="tabular-nums">qtd. {i.quantity}</span>
@@ -287,7 +287,7 @@ export function ExtraItemsPanel({
                 <summary>Não faturados e cancelados ({history.length})</summary>
                 <ul className="mt-(--sp-1) flex flex-col gap-(--sp-1) text-fg-muted">
                   {history.map((i) => (
-                    <li key={i.id} data-stage={i.decision.stage}>
+                    <li key={i.id} data-item={i.id} data-stage={i.decision.stage}>
                       {i.tableCode} · {i.procedureCode} — {i.description} · qtd. {i.quantity} ·{' '}
                       {i.status === 'excluded' ? `não faturado: ${i.exclusionReason}` : `cancelado: ${i.cancelReason}`}
                     </li>

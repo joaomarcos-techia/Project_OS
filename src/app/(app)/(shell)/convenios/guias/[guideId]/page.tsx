@@ -21,6 +21,7 @@ import {
   reconcileGuideAction,
   recordExtraItemAction,
   regularizeExtraItemAction,
+  reissueGuideAction,
   returnGuideAction,
   reverseAllocationAction,
   reviewGuideAction,
@@ -29,6 +30,7 @@ import {
 import {
   getGuideDetail,
   getGuideExtraItems,
+  getGuideReissue,
   getGuideSubstitution,
   guideEventLabel,
   ISSUE_OWNER_LABELS,
@@ -95,6 +97,8 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
     (AT_OPERATOR.includes(g.status) || g.status === 'replaced' || substitution.replaces !== null || substitution.cancellations.length > 0);
   // P8.4 (candidata 0167): itens executados adicionais da SP/SADT; sem a tabela, o painel não aparece.
   const extraItems = g.guideType === 'sp_sadt' ? await getGuideExtraItems(access.clinicId, g.id) : null;
+  // Guia cancelada antes do envio: a nova já gerada, ou o motivo de ainda não poder (faturamento).
+  const reissue = g.status === 'cancelled' && access.rights.seeValues ? await getGuideReissue(access.clinicId, g.id) : null;
   const openGlosses = g.glosses.filter((x) => OPEN_GLOSS.includes(x.status) && !g.appeals.some((a) => ['draft', 'filed'].includes(a.status) && a.glossIds.includes(x.id)));
 
   return (
@@ -141,6 +145,21 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
             </div>
           </dl>
           {g.cancelReason ? <p className="mt-(--sp-2) text-(length:--fs-sm)">Motivo do cancelamento: {g.cancelReason}</p> : null}
+          {reissue ? (
+            <div className="mt-(--sp-2) flex flex-wrap items-center gap-(--sp-2) text-(length:--fs-sm)" data-reissue={reissue.reissued ? 'done' : reissue.block ? 'blocked' : 'available'}>
+              {reissue.reissued ? (
+                <span>
+                  Guia nova gerada: <Link href={`/convenios/guias/${reissue.reissued.id}`} className="font-medium hover:underline">{reissue.reissued.number}</Link>. Esta continua no histórico, cancelada.
+                </span>
+              ) : reissue.block ? (
+                <span className="text-fg-muted">{reissue.block}</span>
+              ) : operableBill ? (
+                <ActionButton label="Gerar nova guia" success="Guia nova gerada" variant="primary" action={reissueGuideAction.bind(null, { guideId: g.id })} />
+              ) : (
+                <span className="text-fg-muted">A guia nova é gerada por quem fatura.</span>
+              )}
+            </div>
+          ) : null}
           {review || bill ? (
             <div className="mt-(--sp-3)">
               <Actions>

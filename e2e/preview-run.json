@@ -1,16 +1,34 @@
 {
-  "note": "Pedido de E2E no Preview (navegador remoto). Mudar este arquivo dispara convenios-preview-e2e.yml. HS24-55c: estados da guia no SHA final do #55 (fixture do bloqueio comercial validada na tripla), fixture nova HS24K.",
-  "run": "HS24-55c",
+  "note": "Pedido de E2E no Preview (navegador remoto). Mudar este arquivo dispara convenios-preview-e2e.yml. HS25-55A: head final do #55 com a P8.4-r e a guia nova depois de cancelada — cancelamento/substituição P7.5 (fixture HS25B), estados da guia (HS25A) e P8.4 da conferência (HS25C), cada grupo num runner.",
+  "run": "HS25-55A",
   "groups": [
     [
+      "e2e/convenios-p75-preview.spec.ts"
+    ],
+    [
       "e2e/convenios-guide-states-preview.spec.ts"
+    ],
+    [
+      "e2e/convenios-p84-preview.spec.ts"
     ]
   ],
   "env": {
     "E2E_HI_ACCOUNTS": "e2e-hi-accounts.json",
-    "E2E_HI_CFG_ACCOUNTS": "e2e-hi-cfg-accounts.json",
-    "E2E_HI_STATES": "e2e-hi-states-hs24k.json",
-    "E2E_HI_CFG_GUIDE": "e2e-hi-cfg-guide.json",
     "E2E_HI_FIXTURE_CMD": "e2e/preview-fixture-relay.mjs"
-  }
+  },
+  "groupEnv": [
+    {
+      "E2E_HI_P75_ACCOUNTS": "e2e-hi-p75-accounts.json",
+      "E2E_HI_P75": "e2e-hi-p75-hs25b.json"
+    },
+    {
+      "E2E_HI_CFG_ACCOUNTS": "e2e-hi-cfg-accounts.json",
+      "E2E_HI_STATES": "e2e-hi-states-hs25a.json",
+      "E2E_HI_CFG_GUIDE": "e2e-hi-cfg-guide.json"
+    },
+    {
+      "E2E_HI_P84_ACCOUNTS": "e2e-hi-p84-accounts.json",
+      "E2E_HI_P84": "e2e-hi-p84-hs25c.json"
+    }
+  ]
 }

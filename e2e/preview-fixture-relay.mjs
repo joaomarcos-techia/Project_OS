@@ -15,6 +15,7 @@
 //   set-state --state paid|trial|suspended
 //   set-active --account <chave> --active true|false
 //   guide-state --guide <uuid>
+//   p84-state --guide <uuid>      (P8.4-r: itens adicionais, consumo, recebível e auditoria; só leitura)
 //
 // Sem resposta em 200 s, ou resposta `ERROR …`, sai com erro: o teste falha dizendo o motivo.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -25,8 +26,9 @@ const ALLOWED = [
   /^set-state --state (paid|trial|suspended)$/u,
   /^set-active --account [a-z0-9-]{2,24} --active (true|false)$/u,
   /^guide-state --guide [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u,
+  /^p84-state --guide [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u,
 ];
-const RESULT = /^(STATE|ACTIVE|GUIDE_STATE) \{.*\}$/u;
+const RESULT = /^(STATE|ACTIVE|GUIDE_STATE|P84_STATE) \{.*\}$/u;
 const WAIT_MS = 200_000;
 const POLL_MS = 2_000;
 
