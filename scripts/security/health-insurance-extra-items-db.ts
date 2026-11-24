@@ -404,7 +404,13 @@ try {
   assert.equal(await outcome(() => asUser(A, (tx) => extra.cancelExtraItemTx(tx, { clinicId: A.clinicId, itemId: eConf, reason: 'Cancelar depois de decidir' }))), 'regra:ALREADY_DECIDED');
   assert.equal(await outcome(() => asUser(A, (tx) => tx.execute(q`UPDATE public.hi_appointment_extra_items SET status = 'recorded', excluded_by = NULL, excluded_at = NULL, exclusion_reason = NULL WHERE id = ${eConf}::uuid`))), '23514:hi_extra_item_closed');
   assert.deepEqual([(await guideOf(ap1))!.items, (await guideOf(ap1))!.total], [2, 18000]);
-  assert.equal(await outcome(() => record(A, ap1, lineConf, 3)), 'regra:DUPLICATE', 'o não faturado continua sendo o registro deste procedimento na sessão');
+  // O não faturado continua sendo O registro deste procedimento na sessão: repetir o mesmo registro
+  // devolve ele (idempotente, nada novo); outra quantidade é recusada.
+  assert.deepEqual(await record(A, ap1, lineConf, 3), { id: eConf, existing: true });
+  assert.equal(await outcome(() => record(A, ap1, lineConf, 1)), 'regra:DUPLICATE');
+  const [nConf] = await sql`select count(*)::int n from public.hi_appointment_extra_items where appointment_id = ${ap1}::uuid and procedure_code = ${CODE_CONF}`;
+  assert.equal(Number(nConf!.n), 1);
+  assert.equal((await itemRow(eConf)).status, 'excluded', 'repetir o registro não reabre a decisão');
   pass('regra 6: "não faturar" exige motivo (10 a 300), grava quem e quando, fica fora da guia; decidido não volta (serviço e banco) e continua sendo o registro do procedimento na sessão');
 
   // ── Regra 3: autorização, saldo, consumo uma vez ────────────────────────
