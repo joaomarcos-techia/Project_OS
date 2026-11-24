@@ -1,6 +1,12 @@
 # Operação e recuperação AbacatePay
 
-## C3 — 23/11/2026: checkout Pix/cartão do único piloto aguardando pagamento
+## C3 — 24/11/2026: primeiro pagamento Pix live confirmado
+
+O checkout `bill_pbMYRx5JMSbB6cEkEBQKr6Np` foi pago uma vez por Pix: provedor `PAID`/R$ 197 e assinatura `ACTIVE`. O Qoro aplicou `subscription.completed` na primeira tentativa, gravou uma invoice paga de R$ 197, ativou Consultório com um médico e até três administrativos, liberou as cotas do trial e confirmou o fechamento do link pago. Período local: 24/11 03:09 UTC até 24/12 03:09 UTC. O checkout CARD anterior continua sem pagamento/assinatura. **Não emitir outro checkout nem reaplicar o evento.** Cadastro e aquisição pública seguem fechados; manter webhook, scanner, cron e obrigações existentes ativos.
+
+`checkout.completed` chegou junto da confirmação da assinatura e ficou historicamente em `review`, sem criar outra invoice. A correção preparada no PR #53 classificará futuros eventos desse tipo como informativos, sem conceder acesso; o evento de assinatura e a recuperação continuam como fontes financeiras. O alerta antigo do scanner ocorreu antes do pagamento e não comprova falha do provedor; futuras falhas terão classe segura na telemetria. Até publicação do novo SHA, a Production ainda executa `27195aa3`. Evidência e limites no [checkpoint atual](../decoupling/asaas-to-abacatepay/ABACATEPAY-SaaS-GO-NO-GO-FINAL.md#checkpoint-prevalente--primeiro-pagamento-pix-live-24112026).
+
+## Histórico — C3 em 23/11/2026: checkout Pix/cartão aguardava pagamento
 
 O deployment `27195aa3` está em `app.qoro.dev` e passou smoke de Auth, banco, Redis, Asaas, outbox e cadastro fechado. O checkout CARD anterior `bill_eeHjDX0GzNMDYxTQHXJ2Z42a` foi encerrado sem pagamento. O novo checkout Production `bill_pbMYRx5JMSbB6cEkEBQKr6Np`, Consultório com um médico e até três administrativos, R$ 197 por mês, está **PENDING**; a API do provedor confirmou `CARD` e `PIX`. A clínica piloto e a assinatura local são as mesmas, e não houve pagamento nem invoice. Não emitir outro checkout.
 

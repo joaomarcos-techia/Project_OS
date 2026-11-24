@@ -459,6 +459,13 @@ export async function reconcileAbacatePayInbox(
       return { applied: 0, review: Number(!retry), scanned: 1, retry };
     }
   }
+  if (event.event_type === 'checkout.completed') {
+    // AbacatePay sends this for every paid subscription charge as well as
+    // subscription.completed/renewed. Only the subscription event grants or
+    // advances access; the recovery workers handle a missing subscription event.
+    await finish('ignored', 'checkout_completed_non_authoritative');
+    return { applied: 0, review: 0, scanned: 1 };
+  }
   if (event.event_type !== 'subscription.completed') {
     // Renewal must not reuse the initial bill's PAID status to extend access.
     const known =
@@ -750,12 +757,19 @@ export async function reconcileMissingAbacatePayInitialPayment(
       duplicate: Number(outcome === 'duplicate'),
       review: Number(outcome === 'review'),
     };
-  } catch {
+  } catch (error) {
+    const code = error instanceof GatewayReadError ? error.code : 'transaction_or_unknown';
     await checked('readback_or_transaction_failed');
-    metrics.emit('billing.abacatepay.reconcile_failed', { reason: 'missing_initial_webhook' });
-    captureBackgroundError(new Error('AbacatePay initial payment recovery needs attention'), {
-      flow: 'billing.abacatepay.initial_recovery',
+    metrics.emit('billing.abacatepay.reconcile_failed', {
+      reason: 'missing_initial_webhook',
+      code,
     });
+    captureBackgroundError(
+      new Error(`AbacatePay initial payment recovery needs attention: ${code}`),
+      {
+        flow: 'billing.abacatepay.initial_recovery',
+      },
+    );
     return { ...idle, scanned: 1, review: 1 };
   }
 }

@@ -114,6 +114,7 @@ describe('missing initial webhook recovery (unit DB double)', () => {
     expect(mocks.transaction).toHaveBeenCalledOnce();
     expect(mocks.emit).toHaveBeenCalledWith('billing.abacatepay.reconcile_failed', {
       reason: 'missing_initial_webhook',
+      code: 'unavailable',
     });
     expect(mocks.capture).toHaveBeenCalledWith(expect.any(Error), {
       flow: 'billing.abacatepay.initial_recovery',
@@ -215,6 +216,39 @@ describe('minute inbox tick', () => {
 });
 
 describe('leased AbacatePay worker recovery (unit DB double)', () => {
+  it('records the paired checkout.completed without a false financial-review alert', async () => {
+    mocks.execute
+      .mockResolvedValueOnce([
+        {
+          account_id: '11111111-1111-4111-8111-111111111111',
+          event_id: 'log_checkout_paid',
+          event_type: 'checkout.completed',
+          lease_token: '22222222-2222-4222-8222-222222222222',
+          external_subscription_id: null,
+          external_checkout_id: 'bill_fixture',
+          external_customer_id: null,
+          attempts: 1,
+          attempt_limit: 10,
+          received_at: new Date(),
+        },
+      ])
+      .mockResolvedValueOnce([{ event_id: 'log_checkout_paid' }]);
+    expect(await reconcileAbacatePayInbox({ eventId: 'log_checkout_paid' })).toEqual({
+      applied: 0,
+      review: 0,
+      scanned: 1,
+    });
+    expect(mocks.capture).not.toHaveBeenCalled();
+    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(mocks.emit).toHaveBeenCalledWith(
+      'billing.abacatepay.event_reconciled',
+      expect.objectContaining({
+        outcome: 'ignored',
+        reason: 'checkout_completed_non_authoritative',
+      }),
+    );
+  });
   it('does not claim a lease when its caller deadline has expired', async () => {
     expect(await reconcileAbacatePayInbox({ deadlineMs: Date.now() - 1 })).toEqual({
       scanned: 0,
