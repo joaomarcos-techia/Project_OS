@@ -165,7 +165,13 @@ async function skipUnhandledPendingInBulk(): Promise<number> {
       processingStartedAt: null,
       attempts: sql`${outbox.attempts} + 1`,
     })
-    .where(and(eq(outbox.status, 'pending'), lte(outbox.nextAttemptAt, sql`now()`), inArray(outbox.eventType, unhandled)))
+    .where(
+      and(
+        eq(outbox.status, 'pending'),
+        lte(outbox.nextAttemptAt, sql`now()`),
+        inArray(outbox.eventType, unhandled),
+      ),
+    )
     .returning({ eventType: outbox.eventType });
   if (rows.length > 0) {
     const byType: Record<string, number> = {};
