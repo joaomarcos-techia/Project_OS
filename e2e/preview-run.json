@@ -1,6 +1,6 @@
 {
-  "note": "Pedido de E2E no Preview (navegador remoto). Mudar este arquivo dispara convenios-preview-e2e.yml. HS24-55b: estados da guia no SHA final do #55 depois da correção da fixture do bloqueio comercial (trial de uma pessoa), fixture nova HS24H.",
-  "run": "HS24-55b",
+  "note": "Pedido de E2E no Preview (navegador remoto). Mudar este arquivo dispara convenios-preview-e2e.yml. HS24-55c: estados da guia no SHA final do #55 (fixture do bloqueio comercial validada na tripla), fixture nova HS24K.",
+  "run": "HS24-55c",
   "groups": [
     [
       "e2e/convenios-guide-states-preview.spec.ts"
@@ -9,7 +9,7 @@
   "env": {
     "E2E_HI_ACCOUNTS": "e2e-hi-accounts.json",
     "E2E_HI_CFG_ACCOUNTS": "e2e-hi-cfg-accounts.json",
-    "E2E_HI_STATES": "e2e-hi-states-hs24h.json",
+    "E2E_HI_STATES": "e2e-hi-states-hs24k.json",
     "E2E_HI_CFG_GUIDE": "e2e-hi-cfg-guide.json",
     "E2E_HI_FIXTURE_CMD": "e2e/preview-fixture-relay.mjs"
   }
