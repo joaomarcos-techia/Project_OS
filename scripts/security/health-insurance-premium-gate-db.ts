@@ -87,13 +87,7 @@ async function setSubscription(clinicId: string, state: SubState): Promise<void>
     await grantPaidSubscription(sql, clinicId, state.plan);
     return;
   }
-  // Integrado sobre o #53, o gatilho do trial (0136, `enroll_new_subscription_trial_limits`) exige
-  // um titular (`owner`) ativo na clínica antes da assinatura de trial; a branch sozinha não tem esse
-  // gatilho, mas o titular não muda nada nela. Sem ele, a fixture falhava com "trial owner missing".
-  const ownerId = randomUUID();
-  await sql`insert into auth.users (id, email) values (${ownerId}::uuid, ${`${ownerId}@example.invalid`})`;
-  await sql`insert into public.profiles (id, clinic_id, nome, role, ativo)
-    values (${ownerId}::uuid, ${clinicId}::uuid, 'Titular sintético', 'owner', true)`;
+  // O titular (`owner`) já existe: quem chama cria antes (ver setupClinic).
   await sql`insert into public.subscriptions (clinic_id, plan_id, price_id, billing_status, trial_ends_at, enforce_trial_deadline)
     select ${clinicId}::uuid, pl.id, pr.id, 'trial', now() + ${state.endsIn}::interval, true
       from public.plans pl join public.prices pr on pr.plan_id = pl.id
@@ -107,9 +101,21 @@ async function setupClinic(label: string, sub: SubState, clinicStatus = 'active'
   await sql`insert into auth.users (id, email) values (${doctorId}::uuid, ${`${doctorId}@example.invalid`})`;
   await sql`insert into public.clinics (id, slug, nome, status)
     values (${clinicId}::uuid, ${`pg-${clinicId.slice(0, 8)}`}, ${`Clínica ${label}`}, ${clinicStatus}::clinic_status)`;
+  // Integrado sobre o #53 (0136), o trial é de UMA pessoa: a assinatura de trial exige um titular
+  // ativo (`enroll_new_subscription_trial_limits`, "trial owner missing") e, durante a avaliação, o
+  // banco recusa outro perfil além dele (`team_invites`, "Evaluation feature requires verified
+  // subscription payment"). Na clínica em trial, o profissional é o próprio titular; a branch
+  // sozinha não tem esses gatilhos, e nada nas provas abaixo depende do papel do profissional.
+  const trial = sub.kind === 'trial';
+  if (trial) {
+    await sql`insert into public.profiles (id, clinic_id, nome, role, ativo)
+      values (${doctorId}::uuid, ${clinicId}::uuid, 'Profissional sintético (titular)', 'owner', true)`;
+  }
   await setSubscription(clinicId, sub);
-  await sql`insert into public.profiles (id, clinic_id, nome, role, ativo)
-    values (${doctorId}::uuid, ${clinicId}::uuid, 'Profissional sintético', 'doctor', true)`;
+  if (!trial) {
+    await sql`insert into public.profiles (id, clinic_id, nome, role, ativo)
+      values (${doctorId}::uuid, ${clinicId}::uuid, 'Profissional sintético', 'doctor', true)`;
+  }
   const [proc] = await sql`insert into public.procedures (clinic_id, codigo, descricao, valor_padrao, duracao_padrao_min, ativo)
     values (${clinicId}::uuid, 'CONS', 'Consulta sintética', 150, 30, true) returning id`;
   return { clinicId, doctorId, procedureId: proc!.id as string, label };

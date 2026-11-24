@@ -23,7 +23,7 @@ Baseline `6e6f7def`. Os runs do SHA final do #55 e da composição estão nos co
 | R61 em produção | leitura de 24/11: nada pendente nem falho, nada devolvido pelo janitor em 7 dias, tick de 708 ms, tráfego quase nulo | `evidence/tiss-r61-producao-2026-11-24/` | não prova pico |
 | Composição tripla | #53 + #56 + #55 nos heads de 24/11. Conflitos de TISS: só o inventário. Conflitos #53 × #56, resolvidos na composição: piloto, redefinição de senha, caixa e dois testes da caixa | PR #63 | — |
 | Estados da guia | 13/13 no #55 (23/11, duas vezes). Na tripla: 12/13 na primeira execução; o 13º caiu numa leitura do banco pelo executor do relé (`CONNECT_TIMEOUT` do DEV no notebook, infraestrutura), e o executor passou a repetir falha transitória | `evidence/tiss-e2e-estados-guia-2026-11-23/`; PR #63 | — |
-| Prova legada do bloqueio comercial | na tripla, a fixture criava trial sem titular, e o gatilho do #53 (0136) recusa; corrigida (cria o `owner` antes do trial) | `health-insurance-premium-gate-db.ts` | defeito do teste, não do produto |
+| Prova legada do bloqueio comercial | na tripla, a fixture violava duas regras do #53 (0136): o trial exige um titular antes da assinatura, e a avaliação não aceita outro perfil além dele. Corrigida: na clínica em trial, o profissional é o próprio titular | `health-insurance-premium-gate-db.ts` | defeito do teste, não do produto |
 | R54 | leitura de 24/11: igual ao estado depois da recusa de 23/11; nenhuma tentativa nova | `evidence/tiss-r54-estorno-sandbox-2026-11-23/estado-2026-11-24.json` | suporte do Asaas pendente (fundador) |
 | P8.4-r | ficha com APROVAR, AJUSTAR ou REJEITAR e a conferência de compatibilidade | `decisao-p84r.md` | decisão do fundador |
 
