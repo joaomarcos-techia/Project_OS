@@ -1,5 +1,24 @@
 # Operação e recuperação AbacatePay
 
+## Estado vigente em 24/11/2026 — C3 ativo, C4 fechado
+
+`app.qoro.dev` executa o corretivo `658743a4` (`dpl_9qnJAM8vZiTuHfLTVuhopmLGesTq`). Smoke no domínio imutável e no alias passou; cadastro público e novos checkouts continuam fechados. O provedor e o banco confirmaram novamente o único pagamento Pix de R$ 197, a assinatura Consultório ativa, uma invoice paga, o período até 24/12/2026 e os cinco contratos Asaas legados. Evidências sanitizadas em `dist/c3-alerts-live-20261124/`; detalhes no [dossiê](../decoupling/asaas-to-abacatepay/ABACATEPAY-SaaS-GO-NO-GO-FINAL.md#checkpoint-prevalente--c3-publicado-e-estabilização-em-integração-24112026).
+
+Os patches P-29, R61-B e P-19 estão no PR #53 após o SHA publicado, sem deploy. Antes de outro deploy, exigir CI e qualificação do SHA exato, composição #53 → #56 → #55 sem conflito financeiro ou journal inválido, nova autorização e smoke pós-publicação. Não alterar batch, emitir outro checkout ou apagar o evento complementar histórico em `review`. Alertas QORO-3J/3M só serão encerrados com evidência posterior no Sentry; o ensaio de worker não substitui observação de renovação live. C4 exige decisão separada para coorte, janela, responsáveis e critérios de parada; aquisição pública permanece fechada.
+
+### Ficha de decisão C4 — preparar, sem executar
+
+| Controle | Prova atual | Condição antes de pedir GO de expansão |
+|---|---|---|
+| Piloto financeiro | Um pagamento Pix, uma assinatura/invoice, cotas corretas e Asaas legado íntegro | Reconfirmar provedor, ledger, tenant e ausência de duplicidade na janela |
+| Auth e jornada | P-28 na UI; P-29 incorporado ao #53, prova isolada de navegador aprovada | Composição final #53 → #56 → #55 com login, recuperação, OTP, checkout, retorno e isolamento aprovados no mesmo SHA |
+| Cron e caixa | R61-B e P-19 implementados, ainda fora de Production | Testes de concorrência e falha do cron/baixa financeira aprovados no SHA composto; deploy corretivo separado e pós-voo antes de ampliar |
+| Migrations | Production com 160 entradas até 0159; composição descartável inclui 0159 antes da 0160 | Journal/hash/preflight da composição final verificados; nenhuma DDL adicional inferida do build e nenhum drift ocultado |
+| Operação | Alertas históricos investigados; ensaio de dez renovações sintéticas passou | Alertas/heartbeats de webhook, inbox/outbox, scanner e assinaturas observáveis; runbook de reprocessamento sem retry financeiro cego |
+| Risco externo | Renovação natural, eventos negativos live e capacidade fora do piloto não observados | Decisão explícita sobre risco residual, janela e responsáveis; medir latência, erros e filas numa coorte limitada antes de cada ampliação |
+
+Proposta para futura autorização: ampliar de **uma para três clínicas consentidas**, e depois avaliar **dez**, sempre após readback financeiro, isolamento e saúde dos consumidores; esses números são etapas de rollout, não capacidade comprovada. Interromper se houver cobrança/assinatura/invoice duplicada, concessão sem pagamento, valor ou tenant divergente, evento financeiro ambíguo, fila sem progresso, falha persistente de autenticação/checkout ou indisponibilidade que afete contratos existentes. Conter fechando **novas aquisições**; manter webhooks, renovação, reconciliação e obrigações já criadas ativos. Preparar suporte ao cliente para fornecer estado factual e prazo de atualização sem prometer pagamento ou acesso não confirmados. C4 requer GO próprio; não alterar flags agora.
+
 ## C3 — 24/11/2026: alertas Sentry e candidato corretivo
 
 `QORO-3J` ocorreu antes do pagamento e não permite atribuir a falha ao provedor: o código antigo não guardou a causa. `QORO-3M` foi o `checkout.completed` adicional que chegou antes do `subscription.completed`; o último aplicou corretamente o pagamento. A leitura Production de 03:49 UTC confirma uma assinatura ativa, uma invoice Pix paga de R$ 197, cotas liberadas, cinco contratos Asaas preservados e nenhum segundo pagamento. Não reemitir checkout, replay ou alterar o evento histórico em `review` apenas para limpar o painel.
