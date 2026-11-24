@@ -60,6 +60,7 @@ import {
 } from './internal/consulta-overrides-service';
 import { CoverageInputError, recordAppointmentCoverage } from './internal/coverage-service';
 import * as extraItems from './internal/extra-executed-items';
+import * as reissue from './internal/guide-reissue';
 import { approveConsultaGuide } from './internal/guide-issuance';
 import * as acct from './internal/insurance-account-service';
 import * as payouts from './internal/insurance-payout-service';
@@ -167,6 +168,8 @@ function messageOf(error: unknown): string {
   if (error instanceof ConsultaOverridesError) return error.message;
   // P8.4: regra do item executado adicional (mensagem já para o usuário, sem dado pessoal).
   if (error instanceof extraItems.ExtraItemRuleError) return error.message;
+  // Guia nova depois de cancelada (mensagem já para o usuário, sem dado pessoal).
+  if (error instanceof reissue.GuideReissueError) return error.message;
   // 0164: o interruptor do módulo também no banco (caminho que pulou o serviço): a mesma mensagem do serviço.
   const constraint = (error as { constraint_name?: string; cause?: { constraint_name?: string } }).constraint_name ??
     (error as { cause?: { constraint_name?: string } }).cause?.constraint_name;
@@ -532,6 +535,20 @@ export async function approveGuideAction(input: { guideId: string }): Promise<Ac
     await requireFreshPermission(PERMISSIONS.MANAGE_FATURAMENTO_CONVENIO);
     await approveConsultaGuide(ctx.clinicId, guideId);
     return null;
+  });
+}
+
+/**
+ * Guia nova depois de uma guia cancelada antes do envio (faturamento, permissão fresca). Uma guia
+ * nova por cancelamento: repetir devolve a mesma (guide-reissue). Auditada com o id da nova.
+ */
+export async function reissueGuideAction(input: { guideId: string }): Promise<ActionResult<string>> {
+  return run(async () => {
+    const { guideId } = z.object({ guideId: uuid }).parse(input);
+    await requireFreshPermission(PERMISSIONS.MANAGE_FATURAMENTO_CONVENIO);
+    return write('health_insurance.guide.reissued', { type: 'hi_guide', id: guideId }, async (tx, ctx) =>
+      (await reissue.reissueGuideAfterCancellationTx(tx, { clinicId: ctx.clinicId, cancelledGuideId: guideId, actorUserId: ctx.userId })).guideId,
+    );
   });
 }
 

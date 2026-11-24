@@ -129,6 +129,8 @@ const WRITE_RULE_BY_PREFIX: ReadonlyArray<readonly [string, ConveniosRule]> = [
   ['health_insurance.extra_item.', 'operateOrBill'],
   // Faturamento.
   ['health_insurance.guide.cancelled', 'bill'],
+  // Guia nova depois de uma cancelada antes do envio: ato de quem fatura (24/11).
+  ['health_insurance.guide.reissued', 'bill'],
   ['health_insurance.guide.reconciled', 'bill'],
   ['health_insurance.guide.substitution', 'bill'],
   ['health_insurance.batch.', 'bill'],

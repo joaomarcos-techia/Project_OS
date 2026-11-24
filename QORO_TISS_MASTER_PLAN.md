@@ -126,13 +126,15 @@
 
 | Item | Estado |
 | --- | --- |
-| Contagem | **87 de 117** (P8.4 não entra: as provas de banco da 0167 nova e o E2E da P8.4 não rodaram — runner do GitHub parado pela cobrança da conta, notebook sem Postgres pela decisão de 15/11 — e a 0167 não está no DEV) |
+| Contagem | **87 de 117** (P8.4 não entra ainda: falta o E2E da P8.4 no Preview e o consultório montado no #56. Banco 28/28, ensaio 11/11 e CI verdes no `5c1b8d09`; 0167 **aplicada no DEV** às 13h52 UTC com os seis gates) |
 | P8.4-r | **aprovada** pelo fundador (política recomendada; exceção do médico: sim; nenhuma operadora informada como "não aceita", sem presumir aceite). Implementada: estados `recorded`/`regularized`/`included`/`excluded`/`cancelled` no banco (0167 nova, `7249f069…`), ações "ligar a autorização", "incluir na guia" (permissão fresca) e "não faturar" (motivo), aprovação bloqueada com pendente e "aprovar sem o item" atômico, regra da operadora por contrato, reinclusão sem consumo duplo depois de guia cancelada, montador com quantidade por linha |
 | Exceção do médico | `recordOwnSessionExtraItemAction` (regra `ownSession` + posse da sessão no servidor) e leitura sem valor; bloco `ConsultorioExtraItems` e patch de duas linhas para o consultório do #56 (`docs/convenios/patches/56-consultorio-p84r.patch`) |
 | Defeito real corrigido | a conclusão de uma sessão cujo saldo já tivesse sido consumido derrubava o handler no gatilho da 0146; agora vira pendência "saldo acabou" (o item adicional passa a consumir o mesmo saldo) |
-| Provas locais | typecheck verde; lint, inventário, `arch:db-check` e ciclos verdes; vitest dirigido 150/150 + ações 13/13 |
-| Provas NOT RUN | banco da P8.4-r (28), ensaio da 0167 (11), CI do SHA final, composição tripla, E2E da P8.4 — motivo: cobrança do GitHub Actions |
-| 0167 no DEV | GO condicional recebido; **não aplicada** (os gates exigem as provas de runner) |
+| Provas | runner de volta às 12h (cobrança regularizada pelo fundador): CI do #55 verde no `5c1b8d09` (run `45404272490`); banco da P8.4-r 28/28 e ensaio da 0167 11/11 (run `45404255259`); legado verde; composição `b509a93c`: sintéticas e legado verdes |
+| Defeitos achados pelo runner | da prova (não do produto): codificação dupla do JSON, ordem da indicação clínica, expectativa da repetição idempotente, ledger simulado do ensaio na 0167 promovida; do teste estático: action de leitura fora da lista de auditoria; inventário desatualizado. Todos corrigidos |
+| Achado anterior à P8.4 | guia SP/SADT por sessão cancelada antes do envio: a recuperação pede "gere uma nova guia", mas o serviço da conclusão não gera (chave de idempotência `sadt:appointment:<id>` da cancelada). Fica registrado para o dono do faturamento TISS (este PR, fora do escopo deste ciclo) |
+| 0167 no DEV | **aplicada** (24/11, 13h52 UTC): pré-voo, dry-run, backup, aplicação (6,1 s, nenhuma sessão esperando lock) e pós-voo OK; evidência em `evidence/tiss-0167-dev-2026-11-24/` |
+| Falta | E2E da P8.4 (spec e fixture SP/SADT no DEV); E2E dos estados da guia e da composição no head final |
 | R61-B | GO da etapa 1 encaminhado ao dono do #53 (lote 50); R61-C não autorizado |
 | R54 | sem tentativa; texto ao suporte com as seis perguntas pronto para o fundador |
 

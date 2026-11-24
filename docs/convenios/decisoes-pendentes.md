@@ -4,8 +4,8 @@
 
 | Decisão | O que o fundador decidiu | Estado da execução |
 | --- | --- | --- |
-| **P8.4-r** | APROVADA a política recomendada; exceção do médico: SIM (só a própria sessão); nenhuma operadora informada como "não aceita", sem presumir que todas aceitam | implementada no #55 (`decisao-p84r.md`, "Decisão de 24/11"); provas de banco NOT RUN até a CI voltar |
-| **0167 no DEV** | GO condicional para a versão atualizada à política, depois dos gates | versão nova pronta (`7249f069…`); gates em `go-0167-dev.md` §5; **não aplicada** (gates de runner bloqueados pela cobrança do GitHub) |
+| **P8.4-r** | APROVADA a política recomendada; exceção do médico: SIM (só a própria sessão); nenhuma operadora informada como "não aceita", sem presumir que todas aceitam | implementada no #55 (`decisao-p84r.md`, "Decisão de 24/11"); banco 28/28 e ensaio 11/11 no runner; CI verde |
+| **0167 no DEV** | GO condicional para a versão atualizada à política, depois dos gates | **aplicada em 24/11** (`7249f069…`), com os seis gates de `go-0167-dev.md` §9; falta o E2E da P8.4 |
 | **R61-B, etapa 1** | GO condicional para produção, pelo dono do #53, lote 50, depois dos gates de release | GO encaminhado ao #53; o agente TISS não publica |
 | **R61-C (lote 200)** | não autorizado neste ciclo | — |
 | **R54** | sem quinta tentativa; sem estorno integral; sem cobrança nova | texto do suporte com as seis perguntas pronto (`homologacao-r54-sandbox.md`); envio pelo fundador |

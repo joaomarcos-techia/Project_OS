@@ -21,6 +21,7 @@ import { listInsurancePayoutPositionsTx, type InsurancePayoutPosition } from './
 import { listPayoutReviewsTx, type PayoutReviewRow } from './internal/payout-review-service';
 import { listGuideCancellationsTx, type GuideCancellationRow } from './internal/guide-cancellation-service';
 import { extraItemsAvailableTx, listExtraItemsTx, type ExtraItemView } from './internal/extra-executed-items';
+import { reissueBlockTx, reissuedFromTx } from './internal/guide-reissue';
 import { GUIDE_STATUS_LABELS } from './guide-status-labels';
 import {
   CONSULTA_CODE_FIELD_KEYS,
@@ -1495,6 +1496,17 @@ export async function getGuideExtraItems(clinicId: string, guideId: string): Pro
         label: `${l.table_code} · ${l.procedure_code} — ${l.description}${l.valid_until ? ` (até ${l.valid_until})` : ''}`,
       })),
     };
+  });
+}
+
+/** Guia cancelada antes do envio: a guia nova já gerada dela, ou por que ainda não pode ser gerada. */
+export async function getGuideReissue(
+  clinicId: string,
+  guideId: string,
+): Promise<{ reissued: { id: string; number: string } | null; block: string | null }> {
+  return withTenant(clinicId, async (tx) => {
+    const reissued = await reissuedFromTx(tx, clinicId, guideId);
+    return { reissued, block: reissued ? null : await reissueBlockTx(tx, clinicId, guideId) };
   });
 }
 

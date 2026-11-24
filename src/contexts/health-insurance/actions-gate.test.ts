@@ -106,6 +106,7 @@ describe('portão das actions de Convênios (P12.2, matriz I.2)', () => {
       'health_insurance.extra_item.excluded': 'bill',
       'health_insurance.extra_item.recorded_own_session': 'ownSession',
       'health_insurance.guide.cancelled': 'bill',
+      'health_insurance.guide.reissued': 'bill',
       'health_insurance.guide.reconciled': 'bill',
       'health_insurance.batch.created': 'bill',
       'health_insurance.gloss.recorded': 'bill',
@@ -126,6 +127,12 @@ describe('portão das actions de Convênios (P12.2, matriz I.2)', () => {
     for (const name of ['approveGuideAction', 'approveGuideWithoutPendingExtraItemsAction', 'exportBatchAction']) {
       const body = fns.get(name)!.body;
       expect(body, name).toMatch(/gate\('bill'\)/u);
+      expect(body, name).toMatch(/requireFreshPermission\(PERMISSIONS\.MANAGE_FATURAMENTO_CONVENIO\)/u);
+    }
+    // Incluir item adicional e gerar guia nova: regra do evento (bill) + permissão fresca.
+    for (const name of ['includeExtraItemAction', 'reissueGuideAction']) {
+      const body = fns.get(name)!.body;
+      expect(body, name).toMatch(/write\(/u);
       expect(body, name).toMatch(/requireFreshPermission\(PERMISSIONS\.MANAGE_FATURAMENTO_CONVENIO\)/u);
     }
     expect(fns.get('requestCopayChargeAction')!.body).toMatch(/gate\('patientCharge'\)/u);

@@ -55,7 +55,7 @@ const outFile = arg('out');
  *   set-active --account <chave> --active true|false perfil ativo/desativado de uma conta e2e-hi-*
  *   guide-state --guide <id>                         status, versão, ajuste e eventos (só leitura)
  */
-const COMMANDS = ['setup', 'setup-config', 'cleanup', 'setup-states', 'setup-authorizations', 'setup-i2', 'deliver-alerts', 'setup-p75', 'setup-sadt', 'complete-sadt', 'setup-r54', 'set-state', 'set-active', 'guide-state'];
+const COMMANDS = ['setup', 'setup-config', 'cleanup', 'setup-states', 'setup-authorizations', 'setup-i2', 'deliver-alerts', 'setup-p75', 'setup-sadt', 'complete-sadt', 'setup-r54', 'setup-p84', 'p84-state', 'set-state', 'set-active', 'guide-state'];
 if (!COMMANDS.includes(command ?? '') || !expectedRef || !accountsFile || !outFile) {
   throw new Error(`uso: ${COMMANDS.join('|')} --expected-ref <ref> --accounts <arquivo> --out <ids.json>`);
 }
@@ -1347,6 +1347,244 @@ async function setupR54() {
   console.log(`[hi-dev-e2e-fixture] R54: ${outcome}; cobranças do atendimento ${rows.length}; valor ${rows[0]?.amount ?? '-'}; host ${rows[0]?.invoice_url ? new URL(rows[0].invoice_url).hostname : '-'}`);
 }
 
+/**
+ * P8.4-r (24/11): itens executados adicionais no Preview. Pelos serviços reais, em cada execução
+ * (marca `--run`): paciente e carteirinha próprios; solicitação SP/SADT com três procedimentos
+ * (agendado, adicional autorizado e adicional com saldo curto); indicação clínica; resposta
+ * sintética da operadora; três sessões de HOJE ligadas à solicitação — a 1ª concluída pelo caminho
+ * real (a guia nasce no outbox), a 2ª em atendimento com a médica e a 3ª em atendimento com outra
+ * médica (para o consultório). A regra da operadora para item além do solicitado fica "não
+ * informada" (a inclusão pede confirmação). Uma segunda clínica com uma médica prova o isolamento.
+ */
+const P84_CODES = {
+  main: { code: '50000470', cents: 9000, auth: true, desc: 'Sessão de psicoterapia individual por psicólogo' },
+  authorized: { code: '50000497', cents: 2500, auth: true, desc: 'Sessão de psicoterapia em casal por psicólogo' },
+  short: { code: '50000500', cents: 2000, auth: true, desc: 'Sessão de psicoterapia familiar por psicólogo' },
+  outside: { code: '50000489', cents: 1800, auth: true, desc: 'Sessão de psicoterapia em grupo por psicólogo' },
+  free: { code: '50000519', cents: 3000, auth: false, desc: 'Acompanhamento e reabilitação profissional por psicólogo' },
+  late: { code: '50000551', cents: 1500, auth: false, desc: 'Acompanhamento de cuidador para paciente psiquiátrico' },
+  doctor: { code: '50000543', cents: 1200, auth: false, desc: 'Acompanhamento de cuidador domiciliar' },
+} as const;
+
+async function setupP84() {
+  const run = arg('run');
+  if (!run || !/^[A-Z0-9]{3,12}$/u.test(run)) throw new Error('--run <marca> obrigatório (A-Z e 0-9)');
+  const [tv] = await exec<{ version: string }>(sql`SELECT version FROM public.tiss_terminology_versions ORDER BY version DESC LIMIT 1`);
+  if (!tv) throw new Error('terminologia TISS não carregada no DEV');
+  const c = await clinic('e2e-hi-p84', 'Clínica Sintética E2E Itens Adicionais');
+  const cb = await clinic('e2e-hi-p84b', 'Clínica Sintética E2E Itens Adicionais B');
+  await subscription(c, 'paid');
+  await subscription(cb, 'paid');
+  const accounts: Record<string, { email: string; password: string; userId: string; clinic: string; role: string }> = {};
+  const add = async (key: string, role: string, nome: string, clinicId = c, label = 'p84') => {
+    const email = `e2e-hi-${key}@example.com`;
+    const pass = password();
+    const userId = await ensureUser(email, pass);
+    await profile(userId, clinicId, nome, role);
+    accounts[key] = { email, password: pass, userId, clinic: label, role };
+    return userId;
+  };
+  await add('p84-gestor', 'gestor', 'Gestora Itens Adicionais E2E');
+  const recepcao = await add('p84-recepcao', 'attendant', 'Recepção Itens Adicionais E2E');
+  const medica = await add('p84-medica', 'doctor', 'Dra. Itens Adicionais E2E');
+  const medica2 = await add('p84-medica2', 'doctor', 'Dra. Outra Itens Adicionais E2E');
+  await add('p84b-medica', 'doctor', 'Dra. Outra Clínica Itens E2E', cb, 'p84b');
+  for (const clinicId of [c, cb]) {
+    await exec(sql`
+      INSERT INTO public.hi_clinic_settings (clinic_id, enabled, enabled_at, enabled_by, provider_kind, cnes_status, contractor_name)
+      VALUES (${clinicId}::uuid, true, now(), ${SYS}::uuid, 'PJ', 'none_declared', 'Clínica Sintética Itens Adicionais E2E Ltda')
+      ON CONFLICT (clinic_id) DO UPDATE SET enabled = true, contractor_name = EXCLUDED.contractor_name`);
+  }
+  for (const [pro, num] of [[medica, '52345'], [medica2, '52346']] as const) {
+    await exec(sql`
+      INSERT INTO public.hi_professional_profiles (clinic_id, professional_id, council, council_number, council_uf, cbo)
+      VALUES (${c}::uuid, ${pro}::uuid, '06', ${num}, '35', '225133') ON CONFLICT DO NOTHING`);
+  }
+  let [proc] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.procedures WHERE clinic_id = ${c}::uuid AND codigo = 'E2E-PSI'`);
+  if (!proc) {
+    [proc] = await exec<{ id: string }>(sql`
+      INSERT INTO public.procedures (clinic_id, codigo, descricao, valor_padrao, duracao_padrao_min, ativo)
+      VALUES (${c}::uuid, 'E2E-PSI', 'Psicoterapia sintética E2E', 120, 50, true) RETURNING id::text AS id`);
+  }
+  const insurerName = 'Operadora Sintética Itens Adicionais';
+  let [ins] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.hi_insurers WHERE clinic_id = ${c}::uuid AND registro_ans = '999907'`);
+  if (!ins) {
+    [ins] = await exec<{ id: string }>(sql`
+      INSERT INTO public.hi_insurers (clinic_id, name, registro_ans, provider_id_kind, provider_id_value, status, sadt_grouping, created_by)
+      VALUES (${c}::uuid, ${insurerName}, '999907', 'codigoPrestadorNaOperadora', 'E2E0007', 'active', 'per_session', ${SYS}::uuid)
+      RETURNING id::text AS id`);
+  }
+  const insurerId = ins!.id;
+  // A regra da operadora para item além do solicitado fica "não informada" em toda execução.
+  await exec(sql`UPDATE public.hi_insurers SET settings = coalesce(settings, '{}'::jsonb) - 'extraItemsAfterSession' WHERE id = ${insurerId}::uuid`);
+  for (const k of Object.values(P84_CODES)) {
+    await exec(sql`
+      INSERT INTO public.hi_procedure_contracts (clinic_id, insurer_id, guide_type, table_code, procedure_code, description, procedure_id,
+        unit_value_cents, valid_from, requires_authorization, copay_kind, copay_fixed_cents, created_by)
+      SELECT ${c}::uuid, ${insurerId}::uuid, 'sp_sadt', '22', ${k.code}, ${k.desc}, ${k.code === P84_CODES.main.code ? proc!.id : null}::uuid,
+             ${k.cents}, '2026-01-01', ${k.auth}, 'none', null, ${SYS}::uuid
+       WHERE NOT EXISTS (SELECT 1 FROM public.hi_procedure_contracts x WHERE x.clinic_id = ${c}::uuid AND x.insurer_id = ${insurerId}::uuid
+                           AND x.guide_type = 'sp_sadt' AND x.procedure_code = ${k.code})`);
+  }
+  await exec(sql`
+    INSERT INTO public.hi_credentials (clinic_id, insurer_id, plan_id, professional_id, valid_from, status, created_by)
+    SELECT ${c}::uuid, ${insurerId}::uuid, NULL, x.pro, '2026-01-01', 'active', ${SYS}::uuid
+      FROM (VALUES (NULL::uuid), (${medica}::uuid), (${medica2}::uuid)) AS x(pro)
+     WHERE NOT EXISTS (SELECT 1 FROM public.hi_credentials k WHERE k.clinic_id = ${c}::uuid AND k.insurer_id = ${insurerId}::uuid
+                         AND k.plan_id IS NULL AND k.professional_id IS NOT DISTINCT FROM x.pro AND k.status = 'active')`);
+  // Paciente e carteirinha DESTA execução (nada de guia ou item de rodada anterior).
+  const seed = [...run].reduce((acc, ch) => (acc * 131 + ch.charCodeAt(0)) % 1_000_000_000, 7);
+  const cpf = cpfOf(String(100_000_000 + (seed % 899_999_999)).slice(0, 9));
+  const card = `00812345${String(10_000_000 + (seed % 89_999_999)).slice(0, 8)}`;
+  const nome = `Paciente Sintética Itens ${run}`;
+  let [p] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.patients WHERE clinic_id = ${c}::uuid AND nome = ${nome}`);
+  if (!p) {
+    [p] = await exec<{ id: string }>(sql`
+      INSERT INTO public.patients (clinic_id, nome, cpf_encrypted, cpf_hash)
+      VALUES (${c}::uuid, ${nome}, ${await encryptForTenant(c, cpf)}, ${await hashForLookup(cpf)}) RETURNING id::text AS id`);
+  }
+  const hash = await hashForLookup(`${c}:${card}`);
+  let [m] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.hi_memberships WHERE clinic_id = ${c}::uuid AND card_number_hash = ${hash}`);
+  if (!m) {
+    [m] = await exec<{ id: string }>(sql`
+      INSERT INTO public.hi_memberships (clinic_id, patient_id, insurer_id, card_number_encrypted, card_number_hash, card_last4, created_by)
+      VALUES (${c}::uuid, ${p!.id}::uuid, ${insurerId}::uuid, ${await encryptForTenant(c, card)}, ${hash}, ${card.slice(-4)}, ${SYS}::uuid)
+      RETURNING id::text AS id`);
+  }
+  const [today] = await exec<{ d: string }>(sql`SELECT (now() AT TIME ZONE 'America/Sao_Paulo')::date::text AS d`);
+  const req = await import('../../src/contexts/health-insurance/internal/sadt-request-service');
+  const coverage = await import('../../src/contexts/health-insurance/internal/coverage-service');
+  const version = async (id: string) =>
+    Number((await exec<{ v: number }>(sql`SELECT version AS v FROM public.hi_sadt_requests WHERE id = ${id}::uuid`))[0]!.v);
+  // Solicitação desta execução (a marca vai na observação administrativa).
+  let [r] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.hi_sadt_requests WHERE clinic_id = ${c}::uuid AND membership_id = ${m!.id}::uuid ORDER BY created_at LIMIT 1`);
+  if (!r) {
+    const created = await withTenant(c, (tx) => req.createSadtRequestInTx(tx, {
+      clinicId: c, patientId: p!.id, membershipId: m!.id,
+      requester: { kind: 'internal', professionalId: medica }, requestedOn: today!.d, careCharacter: '1', careType: '03',
+      items: [
+        { tableCode: '22', procedureCode: P84_CODES.main.code, quantity: 4 },
+        { tableCode: '22', procedureCode: P84_CODES.authorized.code, quantity: 2 },
+        { tableCode: '22', procedureCode: P84_CODES.short.code, quantity: 1 },
+      ],
+      actorUserId: recepcao,
+    } as Parameters<typeof req.createSadtRequestInTx>[1]), recepcao);
+    r = { id: created.requestId };
+    await withTenant(c, async (tx) => req.checkSadtRequestInTx(tx, { clinicId: c, requestId: r!.id, version: await version(r!.id), actorUserId: recepcao }), recepcao);
+    // A indicação clínica é da médica solicitante e vem antes da resposta da operadora.
+    await withTenant(c, async (tx) => req.setClinicalIndicationInTx(tx, {
+      clinicId: c, requestId: r!.id, version: await version(r!.id), text: `Indicação sintética de teste ${run}.`, actorUserId: medica,
+    }), medica);
+    const items = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.hi_sadt_request_items WHERE request_id = ${r.id}::uuid ORDER BY sequence`);
+    await withTenant(c, async (tx) => req.recordSadtAuthorizationInTx(tx, {
+      decision: 'authorized', clinicId: c, requestId: r!.id, version: await version(r!.id), authorizedOn: today!.d,
+      operatorGuideNumber: `OPI${run}`.slice(0, 20), password: `SENHA${run}`.slice(0, 20),
+      passwordValidUntil: new Date(Date.parse(`${today!.d}T12:00:00Z`) + 30 * 86_400_000).toISOString().slice(0, 10),
+      items: items.map((it, i) => ({ requestItemId: it.id, quantityAuthorized: [4, 2, 1][i]! })), actorUserId: recepcao,
+    } as Parameters<typeof req.recordSadtAuthorizationInTx>[1]), recepcao);
+  }
+  const [mainItem] = await exec<{ id: string }>(sql`
+    SELECT id::text AS id FROM public.hi_sadt_request_items WHERE request_id = ${r.id}::uuid AND procedure_code = ${P84_CODES.main.code}`);
+  // Três sessões de HOJE desta execução, ligadas ao procedimento agendado da solicitação.
+  const sessionsOut: Record<string, string> = {};
+  let hour = 10;
+  for (const [key, doctor, doctorName] of [['s1', medica, 'Dra. Itens Adicionais E2E'], ['s2', medica, 'Dra. Itens Adicionais E2E'], ['s3', medica2, 'Dra. Outra Itens Adicionais E2E']] as const) {
+    const tag = `e2e-hi:p84-${run}-${key}`;
+    let [ap] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.appointments WHERE clinic_id = ${c}::uuid AND observacoes = ${tag}`);
+    for (; !ap && hour <= 22; hour++) {
+      try {
+        [ap] = await exec<{ id: string }>(sql`
+          INSERT INTO public.appointments (clinic_id, doctor_id, patient_id, procedure_id, scheduled_at, duration_min, status, valor,
+            snapshot_procedure_name, snapshot_procedure_valor, snapshot_procedure_duracao_min, snapshot_doctor_nome, created_via, observacoes, billing_mode)
+          VALUES (${c}::uuid, ${doctor}::uuid, ${p!.id}::uuid, ${proc!.id}::uuid, ${`${today!.d}T${String(hour).padStart(2, '0')}:00:00Z`}::timestamptz, 50,
+            'agendado'::appointment_status, 120, 'Psicoterapia sintética E2E', 120, 50, ${doctorName}, 'attendant', ${tag}, 'convenio')
+          RETURNING id::text AS id`);
+      } catch (e) {
+        if (pgCode(e) !== '23P01' && pgCode(e) !== '23505') throw e; // horário ocupado (exclusão ou índice do horário do médico)
+      }
+    }
+    if (!ap) throw new Error(`sem horário livre hoje (${key})`);
+    const [cv] = await exec<{ n: number }>(sql`SELECT count(*)::int AS n FROM public.hi_appointment_coverages WHERE appointment_id = ${ap.id}::uuid`);
+    if (cv!.n === 0) {
+      await withTenant(c, (tx) => coverage.recordAppointmentCoverage(tx, {
+        clinicId: c, appointmentId: ap!.id, patientId: p!.id, procedureId: proc!.id, appointmentDate: today!.d, guideType: 'sp_sadt',
+        insurerId, planId: null, membershipId: m!.id, authorizationId: null, sadtRequestItemId: mainItem!.id,
+        actor: { kind: 'user', userId: recepcao },
+      }), recepcao);
+    }
+    await exec(sql`UPDATE public.appointments SET status = 'em_atendimento' WHERE id = ${ap.id}::uuid AND status = 'agendado'`);
+    sessionsOut[key] = ap.id;
+  }
+  // A 1ª sessão é concluída pelo caminho real: prontuário assinado + Scheduling + outbox (a guia nasce).
+  const s1 = sessionsOut.s1!;
+  const [s1st] = await exec<{ status: string }>(sql`SELECT status::text AS status FROM public.appointments WHERE id = ${s1}::uuid`);
+  if (s1st!.status !== 'atendido') {
+    const { applyTransition } = await import('../../src/contexts/scheduling/internal/appointment-core');
+    await import('../../src/contexts/health-insurance/internal/handlers/insurance-completed');
+    const { runOutboxEventsNow } = await import('../../src/lib/outbox/worker');
+    await exec(sql`
+      INSERT INTO public.prontuarios (clinic_id, patient_id, doctor_id, appointment_id, status, signed_at, signed_by, content_encrypted)
+      VALUES (${c}::uuid, ${p!.id}::uuid, ${medica}::uuid, ${s1}::uuid, 'assinado', now(), ${medica}::uuid,
+        ${await encryptForTenant(c, JSON.stringify({ sintetico: 'Registro sintético E2E, sem conteúdo clínico' }))})`);
+    await withTenant(c, (tx) => applyTransition(tx, {
+      clinicId: c, appointmentId: s1, target: 'atendido', transitionedBy: medica, actorType: 'user',
+      clientKey: `e2e-p84-concluir-${s1}`, correlationId: null,
+    }), medica);
+    await runOutboxEventsNow([{ eventType: 'scheduling.appointment.insurance_completed', idempotencyKeys: [`e2e-p84-concluir-${s1}:atendido:convenio`] }]);
+  }
+  const [g] = await exec<{ id: string; status: string; total: number }>(sql`
+    SELECT g.id::text AS id, g.status::text AS status, g.total_value_cents::int AS total FROM public.hi_guides g
+     WHERE g.clinic_id = ${c}::uuid AND g.live AND EXISTS (SELECT 1 FROM public.hi_guide_items i WHERE i.guide_id = g.id AND i.appointment_id = ${s1}::uuid)`);
+  if (!g) throw new Error('a guia da 1ª sessão não nasceu (outbox)');
+  const lines = await exec<{ code: string; id: string }>(sql`
+    SELECT procedure_code AS code, id::text AS id FROM public.hi_procedure_contracts WHERE clinic_id = ${c}::uuid AND insurer_id = ${insurerId}::uuid AND guide_type = 'sp_sadt'`);
+  const out = {
+    clinicId: c, otherClinicId: cb, run, today: today!.d, insurerName, patientName: nome, requestId: r.id,
+    guide: g, sessions: sessionsOut, codes: Object.fromEntries(Object.entries(P84_CODES).map(([k, v]) => [k, v.code])),
+    lines: Object.fromEntries(lines.map((l) => [l.code, l.id])),
+  };
+  writeFileSync(accountsFile!, JSON.stringify(accounts, null, 1));
+  writeFileSync(outFile!, JSON.stringify(out, null, 1));
+  console.log(`[hi-dev-e2e-fixture] ok: e2e-hi-p84, ${Object.keys(accounts).length} contas, guia ${g.status} (${g.total}), sessões ${Object.keys(sessionsOut).join(',')}, marca ${run}`);
+}
+
+/** Só leitura, compacto (cabe no status do relé): guia, itens adicionais, consumo, recebível e auditoria. */
+async function p84State() {
+  const id = arg('guide');
+  if (!id || !/^[0-9a-f-]{36}$/u.test(id)) throw new Error('--guide <uuid>');
+  const [g] = await exec<{ clinic: string; status: string; total: number; n: number; created: string }>(sql`
+    SELECT g.clinic_id::text AS clinic, g.status::text AS status, g.total_value_cents::int AS total, g.created_at::text AS created,
+           (SELECT count(*)::int FROM public.hi_guide_items i WHERE i.guide_id = g.id) AS n
+      FROM public.hi_guides g JOIN public.clinics c ON c.id = g.clinic_id AND c.slug = 'e2e-hi-p84' WHERE g.id = ${id}::uuid`);
+  if (!g) throw new Error('guia fora da clínica e2e-hi-p84');
+  const ex = await exec<{ status: string; n: number }>(sql`
+    SELECT e.status, count(*)::int AS n FROM public.hi_appointment_extra_items e
+     WHERE e.clinic_id = ${g.clinic}::uuid AND e.appointment_id IN (SELECT appointment_id FROM public.hi_guide_items WHERE guide_id = ${id}::uuid)
+     GROUP BY 1`);
+  const count = (s: string) => ex.find((x) => x.status === s)?.n ?? 0;
+  const [k] = await exec<{ q: number }>(sql`
+    SELECT coalesce(sum(k.quantity), 0)::int AS q FROM public.hi_authorization_consumptions k
+     WHERE k.clinic_id = ${g.clinic}::uuid AND k.idempotency_key IN (
+       SELECT 'extra:' || e.id::text FROM public.hi_appointment_extra_items e
+        WHERE e.clinic_id = ${g.clinic}::uuid AND e.appointment_id IN (SELECT appointment_id FROM public.hi_guide_items WHERE guide_id = ${id}::uuid))`);
+  const [l] = await exec<{ n: number; v: string }>(sql`
+    SELECT count(*)::int AS n, coalesce(sum(valor - valor_pago - valor_glosado), 0)::numeric(12,2)::text AS v
+      FROM public.lancamentos WHERE clinic_id = ${g.clinic}::uuid AND source_hi_guide_id = ${id}::uuid`);
+  const au = await exec<{ action: string; n: number }>(sql`
+    SELECT action, count(*)::int AS n FROM public.audit_events
+     WHERE clinic_id = ${g.clinic}::uuid AND created_at >= ${g.created}::timestamptz
+       AND (action LIKE 'health_insurance.extra_item.%' OR action = 'health_insurance.guide.approved') GROUP BY 1`);
+  const a = (suffix: string) => au.filter((x) => x.action.endsWith(suffix)).reduce((s, x) => s + x.n, 0);
+  const st = { pending_data: 'pd', ready_for_review: 'rr', reviewed: 'rv', approved: 'ap', in_batch: 'ib', exported: 'ex', sent: 'se' } as Record<string, string>;
+  const out = {
+    s: st[g.status] ?? g.status.slice(0, 4), t: g.total, n: g.n,
+    x: `R${count('recorded')}G${count('regularized')}I${count('included')}E${count('excluded')}C${count('cancelled')}`,
+    k: k!.q, l: l!.n, v: l!.v,
+    a: `r${a('.recorded') + a('.recorded_own_session')}g${a('.regularized')}i${a('.included')}e${a('.excluded')}o${a('.excluded_on_approval')}p${a('guide.approved')}`,
+  };
+  console.log(`P84_STATE ${JSON.stringify(out)}`);
+}
+
 // Comando desconhecido NÃO cai no cleanup (antes era o ramo padrão: um erro de digitação desativava
 // as contas e clínicas e2e-hi-*). O cleanup só roda pelo nome.
 const main =
@@ -1360,6 +1598,8 @@ const main =
   : command === 'setup-sadt' ? setupSadt
   : command === 'complete-sadt' ? completeSadt
   : command === 'setup-r54' ? setupR54
+  : command === 'setup-p84' ? setupP84
+  : command === 'p84-state' ? p84State
   : command === 'set-state' ? setState
   : command === 'set-active' ? setActive
   : command === 'guide-state' ? guideState
