@@ -217,6 +217,17 @@ export default async function OperadoraPage({ params }: { params: Promise<{ insu
                 <TableCell>{i.rules.submissionDeadlineDays ? `${i.rules.submissionDeadlineDays} dias` : 'Não registrado'}</TableCell>
                 <TableCell>Obrigatório por contrato</TableCell>
               </TableRow>
+              <TableRow data-rule="extra-items" data-value={i.rules.extraItemsAfterSession}>
+                <TableCell>Item executado além do solicitado, regularizado depois da sessão</TableCell>
+                <TableCell>
+                  {i.rules.extraItemsAfterSession === 'accepts'
+                    ? 'Aceita'
+                    : i.rules.extraItemsAfterSession === 'forbids'
+                      ? 'Não aceita'
+                      : 'Não informado'}
+                </TableCell>
+                <TableCell>Por contrato (P8.4-r); sem a informação, nada é presumido</TableCell>
+              </TableRow>
               <TableRow>
                 <TableCell>Agrupamento das sessões de SP/SADT</TableCell>
                 <TableCell>{i.sadtGrouping === 'per_request' ? 'Por solicitação' : 'Uma guia por sessão'}</TableCell>

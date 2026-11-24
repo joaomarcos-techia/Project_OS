@@ -9,14 +9,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableWra
 import {
   answerAppealAction,
   approveGuideAction,
+  approveGuideWithoutPendingExtraItemsAction,
   cancelExtraItemAction,
   cancelGuideAction,
   createAppealAction,
   decideGlossAction,
+  excludeExtraItemAction,
   exportAppealXmlAction,
   fileAppealAction,
+  includeExtraItemAction,
   reconcileGuideAction,
   recordExtraItemAction,
+  regularizeExtraItemAction,
   returnGuideAction,
   reverseAllocationAction,
   reviewGuideAction,
@@ -35,7 +39,7 @@ import { brl, brlOrDash, ConveniosHeader, conveniosAccess, shortDate } from '../
 import { AttendanceCopyButton } from '../../_lib/attendance-copy-ui';
 import { ActionButton, Actions, AnswerAppealForm, AppealForm, FileAppealForm, TextAction } from '../../_lib/action-ui';
 import { ConsultaFieldsPanel } from '../../_lib/consulta-fields-ui';
-import { ExtraItemsPanel } from '../../_lib/extra-items-ui';
+import { ExtraItemsPanel, PendingExtraItemsApproval } from '../../_lib/extra-items-ui';
 import { GlossStatusBadge, GuideStatusBadge } from '../../_lib/status';
 import { guideLabel } from '../../_lib/guide-label';
 import { CANCELLATION_CHANNEL_LABELS, CANCELLATION_STATUS_LABELS, TABLE_46_LABELS } from '../../_lib/constants';
@@ -143,7 +147,8 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
                 {operable && g.status === 'ready_for_review' && g.issues.length === 0 ? (
                   <ActionButton label="Marcar como conferida" success="Guia conferida" variant="primary" action={reviewGuideAction.bind(null, ref)} />
                 ) : null}
-                {operableBill && g.status === 'reviewed' ? (
+                {/* P8.4-r (regra 5): com item adicional pendente, não há aprovação silenciosa. */}
+                {operableBill && g.status === 'reviewed' && (extraItems?.pendingCount ?? 0) === 0 ? (
                   <ActionButton label="Aprovar e emitir" success="Guia aprovada e emitida" variant="primary" action={approveGuideAction.bind(null, { guideId: g.id })} />
                 ) : null}
                 {operable && ['reviewed', 'approved'].includes(g.status) ? (
@@ -156,6 +161,16 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
                   <ActionButton label="Conciliar e encerrar" success="Guia conciliada" variant="primary" action={reconcileGuideAction.bind(null, ref)} />
                 ) : null}
               </Actions>
+              {g.status === 'reviewed' && extraItems?.available ? (
+                <div className="mt-(--sp-3)">
+                  <PendingExtraItemsApproval
+                    count={extraItems.pendingCount}
+                    guideId={g.id}
+                    canBill={operableBill}
+                    approveWithoutAction={approveGuideWithoutPendingExtraItemsAction}
+                  />
+                </div>
+              ) : null}
             </div>
           ) : null}
         </PanelCard>
@@ -231,18 +246,22 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
                 description: i.description,
                 quantity: i.quantity,
                 status: i.status,
+                exclusionReason: i.exclusionReason,
                 cancelReason: i.cancelReason,
-                billing: i.billing
-                  ? i.billing.bill
-                    ? { bill: true as const }
-                    : { bill: false as const, message: i.billing.issue?.message ?? null, blocksApproval: i.billing.blocksApproval }
-                  : null,
+                decision: i.decision,
               })),
             }))}
             options={extraItems.options}
             editable={operable && EDITABLE.includes(g.status)}
-            recordAction={recordExtraItemAction}
-            cancelAction={cancelExtraItemAction}
+            canRegularize={operable}
+            canBill={operableBill}
+            actions={{
+              record: recordExtraItemAction,
+              cancel: cancelExtraItemAction,
+              regularize: regularizeExtraItemAction,
+              include: includeExtraItemAction,
+              exclude: excludeExtraItemAction,
+            }}
           />
         </PanelCard>
       ) : null}

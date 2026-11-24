@@ -174,7 +174,7 @@ const diff = (a: Map<string, string>, b: Map<string, string>) => ({
   removed: [...a.keys()].filter((k) => !b.has(k)),
   changed: [...a.keys()].filter((k) => b.has(k) && a.get(k) !== b.get(k)),
 });
-const NEW_OBJECT = /hi_appointment_extra_items|hi_extra_items_|hi_extra_item_(guide_closed|insert_guard|update_guard)/u;
+const NEW_OBJECT = /hi_appointment_extra_items|hi_extra_items_|hi_extra_item_(guide_state|authorization_problem|insert_guard|update_guard)/u;
 const statements = (body: string) =>
   body
     .split('--> statement-breakpoint')
@@ -281,11 +281,12 @@ try {
   const existing = locks.filter((l) => cat0.has(`rel:${l.rel}`));
   assert.ok(existing.every((l) => l.mode !== 'AccessExclusiveLock'), JSON.stringify(existing));
   const shareRow = [...new Set(existing.filter((l) => l.mode === 'ShareRowExclusiveLock').map((l) => l.rel))].sort();
-  assert.deepEqual(shareRow, ['clinics', 'hi_appointment_coverages', 'hi_procedure_contracts']);
+  // P8.4-r (24/11): as FKs novas, da autorização e da linha da guia, entram na lista.
+  assert.deepEqual(shareRow, ['clinics', 'hi_appointment_coverages', 'hi_authorization_items', 'hi_guide_items', 'hi_procedure_contracts']);
   assert.deepEqual(diff(cat0, await catalog()), { added: [], removed: [], changed: [] });
   const byRel = [...new Set(existing.map((l) => `${l.rel}=${l.mode.replace('Lock', '')}`))].sort();
   pass(
-    `locks do corpo da 0167 em tabelas existentes: nenhum AccessExclusive; ShareRowExclusive só nas três referenciadas pelas FKs (clinics, hi_appointment_coverages, hi_procedure_contracts), que seguram escritas nelas até o COMMIT; todos: ${byRel.join(', ')}`,
+    `locks do corpo da 0167 em tabelas existentes: nenhum AccessExclusive; ShareRowExclusive só nas cinco referenciadas pelas FKs (clinics, hi_appointment_coverages, hi_authorization_items, hi_guide_items, hi_procedure_contracts), que seguram escritas nelas até o COMMIT; todos: ${byRel.join(', ')}`,
   );
 
   // ── 5. Liberado: aplica só a 0167 ─────────────────────────────────────
@@ -359,7 +360,7 @@ try {
       (id, clinic_id, appointment_id, contract_line_id, table_code, procedure_code, description, quantity,
        requires_authorization, source, status, recorded_by)
       select ${randomUUID()}::uuid, ${clinic.clinicId}::uuid, ${appt!.id}::uuid, pc.id, '22', '10101012', 'Ensaio', 1,
-             false, 'conferencia', 'active', ${clinic.doctorId}::uuid
+             false, 'conferencia', 'recorded', ${clinic.doctorId}::uuid
         from public.hi_procedure_contracts pc where pc.clinic_id = ${clinic.clinicId}::uuid limit 1`;
   });
   const refused = await runRollback();
@@ -402,7 +403,7 @@ try {
   }
   assert.equal(recordCode, 'NOT_AVAILABLE');
   pass(
-    `reversão sem itens (arquivo de reversão + linha do ledger): catálogo dos ${cat0.size} objetos e dados das ${data0.size} tabelas EXATAMENTE como antes da 0167 (as três funções saem, inclusive hi_extra_item_guide_closed); ledger de volta a ${led0.n}; o serviço responde "não disponível" sem erro e registrar dá NOT_AVAILABLE`,
+    `reversão sem itens (arquivo de reversão + linha do ledger): catálogo dos ${cat0.size} objetos e dados das ${data0.size} tabelas EXATAMENTE como antes da 0167 (as quatro funções saem: estado da guia, problema da autorização e as duas guardas); ledger de volta a ${led0.n}; o serviço responde "não disponível" sem erro e registrar dá NOT_AVAILABLE`,
   );
 
   // ── 11. Reaplicação depois da reversão ────────────────────────────────

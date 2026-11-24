@@ -1,5 +1,29 @@
 # Decisão P8.4-r: item executado sem solicitação prévia (ficha para aprovação, 23/11/2026)
 
+## Decisão de 24/11/2026: APROVADA
+
+O fundador respondeu no ciclo de 24/11:
+- **P8.4-r:** APROVAR a política recomendada (texto abaixo, em "Sua resposta").
+- **Exceção do médico:** SIM, só na própria sessão clínica, pelo consultório. A matriz I.2 continua valendo; o médico não ganha permissão financeira.
+- **Operadora que não aceita:** nenhuma informada. Isso **não** confirma que todas aceitam: sem a regra registrada, nada é presumido.
+
+### Como ficou no código
+
+| Regra | Onde |
+| --- | --- |
+| Estados `recorded` → `regularized` → `included`, mais `excluded` e `cancelled` (finais) | migration 0167 (gatilho de alteração) e `extra-item-policy.ts` |
+| Registrar sempre (consultório ou conferência), autor gravado pelo banco | `recordExtraItemTx`; repetição idêntica devolve o item existente |
+| Exige autorização: ligar a autorização concedida **da solicitação da sessão**, do mesmo procedimento, senha válida na data e saldo ≥ quantidade | `regularizeExtraItemTx` + `hi_extra_item_authorization_problem` (banco) |
+| Incluir na guia: só pelo faturamento (permissão fresca), guia em edição, contrato vigente igual ao do registro; consome o saldo uma vez (`extra:<item>`) | `includeExtraItemTx`; o banco só aceita "incluído" apontando a linha certa da guia e com o consumo lançado |
+| Não faturar: faturamento, motivo de 10 a 300, quem e quando | `excludeExtraItemTx` |
+| Guia com pendente não é aprovada; "aprovar sem o item" exclui os pendentes e aprova na mesma transação | `sadt-issuance.ts` (bloqueio) e `approveConsultaGuide(…, { withoutPendingExtraItems })` |
+| Regra da operadora: desconhecida pede a confirmação do contrato a cada inclusão; "não aceita" recusa a inclusão | `insurer-rules.ts` (`extraItemsAfterSession`), tela de regras da operadora |
+| Guia cancelada: o incluído volta a ser pendência e entra na guia nova sem consumir de novo | gatilho da 0167 + `includeExtraItemTx` |
+| XML e recebível: a linha incluída é linha da guia (quantidade e valor do contrato); o não faturado e o pendente ficam fora | montador SP/SADT (quantidade por linha) e livro pela guia |
+| Exceção do médico: `recordOwnSessionExtraItemAction` (regra `ownSession` + posse do atendimento no servidor); leitura sem valor | `actions.ts`, `getAppointmentExtraItems`, bloco `ConsultorioExtraItems` para o #56 |
+
+**Restrição conhecida (conservadora, regra 7):** item que exige autorização só se regulariza com a autorização da **solicitação da sessão**, que é a autorização que a guia leva. Autorização complementar com outro número, ou solicitação sem autorização, não serve: o item fica pendente até "não faturar". A guia TISS leva uma autorização só.
+
 **O caso.** Numa sessão de SP/SADT, a clínica faz um procedimento além do que foi agendado e solicitado (exemplo: uma segunda técnica na mesma sessão).
 
 O Qoro já registra esse item. **A decisão aqui é só uma:** se ele entra na guia e na cobrança à operadora, e quando.

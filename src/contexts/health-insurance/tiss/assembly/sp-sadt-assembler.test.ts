@@ -183,6 +183,48 @@ describe('assembleSpSadtGuide', () => {
     expect(r).toMatchObject({ decision: 'bill', guide: { autorizacao: null } });
   });
 
+  it('P8.4-r: item adicional incluído entra logo depois da linha agendada da sessão, com a quantidade dele, e conta no saldo', () => {
+    const extraLine = line({ id: 'k2', procedureCode: '20104227', description: 'Item adicional sintético', unitValueCents: 3000 });
+    const r = assembleSpSadtGuide(
+      input({
+        sessions: [
+          { appointmentId: 'a1', date: '2026-11-10', tableCode: '22', procedureCode: '20104219', ref: 'g1' },
+          { appointmentId: 'a1', date: '2026-11-10', tableCode: '22', procedureCode: '20104227', quantity: 3, ref: 'g3' },
+          { appointmentId: 'a0', date: '2026-11-03', tableCode: '22', procedureCode: '20104219', ref: 'g2' },
+        ],
+        contracts: [line(), extraLine],
+        authorization: {
+          ...input().authorization!,
+          items: [
+            { tableCode: '22', procedureCode: '20104219', authorized: 4, consumed: 0 },
+            { tableCode: '22', procedureCode: '20104227', authorized: 3, consumed: 0 },
+          ],
+        },
+      }),
+    );
+    expect(r.decision).toBe('bill');
+    if (r.decision !== 'bill') return;
+    expect(r.guide.procedimentos.map((p) => [p.sequencial, p.dataExecucao, p.codigoProcedimento, p.quantidade])).toEqual([
+      [1, '2026-11-03', '20104219', 1],
+      [2, '2026-11-10', '20104219', 1],
+      [3, '2026-11-10', '20104227', 3],
+    ]);
+    expect(r.refs).toEqual(['g2', 'g1', 'g3']);
+    expect(r.contractLineIds).toEqual(['k1', 'k1', 'k2']);
+    expect(r.consumption).toEqual({ '22:20104219': 2, '22:20104227': 3 });
+    // A quantidade além do saldo bloqueia (nunca fatura acima do autorizado).
+    const over = assembleSpSadtGuide(
+      input({
+        sessions: [{ appointmentId: 'a1', date: '2026-11-10', tableCode: '22', procedureCode: '20104227', quantity: 4 }],
+        contracts: [extraLine],
+        authorization: { ...input().authorization!, items: [{ tableCode: '22', procedureCode: '20104227', authorized: 3, consumed: 0 }] },
+      }),
+    );
+    expect(over).toMatchObject({ decision: 'blocked', issues: [{ code: 'AUTHORIZATION_QUANTITY_EXCEEDED' }] });
+    const bad = assembleSpSadtGuide(input({ sessions: [{ appointmentId: 'a1', date: '2026-11-10', tableCode: '22', procedureCode: '20104219', quantity: 0 }] }));
+    expect(bad).toMatchObject({ decision: 'blocked', issues: [{ code: 'QUANTITY_INVALID' }] });
+  });
+
   it('mais sessões que o saldo autorizado: bloqueia com o saldo explicado', () => {
     const r = assembleSpSadtGuide(
       input({

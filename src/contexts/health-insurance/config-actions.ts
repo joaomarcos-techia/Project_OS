@@ -466,6 +466,8 @@ const Rules = z.object({
   requireProfessionalCredential: z.boolean(),
   maxGuidesPerBatch: z.number().int().min(1).max(100),
   submissionDeadlineDays: z.number().int().min(1).max(365).nullable(),
+  // P8.4-r: sem a informação, fica "desconhecida" (o padrão não presume aceite).
+  extraItemsAfterSession: z.enum(['unknown', 'accepts', 'forbids']).optional(),
 });
 
 export async function saveInsurerRulesAction(

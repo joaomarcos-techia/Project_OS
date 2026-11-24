@@ -1917,6 +1917,7 @@ export function InsurerRulesForm({
   const [deadline, setDeadline] = useState(
     rules.submissionDeadlineDays === null ? '' : String(rules.submissionDeadlineDays),
   );
+  const [extraItems, setExtraItems] = useState(rules.extraItemsAfterSession);
   const { pending, run } = useRun();
   return (
     <Toggle label="Alterar regras do contrato">
@@ -1937,6 +1938,7 @@ export function InsurerRulesForm({
                   requireProfessionalCredential: requirePro,
                   maxGuidesPerBatch: max,
                   submissionDeadlineDays: days,
+                  extraItemsAfterSession: extraItems,
                 }),
               'Regras da operadora salvas.',
               close,
@@ -1977,6 +1979,21 @@ export function InsurerRulesForm({
               />
             </Field>
           </div>
+          <Field
+            label="Item executado além do solicitado, regularizado depois da sessão"
+            htmlFor={`${id}-extra`}
+            hint="Como consta no contrato. Sem a informação, fica “não informado” e quem fatura confirma o contrato a cada inclusão."
+          >
+            <Select
+              id={`${id}-extra`}
+              value={extraItems}
+              onChange={(e) => setExtraItems(e.target.value as typeof extraItems)}
+            >
+              <option value="unknown">Não informado no contrato</option>
+              <option value="accepts">A operadora aceita</option>
+              <option value="forbids">A operadora não aceita</option>
+            </Select>
+          </Field>
           <Actions pending={pending} onCancel={close} submit="Salvar regras" />
         </Box>
       )}

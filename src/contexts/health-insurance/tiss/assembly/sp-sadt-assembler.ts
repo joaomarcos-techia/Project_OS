@@ -6,6 +6,8 @@
  * autorização); este montador transforma esse grupo em guia:
  *  - uma linha por sessão (quantidade 1), em ordem de data, com o valor do
  *    contrato vigente NA DATA DE CADA SESSÃO (o contrato pode mudar no mês);
+ *  - item executado adicional incluído na guia (P8.4-r): mais uma linha da mesma
+ *    sessão, com a quantidade dele, logo depois da linha agendada;
  *  - autorização só se a operadora concedeu (vem do cadastro manual ou do
  *    conector); contrato que exige autorização sem autorização é bloqueio,
  *    nunca autorização presumida;
@@ -38,6 +40,10 @@ export interface SpSadtSession {
   date: string;
   tableCode: string;
   procedureCode: string;
+  /** Quantidade da linha (padrão 1: a sessão agendada; o item adicional incluído leva a dele). */
+  quantity?: number;
+  /** Identificador da linha de origem (linha da guia), devolvido na mesma ordem dos itens. */
+  ref?: string;
 }
 
 export interface SpSadtAssemblyInput {
@@ -108,6 +114,8 @@ export type SpSadtAssembly =
       guide: SpSadtGuideData;
       /** Linha de contrato usada em cada item, na ordem dos itens. */
       contractLineIds: string[];
+      /** `ref` de cada item, na ordem dos itens (`null` quando a sessão não trouxe). */
+      refs: Array<string | null>;
       /** Sessões por procedimento (`tabela:código`), para baixar a autorização. */
       consumption: Record<string, number>;
     }
@@ -169,6 +177,12 @@ export function assembleSpSadtGuide(input: SpSadtAssemblyInput): SpSadtAssembly 
     );
   }
 
+  for (const s of input.sessions) {
+    const q = s.quantity ?? 1;
+    if (!Number.isInteger(q) || q < 1 || q > 999)
+      block('QUANTITY_INVALID', `sessao[${s.appointmentId}]`, 'A quantidade de cada linha vai de 1 a 999.', 'gestor');
+  }
+  // Ordem estável: data, atendimento e, na mesma sessão, a ordem recebida (agendado antes do adicional).
   const sessions = [...input.sessions].sort(
     (a, b) => a.date.localeCompare(b.date) || a.appointmentId.localeCompare(b.appointmentId),
   );
@@ -199,7 +213,7 @@ export function assembleSpSadtGuide(input: SpSadtAssemblyInput): SpSadtAssembly 
   const consumption: Record<string, number> = {};
   for (const s of sessions)
     consumption[key(s.tableCode, s.procedureCode)] =
-      (consumption[key(s.tableCode, s.procedureCode)] ?? 0) + 1;
+      (consumption[key(s.tableCode, s.procedureCode)] ?? 0) + (s.quantity ?? 1);
   if (needsAuth && !auth) {
     block(
       'AUTHORIZATION_REQUIRED',
@@ -222,7 +236,7 @@ export function assembleSpSadtGuide(input: SpSadtAssemblyInput): SpSadtAssembly 
         block(
           'AUTHORIZATION_QUANTITY_EXCEEDED',
           'autorizacao',
-          `São ${count} sessões de ${k}, mas restam ${Math.max(item.authorized - item.consumed, 0)} das ${item.authorized} autorizadas.`,
+          `São ${count} execuções de ${k}, mas restam ${Math.max(item.authorized - item.consumed, 0)} das ${item.authorized} autorizadas.`,
           'recepcao',
         );
       }
@@ -261,7 +275,7 @@ export function assembleSpSadtGuide(input: SpSadtAssemblyInput): SpSadtAssembly 
     codigoTabela: lines[i]!.tableCode,
     codigoProcedimento: lines[i]!.procedureCode,
     descricao: lines[i]!.description,
-    quantidade: 1,
+    quantidade: s.quantity ?? 1,
     fatorCentesimos: 100,
     valorUnitarioCentavos: lines[i]!.unitValueCents,
     equipe: team,
@@ -327,5 +341,11 @@ export function assembleSpSadtGuide(input: SpSadtAssemblyInput): SpSadtAssembly 
     procedimentos: items,
     observacao: o.observacao ?? null,
   };
-  return { decision: 'bill', guide, contractLineIds: lines.map((l) => l.id), consumption };
+  return {
+    decision: 'bill',
+    guide,
+    contractLineIds: lines.map((l) => l.id),
+    refs: sessions.map((s) => s.ref ?? null),
+    consumption,
+  };
 }

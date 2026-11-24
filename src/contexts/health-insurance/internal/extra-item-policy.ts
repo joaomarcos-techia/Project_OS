@@ -1,122 +1,172 @@
 /**
- * P8.4-r — o que fazer, no FATURAMENTO, com o item executado na sessão SP/SADT sem solicitação
- * prévia (registrado em `hi_appointment_extra_items`, candidata 0167).
+ * P8.4-r — política APROVADA pelo fundador em 24/11/2026 (docs/convenios/decisao-p84r.md,
+ * "Decisão de 24/11") para o procedimento executado na sessão SP/SADT além do solicitado
+ * (`hi_appointment_extra_items`, migration 0167):
  *
- * ISTO NÃO É POLÍTICA APROVADA. As alternativas abaixo são hipóteses para a decisão do fundador
- * (docs/convenios/decisoes-pendentes.md, "P8.4-r"); estão implementadas e testadas para que a
- * decisão vire uma linha de configuração, não um desenvolvimento novo. Enquanto ela não vier, a
- * política vigente é `undecided`: o registro do item fica (o registro do atendimento nunca é
- * bloqueado por falta de autorização financeira) e NADA entra na guia.
+ *  1. o registro clínico legítimo fica sempre (nada é apagado por falta de autorização);
+ *  2. nada entra na guia sozinho: a inclusão é uma ação explícita do faturamento;
+ *  3. contrato que EXIGE autorização: só com a autorização concedida da solicitação da sessão,
+ *     do mesmo procedimento, com saldo para a quantidade, ligada ao item (regularização); a
+ *     inclusão consome o saldo uma vez;
+ *  4. contrato que DISPENSA autorização: entra pela ação "Incluir na guia" do faturamento;
+ *  5. guia com item pendente não é aprovada em silêncio: inclui-se o item ou aprova-se a guia
+ *     sem ele, com motivo;
+ *  6. item não faturado fica registrado, com motivo, quem e quando, fora do XML e do recebível;
+ *  7. operadora: nada é presumido. Regra desconhecida → a inclusão pede a confirmação de que o
+ *     contrato permite; proibição registrada → o item não entra na guia dessa operadora.
  *
- * Em todas as alternativas: o valor só vem do contrato; uma unidade autorizada nunca é usada duas
- * vezes (o consumo segue a chave por sessão e o gatilho da 0146); nada é faturado presumindo
- * autorização.
+ * Função PURA: a mesma decisão alimenta a tela (o que mostrar e oferecer) e o serviço (o que
+ * aceitar). O banco confere de novo as transições (gatilhos da 0167).
  */
-import type { GuideIssue } from '../tiss/validation/common';
+import type { InsurerExtraItemsRule } from './insurer-rules';
 
-export type ExtraItemPolicy =
-  /** Vigente até a decisão: registra, não fatura, avisa que a regra está pendente. */
-  | 'undecided'
-  /** (a) Bloquear o faturamento do item: fica registrado, nunca entra na guia. */
-  | 'block_billing'
-  /** (b) Pendência de regularização: a guia da sessão não é aprovada até o item ser regularizado. */
-  | 'regularization_pending'
-  /** (c) Autorização posterior: fatura quando o contrato não exige autorização ou há saldo autorizado. */
-  | 'post_authorization'
-  /** (d) Só registro: fica no atendimento, sem cobrança e sem pendência. */
-  | 'record_only';
+export const EXTRA_ITEM_POLICY = 'p84r-2026-11-24' as const;
 
-export const EXTRA_ITEM_POLICIES: readonly ExtraItemPolicy[] = [
-  'undecided',
-  'block_billing',
-  'regularization_pending',
-  'post_authorization',
-  'record_only',
-];
+export type ExtraItemStatus = 'recorded' | 'regularized' | 'included' | 'excluded' | 'cancelled';
+export const EXTRA_ITEM_STATUSES: readonly ExtraItemStatus[] = ['recorded', 'regularized', 'included', 'excluded', 'cancelled'];
 
-/** A política em vigor. Mudar exige a decisão P8.4-r registrada no plano. */
-export const ACTIVE_EXTRA_ITEM_POLICY: ExtraItemPolicy = 'undecided';
+/** Etapa das guias vivas da sessão (`hi_extra_item_guide_state`). */
+export type SessionGuideState = 'none' | 'open' | 'reviewed' | 'closed';
+
+export type ExtraItemStage =
+  /** Exige autorização e não há autorização da solicitação que sirva. */
+  | 'awaiting_authorization'
+  /** Exige autorização e há uma concedida, com saldo, que a recepção pode ligar. */
+  | 'authorization_available'
+  /** Pronto para o faturamento decidir: incluir na guia ou não faturar. */
+  | 'ready_to_include'
+  /** A autorização ligada deixou de servir (cancelada, vencida ou sem saldo). */
+  | 'authorization_invalid'
+  /** A operadora está registrada como "não aceita item regularizado depois da sessão". */
+  | 'insurer_forbids'
+  | 'included'
+  /** Estava na guia, que foi cancelada; a sessão tem guia nova sem ele. */
+  | 'included_in_dead_guide'
+  | 'not_billed'
+  | 'cancelled';
 
 export interface ExtraItemFacts {
-  /** Da linha do contrato (copiado pelo banco no registro). */
+  status: ExtraItemStatus;
   requiresAuthorization: boolean;
   quantity: number;
-  /**
-   * Autorização concedida pela operadora que cobre ESTE procedimento, para o paciente e a
-   * operadora do atendimento, com o saldo ainda livre. `null` quando não há.
-   */
-  grantedAuthorization: { itemId: string; remaining: number } | null;
+  guideState: SessionGuideState;
+  insurerRule: InsurerExtraItemsRule;
+  /** Só para `recorded` que exige: autorização concedida da solicitação da sessão, com saldo ≥ quantidade. */
+  candidateAuthorization: { itemId: string; remaining: number } | null;
+  /** Só para `regularized`: o problema atual da autorização ligada (null = serve). */
+  linkedAuthorizationProblem: string | null;
+  /** Só para `included`: alguma guia viva cobra este procedimento da sessão? */
+  billedInLiveGuide: boolean;
 }
 
-export type ExtraItemBilling =
-  | {
-      bill: false;
-      /** Pendência mostrada na conferência (null: nenhuma). */
-      issue: GuideIssue | null;
-      /** A guia da sessão não pode ser aprovada enquanto isto valer. */
-      blocksApproval: boolean;
-    }
-  | {
-      bill: true;
-      /** Item da autorização consumido (uma vez por sessão), ou null quando o contrato não exige. */
-      authorizationItemId: string | null;
-    };
+export interface ExtraItemDecision {
+  stage: ExtraItemStage;
+  /** Pendência que impede a aprovação silenciosa da guia (regra 5). */
+  pending: boolean;
+  /** O que cada papel pode fazer agora (o servidor confere de novo). */
+  canRegularize: boolean;
+  canInclude: boolean;
+  canExclude: boolean;
+  canCancel: boolean;
+  /** Incluir exige confirmar que o contrato da operadora aceita (regra da operadora desconhecida). */
+  includeNeedsInsurerConfirmation: boolean;
+  /** Mensagem para a tela, sem valor e sem dado clínico. */
+  message: string;
+}
 
-const issue = (code: string, owner: GuideIssue['owner'], message: string): GuideIssue => ({
-  code,
-  field: 'procedimentosExecutados',
-  message,
-  owner,
-});
+const editable = (s: SessionGuideState) => s === 'none' || s === 'open';
+const notApproved = (s: SessionGuideState) => s !== 'closed';
 
-export function resolveExtraItemBilling(policy: ExtraItemPolicy, facts: ExtraItemFacts): ExtraItemBilling {
-  if (!Number.isInteger(facts.quantity) || facts.quantity < 1 || facts.quantity > 999) {
+export function decideExtraItem(f: ExtraItemFacts): ExtraItemDecision {
+  if (!Number.isInteger(f.quantity) || f.quantity < 1 || f.quantity > 999) {
     throw new RangeError('quantidade do item executado fora de 1 a 999');
   }
-  switch (policy) {
-    case 'undecided':
+  const none = { canRegularize: false, canInclude: false, canExclude: false, canCancel: false, includeNeedsInsurerConfirmation: false };
+  switch (f.status) {
+    case 'cancelled':
+      return { ...none, stage: 'cancelled', pending: false, message: 'Registro cancelado; fica no histórico.' };
+    case 'excluded':
+      return { ...none, stage: 'not_billed', pending: false, message: 'Não faturado por decisão; o registro fica no atendimento.' };
+    case 'included':
+      if (f.billedInLiveGuide) return { ...none, stage: 'included', pending: false, message: 'Incluído na guia.' };
       return {
-        bill: false,
-        issue: issue(
-          'EXTRA_ITEM_POLICY_PENDING',
-          'gestor',
-          'Item executado sem solicitação: registrado no atendimento, ainda não faturado. A regra de faturamento desse caso aguarda decisão.',
-        ),
-        blocksApproval: false,
+        ...none,
+        stage: 'included_in_dead_guide',
+        pending: true,
+        canInclude: f.guideState === 'open',
+        canExclude: notApproved(f.guideState),
+        message: 'A guia em que o item entrou foi cancelada. Inclua o item na guia nova da sessão ou registre que não será faturado.',
       };
-    case 'block_billing':
+    case 'recorded':
+    case 'regularized': {
+      const base = { canCancel: editable(f.guideState), canExclude: notApproved(f.guideState) };
+      if (f.insurerRule === 'forbids') {
+        return {
+          ...none,
+          ...base,
+          stage: 'insurer_forbids',
+          pending: true,
+          message: 'Esta operadora está registrada como não aceita item regularizado depois da sessão: registre que não será faturado, com o motivo.',
+        };
+      }
+      const confirm = f.insurerRule === 'unknown';
+      if (!f.requiresAuthorization) {
+        return {
+          ...none,
+          ...base,
+          stage: 'ready_to_include',
+          pending: true,
+          canInclude: f.guideState === 'open',
+          includeNeedsInsurerConfirmation: confirm,
+          message: 'O contrato dispensa autorização. O faturamento decide: incluir na guia ou não faturar, com motivo.',
+        };
+      }
+      if (f.status === 'recorded') {
+        if (f.candidateAuthorization && f.candidateAuthorization.remaining >= f.quantity) {
+          return {
+            ...none,
+            ...base,
+            stage: 'authorization_available',
+            pending: true,
+            canRegularize: notApproved(f.guideState),
+            message: 'Há autorização concedida para este procedimento na solicitação da sessão. Ligue a autorização ao item antes de incluir.',
+          };
+        }
+        return {
+          ...none,
+          ...base,
+          stage: 'awaiting_authorization',
+          pending: true,
+          message: f.candidateAuthorization
+            ? `O saldo autorizado (${f.candidateAuthorization.remaining}) é menor que a quantidade executada (${f.quantity}). Peça a autorização à operadora ou registre que não será faturado.`
+            : 'O contrato exige autorização e a solicitação da sessão não tem autorização concedida para este procedimento. Peça a autorização à operadora ou registre que não será faturado.',
+        };
+      }
+      if (f.linkedAuthorizationProblem) {
+        return {
+          ...none,
+          ...base,
+          stage: 'authorization_invalid',
+          pending: true,
+          message: `A autorização ligada não serve mais: ${f.linkedAuthorizationProblem}. Registre que não será faturado ou resolva com a operadora.`,
+        };
+      }
       return {
-        bill: false,
-        issue: issue('EXTRA_ITEM_NOT_BILLED', 'financeiro', 'Item executado sem solicitação: registrado, não faturado nesta guia.'),
-        blocksApproval: false,
-      };
-    case 'regularization_pending':
-      return {
-        bill: false,
-        issue: issue(
-          'EXTRA_ITEM_REGULARIZATION',
-          'recepcao',
-          'Item executado sem solicitação: regularize (solicitação ou autorização da operadora) antes de aprovar a guia.',
-        ),
-        blocksApproval: true,
-      };
-    case 'post_authorization': {
-      if (!facts.requiresAuthorization) return { bill: true, authorizationItemId: null };
-      const g = facts.grantedAuthorization;
-      if (g && g.remaining >= facts.quantity) return { bill: true, authorizationItemId: g.itemId };
-      return {
-        bill: false,
-        issue: issue(
-          'EXTRA_ITEM_AUTHORIZATION_MISSING',
-          'recepcao',
-          g
-            ? `A autorização registrada tem saldo de ${g.remaining}, menor que a quantidade executada (${facts.quantity}).`
-            : 'O contrato exige autorização para este item e não há autorização concedida registrada.',
-        ),
-        blocksApproval: false,
+        ...none,
+        ...base,
+        stage: 'ready_to_include',
+        pending: true,
+        canInclude: f.guideState === 'open',
+        includeNeedsInsurerConfirmation: confirm,
+        message: 'Autorização ligada, com saldo. O faturamento decide: incluir na guia (consome o saldo) ou não faturar, com motivo.',
       };
     }
-    case 'record_only':
-      return { bill: false, issue: null, blocksApproval: false };
   }
+}
+
+/** Mensagem de bloqueio da aprovação com itens pendentes (regra 5). */
+export function pendingApprovalMessage(count: number): string {
+  return count === 1
+    ? 'Há 1 item executado adicional pendente nesta guia: inclua o item na guia ou aprove sem ele, informando o motivo.'
+    : `Há ${count} itens executados adicionais pendentes nesta guia: inclua os itens na guia ou aprove sem eles, informando o motivo.`;
 }

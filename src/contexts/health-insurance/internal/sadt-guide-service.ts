@@ -179,14 +179,18 @@ export async function recordSadtExecutionForAppointment(
   }
 
   // Saldo: o autorizado pela operadora (quando exige) ou o pedido (quando não exige).
-  let authItem: { id: string; quantityAuthorized: number } | null = null;
+  let authItem: { id: string; quantityAuthorized: number; quantityConsumed: number } | null = null;
   let auth: { status: string; passwordValidUntil: string | null } | null = null;
   if (request.authorizationRequirement === 'required') {
     if (!item.authorizationItemId || !request.authorizationId) {
       return blocked('authorization_pending', 'recepcao', 'automatic', 'SADT_AUTHORIZATION_MISSING', 'autorizacao', 'O contrato exige autorização e o item não está na autorização registrada.');
     }
     const [ai] = await tx
-      .select({ id: hiAuthorizationItems.id, quantityAuthorized: hiAuthorizationItems.quantityAuthorized })
+      .select({
+        id: hiAuthorizationItems.id,
+        quantityAuthorized: hiAuthorizationItems.quantityAuthorized,
+        quantityConsumed: hiAuthorizationItems.quantityConsumed,
+      })
       .from(hiAuthorizationItems)
       .where(and(eq(hiAuthorizationItems.clinicId, clinicId), eq(hiAuthorizationItems.id, item.authorizationItemId)))
       .limit(1);
@@ -265,6 +269,18 @@ export async function recordSadtExecutionForAppointment(
       .from(hiAuthorizationConsumptions)
       .where(and(eq(hiAuthorizationConsumptions.clinicId, clinicId), eq(hiAuthorizationConsumptions.idempotencyKey, key)))
       .limit(1);
+    if (!done && authItem.quantityAuthorized - authItem.quantityConsumed < 1) {
+      // O saldo real (que um item executado adicional incluído também consome, P8.4-r) acabou:
+      // pendência com responsável, em vez de o gatilho da 0146 derrubar a conclusão.
+      return blocked(
+        'authorization_pending',
+        'recepcao',
+        'human',
+        'SADT_QUANTITY_EXHAUSTED',
+        'autorizacao',
+        `O saldo autorizado de ${item.procedureCode} acabou (${authItem.quantityConsumed} de ${authItem.quantityAuthorized} consumidos). Peça nova autorização.`,
+      );
+    }
     if (!done) {
       await tx.insert(hiAuthorizationConsumptions).values({
         clinicId,

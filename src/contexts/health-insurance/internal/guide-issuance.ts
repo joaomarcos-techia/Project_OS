@@ -54,6 +54,7 @@ import {
   todayInTz,
   type IssueArgs,
 } from './issuance-common';
+import { excludePendingExtraItemsForGuideTx } from './extra-executed-items';
 import { readMembershipCardNumberAudited } from './membership-access';
 import { issueSpSadtGuide } from './sadt-issuance';
 
@@ -263,8 +264,17 @@ export async function issueConsultaGuide(
 /**
  * Aprovação com emissão, como o usuário faz na tela (P7.7). Permissão fresca,
  * leitura auditada da carteirinha e emissão transacional.
+ *
+ * P8.4-r ("aprovar sem o item"): com `withoutPendingExtraItems`, os itens executados adicionais
+ * pendentes da guia ficam "não faturado por decisão", com o motivo, NA MESMA transação da
+ * aprovação: ou os dois acontecem, ou nenhum. Sem a opção, a emissão SP/SADT recusa a guia com
+ * pendente (sadt-issuance).
  */
-export async function approveConsultaGuide(clinicId: string, guideId: string) {
+export async function approveConsultaGuide(
+  clinicId: string,
+  guideId: string,
+  opts: { withoutPendingExtraItems?: { reason: string } } = {},
+) {
   await requireFreshPermission(PERMISSIONS.MANAGE_FATURAMENTO_CONVENIO);
   const user = await requireUser();
   const head = await withTenant(clinicId, async (tx) => {
@@ -302,6 +312,30 @@ export async function approveConsultaGuide(clinicId: string, guideId: string) {
   return withTenant(
     clinicId,
     async (tx) => {
+      let excluded: string[] = [];
+      if (opts.withoutPendingExtraItems) {
+        // Guia travada antes dos itens: a mesma ordem de travas dos caminhos dos itens.
+        await tx.execute(sql`SELECT id FROM public.hi_guides
+          WHERE clinic_id = ${clinicId}::uuid AND id = ${guideId}::uuid FOR UPDATE`);
+        excluded = await excludePendingExtraItemsForGuideTx(tx, {
+          clinicId,
+          guideId,
+          reason: opts.withoutPendingExtraItems.reason,
+        });
+        if (excluded.length > 0) {
+          // Só identificadores e a contagem; o motivo fica no próprio item (sem dado clínico).
+          await logAudit(tx, {
+            clinicId,
+            userId: user.userId,
+            action: 'health_insurance.extra_item.excluded_on_approval',
+            resourceType: 'hi_guide',
+            resourceId: guideId,
+            before: null,
+            after: { itemIds: excluded, count: excluded.length },
+            requestContext: rc,
+          });
+        }
+      }
       const out = await issue(tx, {
         clinicId,
         guideId,
@@ -323,7 +357,12 @@ export async function approveConsultaGuide(clinicId: string, guideId: string) {
         resourceType: 'hi_guide',
         resourceId: guideId,
         before: null,
-        after: { guideType: head.guideType, revision: out.revision, snapshotSha256: out.sha256 },
+        after: {
+          guideType: head.guideType,
+          revision: out.revision,
+          snapshotSha256: out.sha256,
+          ...(opts.withoutPendingExtraItems ? { extraItemsNotBilled: excluded.length } : {}),
+        },
         requestContext: rc,
       });
       return out;

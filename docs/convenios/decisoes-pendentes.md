@@ -1,4 +1,14 @@
-# Decisões humanas pendentes do módulo Convênios (atualizado em 23/11/2026)
+# Decisões humanas pendentes do módulo Convênios (atualizado em 24/11/2026)
+
+## Decididas em 24/11 (ciclo de desbloqueio final)
+
+| Decisão | O que o fundador decidiu | Estado da execução |
+| --- | --- | --- |
+| **P8.4-r** | APROVADA a política recomendada; exceção do médico: SIM (só a própria sessão); nenhuma operadora informada como "não aceita", sem presumir que todas aceitam | implementada no #55 (`decisao-p84r.md`, "Decisão de 24/11"); provas de banco NOT RUN até a CI voltar |
+| **0167 no DEV** | GO condicional para a versão atualizada à política, depois dos gates | versão nova pronta (`7249f069…`); gates em `go-0167-dev.md` §5; **não aplicada** (gates de runner bloqueados pela cobrança do GitHub) |
+| **R61-B, etapa 1** | GO condicional para produção, pelo dono do #53, lote 50, depois dos gates de release | GO encaminhado ao #53; o agente TISS não publica |
+| **R61-C (lote 200)** | não autorizado neste ciclo | — |
+| **R54** | sem quinta tentativa; sem estorno integral; sem cobrança nova | texto do suporte com as seis perguntas pronto (`homologacao-r54-sandbox.md`); envio pelo fundador |
 
 Cada linha é um **pedido de aprovação separado**. Nenhuma decisão é presumida a partir de silêncio, e um GO de uma não vale para outra. As alternativas e recomendações vêm do plano mestre (seções N e L), das provas e do código atual.
 
@@ -37,7 +47,9 @@ O R54 não precisa de decisão nova: o GO "SIM, TUDO" vale, e a próxima tentati
   - Capacidade sustentada de cerca de 83 atendimentos/min na plataforma. A configuração atual sustenta cerca de 15.
   - Detalhes, riscos, monitoramento e retorno em `outbox-capacidade.md` (§4, §5 e §8).
 - **Produção, leitura de 24/11** (`evidence/tiss-r61-producao-2026-11-24/`): fila saudável, nada pendente nem falho, nada devolvido pelo janitor em 7 dias, tick de 708 ms. O tráfego foi quase nulo nas últimas 48 h, então isso não prova capacidade de pico.
-- **Próximo pedido:** o deploy do R61-B com o lote atual (50). Ele é a etapa 1 do rollout e exige autorização de deploy. O R61-C (lote 200) só pode ser pedido depois dele e da observação.
+- **GO da etapa 1 (24/11):** o fundador autorizou o rollout do R61-B em produção, **executado pelo dono do #53**, com `OUTBOX_BATCH_SIZE=50`, depois dos gates de release (CI verde do candidato exato, regressões financeiras, compatibilidade com o schema de produção, build, pré-voo saudável, nada de pagamento ou assinatura ambígua sem contenção, aquisição fechada, nenhuma cobrança de teste nova, plano de retorno e observabilidade prontos). Observação de 24 h depois do deploy. O agente TISS não altera a branch financeira nem publica.
+- **Risco residual (fica escrito):** o prazo de reserva não garante término abaixo de 60 s quando um handler já iniciado trava.
+- **R61-C (lote 200):** não autorizado; só com a observação da etapa 1 e um GO novo.
 - **Bloqueia:** produção (condição de liberação do TISS). Não bloqueia DEV nem a integração.
 - **Depois do GO R61-C:**
   - aplicar a ligação no cron (com o #53, na integração);

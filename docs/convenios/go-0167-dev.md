@@ -1,113 +1,92 @@
-# Pedido de GO: aplicar a migration 0167 no DEV compartilhado (23/11/2026)
+# GO condicional: aplicar a migration 0167 no DEV compartilhado (versão da P8.4-r, 24/11/2026)
 
-**O que se pede:** autorização específica para aplicar **uma** migration, a `0167_hi_appointment_extra_items` (itens executados adicionais da P8.4), no **banco DEV compartilhado**.
+**Situação:** o fundador deu **GO condicional** em 24/11 para a versão da 0167 atualizada à política P8.4-r aprovada, **depois dos gates** da seção 5. Não vale para produção. Enquanto um gate não passar, a 0167 continua candidata e o DEV fica como está.
 
-**Escopo:**
-- **Não** é produção.
-- **Não** fatura nada: com a P8.4-r sem decisão, o item fica registrado e fora da guia.
-- O pedido **não** se autoaplica: nada acontece até você responder com o texto do fim.
+**O que mudou desde o pedido de 23/11:** a versão de 23/11 (`22390fcc…`) só conhecia `active` e `cancelled`. A política aprovada precisa do ciclo de faturamento do item (ligar a autorização, incluir na guia, não faturar com motivo), então o SQL mudou **antes** de qualquer aplicação. A versão de 23/11 nunca foi aplicada em lugar nenhum.
 
 ## 1. O que vai ao banco
 
 | Item | Valor |
 | --- | --- |
 | Arquivo | `docs/convenios/migrations/0167_hi_appointment_extra_items.candidate.sql`, promovido no GO a `drizzle/migrations/0167_hi_appointment_extra_items.sql` com o mesmo conteúdo |
-| SHA do commit | **`c066805a`** (branch `feat/convenios-tiss-20261110`, PR #55 draft), o último commit que mudou a candidata. Qualquer commit posterior serve, desde que o arquivo tenha o mesmo sha256 |
-| sha256 do arquivo | `22390fcc58a5f41f92323a67be9d8d33743ae29b918d10af9e7377114979ed5e`, o hash que o Drizzle grava no ledger |
+| sha256 do arquivo | `7249f069fc5454e74034e1004f3be7d04606c020d7b16244b4014aafc861f3f0` (LF, sem CR), o hash que o Drizzle grava no ledger |
+| Reversão | `docs/convenios/migrations/0167_hi_appointment_extra_items.rollback.sql` (sha256 `4bb2d960…`) + a linha do ledger |
 | Entrada no journal | idx 167, `when` 1795728173857 (0166 + 1 dia), tag `0167_hi_appointment_extra_items` |
-| Reversão | `docs/convenios/migrations/0167_hi_appointment_extra_items.rollback.sql` + a linha do ledger |
+| Commit | o primeiro commit do #55 com este conteúdo (ciclo de 24/11); qualquer commit posterior serve, desde que o arquivo tenha o mesmo sha256 |
 
 **Objetos criados (nenhum objeto existente é alterado):**
-- **Tabela** `public.hi_appointment_extra_items`, com 17 colunas, sem campo clínico e sem valor digitado:
-  - chave primária e duas restrições únicas, uma delas o índice "um item ativo por procedimento na sessão";
-  - três FKs: `clinics`, `hi_appointment_coverages` e `hi_procedure_contracts`;
-  - cinco CHECKs: códigos, quantidade 1–999, origem, estados e motivo do cancelamento.
-- **Funções:** `hi_extra_item_guide_closed` (trava a guia com FOR SHARE), `hi_extra_item_insert_guard` e `hi_extra_item_update_guard`, todas SECURITY DEFINER com `search_path` fixo e sem execução pública.
-- **Gatilhos:**
-  - comercial primeiro (`hi_premium_guard`, 0151), depois o módulo (`hi_module_guard`, 0164);
-  - inclusão e atualização: só item de contrato SP/SADT da operadora do atendimento, autor = pessoa da sessão, cancelado não volta, guia fechada não muda.
-- **Segurança:** RLS ligada e forçada, com política por clínica. O papel do runtime tem SELECT, INSERT e UPDATE, **sem DELETE**.
+- **Tabela** `public.hi_appointment_extra_items`, sem campo clínico e sem valor digitado:
+  - o fato (atendimento, linha de contrato, código, descrição, "exige autorização", quantidade, origem, autor e data) e a decisão (autorização ligada, linha da guia, motivo de não faturar ou de cancelar, e quem e quando em cada etapa);
+  - cinco FKs: `clinics`, `hi_appointment_coverages`, `hi_procedure_contracts`, `hi_authorization_items` e `hi_guide_items`;
+  - CHECKs: códigos, quantidade 1–999, origem, estados, ciclo (cada etapa grava o que é dela, junto) e motivos;
+  - índices: um item não cancelado por procedimento na sessão; uma linha da guia por item; atendimento.
+- **Funções** (SECURITY DEFINER, `search_path` fixo, sem execução pública):
+  - `hi_extra_item_guide_state`: etapa das guias vivas da sessão, travando-as com FOR SHARE (padrão da 0165);
+  - `hi_extra_item_authorization_problem`: a autorização serve? (a da solicitação da sessão, mesmo procedimento, concedida, senha válida na data, saldo);
+  - `hi_extra_item_insert_guard` e `hi_extra_item_update_guard`.
+- **Gatilhos:** comercial primeiro (`hi_premium_guard`, 0151), depois o módulo (`hi_module_guard`, 0164), depois as regras. A alteração só aceita as transições da política, pela pessoa da sessão, e só aceita "incluído" apontando a linha certa da guia, com o consumo do saldo lançado.
+- **Segurança:** RLS ligada e forçada, com política por clínica. O runtime tem SELECT, INSERT e UPDATE, **sem DELETE**.
 - **Versão:** uma linha em `_schema_version` (`0167-hi-appointment-extra-items`).
 
-## 2. Resultados dos testes
+## 2. Provas
 
-Todos em Postgres descartável, com dados sintéticos e o código real.
-
-| Prova | Resultado | Onde |
+| Prova | Estado em 24/11 | Onde |
 | --- | --- | --- |
-| Banco + serviço da P8.4 (regras, RLS, comercial/módulo, guia fechada, Consulta, sem DELETE, concorrência, reprocessamento, XML exportado, recebível) | **18/18** | `health-insurance-extra-items-db.ts`, run `45189165431` (`dbf8f5a5`); repetido no SHA final |
-| Ensaio da aplicação com o migrador real (guarda de composição, lock ocupado, locks da aplicação, aplicação, segunda execução, reaplicação indevida, compatibilidade, reversão recusada com dados, reversão exata, reaplicação) | **11/11** | `hi-0167-apply-rehearsal.ts`, run `45189165431` (`dbf8f5a5`); repetido no SHA final |
-| Política P8.4-r, ações, painel | 9/9, 5/5, 5/5 | CI |
-
-**Defeito encontrado e corrigido neste ciclo, antes de qualquer aplicação:**
-- **Corrida guia × registro.** A checagem de "guia fechada" lia a etapa sem travar a guia. Em READ COMMITTED, um item podia ser gravado no instante em que a guia era conferida. Agora a função trava a guia com FOR SHARE, no padrão da 0165. A prova 16 testa as duas ordens.
-- **Nota de reversão incompleta.** A nota antiga da candidata deixava para trás a função `hi_extra_item_guide_closed`. Agora existe um arquivo de reversão executável, que recusa reverter se houver item registrado; o ensaio prova que ele devolve o catálogo exato.
+| Banco + serviço da P8.4-r: 28 provas (registro, posse da sessão do médico, transições, autorização e saldo, consumo uma vez, regra da operadora, aprovação bloqueada, "aprovar sem o item" atômico, guia cancelada, XML no XSD, recebível, concorrência, RLS, outra clínica, comercial, módulo, reprocessamento, indisponível) | **NOT RUN**: escrita e com typecheck verde; o runner do GitHub não inicia por causa da cobrança da conta, e o notebook não roda Postgres (decisão de 15/11) | `health-insurance-extra-items-db.ts`, job `convenios-synthetic-db.yml` |
+| Ensaio da aplicação com o migrador real (guarda de composição, lock ocupado, locks da aplicação nas cinco tabelas, aplicação, segunda execução, reaplicação indevida, compatibilidade, reversão recusada com dados, reversão exata, reaplicação) | **NOT RUN** (mesmo motivo) | `hi-0167-apply-rehearsal.ts`, mesmo job |
+| Política, ações, painel, montador, regras da operadora | **PASS** local (vitest dirigido) | `extra-item-policy.test.ts`, `extra-item-actions.test.ts`, `extra-items-ui.test.tsx`, `sp-sadt-assembler.test.ts`, `insurer-rules.test.ts` |
+| Versão de 23/11 | 18/18 e 11/11 (run `45189165431`): histórico, **não vale** para esta versão | — |
 
 ## 3. Compatibilidade
 
-- **Código atual do #55 sem a 0167 (DEV e Preview hoje):** o serviço responde "não disponível", sem erro, e o painel não aparece.
-- **Com a 0167:**
-  - o painel aparece na conferência das guias SP/SADT em edição;
-  - o registro grava;
-  - a guia não muda, porque a política P8.4-r está em "sem decisão".
-- **Código das outras branches:** a 0167 só **acrescenta**. O ensaio compara o catálogo inteiro antes e depois (todas as tabelas, colunas, restrições, índices, gatilhos, funções, políticas e permissões). Nada existente muda, e os dados de todas as tabelas ficam com o mesmo md5, exceto a linha nova de `_schema_version`.
+- **Código do #55 sem a 0167 (DEV e Preview hoje):** o serviço responde "não disponível", o painel não aparece e a aprovação não acha pendente.
+- **Com a 0167:** o painel aparece na guia SP/SADT; registrar, ligar, incluir e não faturar gravam; a aprovação bloqueia guia com pendente.
+- **Outras branches:** a 0167 só acrescenta. O ensaio compara o catálogo inteiro antes e depois, e os dados de todas as tabelas com md5.
 
-## 4. Estado do journal e da numeração
-
-Conferido hoje, só leitura no DEV e `git` nas branches:
+## 4. Journal e numeração
 
 | Onde | Estado |
 | --- | --- |
-| DEV, `drizzle.__drizzle_migrations` | **167 linhas**; última `created_at` 1795641773857 = 0166 (`ccf1639b…`); nenhum objeto da 0167 no banco |
-| 0159 (`saas_period_snapshot`, do #53) | **aplicada no DEV** (`eb00a4e3…`, `when` 1795036973858). Fica fora do journal do #55 sozinho e entra na integração sobre o #53 por `scripts/integrate-pr53-0159.ts` (bytes congelados do #53, sha256 conferido; ver `coordenacao-migrations.md` §25). Provado na composição descartável de 24/11 (PR #63). Sem migration vazia e sem renumeração |
-| 0164, 0165, 0166 | aplicadas no DEV; no journal do #55; fixadas no manifesto de composição |
-| #55 | journal com 159 entradas (0000–0135, 0143–0158, 0160–0166); as 0136–0142 e a 0159 do #53 entram como exceções conferidas por hash no ledger |
-| #53 (`cf712ab4`, 24/11) | journal até 0142; a 0159 só no pacote congelado; o R61-B incorporado no `9e6ed4c7`; **sem conflito com 0167** |
-| #56 (`fe892902`) | journal até 0136; sem migration nova |
-| #57 (`93a79601`) | sem migration |
-| #59 (`c6e91bf1`) | candidata **ainda chamada 0165** (`0165_super_admin_actions_append_only.candidate.sql`), mas a 0165 e a 0166 já são do #55 no DEV. Com a 0167 aplicada, a próxima livre é a **0168**. O #59 precisa renumerar antes de qualquer aplicação; a mudança de número já existia antes deste pedido |
-| Produção | nada muda (produção só recebe migrations depois dos merges, na ordem #53 → #56 → #55) |
+| DEV, `drizzle.__drizzle_migrations` | 167 linhas, última a 0166 (conferido em 23/11; reconferido no pré-voo) |
+| 0159 (`saas_period_snapshot`, do #53) | aplicada no DEV; entra no journal do #55 na integração sobre o #53, por `scripts/integrate-pr53-0159.ts` |
+| #53 (`cf712ab4`) | journal até 0142; **sem conflito com a 0167** |
+| #56 (`fe892902`) | sem migration nova |
+| #59 (`c6e91bf1`) | candidata ainda chamada 0165; com a 0167 aplicada, a próxima livre é a **0168**. O dono do #59 renumera; o #55 não mexe na candidata alheia |
+| Produção | nada muda (migrations de produção só depois dos merges #53 → #56 → #55, com autorização própria) |
 
-## 5. Ordem de aplicação (depois do GO)
+## 5. Gates antes de aplicar (todos obrigatórios)
 
-1. **Promover a candidata** em um commit do #55:
-   - criar o arquivo em `drizzle/migrations/`, com conteúdo idêntico (mesmo sha256);
-   - criar a entrada do journal e fixar a 0167 no manifesto de composição;
-   - esperar a CI verde.
-2. **Pré-voo, só leitura no DEV:**
+1. As 28 provas de banco e o ensaio de 11 passos verdes **nesta** versão (sha256 acima), no runner.
+2. A CI do commit que promove a candidata verde (testes de journal e de composição com a 0167 no manifesto).
+3. Pré-voo só leitura no DEV:
    - ledger com 167 linhas, última a 0166;
-   - guarda de composição em modo `--dry-run` do aplicador: pendente **só** a 0167;
-   - nenhuma transação longa nas três tabelas referenciadas.
-3. **Backup lógico:** ledger e `_schema_version`, mais o catálogo do `public` para comparar depois. A tabela nova não tem dados para salvar.
-4. **Aplicar** pelo aplicador limitado, com observador de esperas por lock numa conexão separada. É o mesmo procedimento da 0160–0166:
+   - guarda de composição em `--dry-run`: pendente **só** a 0167;
+   - nenhuma transação longa nas cinco tabelas referenciadas;
+   - nenhuma migration de outra frente em andamento.
+4. Backup lógico: ledger, `_schema_version` e catálogo do `public` (a tabela nova não tem dados).
+5. Aplicação pelo aplicador limitado, com observador de esperas por lock:
    `scripts/db-migrate-dev-limited.ts --expected-ref <DEV> --expect-from 0166_hi_authorization_alerts --allow-external-applied --expect-to 0167_hi_appointment_extra_items`
    (`lock_timeout` 2 s, `statement_timeout` 60 s, uma transação).
-5. **Pós-voo:**
-   - ledger com 168 linhas e o sha256 do arquivo;
-   - catálogo anterior intacto;
-   - objetos e RLS conferidos;
-   - serviço "disponível";
-   - E2E da P8.4 no Preview (jornada da conferência, outro perfil, outra clínica, concorrência, sem recebível a mais).
+6. Pós-voo: ledger com 168 linhas e o sha256; catálogo anterior intacto; objetos e RLS; serviço "disponível"; Preview no ar; E2E da P8.4.
+
+Qualquer divergência interrompe e preserva o estado.
 
 ## 6. Riscos
 
-| Risco | Tamanho | Controle |
-| --- | --- | --- |
-| A transação toma **ShareRowExclusive** em `clinics`, `hi_appointment_coverages` e `hi_procedure_contracts` (as FKs). Escritas nessas tabelas esperam até o COMMIT | no ensaio, a aplicação inteira levou 1,1 s **contando a partida da CLI** (o corpo em si é menor); nenhum AccessExclusive em tabela existente; 51 objetos novos, todos da 0167 | `lock_timeout` 2 s: com escrita longa em andamento, o aplicador **desiste sem mudar nada** (prova 3 do ensaio: desistiu em ~3 s com a partida da CLI, catálogo e ledger iguais) e repete-se na janela seguinte |
-| DEV compartilhado com o Preview e com outros agentes | uma janela curta | avisar antes; o pré-voo confere sessões presas |
-| O painel da P8.4 passa a aparecer no Preview | esperado | sem faturamento (política "sem decisão") |
-| Divergência de numeração com o #59 | já existe | o #59 renumera para 0168+ (dono do #59) |
+| Risco | Controle |
+| --- | --- |
+| A transação toma **ShareRowExclusive** em `clinics`, `hi_appointment_coverages`, `hi_procedure_contracts`, `hi_authorization_items` e `hi_guide_items` (as FKs). Escritas nelas esperam até o COMMIT | corpo pequeno (uma tabela, quatro funções, três gatilhos, RLS); nenhum AccessExclusive em tabela existente; `lock_timeout` 2 s: com escrita longa, o aplicador desiste sem mudar nada e repete-se na janela seguinte |
+| DEV compartilhado com o Preview e outros agentes | janela curta; o pré-voo confere sessões presas |
+| O painel e o bloqueio de aprovação passam a valer no Preview | esperado; é a política aprovada |
+| Numeração do #59 | o dono do #59 renumera para 0168+ |
 
 ## 7. Recuperação
 
-1. Com o código que conhece os itens fora do ar (ou com a política sem decisão, que não depende da tabela), rodar o arquivo de reversão e depois `DELETE FROM drizzle.__drizzle_migrations WHERE created_at = 1795728173857`.
-2. A reversão **recusa** se houver item registrado: o registro clínico não se perde. Com itens, a decisão é humana (exportar, decidir e só então reverter por um procedimento próprio).
-3. O ensaio prova:
-   - a reversão sem itens devolve o catálogo e os dados **exatamente** ao estado anterior;
-   - o migrador reaplica igual depois dela.
+1. Com o código que conhece os itens fora do ar, rodar o arquivo de reversão e depois `DELETE FROM drizzle.__drizzle_migrations WHERE created_at = 1795728173857`.
+2. A reversão **recusa** se houver item registrado: o registro clínico e o que explica uma linha incluída na guia não se perdem. Com itens, a decisão é humana.
 
-## 8. Texto exato da autorização
+## 8. GO recebido (24/11)
 
-> "Autorizo aplicar a migration 0167_hi_appointment_extra_items (commit c066805a, sha256 22390fcc58a5…) no banco DEV compartilhado, pelo aplicador limitado, com promoção ao journal, pré-voo, backup e pós-voo descritos em go-0167-dev.md, na janela de ____. Não autoriza produção nem faturamento de itens."
+> "MIGRATION 0167 NO DEV: GO CONDICIONAL PARA A VERSÃO ATUALIZADA À POLÍTICA APROVADA, DEPOIS DOS GATES." … "O GO já fica concedido para a versão atualizada que cumpra exatamente os critérios, sem necessidade de pedir autorização genérica novamente."
 
-Sem essa frase, a 0167 continua candidata, o DEV fica como está e o E2E da P8.4 continua **NOT RUN**.
+Não autoriza produção nem faturamento fora da política aprovada.

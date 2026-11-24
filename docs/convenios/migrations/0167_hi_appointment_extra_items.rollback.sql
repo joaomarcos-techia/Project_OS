@@ -1,8 +1,8 @@
 -- =====================================================================
 -- Reversão da 0167 (CANDIDATA) — itens executados adicionais (P8.4).
 --
--- Só com o código que conhece os itens fora do ar (ou com a política P8.4-r em "sem decisão",
--- que não fatura nada: a guia não depende da tabela).
+-- Só com o código que conhece os itens fora do ar. Com itens, a reversão é recusada, então nada
+-- incluído numa guia fica sem o registro que o explica.
 --
 -- RECUSA se houver qualquer item registrado. O registro clínico legítimo não pode se perder por
 -- uma reversão de schema: com linhas, a decisão é humana (exportar, decidir e só então reverter
@@ -30,7 +30,8 @@ END $$;
 DROP TABLE IF EXISTS public.hi_appointment_extra_items;
 DROP FUNCTION IF EXISTS public.hi_extra_item_update_guard();
 DROP FUNCTION IF EXISTS public.hi_extra_item_insert_guard();
-DROP FUNCTION IF EXISTS public.hi_extra_item_guide_closed(uuid, uuid);
+DROP FUNCTION IF EXISTS public.hi_extra_item_authorization_problem(uuid, uuid, uuid, text, text, integer);
+DROP FUNCTION IF EXISTS public.hi_extra_item_guide_state(uuid, uuid);
 DELETE FROM public._schema_version WHERE version = '0167-hi-appointment-extra-items';
 
 COMMIT;

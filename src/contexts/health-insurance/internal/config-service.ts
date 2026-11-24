@@ -475,7 +475,10 @@ export async function saveInsurerRulesTx(
   tx: Tx,
   clinicId: string,
   insurerId: string,
-  input: InsurerRules,
+  // P8.4-r: sem a regra dos itens adicionais na entrada, a gravada fica como está (nada se perde em silêncio).
+  input: Omit<InsurerRules, 'extraItemsAfterSession'> & {
+    extraItemsAfterSession?: InsurerRules['extraItemsAfterSession'] | undefined;
+  },
 ) {
   await lock(tx, `hi:insurer:${insurerId}`);
   const cur = await insurerOf(tx, clinicId, insurerId);
@@ -508,6 +511,10 @@ export async function saveInsurerRulesTx(
   next.maxGuidesPerBatch = input.maxGuidesPerBatch;
   if (input.submissionDeadlineDays === null) delete next.submissionDeadlineDays;
   else next.submissionDeadlineDays = input.submissionDeadlineDays;
+  // P8.4-r (regra 7): só o que o contrato diz; "desconhecida" não grava nada (não presume aceite).
+  if (input.extraItemsAfterSession === 'unknown') delete next.extraItemsAfterSession;
+  else if (input.extraItemsAfterSession !== undefined)
+    next.extraItemsAfterSession = input.extraItemsAfterSession;
   await tx
     .update(hiInsurers)
     .set({ settings: next })
