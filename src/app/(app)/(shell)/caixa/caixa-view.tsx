@@ -193,6 +193,8 @@ export function CaixaView({
       lancamentoId: item.id,
       paymentMethod: method,
       valorPago,
+      // Guarda do #53: a confirmação só vale se o pago no banco ainda for o que a tela mostrou.
+      valorPagoEsperado: item.valorPago,
       comprovante: comprovante.trim()
         ? { type: 'comprovante' as const, fileStoragePath: comprovante.trim() }
         : null,

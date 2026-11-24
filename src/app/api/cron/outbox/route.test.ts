@@ -56,6 +56,41 @@ describe('existing outbox minute tick', () => {
     expect(deadline).toBeLessThanOrEqual(Date.now() + 35_000);
     expect(mocks.heartbeat).toHaveBeenCalledWith('outbox', 'success', { processed: 2 });
   });
+  it('R61: bounds the outbox reservation window inside the shared invocation', async () => {
+    const started = Date.now();
+    await GET(request());
+    const after = Date.now();
+    expect(mocks.run).toHaveBeenCalledOnce();
+    const options = mocks.run.mock.calls[0]?.[0] as {
+      reserveUntil: number;
+      skipUnhandledInBulk: boolean;
+    };
+    expect(options.skipUnhandledInBulk).toBe(true);
+    expect(options.reserveUntil).toBeGreaterThanOrEqual(started + 30_000);
+    expect(options.reserveUntil).toBeLessThanOrEqual(after + 30_000);
+  });
+  it('R61: derives every financial deadline from the same invocation clock', async () => {
+    await GET(request());
+    const { reserveUntil } = mocks.run.mock.calls[0]?.[0] as { reserveUntil: number };
+    // Same clock: the gaps are exact, so no job's budget drifts with call order.
+    expect(mocks.recovery.mock.calls[0]?.[0]).toBe(reserveUntil + 5_000);
+    expect(mocks.closures.mock.calls[0]?.[0]).toBe(reserveUntil - 10_000);
+  });
+  it('R61: a deferred outbox (deadline reached) is a successful tick and is reported', async () => {
+    mocks.run.mockResolvedValueOnce({ processed: 25, deferred: 175, skipped_bulk: 30 });
+    expect(await (await GET(request())).json()).toEqual({
+      ok: true,
+      processed: 25,
+      deferred: 175,
+      skipped_bulk: 30,
+    });
+    expect(mocks.recovery).toHaveBeenCalledOnce();
+    expect(mocks.heartbeat).toHaveBeenCalledWith('outbox', 'success', {
+      processed: 25,
+      deferred: 175,
+      skipped_bulk: 30,
+    });
+  });
   it('does not wait for outbox completion to start durable financial work', async () => {
     let release: (() => void) | undefined;
     mocks.run.mockImplementation(

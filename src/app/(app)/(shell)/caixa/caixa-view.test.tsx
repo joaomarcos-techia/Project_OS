@@ -557,7 +557,8 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
       vi.mocked(confirmPaymentAction)
         .mockReset()
         .mockResolvedValue({ ok: true, data: item({ status: 'pago', valorPago: 200 }) });
-      const pedido = `confirm:c1:${JSON.stringify({ lancamentoId: 'l1', paymentMethod: 'pix', valorPago: 200, comprovante: null })}`;
+      // Composição com o #53: o pedido leva o valor já pago que a tela mostrou (valorPagoEsperado).
+      const pedido = `confirm:c1:${JSON.stringify({ lancamentoId: 'l1', paymentMethod: 'pix', valorPago: 200, valorPagoEsperado: 0, comprovante: null })}`;
       sessionStorage.setItem(
         PENDING_KEYS_STORAGE_KEY,
         JSON.stringify({
@@ -575,7 +576,8 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
       vi.mocked(confirmPaymentAction)
         .mockReset()
         .mockResolvedValue({ ok: true, data: item({ status: 'pago', valorPago: 200 }) });
-      const pedido = `confirm:c1:${JSON.stringify({ lancamentoId: 'l1', paymentMethod: 'pix', valorPago: 200, comprovante: null })}`;
+      // Composição com o #53: o pedido leva o valor já pago que a tela mostrou (valorPagoEsperado).
+      const pedido = `confirm:c1:${JSON.stringify({ lancamentoId: 'l1', paymentMethod: 'pix', valorPago: 200, valorPagoEsperado: 0, comprovante: null })}`;
       sessionStorage.setItem(
         PENDING_KEYS_STORAGE_KEY,
         JSON.stringify({
@@ -635,6 +637,26 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
       await waitFor(() => expect(cancelLancamentoAction).toHaveBeenCalledTimes(2));
       const [primeira, segunda] = chavesDe(cancelLancamentoAction);
       expect(segunda).toBe(primeira);
+    });
+  });
+
+  it('envia ao servidor o valor já pago que a tela mostrou para detectar concorrência', async () => {
+    vi.mocked(confirmPaymentAction).mockResolvedValue({ ok: true, data: item() });
+    render(<CaixaView {...base} parciais={[item({ status: 'parcial', valorPago: 75 })]} />);
+
+    // Composição com o #56: o parcial abre por "Registrar o restante" e registra por "Registrar R$ …".
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar o restante' }));
+    fireEvent.click(await screen.findByRole('button', { name: /Registrar R\$\s*125,00/ }));
+
+    await waitFor(() => {
+      expect(confirmPaymentAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          lancamentoId: 'l1',
+          valorPago: 125,
+          valorPagoEsperado: 75,
+        }),
+        expect.any(String),
+      );
     });
   });
 
