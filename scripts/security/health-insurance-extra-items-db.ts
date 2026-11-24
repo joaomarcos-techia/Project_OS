@@ -28,11 +28,16 @@ import { startScratchSchema } from './scratch-schema';
 const PORT = Number(process.env.PORT ?? 55569);
 const CANDIDATE = '0167_hi_appointment_extra_items.candidate.sql';
 const TOTAL = 28;
+const candidateBody = readFileSync(`docs/convenios/migrations/${CANDIDATE}`, 'utf8');
 const chain = await readDevOrderChain();
+// Vale nos dois estados: candidata (aplicada depois da cadeia) ou já promovida ao journal (aí ela
+// está na cadeia e precisa ser byte a byte a candidata; nada é aplicado duas vezes).
+const promoted = chain.find((m) => m.file === '0167_hi_appointment_extra_items.sql');
+if (promoted) assert.equal(promoted.body, candidateBody, 'a 0167 promovida é byte a byte a candidata');
 const cluster = await startScratchSchema({
   port: PORT,
   maxConnections: 16,
-  migrations: [...chain, { file: CANDIDATE, body: readFileSync(`docs/convenios/migrations/${CANDIDATE}`, 'utf8') }],
+  migrations: promoted ? chain : [...chain, { file: CANDIDATE, body: candidateBody }],
 });
 const { sql } = cluster;
 if (!new RegExp(`@(?:127\\.0\\.0\\.1|localhost):${PORT}/`, 'u').test(cluster.url)) throw new Error('não é o cluster local');
@@ -217,7 +222,7 @@ const waitingOnLock = async () => {
 const setInsurerRule = (c: Clinic, rule: 'unknown' | 'accepts' | 'forbids') =>
   rule === 'unknown'
     ? sql`update public.hi_insurers set settings = coalesce(settings, '{}'::jsonb) - 'extraItemsAfterSession' where id = ${c.insurerId}::uuid`
-    : sql`update public.hi_insurers set settings = coalesce(settings, '{}'::jsonb) || ${JSON.stringify({ extraItemsAfterSession: rule })}::jsonb where id = ${c.insurerId}::uuid`;
+    : sql`update public.hi_insurers set settings = coalesce(settings, '{}'::jsonb) || jsonb_build_object('extraItemsAfterSession', ${rule}::text) where id = ${c.insurerId}::uuid`;
 
 try {
   await sql`GRANT SELECT ON public.clinics, public.profiles TO authenticated`;

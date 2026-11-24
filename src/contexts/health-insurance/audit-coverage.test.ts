@@ -71,6 +71,8 @@ const NO_AUDIT_BY_DESIGN: Record<string, string> = {
   beginAuthorizationReceiptUploadAction: 'abre o envio em partes (token assinado, nada gravado no banco); o comprovante só existe pela finishAuthorizationReceiptUploadAction, auditada',
   uploadAuthorizationReceiptChunkAction: 'parte temporária no armazenamento privado, sem efeito no registro; o fecho é auditado',
   abortAuthorizationReceiptUploadAction: 'descarta partes temporárias do próprio envio; nenhum comprovante é criado nem apagado',
+  loadSessionExtraItemsAction:
+    'leitura do consultório (P8.4-r): itens da própria sessão sem valor, sem decisão de faturamento e sem dado clínico; o registro sai por recordOwnSessionExtraItemAction, auditada',
 };
 
 describe('auditoria completa das actions e downloads de Convênios (P12.4)', () => {
