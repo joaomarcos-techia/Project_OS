@@ -120,7 +120,9 @@ function ledgerRows(): { hash: string; when: string }[] {
     hash: sha(readFileSync(`drizzle/migrations/${e.tag}.sql`)),
     when: String(e.when),
   }));
-  for (const p of MANIFEST.pinned.filter((x) => !local.has(x.tag))) rows.push({ hash: p.sha256, when: String(p.when) });
+  // As fixadas de fora (0136–0142 e 0159 do #53); a 0167, mesmo fixada depois de promovida, ainda
+  // não está no DEV que o ensaio reproduz.
+  for (const p of MANIFEST.pinned.filter((x) => !local.has(x.tag) && x.tag !== TAG)) rows.push({ hash: p.sha256, when: String(p.when) });
   return rows.sort((a, b) => Number(a.when) - Number(b.when));
 }
 const ledger = async () => {
