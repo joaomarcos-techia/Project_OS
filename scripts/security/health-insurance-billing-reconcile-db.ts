@@ -620,6 +620,17 @@ try {
   for (const status of ['in_batch', 'exported']) {
     await sql`update public.hi_guides set status = ${status} where id = ${okGuide!.id}::uuid`;
   }
+  // P7.5 (0165): a substituta só é aprovada com o cancelamento da original CONFIRMADO pela operadora
+  // (recibo, Tabela 46 = 1). Pedido e recibo pelo serviço real, com dado sintético.
+  const cancellations = await import('../../src/contexts/health-insurance/internal/guide-cancellation-service');
+  const cancelReq = await withTenant(A.clinicId, (tx) => cancellations.requestGuideCancellationTx(tx, { validateXsd: null }, {
+    clinicId: A.clinicId, guideId: okGuide!.id as string, purpose: 'substitution', channel: 'portal', requestedOn: '2026-11-12',
+    reason: 'Guia enviada com dado errado; reenvio corrigido (sintético)', idempotencyKey: `cancel-${okGuide!.id}`, generateXml: false,
+  }), A.billerId);
+  await withTenant(A.clinicId, (tx) => cancellations.recordGuideCancellationReceiptTx(tx, {
+    clinicId: A.clinicId, cancellationId: cancelReq.cancellationId, statusCode: '1', receivedOn: '2026-11-13',
+    operatorProtocol: '900000001', evidenceSha256: null, operatorMessage: 'Recibo SINTÉTICO (homologação interna)', idempotencyKey: `receipt-${okGuide!.id}`,
+  }), A.billerId);
   const [line] = await sql`select id from public.hi_procedure_contracts where clinic_id = ${A.clinicId}::uuid and procedure_code = '10101012'`;
   const [sub] = await asTenant(A.clinicId, (tx) => tx`insert into public.hi_guides
       (clinic_id, guide_type, number, insurer_id, patient_id, membership_id, executant_professional_id, status,

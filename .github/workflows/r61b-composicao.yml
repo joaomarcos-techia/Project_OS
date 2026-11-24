@@ -41,8 +41,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 75
     env:
-      # HEAD do PR #53 revisado para o patch (20/11/2026). Mudou o #53? Atualize aqui e regenere o patch.
-      PR53_SHA: fad3d5d36634bd2a5d06a99de8071d5224be461d
+      # HEAD do PR #53 em 22/11/2026 (o patch foi gerado sobre fad3d5d3 e aplica limpo aqui). Mudou o #53? Atualize aqui.
+      PR53_SHA: bc955f4ed633aa7e07dc1cf3423a14c2fbed4493
       COMP: /tmp/c53
     steps:
       - uses: actions/checkout@v4

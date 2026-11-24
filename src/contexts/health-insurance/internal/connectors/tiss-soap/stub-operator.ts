@@ -31,7 +31,9 @@ export type StubMode =
   | 'other_lote'
   | 'dtd'
   | { fault: TissFault }
-  | { delayMs: number };
+  | { delayMs: number }
+  /** Responde 302 com `Location` para outro endereço (o cliente nunca pode seguir). */
+  | { redirectTo: string };
 
 export interface StubReceived {
   element: string;
@@ -250,6 +252,11 @@ export async function startStubOperator(opts: StubOperatorOptions): Promise<Stub
         const current = mode;
         if (typeof current === 'object' && 'delayMs' in current) await new Promise((r) => setTimeout(r, current.delayMs));
         if (typeof current === 'object' && 'fault' in current) return send(500, fault(current.fault));
+        if (typeof current === 'object' && 'redirectTo' in current) {
+          res.writeHead(302, { Location: current.redirectTo, 'Content-Type': 'text/html' });
+          res.end('<html><body>moved</body></html>');
+          return;
+        }
         if (mode === 'http500') return send(500, Buffer.from('erro interno', 'latin1'));
         if (mode === 'dtd') {
           return send(200, Buffer.from(`<?xml version="1.0"?><!DOCTYPE x [<!ENTITY e SYSTEM "file:///etc/passwd">]><soapenv:Envelope xmlns:soapenv="${envNs}"><soapenv:Body>&e;</soapenv:Body></soapenv:Envelope>`, 'latin1'));

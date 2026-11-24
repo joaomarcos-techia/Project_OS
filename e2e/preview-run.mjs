@@ -42,13 +42,22 @@ for (const [name, content] of Object.entries(bundle.files ?? {})) {
 const env = { ...process.env, E2E_BASE_URL: bundle.base };
 if (!env.MAGIC_TOKEN_SECRET_DEV) throw new Error('segredo da prova assinada ausente');
 delete env.PREVIEW_E2E_BUNDLE;
-for (const [key, file] of Object.entries(request.env ?? {})) {
+// `env` vale para todos os grupos; `groupEnv[i]` (opcional) completa ou troca só no grupo i —
+// specs diferentes usam a mesma variável (ex.: E2E_HI_FIXTURE) com fixtures diferentes.
+const groupIndex = Number(process.env.PREVIEW_E2E_GROUP ?? 0);
+const merged = { ...(request.env ?? {}), ...((request.groupEnv ?? [])[groupIndex] ?? {}) };
+for (const [key, file] of Object.entries(merged)) {
   if (!/^E2E_HI_[A-Z0-9_]+$/u.test(key)) throw new Error(`variável fora do escopo: ${key}`);
+  // No runner, o comando da fixture só pode ser o relé (o runner não tem credencial de banco).
+  if (key === 'E2E_HI_FIXTURE_CMD' && file !== 'e2e/preview-fixture-relay.mjs')
+    throw new Error('E2E_HI_FIXTURE_CMD no runner só pode ser e2e/preview-fixture-relay.mjs');
   env[key] = /\.json$/u.test(String(file)) ? join(dir, String(file)) : String(file);
 }
 
 const args = ['exec', 'playwright', 'test', ...specs, '--project=chromium', '--reporter=list', '--workers=1', '--retries=0'];
-if (request.grep) args.push('-g', String(request.grep));
+// `groupGrep[i]` (opcional) filtra só o grupo i; senão vale o `grep` do pedido inteiro.
+const grep = (request.groupGrep ?? [])[groupIndex] ?? request.grep;
+if (grep) args.push('-g', String(grep));
 const r = spawnSync('pnpm', args, { env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 let out = `${r.stdout ?? ''}\n${r.stderr ?? ''}`;
 for (const s of secrets) out = out.split(s).join('***');

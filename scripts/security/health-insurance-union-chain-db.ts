@@ -37,23 +37,15 @@ import { pathToFileURL } from 'node:url';
 
 import { sql as dsql } from 'drizzle-orm';
 
-import { readMigrations, startScratchSchema } from './scratch-schema';
+import { readDevOrderChain } from './dev-order-chain';
+import { startScratchSchema } from './scratch-schema';
 
 const REF = process.argv[2] ?? process.env.PR53_REF ?? '8c591c8f';
 const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 << 20 });
-const pr53Files = git('ls-tree', '--name-only', REF, 'drizzle/migrations/')
-  .split('\n')
-  .map((l) => l.trim().replace(/^drizzle\/migrations\//u, ''))
-  .filter((f) => /^01(?:3[6-9]|4[0-2])_.*\.sql$/u.test(f));
-assert.equal(pr53Files.length, 7, `esperava 0136–0142 no #53 (${REF}), achei ${pr53Files.join(',')}`);
-const local = await readMigrations();
-assert.ok(!local.some((m) => /^01(?:3[6-9]|4[0-2])_/u.test(m.file)), 'a branch do convênio não deve ter 0136–0142');
-const chain = [
-  ...local,
-  ...pr53Files.map((file) => ({ file, body: git('show', `${REF}:drizzle/migrations/${file}`) })),
-].sort((a, b) => a.file.localeCompare(b.file));
-const prefixes = chain.map((m) => Number(m.file.slice(0, 4)));
-prefixes.forEach((p, i) => assert.equal(p, i, `prefixo ${p} na posição ${i}`));
+// Mesma cadeia do DEV que as outras provas: main → #53 0136–0142 → #55, com a 0159 do #53 (aplicada no
+// DEV, fora do journal dele; mesmos bytes, sha256 conferido) quando o #55 tem migration depois dela.
+// `readDevOrderChain` confere os 7 arquivos do #53, que o #55 não os tem, e os prefixos contíguos.
+const chain = await readDevOrderChain(REF);
 
 const cluster = await startScratchSchema({ port: 55507, maxConnections: 16, migrations: chain });
 const { sql } = cluster;
@@ -90,7 +82,7 @@ try {
   const has = async (table: string) =>
     ((await sql`select to_regclass(${`public.${table}`}) is not null as ok`)[0] as { ok: boolean }).ok;
   assert.ok((await has('trial_resource_usage')) && (await has('hi_billing_gaps')) && (await has('hi_batches')));
-  pass(`cadeia unida aplica inteira no Postgres 17: ${chain.length} migrations (0000–${String(chain.length - 1).padStart(4, '0')}), 0136–0142 do #53 em ${REF}, prefixos contíguos; ${applied} marcas de versão`);
+  pass(`cadeia unida aplica inteira no Postgres 17: ${chain.length} migrations (0000–${String(chain.length - 1).padStart(4, '0')}), 0136–0142 do #53 em ${REF} e a 0159 aplicada no DEV, prefixos contíguos; ${applied} marcas de versão`);
 
   // ── 2. Gatilhos das duas branches nas tabelas compartilhadas ─────────
   const triggers = await sql`select c.relname as tbl, t.tgname as name
@@ -261,6 +253,11 @@ try {
     values (${clinicId}::uuid, 'Operadora Um', '123456', 'codigoPrestadorNaOperadora', 'TESTE001', 'active', ${SYS}::uuid) returning id`;
   await sql`insert into public.hi_professional_profiles (clinic_id, professional_id, council, council_number, council_uf, cbo)
     values (${clinicId}::uuid, ${ownerId}::uuid, '06', '12345', '35', '225125')`;
+  // P2.2 (depois desta prova ter sido escrita): sem credenciamento na data, a sessão não vira guia
+  // pronta. Credenciamento da clínica e habilitação do profissional, como nos fixtures atuais.
+  await sql`insert into public.hi_credentials (clinic_id, insurer_id, plan_id, professional_id, valid_from, status, created_by)
+    values (${clinicId}::uuid, ${ins!.id}::uuid, null, null, '2020-01-01', 'active', ${SYS}::uuid),
+           (${clinicId}::uuid, ${ins!.id}::uuid, null, ${ownerId}::uuid, '2020-01-01', 'active', ${SYS}::uuid)`;
   await sql`insert into public.hi_procedure_contracts
       (clinic_id, insurer_id, guide_type, table_code, procedure_code, description, procedure_id,
        unit_value_cents, valid_from, copay_kind, copay_percentage, created_by)
@@ -268,6 +265,14 @@ try {
       ${proc!.id}::uuid, 15000, '2026-01-01', 'percentage', 30, ${SYS}::uuid)`;
   await sql`insert into public.tiss_terminology_versions (version, archive_url, archive_sha256, manifest_sha256)
     values ('202609', 'https://example.invalid/tuss.zip', ${'a'.repeat(64)}, ${'b'.repeat(64)}) on conflict (version) do nothing`;
+  // Termos TUSS mínimos da Consulta (os mesmos dos fixtures): a guia confere os códigos na terminologia.
+  await sql`insert into public.tiss_terms (version_id, table_code, code, term, starts_on)
+    select v.id, t.table_code, t.code, t.term, '2010-01-01' from public.tiss_terminology_versions v,
+      (values ('22', '10101012', 'Consulta em consultório (no horário normal ou preestabelecido)'), ('24', '225125', 'Médico clínico'),
+              ('26', '06', 'Conselho Regional de Medicina (CRM)'), ('36', '9', 'Não acidente'), ('52', '1', 'Primeira consulta'),
+              ('59', '35', 'São Paulo'), ('76', '01', 'Ambulatorial'), ('87', '22', 'Procedimentos e eventos em saúde')) t(table_code, code, term)
+     where v.version = '202609'
+       and not exists (select 1 from public.tiss_terms x where x.version_id = v.id and x.table_code = t.table_code and x.code = t.code)`;
   const pConv = await newPatient();
   const [card] = await sql`insert into public.hi_memberships
       (clinic_id, patient_id, insurer_id, card_number_encrypted, card_number_hash, card_last4, created_by)
@@ -280,8 +285,8 @@ try {
     membershipId: card!.id as string, authorizationId: null, actor: { kind: 'user', userId: ownerId },
   }), ownerId);
   await complete(aConv, pConv);
-  const [guide] = await sql`select status from public.hi_guides where idempotency_key = ${`appointment:${aConv}:consulta`}`;
-  assert.deepEqual([guide?.status, (await lanc(aConv)).length], ['ready_for_review', 0]);
+  const [guide] = await sql`select status, issues from public.hi_guides where idempotency_key = ${`appointment:${aConv}:consulta`}`;
+  assert.deepEqual([guide?.status, (await lanc(aConv)).length], ['ready_for_review', 0], `pendências da guia: ${JSON.stringify(guide?.issues ?? null)}`);
   const [cp] = await sql`select id from public.hi_copayments where appointment_id = ${aConv}::uuid`;
   await withTenant(clinicId, (tx) => checkCopay(tx, { clinicId, copaymentId: cp!.id as string, checkedCents: 4500, actorUserId: ownerId }), ownerId);
   await withTenant(clinicId, (tx) => confirmCopay(tx, { clinicId, copaymentId: cp!.id as string, confirmedCents: 4500, chargeableCents: 4500, actorUserId: ownerId, procedureName: 'Consulta' }), ownerId);

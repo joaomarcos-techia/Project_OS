@@ -19,11 +19,18 @@ const code = m.replace(/^\s*--(?!>).*\n/gmu, '');
 const DEV_0159_WHEN = 1795036973858;
 
 describe('migration 0160 — estorno externo do Asaas (R54)', () => {
-  it('journal: idx 160 depois da 0158, 0159 reservada ao #53, `when` acima do aplicado no DEV', () => {
+  it('journal: idx 160 logo depois da 0158 (branch sozinha) ou da 0159 do #53 (integrada), `when` acima do aplicado no DEV', () => {
     const i = journal.entries.findIndex((e) => e.tag === '0160_patient_external_refunds');
     const [prev, cur] = [journal.entries[i - 1]!, journal.entries[i]!];
-    expect([prev.tag, cur.idx]).toEqual(['0158_hi_copay_charge', 160]);
-    expect(journal.entries.some((e) => e.idx === 159)).toBe(false);
+    const at159 = journal.entries.filter((e) => e.idx === 159);
+    if (at159.length === 0) {
+      // Sozinha: a 0159 fica vaga para a do #53, que entra na integração.
+      expect([prev.tag, cur.idx]).toEqual(['0158_hi_copay_charge', 160]);
+    } else {
+      // Integrada: a 0159 é exatamente a congelada do #53, entre a 0158 e a 0160.
+      expect(at159).toEqual([{ idx: 159, when: DEV_0159_WHEN, tag: '0159_saas_period_snapshot' }].map((x) => expect.objectContaining(x)));
+      expect([journal.entries[i - 2]!.tag, prev.tag, cur.idx]).toEqual(['0158_hi_copay_charge', '0159_saas_period_snapshot', 160]);
+    }
     expect(cur.when).toBeGreaterThan(DEV_0159_WHEN);
   });
 

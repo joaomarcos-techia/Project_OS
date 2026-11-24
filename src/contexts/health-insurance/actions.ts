@@ -59,6 +59,7 @@ import {
   updateConsultaOverridesInTx,
 } from './internal/consulta-overrides-service';
 import { CoverageInputError, recordAppointmentCoverage } from './internal/coverage-service';
+import * as extraItems from './internal/extra-executed-items';
 import { approveConsultaGuide } from './internal/guide-issuance';
 import * as acct from './internal/insurance-account-service';
 import * as payouts from './internal/insurance-payout-service';
@@ -163,6 +164,8 @@ function messageOf(error: unknown): string {
     return issues[0] ? `${msg}: ${issues[0].message}` : msg;
   }
   if (error instanceof ConsultaOverridesError) return error.message;
+  // P8.4: regra do item executado adicional (mensagem já para o usuário, sem dado pessoal).
+  if (error instanceof extraItems.ExtraItemRuleError) return error.message;
   // 0164: o interruptor do módulo também no banco (caminho que pulou o serviço): a mesma mensagem do serviço.
   const constraint = (error as { constraint_name?: string; cause?: { constraint_name?: string } }).constraint_name ??
     (error as { cause?: { constraint_name?: string } }).cause?.constraint_name;
@@ -285,6 +288,66 @@ export async function updateConsultaFieldsAction(
           })
         ).version,
     );
+  });
+}
+
+// ── P8.4: itens executados adicionais (conferência) ──────────────────────
+
+const ExtraItemInput = z.object({
+  appointmentId: uuid,
+  contractLineId: uuid,
+  quantity: z
+    .number({ message: 'Informe a quantidade (1 a 999).' })
+    .int('A quantidade precisa ser um número inteiro de 1 a 999.')
+    .min(1, 'A quantidade precisa ser um número inteiro de 1 a 999.')
+    .max(999, 'A quantidade precisa ser um número inteiro de 1 a 999.'),
+});
+
+/**
+ * Registra, na conferência, um item de contrato executado na sessão além do agendado (P8.4). Só
+ * registra: se e como ele entra na guia é a decisão P8.4-r (enquanto não vier, não entra).
+ */
+export async function recordExtraItemAction(
+  input: z.input<typeof ExtraItemInput>,
+): Promise<ActionResult<string>> {
+  return run(async () => {
+    const d = ExtraItemInput.parse(input);
+    return write(
+      'health_insurance.extra_item.recorded',
+      { type: 'hi_appointment_extra_item', id: null },
+      async (tx, ctx) =>
+        (
+          await extraItems.recordExtraItemTx(tx, {
+            clinicId: ctx.clinicId,
+            appointmentId: d.appointmentId,
+            contractLineId: d.contractLineId,
+            quantity: d.quantity,
+            source: 'conferencia',
+          })
+        ).id,
+    );
+  });
+}
+
+const ExtraItemCancel = z.object({
+  itemId: uuid,
+  reason: z.string().trim().min(3, 'Explique o motivo do cancelamento (3 a 300 caracteres).').max(300, 'Explique o motivo do cancelamento (3 a 300 caracteres).'),
+});
+
+/** Cancela um item executado adicional, com motivo (nada é apagado). */
+export async function cancelExtraItemAction(
+  input: z.input<typeof ExtraItemCancel>,
+): Promise<ActionResult<null>> {
+  return run(async () => {
+    const d = ExtraItemCancel.parse(input);
+    await write(
+      'health_insurance.extra_item.cancelled',
+      { type: 'hi_appointment_extra_item', id: d.itemId },
+      async (tx, ctx) => {
+        await extraItems.cancelExtraItemTx(tx, { clinicId: ctx.clinicId, itemId: d.itemId, reason: d.reason });
+      },
+    );
+    return null;
   });
 }
 

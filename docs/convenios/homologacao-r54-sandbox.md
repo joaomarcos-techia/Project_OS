@@ -1,7 +1,7 @@
 # R54: procedimento de homologação do estorno externo no Asaas Sandbox
 
-**Estado:** preparado, **não executado**. Executar depende de autorização expressa do fundador (ver passo 0).
-**Data:** 14/11/2026; pedido de autorização revisto no fim da noite de 14/11/2026.
+**Estado em 23/11/2026:** **PARTIAL — bloqueado pelo provedor.** O pagamento de R$ 10,00 está conciliado. Nenhum estorno foi criado: o Asaas Sandbox recusou o parcial 4 vezes com a mesma mensagem, a última em 23/11 às 09h56. As tentativas pararam e o pedido ao suporte está pronto (fim desta página).
+**Histórico:** procedimento escrito em 14/11/2026 e executado a partir de 18/11 (seções abaixo, em ordem).
 
 ## Pedido de autorização (14/11, fim da noite)
 
@@ -169,16 +169,49 @@ com resposta ambígua: ler `/refunds` antes.
 
 **19/11, manhã (`consulta-0715.json`, `estorno-parcial-0901.json`):** às 07h15, consulta só leitura, sem mudança. Às 09h00, condição registrada, nova leitura: pagamento `CONFIRMED`, estornos vazios, Qoro igual ao baseline, cobrança de R$ 45 intacta. Feita **UMA** chamada de estorno parcial de R$ 4,00 às 09h01: HTTP 400, com a mesma mensagem ("Esta transação só pode ser estornada parcialmente no próximo dia"). Conferência só leitura depois da recusa: nenhum estorno no Asaas, nenhum webhook, nenhuma linha nova no Qoro, nenhuma trilha nova. A regra não é a virada do dia pelo calendário, porque 19/11 já é o dia seguinte ao pagamento de 18/11, e a API não expõe o processamento que libera o parcial. No Sandbox, esse processamento pode nem existir. Estado: **R54 PARTIAL — PROVIDER TIMING BLOCKED**. Próxima condição: UMA tentativa no próximo dia útil, segunda 23/11, a partir das 09h00 (20/11 é feriado nacional). Se vier a mesma recusa, parar e levar ao fundador a pergunta ao suporte do Asaas sobre estorno parcial de cartão no Sandbox. Estorno integral de R$ 10,00 no lugar do parcial só com GO novo e específico.
 
-### Pergunta ao suporte do Asaas (rascunho; enviar só se a tentativa de 23/11 for recusada de novo)
+## Tentativa única de 23/11 (segunda-feira, dia útil)
+
+Evidência: `evidence/tiss-r54-estorno-sandbox-2026-11-23/`.
+
+| Momento (Brasília) | O que foi feito | Resultado |
+| --- | --- | --- |
+| 09h55 | leitura só de leitura (`estado-antes.json`) | Asaas: `CONFIRMED`, nenhum estorno. Qoro: cobrança `paid`, uma baixa de R$ 10,00, recebível `pago` (10,00 / 10,00 / glosa 0), coparticipação `paid`, nenhuma evidência de estorno, nenhuma trilha nova; cobrança de R$ 45 `paid` |
+| 09h56 | **UMA** chamada `POST /v3/payments/{id}/refund` com `value: 4.00` (`estorno-parcial-tentativa.json`) | HTTP 400: "Esta transação só pode ser estornada parcialmente no próximo dia."; lista de estornos continua vazia |
+| 09h56 | leitura só de leitura depois da recusa (`estado-depois.json`) | **igual ao estado de 09h55** em todos os campos do Asaas e do Qoro; cobrança de R$ 45 intacta |
+
+**Conclusão:**
+- A recusa veio 4 dias e 2 dias úteis depois do pagamento (18/11, 23h55). Ela **não** é a virada do dia: a mensagem é a mesma desde a primeira tentativa.
+- A documentação oficial (lida de novo em 23/11) não publica prazo para o parcial no cartão. Ela só documenta estornos parciais sucessivos para Pix.
+- Conforme a regra do ciclo, **as tentativas pararam**:
+  - nada de repetir;
+  - nada de trocar pelo estorno integral de R$ 10,00;
+  - nenhum registro alterado.
+- Estado oficial: **R54 PARTIAL — PROVIDER BLOCKED**. Ele só vira PASS com os dois estornos `DONE` no Asaas e as conciliações conferidas no Qoro.
+- O que destrava: a resposta do suporte do Asaas (abaixo), que o fundador envia pelo painel do Sandbox.
+
+### Pedido ao suporte do Asaas (pronto para envio pelo fundador)
 
 > **Assunto:** Sandbox, estorno parcial de cobrança paga com cartão
 >
-> Olá. No ambiente Sandbox, temos uma cobrança de R$ 10,00 paga com cartão de crédito em 18/11/2026, às 23h55 (Brasília), com status CONFIRMED. Ao chamar `POST /v3/payments/{id}/refund` com `value: 4.00`, recebemos HTTP 400 "Esta transação só pode ser estornada parcialmente no próximo dia." A mesma resposta veio em 18/11 às 23h59, em 19/11 às 00h06 e às 09h01, e em 23/11 às [horário]. Não há estorno registrado na cobrança.
+> Olá. No ambiente **Sandbox**, temos uma cobrança de **R$ 10,00** paga com cartão de crédito em 18/11/2026, às 23h55 (Brasília), com status CONFIRMED. Queremos estorná-la em duas partes: **R$ 4,00** e depois o saldo de **R$ 6,00**.
+>
+> Ao chamar `POST /v3/payments/{id}/refund` com `value: 4.00`, recebemos HTTP 400 com a mensagem "Esta transação só pode ser estornada parcialmente no próximo dia." A mesma resposta veio quatro vezes:
+> - 18/11 às 23h59;
+> - 19/11 às 00h06;
+> - 19/11 às 09h01;
+> - 23/11 às 09h56.
+>
+> Não há estorno registrado na cobrança.
 >
 > 1. O Sandbox permite estorno parcial de cobrança de cartão? Se sim, a partir de quando (dia útil seguinte, liquidação da captura, outra regra)?
-> 2. Depois de um estorno parcial, é possível estornar o saldo restante da mesma cobrança, num segundo estorno?
-> 3. Existe alguma limitação do ambiente de homologação para isso que não exista em produção?
+> 2. Depois de um estorno parcial, é possível estornar o saldo restante da mesma cobrança, num segundo estorno parcial?
+> 3. O Sandbox processa a captura ou a liquidação do cartão que libera o parcial? Em quanto tempo? Existe alguma limitação do ambiente de homologação que não exista em produção?
 >
-> Identificador da cobrança: [preencher pelo painel do Sandbox]. Obrigado.
+> Identificador da cobrança: [o fundador copia do painel do Sandbox, em Cobranças; nesta página ele fica mascarado como `pay_0_u1…iroo`]. Obrigado.
 
-**Até a resposta, nada se conclui:** não declaramos que o Sandbox não suporta o parcial e não trocamos o roteiro por estorno integral sem GO específico.
+**Ao enviar:** só o identificador da cobrança. Nada de dado de cartão, chave de API ou token de webhook.
+
+**Até a resposta, nada se conclui:**
+- não declaramos que o Sandbox não suporta o parcial;
+- não trocamos o roteiro por estorno integral sem GO específico;
+- não criamos outro checkout.

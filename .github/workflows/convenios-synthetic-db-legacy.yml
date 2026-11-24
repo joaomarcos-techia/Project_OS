@@ -1,0 +1,173 @@
+name: "Convênios — provas sintéticas de banco (legado, fora do job principal)"
+
+# Os harnesses de Convênios escritos até 14/11 rodavam no notebook (antes da decisão de 15/11 de não
+# rodar Postgres local) e ficaram FORA de qualquer workflow. Este job roda todos no runner, em Postgres
+# DESCARTÁVEL, com os mesmos limites do job principal (convenios-synthetic-db.yml): dados sintéticos,
+# sem segredo, sem banco compartilhado, token só de leitura retirado antes do install. Cada passo roda
+# mesmo com o anterior falhando, para o quadro inteiro aparecer de uma vez.
+
+on:
+  push:
+    branches: [feat/convenios-tiss-20261110]
+    paths:
+      - src/contexts/health-insurance/**
+      - src/lib/premium-access/**
+      - scripts/security/health-insurance-*-db.ts
+      - scripts/security/hi-*.ts
+      - scripts/security/scratch-schema.ts
+      - scripts/security/dev-order-chain.ts
+      - drizzle/migrations/**
+      - .github/workflows/convenios-synthetic-db-legacy.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: convenios-synthetic-db-legacy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  legacy:
+    name: "Convênios — Postgres descartável (legado)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Commits do #53 lidos pela cadeia do DEV (só leitura) e retirada do token do git"
+        run: |
+          git fetch --no-tags --depth=1 origin             8c591c8f3d89b459a80c30bb36541eae1123861f             97e2c3067ad35ce487a426d966949f7391c37870
+          git config --local --unset-all http.https://github.com/.extraheader || true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: "Recurso de glosa: XML no XSD oficial"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55580 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-appeal-xml-db.ts
+
+      - name: "Autorizações (P6.1): domínio, consumo e anexos"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55581 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-authorization-db.ts
+
+      - name: "Lote: exportação assíncrona"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55582 NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-batch-export-async-db.ts
+
+      - name: "Lotes (0150): formar, validar, exportar, enviar, retorno"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55583 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-batches-db.ts
+
+      - name: "Faturamento: pendência e reconcile (P7.4)"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55584 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-billing-reconcile-db.ts
+
+      - name: "Configuração da clínica (0144)"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55585 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-clinic-db.ts
+
+      - name: "Concorrência das operações de Convênios (P14.2)"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55586 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-concurrency-db.ts
+
+      - name: "Configuração por operadora e contratos"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55587 NODE_OPTIONS="--import ./scripts/security/server-only-hook.mjs"             ./node_modules/.bin/tsx --tsconfig tsconfig.scripts.json scripts/security/health-insurance-config-db.ts
+
+      - name: "Dados da Guia de Consulta (0161)"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55588 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-consulta-overrides-db.ts
+
+      - name: "Importação de contratos"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55589 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-contract-import-db.ts
+
+      - name: "Coparticipação: cobrança (gateway simulado)"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55590 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-copay-charge-db.ts
+
+      - name: "Cobertura e coparticipação (0148)"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55591 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-coverage-db.ts
+
+      - name: "Credenciamento (P2.2)"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55592 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-credentials-db.ts
+
+      - name: "Glosas e pagamentos (0152)"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55593 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-glosses-payments-db.ts
+
+      - name: "Emissão com snapshot cifrado"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55594 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-guide-issuance-db.ts
+
+      - name: "Serviço da Guia de Consulta"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55595 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-guide-service-db.ts
+
+      - name: "Guias (0147)"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55596 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-guides-db.ts
+
+      - name: "Ponte com o livro (0153)"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55597 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-ledger-bridge-db.ts
+
+      - name: "Troca de modalidade pela agenda"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55598 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-modality-change-db.ts
+
+      - name: "Bloqueio comercial D24 (0151)"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55599 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-premium-gate-db.ts
+
+      - name: "Importação de demonstrativos (P9.5)"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55600 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-statement-import-db.ts
+
+      - name: "Leituras das telas"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55601 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-ui-data-db.ts
+
+      - name: "Cadeia unida main + #53 + #55"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55602 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-union-chain-db.ts
+
+      - name: "R38: equivalência do livro (soma por clínica)"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55604 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/hi-r38-ledger-equivalence-db.ts

@@ -9,12 +9,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableWra
 import {
   answerAppealAction,
   approveGuideAction,
+  cancelExtraItemAction,
   cancelGuideAction,
   createAppealAction,
   decideGlossAction,
   exportAppealXmlAction,
   fileAppealAction,
   reconcileGuideAction,
+  recordExtraItemAction,
   returnGuideAction,
   reverseAllocationAction,
   reviewGuideAction,
@@ -22,6 +24,7 @@ import {
 } from '@/contexts/health-insurance/actions';
 import {
   getGuideDetail,
+  getGuideExtraItems,
   getGuideSubstitution,
   guideEventLabel,
   ISSUE_OWNER_LABELS,
@@ -32,6 +35,7 @@ import { brl, brlOrDash, ConveniosHeader, conveniosAccess, shortDate } from '../
 import { AttendanceCopyButton } from '../../_lib/attendance-copy-ui';
 import { ActionButton, Actions, AnswerAppealForm, AppealForm, FileAppealForm, TextAction } from '../../_lib/action-ui';
 import { ConsultaFieldsPanel } from '../../_lib/consulta-fields-ui';
+import { ExtraItemsPanel } from '../../_lib/extra-items-ui';
 import { GlossStatusBadge, GuideStatusBadge } from '../../_lib/status';
 import { guideLabel } from '../../_lib/guide-label';
 import { CANCELLATION_CHANNEL_LABELS, CANCELLATION_STATUS_LABELS, TABLE_46_LABELS } from '../../_lib/constants';
@@ -85,6 +89,8 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
   const showSubstitution =
     substitution !== null &&
     (AT_OPERATOR.includes(g.status) || g.status === 'replaced' || substitution.replaces !== null || substitution.cancellations.length > 0);
+  // P8.4 (candidata 0167): itens executados adicionais da SP/SADT; sem a tabela, o painel não aparece.
+  const extraItems = g.guideType === 'sp_sadt' ? await getGuideExtraItems(access.clinicId, g.id) : null;
   const openGlosses = g.glosses.filter((x) => OPEN_GLOSS.includes(x.status) && !g.appeals.some((a) => ['draft', 'filed'].includes(a.status) && a.glossIds.includes(x.id)));
 
   return (
@@ -211,6 +217,35 @@ export default async function GuiaPage({ params }: { params: Promise<{ guideId: 
           </Table>
         </TableWrap>
       </PanelCard>
+
+      {extraItems?.available ? (
+        <PanelCard title="Itens executados adicionais" regionLabel="Itens executados adicionais" className="mt-(--sp-4)">
+          <ExtraItemsPanel
+            sessions={extraItems.sessions.map((s) => ({
+              appointmentId: s.appointmentId,
+              executedOn: s.executedOn,
+              items: s.items.map((i) => ({
+                id: i.id,
+                tableCode: i.tableCode,
+                procedureCode: i.procedureCode,
+                description: i.description,
+                quantity: i.quantity,
+                status: i.status,
+                cancelReason: i.cancelReason,
+                billing: i.billing
+                  ? i.billing.bill
+                    ? { bill: true as const }
+                    : { bill: false as const, message: i.billing.issue?.message ?? null, blocksApproval: i.billing.blocksApproval }
+                  : null,
+              })),
+            }))}
+            options={extraItems.options}
+            editable={operable && EDITABLE.includes(g.status)}
+            recordAction={recordExtraItemAction}
+            cancelAction={cancelExtraItemAction}
+          />
+        </PanelCard>
+      ) : null}
 
       {g.account ? (
         <PanelCard title="Conta com a operadora" regionLabel="Conta da guia" className="mt-(--sp-4)">

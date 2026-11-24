@@ -114,6 +114,8 @@ const WRITE_RULE_BY_PREFIX: ReadonlyArray<readonly [string, ConveniosRule]> = [
   ['health_insurance.guide.reviewed', 'operateOrBill'],
   ['health_insurance.guide.returned', 'operateOrBill'],
   ['health_insurance.guide.consulta_fields_updated', 'operateOrBill'],
+  // P8.4: itens executados adicionais na conferência ("a recepção completa"), como corrigir a guia.
+  ['health_insurance.extra_item.', 'operateOrBill'],
   // Faturamento.
   ['health_insurance.guide.cancelled', 'bill'],
   ['health_insurance.guide.reconciled', 'bill'],

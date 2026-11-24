@@ -688,7 +688,10 @@ try {
   assert.equal(await checkSchedulingChoice(A.clinicId, A.patientId, choice), null);
 
   const actor = { clinicId: A.clinicId, userId: A.owner };
-  const when = new Date(Date.now() + 3 * 86_400_000);
+  // Data do atendimento no período do reajuste (a partir de 01/12, aberto), que a corrida acima
+  // (encerrar em 25/11 × corrigir) não toca. Antes era "hoje + 3 dias": entre 23/11 e 27/11 caía
+  // no buraco 26/11–30/11 quando o "encerrar" vencia a corrida, e a cobertura ficava sem contrato.
+  const when = new Date(Math.max(Date.now() + 3 * 86_400_000, Date.UTC(2026, 11, 15)));
   when.setUTCHours(13, 0, 0, 0);
   const conv = await core.createAppointmentCore(
     actor,

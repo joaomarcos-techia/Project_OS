@@ -1,0 +1,11 @@
+{
+ "o_que": "Leitura SOMENTE LEITURA do outbox de produção (R61), autorizada pelo fundador em 22/11/2026",
+ "quando_utc": "2026-11-22T08:19:35Z",
+ "como": "uma transação READ ONLY (transaction_read_only = on conferido na própria transação), sem SET de sessão, só agregados; nenhum clinic_id, payload ou identificador",
+ "outbox_por_status": {"processed": 726, "skipped": 39, "pending": 0, "processing": 0, "failed": 0},
+ "processados_48h": {"n": 8, "contexto": "messaging", "atraso_p50_s": 0, "atraso_p95_s": 0, "atraso_max_s": 0},
+ "sinais_de_corte": {"devolvidos_pelo_janitor_7d": 0, "devolvidos_pelo_janitor_48h": 0, "com_retentativa_48h": 0, "falhos_7d": 0},
+ "heartbeat_outbox": {"ultimo_tick_ha_s": 7, "status": "success", "duration_ms": 758, "campo_deferred": false},
+ "sha_publicado": "não verificável sem credencial de painel; segundo o registro do #53 (comentário de 21/11 16:59 UTC), deployment dpl_6wv8nHVjT2nMWpqpwferz5caB48w do commit e3cf8bbd, que tem a rota compartilhada sem o R61-B",
+ "classificacao": "R61: risco arquitetural presente em produção; nenhum timeout, atraso ou incidente financeiro observado"
+}

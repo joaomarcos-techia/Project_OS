@@ -87,17 +87,24 @@ export async function composeReleaseMigrations(opts: {
 
   const folder = path.join(out, 'migrations');
   cpSync(repoMigrations, folder, { recursive: true });
-  for (const e of pr53) {
+  // Integrada sobre o #53, a branch já traz as peças dele: só acrescenta as que faltam (as que já
+  // estão passam pelo guarda abaixo, que confere idx, `when` e sha256 contra o manifesto).
+  const localTags = new Set(local.entries.map((e) => e.tag));
+  const missing53 = pr53.filter((e) => !localTags.has(e.tag));
+  for (const e of missing53) {
     writeFileSync(
       path.join(folder, `${e.tag}.sql`),
       git('show', `${pr53Ref}:drizzle/migrations/${e.tag}.sql`),
     );
   }
-  writeFileSync(path.join(folder, `${T0159}.sql`), candidate);
+  const has0159 = localTags.has(T0159);
+  if (!has0159) writeFileSync(path.join(folder, `${T0159}.sql`), candidate);
   const entries = [
     ...local.entries,
-    ...pr53,
-    { idx: 159, version: '7', when: pinned0159.when, tag: T0159, breakpoints: true },
+    ...missing53,
+    ...(has0159
+      ? []
+      : [{ idx: 159, version: '7', when: pinned0159.when, tag: T0159, breakpoints: true }]),
   ].sort((a, b) => a.idx - b.idx);
   writeFileSync(
     path.join(folder, 'meta/_journal.json'),
