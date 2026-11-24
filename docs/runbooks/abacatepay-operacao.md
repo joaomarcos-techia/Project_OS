@@ -1,5 +1,13 @@
 # Operação e recuperação AbacatePay
 
+## Checkpoint vigente — corretivo publicado em 24/11/2026
+
+`app.qoro.dev` aponta para `dpl_7rgQw18k62xJnHig4mKXm11YuGVZ`, revisão de aplicação `cf712ab4b8ad581f6561dd7b7bf3caf242befa37`. O pacote SaaS contém 160 entradas SQL até 0159; este deployment não aplicou migrations, não emitiu checkout e não alterou o pagamento do piloto. O PR #53 permanece draft, sem merge. Esta seção prevalece sobre os checkpoints históricos abaixo que descrevem `658743a4` como deployment vigente ou P-29/R61-B/P-19 como ainda não publicados.
+
+O pré-voo Production em transação somente leitura passou: projeto `shlcbxawrxuaebazuiue`, TLS verificado, journal de 160 entradas sem pendências e 22 relações críticas protegidas. A Vercel confirmou `ABACATEPAY_NEW_CHECKOUTS_ENABLED=false`, `SIGNUP_ENABLED=false`, coorte de checkout vazia, ambiente AbacatePay Production e provedor de cadastro público Asaas; a aquisição pública continua fechada. Após a promoção, deep health retornou `ok` para banco, Redis, outbox, Auth/signup, Asaas, Meta e Gemini; `/api/health/outbox?strict=1` retornou `ok=true`, sem alarmes ou itens abertos. O banco confirma uma assinatura e uma invoice paga do piloto, cinco contratos Asaas e nenhum item aberto no outbox. Há um evento complementar histórico `checkout.completed` em `review`; não reprocessá-lo apenas para limpar o painel.
+
+Na observação inicial, 45 logs do deployment eram informativos, sem HTTP 5xx ou erro. A conferência autenticada de Dashboard e Configurações → Assinatura pelo titular ainda está pendente; a observação de renovação natural live e o encerramento dos alertas históricos no Sentry também não foram comprovados. A CI e a qualificação financeira do SHA publicado passaram; a análise Snyk continua bloqueada por quota de testes privados, não deve ser registrada como PASS. [Checkpoint de publicação no PR #53](https://github.com/joaomarcos-techia/Project_OS/pull/53#issuecomment-7134505048). C4 e novos checkouts permanecem fechados; manter webhook, consumidores, cron e reconciliação das obrigações existentes.
+
 ## Estado vigente em 24/11/2026 — C3 ativo, C4 fechado
 
 `app.qoro.dev` executa o corretivo `658743a4` (`dpl_9qnJAM8vZiTuHfLTVuhopmLGesTq`). Smoke no domínio imutável e no alias passou; cadastro público e novos checkouts continuam fechados. O provedor e o banco confirmaram novamente o único pagamento Pix de R$ 197, a assinatura Consultório ativa, uma invoice paga, o período até 24/12/2026 e os cinco contratos Asaas legados. Evidências sanitizadas em `dist/c3-alerts-live-20261124/`; detalhes no [dossiê](../decoupling/asaas-to-abacatepay/ABACATEPAY-SaaS-GO-NO-GO-FINAL.md#checkpoint-prevalente--c3-publicado-e-estabilização-em-integração-24112026).

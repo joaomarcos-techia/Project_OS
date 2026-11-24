@@ -1,5 +1,9 @@
 # Gate B — proposta de deploy técnico com aquisição fechada
 
+## Checkpoint vigente — corretivo C3 publicado em 24/11/2026
+
+O deployment Production `dpl_7rgQw18k62xJnHig4mKXm11YuGVZ` publicou o pacote SaaS da revisão `cf712ab4b8ad581f6561dd7b7bf3caf242befa37` após CI e qualificação financeira verdes, preflight somente leitura e confirmação de aquisição fechada. A promoção em `app.qoro.dev` foi conferida por readback da Vercel; deep health, outbox estrito, banco e smoke não autenticado passaram no alcance descrito no [dossiê](ABACATEPAY-SaaS-GO-NO-GO-FINAL.md#checkpoint-prevalente--corretivo-production-cf712ab4-24112026). Nenhuma migration, merge, checkout ou cobrança foi executada neste deployment. PR #53 segue draft; Snyk está bloqueado por quota, e o smoke autenticado pelo titular permanece pendente. C4 não está autorizado. Os checkpoints abaixo são históricos quando divergirem deste estado.
+
 ## Checkpoint prevalente — C3 executado parcialmente em 21/11/2026
 
 O GO expresso do fundador autorizou o corretivo e a admissão de **uma** clínica com consentimento confirmado. **Gate A PASS**, aplicação `e3cf8bbd` publicada; atual `dpl_6wv8nHVjT2nMWpqpwferz5caB48w`, com apenas a entrada privada habilitada atrás de superadmin/MFA e convite. Cadastro público, checkout e allowlist permanecem fechados. Sem migrations, merge, R61, mudança de batch/cron ou contrato legado. Os 160 hashes e fingerprints financeiros foram conferidos.
