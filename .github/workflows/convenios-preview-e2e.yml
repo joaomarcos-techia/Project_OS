@@ -24,7 +24,8 @@ name: Convênios — E2E no Preview (navegador remoto)
 
 on:
   push:
-    branches: [feat/convenios-tiss-20261110]
+    # Só nesta branch descartável: o E2E roda também no Preview da composição.
+    branches: [feat/convenios-tiss-20261110, integracao/c11-53-56-55]
     paths:
       - 'e2e/preview-run.json'
 
