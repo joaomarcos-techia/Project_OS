@@ -49,6 +49,12 @@ export const CONVENIOS_RULES = {
   attendanceCopy: [PERMISSIONS.OPERATE_CONVENIOS, PERMISSIONS.VIEW_FATURAMENTO_CONVENIO, PERMISSIONS.VIEW_CONVENIOS],
   /** Cobrança Asaas da coparticipação do PACIENTE: continua no financeiro (matriz 4.3, sem mudança). */
   patientCharge: [PERMISSIONS.MANAGE_FINANCIAL],
+  /**
+   * Exceção do médico (P8.4-r, aprovada em 24/11/2026): registrar o item executado na PRÓPRIA
+   * sessão, pelo consultório. Só a entrada no módulo; a posse do atendimento é conferida no
+   * servidor (`assertOwnSessionTx`), e nada além do registro fica liberado.
+   */
+  ownSession: [PERMISSIONS.VIEW_CONVENIOS],
 } as const satisfies Record<string, readonly Permission[]>;
 
 export type ConveniosRule = keyof typeof CONVENIOS_RULES;
@@ -114,7 +120,12 @@ const WRITE_RULE_BY_PREFIX: ReadonlyArray<readonly [string, ConveniosRule]> = [
   ['health_insurance.guide.reviewed', 'operateOrBill'],
   ['health_insurance.guide.returned', 'operateOrBill'],
   ['health_insurance.guide.consulta_fields_updated', 'operateOrBill'],
-  // P8.4: itens executados adicionais na conferência ("a recepção completa"), como corrigir a guia.
+  // P8.4-r (24/11): o médico registra só na própria sessão (posse conferida no servidor); incluir
+  // na guia e não faturar são do faturamento; registrar, ligar a autorização e cancelar o registro,
+  // de quem confere ("a recepção completa").
+  ['health_insurance.extra_item.recorded_own_session', 'ownSession'],
+  ['health_insurance.extra_item.included', 'bill'],
+  ['health_insurance.extra_item.excluded', 'bill'],
   ['health_insurance.extra_item.', 'operateOrBill'],
   // Faturamento.
   ['health_insurance.guide.cancelled', 'bill'],

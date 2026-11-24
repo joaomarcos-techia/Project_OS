@@ -31,6 +31,8 @@ import { assembleSpSadtGuide, type SadtProfessionalProfile } from '../tiss/assem
 import { serializeGuideSnapshot, type GuideSnapshotContent } from '../tiss/guides/snapshot';
 import { validateSpSadtGuide } from '../tiss/validation/sp-sadt-validator';
 
+import { pendingApprovalMessage } from './extra-item-policy';
+import { pendingExtraItemsForGuideTx } from './extra-executed-items';
 import { freezePrintData, GuideIssuanceError, loadTerms, notReviewedError, SP_SADT_DOMAIN_TABLES, type IssueArgs } from './issuance-common';
 import { readAuthorizationPasswordTx, readClinicalIndicationTx } from './sadt-request-service';
 
@@ -67,6 +69,9 @@ export async function issueSpSadtGuide(
     throw new GuideIssuanceError('a carteirinha lida não é a da guia');
   }
   if (!g.terminologyVersion) throw new GuideIssuanceError('a guia não tem versão de terminologia');
+  // P8.4-r (regra 5): com a guia travada, nenhum item executado adicional pendente passa em silêncio.
+  const pendingExtras = await pendingExtraItemsForGuideTx(tx, { clinicId, guideId: g.id });
+  if (pendingExtras.length > 0) throw new GuideIssuanceError(pendingApprovalMessage(pendingExtras.length));
 
   const items = await tx
     .select()
@@ -132,7 +137,10 @@ export async function issueSpSadtGuide(
         tableCode: ai.tableCode,
         procedureCode: ai.procedureCode,
         authorized: ai.quantityAuthorized,
-        consumed: ai.quantityConsumed - items.filter((i) => i.authorizationItemId === ai.id).length,
+        // O que ESTA guia já consumiu (sessões e itens adicionais incluídos, cada um com a sua quantidade).
+        consumed:
+          ai.quantityConsumed -
+          items.filter((i) => i.authorizationItemId === ai.id).reduce((n, i) => n + i.quantity, 0),
       })),
     };
   }
@@ -179,6 +187,8 @@ export async function issueSpSadtGuide(
       date: i.executedOn,
       tableCode: i.tableCode,
       procedureCode: i.procedureCode,
+      quantity: i.quantity,
+      ref: i.id,
     })),
     contracts: lines.map((l) => ({ ...l, supersedesId: null })),
     guideNumber: g.number,
@@ -187,8 +197,9 @@ export async function issueSpSadtGuide(
   if (assembly.decision === 'blocked') {
     throw new GuideIssuanceError('a guia conferida tem pendências', assembly.issues);
   }
-  // O valor de cada sessão é o que foi conferido (contrato da data da sessão).
-  if (assembly.contractLineIds.some((id, i) => id !== items[i]!.contractLineId)) {
+  // O valor de cada linha é o que foi conferido (contrato da data da sessão), linha a linha pelo id.
+  const lineOf = new Map(items.map((i) => [i.id, i.contractLineId]));
+  if (assembly.contractLineIds.some((id, k) => id !== lineOf.get(assembly.refs[k] ?? ''))) {
     throw new GuideIssuanceError('o contrato de uma sessão mudou desde a conferência; reconfira a guia');
   }
 

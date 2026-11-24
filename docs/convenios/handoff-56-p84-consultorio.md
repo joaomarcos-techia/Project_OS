@@ -1,50 +1,37 @@
-# P8.4 no consultório: contrato para o PR #56 (UI oficial), 23/11/2026
+# P8.4 no consultório: contrato e patch para o PR #56 (UI oficial), 24/11/2026
 
 **Para quem:** o responsável pelo PR #56 (repaginação da UI), dono das telas do consultório.
 
-**O que pedimos:**
-- o registro do item executado adicional entra **na tela oficial do consultório**, no painel do atendimento;
-- o #55 não cria tela paralela e não mexe na branch do #56.
+**Decisão do fundador (24/11):** "exceção do médico: SIM", só na própria sessão clínica, pelo consultório. O médico registra o item executado além do agendado; não vê valor, não liga autorização, não inclui na guia.
 
-**Quando:**
-- só depois da decisão do fundador sobre **quem registra no consultório** (`decisao-p84r.md`, "exceção do médico");
-- e depois da 0167 no DEV (`go-0167-dev.md`).
+**O que pedimos:** montar o bloco pronto do #55 no painel do atendimento (`attending-panel.tsx`). São **duas linhas**, no patch [`patches/56-consultorio-p84r.patch`](patches/56-consultorio-p84r.patch), gerado contra o `fe892902`. O #55 não cria tela paralela e não mexe na branch do #56.
 
-Até lá, o registro acontece na **conferência da guia** (painel do #55, já pronto).
-
-## O que já existe no #55 (backend e conferência)
+## O que o #55 entrega
 
 | Peça | Onde | Contrato |
 | --- | --- | --- |
-| Registrar | `recordExtraItemAction` (`src/contexts/health-insurance/actions.ts`) | entrada `{ appointmentId, contractLineId, quantity (1–999), source: 'consultorio' \| 'conferencia' }`; saída `{ ok: true, id }` ou `{ ok: false, message }` em português, sem detalhe técnico; auditada (`health_insurance.extra_item.recorded`) |
-| Cancelar | `cancelExtraItemAction` | `{ itemId, reason (3–300) }`; cancelado não volta; auditada |
-| Ler (por guia) | `getGuideExtraItems(clinicId, guideId)` (`queries.ts`) | `{ available, items[] }`; `available: false` sem a 0167 (o painel não aparece) |
-| Regras | serviço + gatilhos da 0167 | só linha de contrato SP/SADT da operadora do atendimento, vigente na data da sessão; atendimento em andamento ou concluído; guia fechada não muda; código, descrição e "exige autorização" vêm do contrato |
-| Painel da conferência | `src/app/(app)/(shell)/convenios/_lib/extra-items-ui.tsx` | referência de textos e estados para o consultório |
+| Bloco pronto | `ConsultorioExtraItems` (`src/app/(app)/(shell)/convenios/_lib/session-extra-items-ui.tsx`) | `<ConsultorioExtraItems appointmentId refreshKey? />`: carrega, lista e registra; sem 0167, sem convênio SP/SADT ou em sessão de outra pessoa, não renderiza nada |
+| Leitura | `loadSessionExtraItemsAction({ appointmentId })` → `getAppointmentExtraItems` | itens da sessão (código, descrição do contrato, quantidade, estado em texto), **sem valor nem decisão de faturamento**; linhas de contrato SP/SADT vigentes na data da sessão. Sem visão ampla de Convênios, só o profissional da sessão lê |
+| Registro | `recordOwnSessionExtraItemAction({ appointmentId, contractLineId, quantity })` | regra `ownSession` (quem vê Convênios) + posse do atendimento conferida no servidor, na mesma transação; origem `consultorio`; repetição idêntica devolve o item existente; auditada (`health_insurance.extra_item.recorded_own_session`) |
+| Regras | serviço + gatilhos da 0167 | atendimento em andamento ou concluído; só linha de contrato SP/SADT da operadora do atendimento, vigente na data; guia fechada não aceita registro novo |
+| Testes | `extra-items-ui.test.tsx`, `extra-item-actions.test.ts` | bloco (lista, registro, releitura, nada para sessão alheia); ação (posse antes de gravar, sessão de outro recusada sem auditoria) |
 
-## O que o consultório precisaria (para o #56)
+## O patch para o #56
 
-1. **Onde:** no painel do atendimento em andamento (`attending-panel.tsx` na versão do #56), uma seção recolhida "Itens executados além do agendado", só para atendimento de convênio SP/SADT.
-2. **O que mostra:**
-   - lista dos itens registrados na sessão: código, descrição do contrato e quantidade, **sem valor**;
-   - formulário: escolher a linha do contrato e a quantidade;
-   - **nenhum campo clínico**; o médico não é obrigado a preencher.
-3. **Leitura que falta (o #55 entrega quando o fundador decidir):** `getAppointmentExtraItems(clinicId, appointmentId)` com os itens da sessão e as linhas de contrato elegíveis (SP/SADT, operadora do atendimento, vigentes na data). A guia ainda não existe no consultório, então a leitura por guia não serve.
-4. **Permissão:**
-   - com **"exceção do médico: sim"**, o #55 acrescenta a regra restrita: só o profissional da própria sessão, só `source: 'consultorio'`, só registrar (não cancela item de outra pessoa, não vê valor);
-   - com **"não"**, a seção só aparece para quem opera Convênios (recepção).
-5. **Textos:** os mesmos do painel da conferência ("Registrar item executado", "Este procedimento já está registrado nesta sessão…", "A guia desta sessão já foi fechada…").
-6. **Testes que acompanham a tela:**
-   - componente: lista, formulário, quantidade inválida sem chamar o servidor, mensagem de regra;
-   - E2E no Preview junto da jornada da P8.4, depois da 0167 no DEV.
+```diff
+ import { ProntuarioEditor } from '../pacientes/[id]/prontuarios/[pid]/prontuario-editor';
++// P8.4-r (exceção do médico, 24/11): bloco do TISS para itens executados além do agendado.
++import { ConsultorioExtraItems } from '../convenios/_lib/session-extra-items-ui';
+ …
++      {/* P8.4-r: só aparece em convênio SP/SADT, na sessão do próprio profissional (posse no servidor). */}
++      {emAtendimento || finalizada ? <ConsultorioExtraItems appointmentId={appointmentId} refreshKey={data.status} /> : null}
++
+       {data.prontuario ? (
+```
 
-## Composição atual (23/11)
+**Prova integrada:** o patch entra na composição descartável #53 → #56 → #55 (PR #63), onde a CI e o E2E da P8.4 rodam com as duas branches juntas. No #56 sozinho, o arquivo `session-extra-items-ui.tsx` não existe: o patch só se aplica depois do #55 ou na composição.
 
-- **Heads:** #56 `fe892902`, #53 `bc955f4e`, #55 em `feat/convenios-tiss-20261110`.
-- **#53 + #56:** 9 conflitos, todos em cadastro e plano; nenhum em Convênios.
-- **Acrescentando o #55:** mais 11 conflitos:
-  - `acoes.md` e o journal;
-  - `arch-db-check.ts` e `local-build.ts`;
-  - telas que o #56 repaginou e o #55 tocou (fuso da clínica e convênio): agenda, caixa, consultório (`format.ts`, `waiting-card.tsx`) e financeiro.
-- **Mudanças do #55 nessas telas:** são de dado (fuso, modalidade de convênio), não de estilo. Na fusão, vale a forma do #56 com o dado do #55.
-- **Bloqueio de banco da composição tripla:** a 0159 do #53 fora do journal. O dono é o #53, e o gate não se contorna.
+## Quando
+
+- O bloco funciona assim que a 0167 estiver no DEV (GO condicional, `go-0167-dev.md`).
+- A ordem de merge combinada continua #53 → #56 → #55. Como o #55 é o último, o patch pode entrar no próprio rebase final do #55, se o dono do #56 preferir.

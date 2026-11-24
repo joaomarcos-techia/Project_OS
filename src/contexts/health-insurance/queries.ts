@@ -1446,12 +1446,14 @@ export interface GuideExtraItems {
   sessions: GuideExtraItemSession[];
   /** Linhas de contrato SP/SADT da operadora (e do plano) da guia: só item de contrato. */
   options: Array<{ id: string; label: string }>;
+  /** P8.4-r (regra 5): itens pendentes das sessões da guia; com algum, a aprovação pede a decisão. */
+  pendingCount: number;
 }
 
 /** Sessões da guia SP/SADT com os itens adicionais de cada uma e as linhas de contrato possíveis. */
 export async function getGuideExtraItems(clinicId: string, guideId: string): Promise<GuideExtraItems> {
   return withTenant(clinicId, async (tx) => {
-    if (!(await extraItemsAvailableTx(tx))) return { available: false, sessions: [], options: [] };
+    if (!(await extraItemsAvailableTx(tx))) return { available: false, sessions: [], options: [], pendingCount: 0 };
     const sessions = (await tx.execute(sql`
       SELECT i.appointment_id::text AS appointment_id, min(i.executed_on)::text AS executed_on
         FROM public.hi_guide_items i
@@ -1460,7 +1462,7 @@ export async function getGuideExtraItems(clinicId: string, guideId: string): Pro
          AND g.guide_type = 'sp_sadt' AND i.appointment_id IS NOT NULL
        GROUP BY i.appointment_id
        ORDER BY 2, 1`)) as unknown as Array<{ appointment_id: string; executed_on: string }>;
-    if (sessions.length === 0) return { available: true, sessions: [], options: [] };
+    if (sessions.length === 0) return { available: true, sessions: [], options: [], pendingCount: 0 };
     const out: GuideExtraItemSession[] = [];
     for (const s of sessions) {
       out.push({
@@ -1487,10 +1489,102 @@ export async function getGuideExtraItems(clinicId: string, guideId: string): Pro
     return {
       available: true,
       sessions: out,
+      pendingCount: out.reduce((n, s) => n + s.items.filter((i) => i.decision.pending).length, 0),
       options: lines.map((l) => ({
         id: l.id,
         label: `${l.table_code} · ${l.procedure_code} — ${l.description}${l.valid_until ? ` (até ${l.valid_until})` : ''}`,
       })),
+    };
+  });
+}
+
+/** Sem valores nem decisão de faturamento: o que o consultório mostra (exceção do médico, P8.4-r). */
+export interface SessionExtraItem {
+  id: string;
+  tableCode: string;
+  procedureCode: string;
+  description: string;
+  quantity: number;
+  status: ExtraItemView['status'];
+  /** Só o que o profissional precisa saber do próprio registro. */
+  stateLabel: string;
+  recordedByMe: boolean;
+}
+export interface SessionExtraItems {
+  available: boolean;
+  items: SessionExtraItem[];
+  /** Linhas SP/SADT da operadora do atendimento vigentes na data da sessão (sem valor). */
+  options: Array<{ id: string; label: string }>;
+}
+
+const SESSION_STATE_LABEL: Record<ExtraItemView['status'], string> = {
+  recorded: 'Registrado; a clínica decide o faturamento',
+  regularized: 'Registrado; autorização ligada pela clínica',
+  included: 'Registrado e incluído na guia',
+  excluded: 'Registrado; não será faturado (decisão da clínica)',
+  cancelled: 'Registro cancelado',
+};
+
+/**
+ * Itens executados adicionais de UM atendimento, para o consultório (o atendimento ainda não tem
+ * guia). Posse no servidor: sem visão ampla de Convênios, só o profissional da sessão lê; de outra
+ * pessoa ou de outra clínica, `null` (como "não encontrado").
+ */
+export async function getAppointmentExtraItems(
+  clinicId: string,
+  appointmentId: string,
+  viewer: { userId: string; broad: boolean },
+): Promise<SessionExtraItems | null> {
+  return withTenant(clinicId, async (tx) => {
+    if (!(await extraItemsAvailableTx(tx))) return { available: false, items: [], options: [] };
+    const ap = (await tx.execute(sql`
+      SELECT a.doctor_id::text AS doctor_id, cov.insurer_id::text AS insurer_id, cov.plan_id::text AS plan_id,
+             cov.guide_type, cov.status::text AS cov_status,
+             (a.scheduled_at AT TIME ZONE coalesce(c.timezone, 'America/Sao_Paulo'))::date::text AS day
+        FROM public.appointments a
+        JOIN public.clinics c ON c.id = a.clinic_id
+        LEFT JOIN public.hi_appointment_coverages cov ON cov.clinic_id = a.clinic_id AND cov.appointment_id = a.id
+       WHERE a.clinic_id = ${clinicId}::uuid AND a.id = ${appointmentId}::uuid`)) as unknown as Array<{
+      doctor_id: string;
+      insurer_id: string | null;
+      plan_id: string | null;
+      guide_type: string | null;
+      cov_status: string | null;
+      day: string;
+    }>;
+    const a = ap[0];
+    if (!a) return null;
+    if (!viewer.broad && a.doctor_id !== viewer.userId) return null;
+    if (a.guide_type !== 'sp_sadt' || a.cov_status === 'cancelled' || !a.insurer_id) {
+      return { available: true, items: [], options: [] };
+    }
+    const items = await listExtraItemsTx(tx, { clinicId, appointmentId });
+    const lines = (await tx.execute(sql`
+      SELECT l.id::text AS id, l.table_code, l.procedure_code, l.description
+        FROM public.hi_procedure_contracts l
+       WHERE l.clinic_id = ${clinicId}::uuid AND l.insurer_id = ${a.insurer_id}::uuid AND l.guide_type = 'sp_sadt'
+         AND (l.plan_id IS NULL OR l.plan_id IS NOT DISTINCT FROM ${a.plan_id}::uuid)
+         AND l.valid_from <= ${a.day}::date AND (l.valid_until IS NULL OR l.valid_until >= ${a.day}::date)
+         AND NOT EXISTS (SELECT 1 FROM public.hi_procedure_contracts s WHERE s.clinic_id = l.clinic_id AND s.supersedes_id = l.id)
+       ORDER BY l.table_code, l.procedure_code`)) as unknown as Array<{
+      id: string;
+      table_code: string;
+      procedure_code: string;
+      description: string;
+    }>;
+    return {
+      available: true,
+      items: items.map((i) => ({
+        id: i.id,
+        tableCode: i.tableCode,
+        procedureCode: i.procedureCode,
+        description: i.description,
+        quantity: i.quantity,
+        status: i.status,
+        stateLabel: SESSION_STATE_LABEL[i.status],
+        recordedByMe: i.recordedBy === viewer.userId,
+      })),
+      options: lines.map((l) => ({ id: l.id, label: `${l.table_code} · ${l.procedure_code} — ${l.description}` })),
     };
   });
 }

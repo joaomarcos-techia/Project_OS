@@ -72,7 +72,8 @@ import {
   type StatementImportResult,
 } from './internal/statement-import-service';
 import { loadXmllintValidator } from './tiss/xml/xsd-validator';
-import { CONVENIOS_RULES, allows, ruleForAuditAction, type ConveniosRule } from './rights';
+import { getAppointmentExtraItems, type SessionExtraItems } from './queries';
+import { CONVENIOS_RULES, allows, conveniosRights, ruleForAuditAction, type ConveniosRule } from './rights';
 
 export type ActionResult<T = null> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -305,7 +306,7 @@ const ExtraItemInput = z.object({
 
 /**
  * Registra, na conferência, um item de contrato executado na sessão além do agendado (P8.4). Só
- * registra: se e como ele entra na guia é a decisão P8.4-r (enquanto não vier, não entra).
+ * registra: pela P8.4-r, nada entra na guia sem a decisão explícita do faturamento.
  */
 export async function recordExtraItemAction(
   input: z.input<typeof ExtraItemInput>,
@@ -323,9 +324,128 @@ export async function recordExtraItemAction(
             contractLineId: d.contractLineId,
             quantity: d.quantity,
             source: 'conferencia',
+            actorUserId: ctx.userId,
           })
         ).id,
     );
+  });
+}
+
+/**
+ * Exceção do médico (P8.4-r, 24/11): o profissional registra, pelo consultório, o item executado
+ * na PRÓPRIA sessão. Regra `ownSession` (quem vê Convênios) + posse do atendimento conferida no
+ * servidor, na mesma transação; só registrar (não liga autorização, não inclui, não vê valor).
+ */
+export async function recordOwnSessionExtraItemAction(
+  input: z.input<typeof ExtraItemInput>,
+): Promise<ActionResult<string>> {
+  return run(async () => {
+    const d = ExtraItemInput.parse(input);
+    return write(
+      'health_insurance.extra_item.recorded_own_session',
+      { type: 'hi_appointment_extra_item', id: null },
+      async (tx, ctx) => {
+        await extraItems.assertOwnSessionTx(tx, { clinicId: ctx.clinicId, appointmentId: d.appointmentId, userId: ctx.userId });
+        return (
+          await extraItems.recordExtraItemTx(tx, {
+            clinicId: ctx.clinicId,
+            appointmentId: d.appointmentId,
+            contractLineId: d.contractLineId,
+            quantity: d.quantity,
+            source: 'consultorio',
+            actorUserId: ctx.userId,
+          })
+        ).id;
+      },
+    );
+  });
+}
+
+/**
+ * Leitura do bloco do consultório (exceção do médico): os itens da sessão, sem valor nem decisão
+ * de faturamento. Sem visão ampla de Convênios, só o profissional da sessão lê (posse no servidor,
+ * em `getAppointmentExtraItems`); de outra pessoa, `null`.
+ */
+export async function loadSessionExtraItemsAction(input: {
+  appointmentId: string;
+}): Promise<ActionResult<SessionExtraItems | null>> {
+  try {
+    const { appointmentId } = z.object({ appointmentId: uuid }).parse(input);
+    const ctx = await gate('ownSession');
+    const user = await requireUser();
+    const broad = conveniosRights(user.permissions).broad;
+    return { ok: true, data: await getAppointmentExtraItems(ctx.clinicId, appointmentId, { userId: ctx.userId, broad }) };
+  } catch (error) {
+    return { ok: false, error: messageOf(error) };
+  }
+}
+
+const ExtraItemRef = z.object({ itemId: uuid });
+
+/** Recepção ou faturamento: liga a autorização concedida da solicitação da sessão ao item. */
+export async function regularizeExtraItemAction(
+  input: z.input<typeof ExtraItemRef>,
+): Promise<ActionResult<null>> {
+  return run(async () => {
+    const d = ExtraItemRef.parse(input);
+    await write(
+      'health_insurance.extra_item.regularized',
+      { type: 'hi_appointment_extra_item', id: d.itemId },
+      async (tx, ctx) => {
+        await extraItems.regularizeExtraItemTx(tx, { clinicId: ctx.clinicId, itemId: d.itemId });
+      },
+    );
+    return null;
+  });
+}
+
+const ExtraItemInclude = ExtraItemRef.extend({ insurerRuleConfirmed: z.boolean().default(false) });
+
+/** Faturamento (permissão fresca): "Incluir na guia". Nunca automático; consome o saldo uma vez. */
+export async function includeExtraItemAction(
+  input: z.input<typeof ExtraItemInclude>,
+): Promise<ActionResult<null>> {
+  return run(async () => {
+    const d = ExtraItemInclude.parse(input);
+    await requireFreshPermission(PERMISSIONS.MANAGE_FATURAMENTO_CONVENIO);
+    await write(
+      'health_insurance.extra_item.included',
+      { type: 'hi_appointment_extra_item', id: d.itemId },
+      async (tx, ctx) => {
+        await extraItems.includeExtraItemTx(tx, {
+          clinicId: ctx.clinicId,
+          itemId: d.itemId,
+          actorUserId: ctx.userId,
+          insurerRuleConfirmed: d.insurerRuleConfirmed,
+        });
+      },
+    );
+    return null;
+  });
+}
+
+const ExtraItemExclude = ExtraItemRef.extend({
+  reason: z
+    .string()
+    .trim()
+    .min(10, 'Explique o motivo de não faturar (10 a 300 caracteres).')
+    .max(300, 'Explique o motivo de não faturar (10 a 300 caracteres).'),
+});
+
+/** Faturamento: o item fica registrado e não é faturado, com motivo. */
+export async function excludeExtraItemAction(
+  input: z.input<typeof ExtraItemExclude>,
+): Promise<ActionResult<null>> {
+  return run(async () => {
+    const d = ExtraItemExclude.parse(input);
+    await write(
+      'health_insurance.extra_item.excluded',
+      { type: 'hi_appointment_extra_item', id: d.itemId },
+      async (tx, ctx) => {
+        await extraItems.excludeExtraItemTx(tx, { clinicId: ctx.clinicId, itemId: d.itemId, reason: d.reason });
+      },
+    );
+    return null;
   });
 }
 
@@ -411,6 +531,31 @@ export async function approveGuideAction(input: { guideId: string }): Promise<Ac
     const ctx = await gate('bill');
     await requireFreshPermission(PERMISSIONS.MANAGE_FATURAMENTO_CONVENIO);
     await approveConsultaGuide(ctx.clinicId, guideId);
+    return null;
+  });
+}
+
+const ApproveWithout = z.object({
+  guideId: uuid,
+  reason: z
+    .string()
+    .trim()
+    .min(10, 'Explique por que os itens não serão faturados (10 a 300 caracteres).')
+    .max(300, 'Explique por que os itens não serão faturados (10 a 300 caracteres).'),
+});
+
+/**
+ * P8.4-r ("aprovar sem o item"): aprova e emite a guia registrando, na MESMA transação, que os
+ * itens executados adicionais pendentes não serão faturados, com o motivo. Auditado.
+ */
+export async function approveGuideWithoutPendingExtraItemsAction(
+  input: z.input<typeof ApproveWithout>,
+): Promise<ActionResult<null>> {
+  return run(async () => {
+    const d = ApproveWithout.parse(input);
+    const ctx = await gate('bill');
+    await requireFreshPermission(PERMISSIONS.MANAGE_FATURAMENTO_CONVENIO);
+    await approveConsultaGuide(ctx.clinicId, d.guideId, { withoutPendingExtraItems: { reason: d.reason } });
     return null;
   });
 }

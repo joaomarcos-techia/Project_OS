@@ -12,6 +12,8 @@ describe('insurerRules (P2.5)', () => {
       requireProfessionalCredential: true,
       maxGuidesPerBatch: 100,
       submissionDeadlineDays: null,
+      // P8.4-r (regra 7): sem registro, desconhecida (nunca aceite presumido).
+      extraItemsAfterSession: 'unknown',
     });
     expect(insurerRules(null)).toEqual(insurerRules({}));
     expect(TISS_MAX_GUIDES_PER_BATCH).toBe(100);
@@ -23,12 +25,15 @@ describe('insurerRules (P2.5)', () => {
         requireProfessionalCredential: false,
         maxGuidesPerBatch: 30,
         submissionDeadlineDays: 60,
+        extraItemsAfterSession: 'forbids',
       }),
     ).toEqual({
       requireProfessionalCredential: false,
       maxGuidesPerBatch: 30,
       submissionDeadlineDays: 60,
+      extraItemsAfterSession: 'forbids',
     });
+    expect(insurerRules({ extraItemsAfterSession: 'accepts' }).extraItemsAfterSession).toBe('accepts');
   });
 
   it('valor fora do permitido nunca relaxa o padrão: volta ao teto e a "sem prazo"', () => {
@@ -40,5 +45,8 @@ describe('insurerRules (P2.5)', () => {
     expect(
       insurerRules({ requireProfessionalCredential: 'false' }).requireProfessionalCredential,
     ).toBe(true);
+    // Valor desconhecido da regra P8.4-r não vira aceite.
+    expect(insurerRules({ extraItemsAfterSession: 'sim' }).extraItemsAfterSession).toBe('unknown');
+    expect(insurerRules({ extraItemsAfterSession: true }).extraItemsAfterSession).toBe('unknown');
   });
 });

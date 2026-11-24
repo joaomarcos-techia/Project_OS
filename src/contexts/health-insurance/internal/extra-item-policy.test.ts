@@ -1,85 +1,95 @@
 /**
- * P8.4-r — as alternativas do item executado sem solicitação (hipóteses, não política aprovada).
- * A vigente é `undecided`: nada é faturado e o registro não é bloqueado.
+ * P8.4-r — política APROVADA em 24/11/2026: cada estado do item executado adicional leva a uma
+ * decisão (pendência, ações possíveis e mensagem). Sem faturamento automático, sem autorização
+ * presumida, sem aprovação silenciosa, operadora desconhecida não é aceite presumido.
  */
 import { describe, expect, it } from 'vitest';
 
-import {
-  ACTIVE_EXTRA_ITEM_POLICY,
-  EXTRA_ITEM_POLICIES,
-  resolveExtraItemBilling,
-  type ExtraItemFacts,
-} from './extra-item-policy';
+import { decideExtraItem, EXTRA_ITEM_POLICY, pendingApprovalMessage, type ExtraItemFacts } from './extra-item-policy';
 
-const free: ExtraItemFacts = { requiresAuthorization: false, quantity: 1, grantedAuthorization: null };
-const needsAuth: ExtraItemFacts = { requiresAuthorization: true, quantity: 2, grantedAuthorization: null };
+const base: ExtraItemFacts = {
+  status: 'recorded',
+  requiresAuthorization: false,
+  quantity: 2,
+  guideState: 'open',
+  insurerRule: 'accepts',
+  candidateAuthorization: null,
+  linkedAuthorizationProblem: null,
+  billedInLiveGuide: false,
+};
+const decide = (over: Partial<ExtraItemFacts>) => decideExtraItem({ ...base, ...over });
 
-describe('P8.4-r: item executado sem solicitação', () => {
-  it('a política em vigor é "sem decisão" e não fatura nada', () => {
-    expect(ACTIVE_EXTRA_ITEM_POLICY).toBe('undecided');
-    for (const facts of [free, needsAuth, { ...needsAuth, grantedAuthorization: { itemId: 'ai-1', remaining: 9 } }]) {
-      const r = resolveExtraItemBilling('undecided', facts);
-      expect(r).toMatchObject({ bill: false, blocksApproval: false });
-      expect(r.bill === false && r.issue?.code).toBe('EXTRA_ITEM_POLICY_PENDING');
+describe('P8.4-r: política aprovada para o item executado além do solicitado', () => {
+  it('é a política de 24/11 (nenhuma alternativa antiga em vigor)', () => {
+    expect(EXTRA_ITEM_POLICY).toBe('p84r-2026-11-24');
+  });
+
+  it('regras 2 e 4: contrato sem exigência fica PENDENTE até a ação explícita do faturamento (nunca entra sozinho)', () => {
+    const d = decide({});
+    expect(d).toMatchObject({ stage: 'ready_to_include', pending: true, canInclude: true, canExclude: true, canCancel: true, canRegularize: false });
+    expect(d.includeNeedsInsurerConfirmation).toBe(false);
+  });
+
+  it('regra 3: contrato que exige, sem autorização da solicitação: aguarda; não inclui nem liga', () => {
+    const d = decide({ requiresAuthorization: true });
+    expect(d).toMatchObject({ stage: 'awaiting_authorization', pending: true, canInclude: false, canRegularize: false, canExclude: true });
+  });
+
+  it('regra 3: autorização concedida com saldo ≥ quantidade: a recepção liga; ainda não inclui', () => {
+    const d = decide({ requiresAuthorization: true, candidateAuthorization: { itemId: 'ai', remaining: 2 } });
+    expect(d).toMatchObject({ stage: 'authorization_available', canRegularize: true, canInclude: false, pending: true });
+  });
+
+  it('regra 3: saldo menor que a quantidade não serve (nunca fatura acima do autorizado)', () => {
+    const d = decide({ requiresAuthorization: true, candidateAuthorization: { itemId: 'ai', remaining: 1 } });
+    expect(d).toMatchObject({ stage: 'awaiting_authorization', canRegularize: false, canInclude: false });
+    expect(d.message).toContain('saldo autorizado (1)');
+  });
+
+  it('regra 3: regularizado e a autorização serve: o faturamento inclui (consome o saldo)', () => {
+    expect(decide({ requiresAuthorization: true, status: 'regularized' })).toMatchObject({ stage: 'ready_to_include', canInclude: true });
+  });
+
+  it('autorização ligada que deixou de servir (cancelada, vencida, sem saldo): não inclui; pode não faturar', () => {
+    const d = decide({ requiresAuthorization: true, status: 'regularized', linkedAuthorizationProblem: 'a autorização não está concedida pela operadora' });
+    expect(d).toMatchObject({ stage: 'authorization_invalid', canInclude: false, canExclude: true, pending: true });
+  });
+
+  it('regra 7: operadora desconhecida pede a confirmação do contrato; proibição registrada impede incluir e ligar', () => {
+    expect(decide({ insurerRule: 'unknown' }).includeNeedsInsurerConfirmation).toBe(true);
+    expect(decide({ insurerRule: 'unknown', requiresAuthorization: true, status: 'regularized' }).includeNeedsInsurerConfirmation).toBe(true);
+    const f = decide({ insurerRule: 'forbids' });
+    expect(f).toMatchObject({ stage: 'insurer_forbids', canInclude: false, canRegularize: false, canExclude: true, pending: true });
+    const fa = decide({ insurerRule: 'forbids', requiresAuthorization: true, candidateAuthorization: { itemId: 'ai', remaining: 9 } });
+    expect(fa).toMatchObject({ stage: 'insurer_forbids', canRegularize: false });
+  });
+
+  it('a etapa da guia limita as ações: conferida só não fatura; aprovada não muda nada; sem guia não inclui', () => {
+    expect(decide({ guideState: 'reviewed' })).toMatchObject({ canInclude: false, canExclude: true, canCancel: false, pending: true });
+    expect(decide({ guideState: 'closed' })).toMatchObject({ canInclude: false, canExclude: false, canCancel: false });
+    expect(decide({ guideState: 'none' })).toMatchObject({ canInclude: false, canExclude: true, canCancel: true });
+  });
+
+  it('regra 6: não faturado e cancelado não são pendência e não oferecem ação; incluído também não', () => {
+    for (const status of ['excluded', 'cancelled'] as const) {
+      const d = decide({ status });
+      expect(d.pending).toBe(false);
+      expect([d.canInclude, d.canExclude, d.canCancel, d.canRegularize]).toEqual([false, false, false, false]);
     }
+    expect(decide({ status: 'included', billedInLiveGuide: true })).toMatchObject({ stage: 'included', pending: false, canInclude: false, canExclude: false });
   });
 
-  it('nenhuma alternativa bloqueia o REGISTRO: só decide o faturamento', () => {
-    // O registro é do banco (0167) e acontece antes; aqui só existe o "fatura ou não".
-    for (const p of EXTRA_ITEM_POLICIES) {
-      const r = resolveExtraItemBilling(p, free);
-      expect(typeof r.bill).toBe('boolean');
-    }
+  it('incluído numa guia cancelada volta a ser pendência: incluir na guia nova ou não faturar', () => {
+    const d = decide({ status: 'included', billedInLiveGuide: false });
+    expect(d).toMatchObject({ stage: 'included_in_dead_guide', pending: true, canInclude: true, canExclude: true, canCancel: false });
   });
 
-  it('(a) bloquear o faturamento: nunca fatura, sem travar a guia', () => {
-    for (const facts of [free, needsAuth]) {
-      expect(resolveExtraItemBilling('block_billing', facts)).toMatchObject({
-        bill: false,
-        blocksApproval: false,
-        issue: { code: 'EXTRA_ITEM_NOT_BILLED', owner: 'financeiro' },
-      });
-    }
+  it('quantidade fora de 1 a 999 é erro de programação, não decisão', () => {
+    for (const quantity of [0, 1000, 1.5]) expect(() => decide({ quantity })).toThrow(RangeError);
   });
 
-  it('(b) pendência de regularização: não fatura e trava a aprovação da guia', () => {
-    expect(resolveExtraItemBilling('regularization_pending', free)).toMatchObject({
-      bill: false,
-      blocksApproval: true,
-      issue: { code: 'EXTRA_ITEM_REGULARIZATION', owner: 'recepcao' },
-    });
-  });
-
-  it('(c) autorização posterior: fatura sem autorização só quando o contrato não exige', () => {
-    expect(resolveExtraItemBilling('post_authorization', free)).toEqual({ bill: true, authorizationItemId: null });
-  });
-
-  it('(c) autorização posterior: com saldo suficiente, consome o item autorizado', () => {
-    expect(
-      resolveExtraItemBilling('post_authorization', { ...needsAuth, grantedAuthorization: { itemId: 'ai-7', remaining: 2 } }),
-    ).toEqual({ bill: true, authorizationItemId: 'ai-7' });
-  });
-
-  it('(c) autorização posterior: sem autorização ou com saldo menor, não fatura acima do autorizado', () => {
-    expect(resolveExtraItemBilling('post_authorization', needsAuth)).toMatchObject({
-      bill: false,
-      issue: { code: 'EXTRA_ITEM_AUTHORIZATION_MISSING' },
-    });
-    const short = resolveExtraItemBilling('post_authorization', {
-      ...needsAuth,
-      grantedAuthorization: { itemId: 'ai-7', remaining: 1 },
-    });
-    expect(short).toMatchObject({ bill: false, blocksApproval: false });
-    expect(short.bill === false && short.issue?.message).toContain('saldo de 1');
-  });
-
-  it('(d) só registro: sem cobrança e sem pendência', () => {
-    expect(resolveExtraItemBilling('record_only', needsAuth)).toEqual({ bill: false, issue: null, blocksApproval: false });
-  });
-
-  it('quantidade fora de 1 a 999 é recusada antes de qualquer decisão', () => {
-    for (const quantity of [0, -1, 1000, 1.5]) {
-      expect(() => resolveExtraItemBilling('post_authorization', { ...free, quantity })).toThrow(RangeError);
-    }
+  it('a mensagem de bloqueio da aprovação diz o que fazer', () => {
+    expect(pendingApprovalMessage(1)).toMatch(/1 item executado adicional pendente.*aprove sem ele, informando o motivo/u);
+    expect(pendingApprovalMessage(3)).toMatch(/3 itens/u);
   });
 });

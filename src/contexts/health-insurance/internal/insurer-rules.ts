@@ -5,6 +5,14 @@
 /** Teto do padrão TISS: até 100 guias por lote. A operadora pode exigir menos (contrato). */
 export const TISS_MAX_GUIDES_PER_BATCH = 100;
 
+/**
+ * P8.4-r (regra 7): a operadora aceita item executado sem solicitação prévia e regularizado depois
+ * da sessão? `unknown` é o padrão e NÃO presume aceite: a inclusão pede a confirmação de quem
+ * fatura. `forbids` vem do contrato, registrado pela clínica: o item nunca entra na guia dela.
+ */
+export type InsurerExtraItemsRule = 'unknown' | 'accepts' | 'forbids';
+export const INSURER_EXTRA_ITEMS_RULES: readonly InsurerExtraItemsRule[] = ['unknown', 'accepts', 'forbids'];
+
 export interface InsurerRules {
   /** Por contrato: a operadora exige o profissional executante habilitado (padrão: exige). */
   requireProfessionalCredential: boolean;
@@ -12,6 +20,8 @@ export interface InsurerRules {
   maxGuidesPerBatch: number;
   /** Por contrato: prazo, em dias depois do atendimento, para enviar a guia; `null` = sem prazo registrado. */
   submissionDeadlineDays: number | null;
+  /** P8.4-r: item executado além do solicitado, regularizado depois da sessão (padrão: desconhecido). */
+  extraItemsAfterSession: InsurerExtraItemsRule;
 }
 
 /** Lê as regras guardadas na operadora, com os padrões que não presumem nada a mais. */
@@ -29,5 +39,8 @@ export function insurerRules(settings: unknown): InsurerRules {
       typeof deadline === 'number' && Number.isInteger(deadline) && deadline >= 1 && deadline <= 365
         ? deadline
         : null,
+    extraItemsAfterSession: INSURER_EXTRA_ITEMS_RULES.includes(s.extraItemsAfterSession as InsurerExtraItemsRule)
+      ? (s.extraItemsAfterSession as InsurerExtraItemsRule)
+      : 'unknown',
   };
 }

@@ -99,6 +99,12 @@ describe('portão das actions de Convênios (P12.2, matriz I.2)', () => {
       // P8.4: completar os itens executados na conferência é como corrigir a guia.
       'health_insurance.extra_item.recorded': 'operateOrBill',
       'health_insurance.extra_item.cancelled': 'operateOrBill',
+      // P8.4-r (24/11): ligar a autorização é da recepção; incluir e não faturar, do faturamento;
+      // o médico só registra na própria sessão (posse conferida no servidor).
+      'health_insurance.extra_item.regularized': 'operateOrBill',
+      'health_insurance.extra_item.included': 'bill',
+      'health_insurance.extra_item.excluded': 'bill',
+      'health_insurance.extra_item.recorded_own_session': 'ownSession',
       'health_insurance.guide.cancelled': 'bill',
       'health_insurance.guide.reconciled': 'bill',
       'health_insurance.batch.created': 'bill',
@@ -117,7 +123,7 @@ describe('portão das actions de Convênios (P12.2, matriz I.2)', () => {
   });
 
   it('aprovar e exportar o lote conferem a permissão FRESCA de faturar (matriz 4.3)', () => {
-    for (const name of ['approveGuideAction', 'exportBatchAction']) {
+    for (const name of ['approveGuideAction', 'approveGuideWithoutPendingExtraItemsAction', 'exportBatchAction']) {
       const body = fns.get(name)!.body;
       expect(body, name).toMatch(/gate\('bill'\)/u);
       expect(body, name).toMatch(/requireFreshPermission\(PERMISSIONS\.MANAGE_FATURAMENTO_CONVENIO\)/u);

@@ -203,11 +203,16 @@ Evidência: `evidence/tiss-r54-estorno-sandbox-2026-11-23/`.
 >
 > Não há estorno registrado na cobrança.
 >
-> 1. O Sandbox permite estorno parcial de cobrança de cartão? Se sim, a partir de quando (dia útil seguinte, liquidação da captura, outra regra)?
-> 2. Depois de um estorno parcial, é possível estornar o saldo restante da mesma cobrança, num segundo estorno parcial?
-> 3. O Sandbox processa a captura ou a liquidação do cartão que libera o parcial? Em quanto tempo? Existe alguma limitação do ambiente de homologação que não exista em produção?
+> 1. O Sandbox permite estornos parciais sucessivos na mesma cobrança de cartão (R$ 4,00 e depois o saldo de R$ 6,00)?
+> 2. Qual é o prazo efetivo para o estorno parcial: dia útil seguinte, liquidação da captura ou outra regra? A cobrança está há cinco dias como CONFIRMED.
+> 3. Existe algum bloqueio específico nesta transação que impeça o parcial?
+> 4. O Sandbox se comporta diferente de produção nesse ponto (captura, liquidação ou estorno de cartão)?
+> 5. Existe algum pré-requisito adicional, como liquidação, saldo disponível ou configuração da conta?
+> 6. Existe um procedimento oficial para validarmos, no Sandbox, os estornos de R$ 4,00 e R$ 6,00 na mesma cobrança?
 >
 > Identificador da cobrança: [o fundador copia do painel do Sandbox, em Cobranças; nesta página ele fica mascarado como `pay_0_u1…iroo`]. Obrigado.
+
+(Atualizado em 24/11 com as seis perguntas do ciclo. O agente não tem canal de suporte autenticado do Asaas: a API não abre chamado, e o painel é do fundador. O texto vai pronto para colar.)
 
 **Ao enviar:** só o identificador da cobrança. Nada de dado de cartão, chave de API ou token de webhook.
 
