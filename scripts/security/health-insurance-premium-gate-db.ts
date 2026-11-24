@@ -106,18 +106,24 @@ async function setupClinic(label: string, sub: SubState, clinicStatus = 'active'
   // banco recusa outro perfil além dele (`team_invites`, "Evaluation feature requires verified
   // subscription payment"). Na clínica em trial, o profissional é o próprio titular; a branch
   // sozinha não tem esses gatilhos, e nada nas provas abaixo depende do papel do profissional.
+  // O procedimento nasce antes da assinatura de trial: com a avaliação já vencida, o #53 recusa
+  // recurso novo ("Evaluation expired", `enforce_trial_resource_limit`), e a clínica de trial vencido
+  // só precisa existir com o que já tinha.
   const trial = sub.kind === 'trial';
   if (trial) {
     await sql`insert into public.profiles (id, clinic_id, nome, role, ativo)
       values (${doctorId}::uuid, ${clinicId}::uuid, 'Profissional sintético (titular)', 'owner', true)`;
   }
+  const newProcedure = async () =>
+    (await sql`insert into public.procedures (clinic_id, codigo, descricao, valor_padrao, duracao_padrao_min, ativo)
+      values (${clinicId}::uuid, 'CONS', 'Consulta sintética', 150, 30, true) returning id`)[0]!.id as string;
+  const trialProcedure = trial ? await newProcedure() : null;
   await setSubscription(clinicId, sub);
   if (!trial) {
     await sql`insert into public.profiles (id, clinic_id, nome, role, ativo)
       values (${doctorId}::uuid, ${clinicId}::uuid, 'Profissional sintético', 'doctor', true)`;
   }
-  const [proc] = await sql`insert into public.procedures (clinic_id, codigo, descricao, valor_padrao, duracao_padrao_min, ativo)
-    values (${clinicId}::uuid, 'CONS', 'Consulta sintética', 150, 30, true) returning id`;
+  const proc = { id: trialProcedure ?? (await newProcedure()) };
   return { clinicId, doctorId, procedureId: proc!.id as string, label };
 }
 type Clinic = Awaited<ReturnType<typeof setupClinic>>;

@@ -1,0 +1,46 @@
+name: "TEMP composição — só a prova do bloqueio comercial"
+
+# Os harnesses de Convênios escritos até 14/11 rodavam no notebook (antes da decisão de 15/11 de não
+# rodar Postgres local) e ficaram FORA de qualquer workflow. Este job roda todos no runner, em Postgres
+# DESCARTÁVEL, com os mesmos limites do job principal (convenios-synthetic-db.yml): dados sintéticos,
+# sem segredo, sem banco compartilhado, token só de leitura retirado antes do install. Cada passo roda
+# mesmo com o anterior falhando, para o quadro inteiro aparecer de uma vez.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: convenios-synthetic-db-legacy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  legacy:
+    name: "Convênios — Postgres descartável (legado)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Commits do #53 lidos pela cadeia do DEV (só leitura) e retirada do token do git"
+        run: |
+          git fetch --no-tags --depth=1 origin             8c591c8f3d89b459a80c30bb36541eae1123861f             97e2c3067ad35ce487a426d966949f7391c37870
+          git config --local --unset-all http.https://github.com/.extraheader || true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: "Bloqueio comercial D24 (0151)"
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55599 NODE_OPTIONS=--conditions=react-server pnpm exec tsx scripts/security/health-insurance-premium-gate-db.ts
