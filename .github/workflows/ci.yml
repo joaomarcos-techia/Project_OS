@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     # Build frio local comprovado pode exceder 10 min só na compilação; este
     # limite não muda nenhum gate, apenas evita cancelar uma execução saudável.
-    timeout-minutes: 20
+    timeout-minutes: 30  # composição descartável: 9.001 testes passam dos 20 min do job (só nesta branch)
     steps:
       - uses: actions/checkout@v4
 
