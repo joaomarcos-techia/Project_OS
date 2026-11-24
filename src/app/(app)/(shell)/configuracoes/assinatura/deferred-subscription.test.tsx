@@ -31,8 +31,55 @@ describe('deferred subscription controls', () => {
       />,
     );
     expect(screen.getByText('Pagamento por Pix Automático')).toBeTruthy();
-    expect(screen.getByText(/O valor autorizado no banco é fixo/)).toBeTruthy();
+    expect(screen.getByText(/O banco não permite alterar o valor desta autorização/)).toBeTruthy();
     expect(screen.queryByRole('combobox')).toBeNull();
+  });
+  it('shows Pix upgrade prices and the safe next step without calling change-plan', () => {
+    const fetcher = vi.fn();
+    vi.stubGlobal('fetch', fetcher);
+    render(
+      <DeferredSubscription
+        {...baseline}
+        paid
+        billingStatus="active"
+        paidPeriodActive
+        managementAvailable
+        contractId="2d0c7853-147a-4b91-a178-3d081617c132"
+        accessUntil="2026-12-01T12:00:00.000Z"
+        planChanges={{
+          amountChangeBlocked: true,
+          options: [
+            {
+              id: 'target',
+              name: 'Clínica — 2 médicos',
+              code: 'clinica_2026_2',
+              amountMinor: 39700,
+            },
+          ],
+          pending: null,
+        }}
+      />,
+    );
+    expect(screen.getByText(/Clínica — 2 médicos.*397,00/)).toBeTruthy();
+    expect(screen.getByText(/Depois desse prazo, escolha o novo plano/)).toBeTruthy();
+    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it('does not suggest cancelling Pix renewal when replacement checkout is closed', () => {
+    render(
+      <DeferredSubscription
+        {...baseline}
+        paid
+        billingStatus="active"
+        paidPeriodActive
+        checkoutAvailable={false}
+        planChanges={{ amountChangeBlocked: true, options: [], pending: null }}
+      />,
+    );
+    expect(
+      screen.getByText(/Não cancele a renovação apenas para tentar mudar de plano/),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Depois desse prazo, escolha o novo plano/)).toBeNull();
   });
   it('offers conversion during trial once, without treating pending checkout as paid', async () => {
     const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => undefined);
@@ -214,6 +261,105 @@ describe('deferred subscription controls', () => {
     expect(screen.getByRole('button', { name: 'Contratar novamente' })).toBeTruthy();
     expect(screen.queryByText('Renovação em verificação')).toBeNull();
     expect(screen.getByText(/Não haverá uma nova avaliação gratuita/)).toBeTruthy();
+  });
+  it('lets an ended Pix subscription choose a new paid plan without duplicate checkout clicks', async () => {
+    const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => undefined);
+    const fetcher = vi.fn().mockResolvedValue(
+      Response.json({
+        state: 'checkout_pending',
+        checkoutUrl: 'https://app.abacatepay.com/pay/bill_recontract',
+      }),
+    );
+    vi.stubGlobal('fetch', fetcher);
+    render(
+      <DeferredSubscription
+        {...managed}
+        cancellationState="confirmed"
+        paidPeriodActive={false}
+        canRecontract
+        billingStatus="cancelled"
+        recontractOptions={[
+          { id: 'consultorio', name: 'Consultório', code: 'consultorio_2026', amountMinor: 19700 },
+          {
+            id: 'clinica',
+            name: 'Clínica — 2 médicos',
+            code: 'clinica_2026_2',
+            amountMinor: 39700,
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByRole('option', { name: /Clínica — 2 médicos.*397,00\/mês/ })).toBeTruthy();
+    const button = screen.getByRole('button', { name: 'Continuar para pagamento' });
+    expect(button.hasAttribute('disabled')).toBe(true);
+    fireEvent.change(screen.getByLabelText('Plano da nova assinatura'), {
+      target: { value: 'clinica' },
+    });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await waitFor(() => expect(assign).toHaveBeenCalledOnce());
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(fetcher).toHaveBeenCalledWith(
+      '/api/billing/checkout',
+      expect.objectContaining({ body: JSON.stringify({ targetPlanId: 'clinica' }) }),
+    );
+    expect(screen.queryByText('Pagamento confirmado')).toBeNull();
+  });
+  it('keeps the new Pix checkout closed when acquisition is paused', () => {
+    render(
+      <DeferredSubscription
+        {...managed}
+        cancellationState="confirmed"
+        paidPeriodActive={false}
+        canRecontract
+        billingStatus="cancelled"
+        checkoutAvailable={false}
+        recontractOptions={[
+          { id: 'target', name: 'Clínica', code: 'clinica_2026_2', amountMinor: 39700 },
+        ]}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: 'Continuar para pagamento' })).toBeNull();
+    expect(screen.getByText('Nova contratação temporariamente indisponível')).toBeTruthy();
+  });
+  it('locks a pending recontract to its original plan and offers the same checkout', async () => {
+    const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => undefined);
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue(
+        Response.json({
+          state: 'checkout_pending',
+          checkoutUrl: 'https://app.abacatepay.com/pay/bill_existing',
+        }),
+      );
+    vi.stubGlobal('fetch', fetcher);
+    render(
+      <DeferredSubscription
+        {...managed}
+        cancellationState="confirmed"
+        paidPeriodActive={false}
+        canRecontract
+        billingStatus="cancelled"
+        recontractPendingPlanId="clinica"
+        recontractOptions={[
+          {
+            id: 'clinica',
+            name: 'Clínica — 2 médicos',
+            code: 'clinica_2026_2',
+            amountMinor: 39700,
+          },
+        ]}
+      />,
+    );
+    const select = screen.getByLabelText('Plano da nova assinatura') as HTMLSelectElement;
+    expect(select.disabled).toBe(true);
+    expect(select.value).toBe('clinica');
+    fireEvent.click(screen.getByRole('button', { name: 'Retomar checkout' }));
+    await waitFor(() => expect(assign).toHaveBeenCalledOnce());
+    expect(fetcher).toHaveBeenCalledWith(
+      '/api/billing/checkout',
+      expect.objectContaining({ body: JSON.stringify({ targetPlanId: 'clinica' }) }),
+    );
   });
   it('does not deny that a charge may already exist while awaiting confirmation', () => {
     render(<DeferredSubscription {...baseline} />);

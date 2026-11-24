@@ -14,7 +14,7 @@ import {
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-const bodySchema = z.object({}).strict();
+const bodySchema = z.object({ targetPlanId: z.uuid().optional() }).strict();
 const response = (body: object, status = 200) =>
   NextResponse.json(body, {
     status,
@@ -35,8 +35,14 @@ export async function POST(request: Request): Promise<Response> {
     } catch {
       return response({ error: 'invalid_body' }, 400);
     }
-    if (!bodySchema.safeParse(body).success) return response({ error: 'invalid_body' }, 400);
-    return response(await createDeferredSubscriptionCheckout({ clinicId: authorization.clinicId }));
+    const parsed = bodySchema.safeParse(body);
+    if (!parsed.success) return response({ error: 'invalid_body' }, 400);
+    return response(
+      await createDeferredSubscriptionCheckout({
+        clinicId: authorization.clinicId,
+        ...(parsed.data.targetPlanId ? { targetPlanId: parsed.data.targetPlanId } : {}),
+      }),
+    );
   } catch (error) {
     if (error instanceof DeferredCheckoutError) {
       return response({ error: error.code }, error.code === 'unavailable' ? 503 : 409);

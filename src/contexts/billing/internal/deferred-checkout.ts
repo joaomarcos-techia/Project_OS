@@ -31,6 +31,7 @@ import { recoverAbacatePayCheckout } from './abacatepay-checkout-recovery';
 import { readInitialReplacementCheckout } from './abacatepay-initial-checkout-replacement';
 import {
   getAbacatePayPlanChangeOverview,
+  getAbacatePayRecontractOptions,
   requestAbacatePayPlanChange,
 } from './abacatepay-plan-changes';
 import {
@@ -93,7 +94,10 @@ export class DeferredCheckoutError extends Error {
   }
 }
 
-export async function createDeferredSubscriptionCheckout(input: { clinicId: string }) {
+export async function createDeferredSubscriptionCheckout(input: {
+  clinicId: string;
+  targetPlanId?: string;
+}) {
   assertAbacatePayRuntime();
   if (!env.ABACATEPAY_API_KEY || !env.ABACATEPAY_STORE_ID || !abacatePayProbeProductId()) {
     throw new DeferredCheckoutError('unavailable');
@@ -136,6 +140,7 @@ export async function createDeferredSubscriptionCheckout(input: { clinicId: stri
       return await createAbacatePayRecontractCheckout(dbAdmin, {
         clinicId,
         productId: selected.success ? productMap[selected.data] : undefined,
+        ...(input.targetPlanId ? { targetPlanId: input.targetPlanId } : {}),
         callbackUrl,
       });
     } catch (error) {
@@ -146,6 +151,7 @@ export async function createDeferredSubscriptionCheckout(input: { clinicId: stri
       throw error;
     }
   }
+  if (input.targetPlanId) throw new DeferredCheckoutError('not_eligible');
   if (contract.billing_status === 'cancelled') throw new DeferredCheckoutError('cancelled');
   if (
     contract.released_at ||
@@ -343,6 +349,13 @@ export async function getDeferredSubscriptionOverview(clinicId: string) {
   const management = managementAvailable
     ? await getAbacatePayManagementContext(dbAdmin, clinicId)
     : null;
+  const canRecontract =
+    management?.cancellation_confirmed === true &&
+    management.cancel_at_period_end &&
+    management.period_ended;
+  const recontract = canRecontract
+    ? await getAbacatePayRecontractOptions(dbAdmin, clinicId)
+    : { options: [], pendingPlanId: null };
   return overview
     ? {
         planName: overview.plan_name,
@@ -357,6 +370,8 @@ export async function getDeferredSubscriptionOverview(clinicId: string) {
         planChanges: managementAvailable
           ? await getAbacatePayPlanChangeOverview(dbAdmin, clinicId)
           : null,
+        recontractOptions: recontract.options,
+        recontractPendingPlanId: recontract.pendingPlanId,
         managementAvailable,
         contractId: management?.generation_id ?? null,
         accessUntil: management?.period_end.toISOString() ?? null,
@@ -365,10 +380,7 @@ export async function getDeferredSubscriptionOverview(clinicId: string) {
           : management?.cancellation_requested
             ? ('requested' as const)
             : ('none' as const),
-        canRecontract:
-          management?.cancellation_confirmed === true &&
-          management.cancel_at_period_end &&
-          management.period_ended,
+        canRecontract,
       }
     : null;
 }

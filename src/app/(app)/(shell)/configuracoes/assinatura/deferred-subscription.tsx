@@ -21,6 +21,8 @@ interface Props {
   accessUntil?: string | null;
   cancellationState?: 'none' | 'requested' | 'confirmed';
   canRecontract?: boolean;
+  recontractOptions?: { id: string; name: string; code: string; amountMinor: number }[];
+  recontractPendingPlanId?: string | null;
   planChanges?: {
     amountChangeBlocked?: boolean;
     options: { id: string; name: string; code: string; amountMinor: number }[];
@@ -34,6 +36,7 @@ export function DeferredSubscription(props: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [targetPlan, setTargetPlan] = useState('');
+  const recontractPlan = props.recontractPendingPlanId ?? targetPlan;
   const cancelled = props.cancellationState === 'confirmed';
   async function schedulePlan() {
     if (busy.current || !targetPlan || !props.contractId) return;
@@ -113,7 +116,7 @@ export function DeferredSubscription(props: Props) {
       setLoading(false);
     }
   }
-  async function checkout() {
+  async function checkout(targetPlanId?: string) {
     if (busy.current) return;
     busy.current = true;
     setLoading(true);
@@ -122,7 +125,7 @@ export function DeferredSubscription(props: Props) {
       const response = await fetch('/api/billing/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: '{}',
+        body: JSON.stringify(targetPlanId ? { targetPlanId } : {}),
       });
       const body: unknown = await response.json();
       if (
@@ -240,9 +243,59 @@ export function DeferredSubscription(props: Props) {
         </Button>
       ) : null}
       {props.canRecontract && props.checkoutAvailable !== false ? (
-        <Button type="button" loading={loading} onClick={() => void checkout()}>
-          Contratar novamente
-        </Button>
+        props.recontractOptions?.length ? (
+          <div className="space-y-3 rounded-lg border border-border bg-surface p-4">
+            <h3 className="font-semibold">
+              {props.recontractPendingPlanId
+                ? 'Contratação em andamento'
+                : 'Escolha seu próximo plano'}
+            </h3>
+            <p className="text-sm text-fg-muted">
+              {props.recontractPendingPlanId
+                ? 'Já existe um checkout para este plano. Continue o mesmo pagamento; não inicie outra contratação.'
+                : 'A renovação anterior foi encerrada. A nova mensalidade começa quando o pagamento deste checkout for confirmado. Seu plano e suas cotas só mudam após essa confirmação.'}
+            </p>
+            <label htmlFor="recontract-plan" className="block text-sm font-medium">
+              Plano da nova assinatura
+            </label>
+            <select
+              id="recontract-plan"
+              value={recontractPlan}
+              onChange={(event) => setTargetPlan(event.target.value)}
+              disabled={loading || Boolean(props.recontractPendingPlanId)}
+              className="w-full rounded-md border border-border bg-surface p-2 text-fg"
+            >
+              <option value="">Selecione um plano</option>
+              {props.recontractOptions.map((plan) => (
+                <option key={plan.id} value={plan.id}>
+                  {plan.name} —{' '}
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                    plan.amountMinor / 100,
+                  )}
+                  /mês
+                </option>
+              ))}
+            </select>
+            <Button
+              type="button"
+              loading={loading}
+              disabled={!recontractPlan}
+              onClick={() => void checkout(recontractPlan)}
+            >
+              {props.recontractPendingPlanId ? 'Retomar checkout' : 'Continuar para pagamento'}
+            </Button>
+          </div>
+        ) : (
+          <Button type="button" loading={loading} onClick={() => void checkout()}>
+            Contratar novamente
+          </Button>
+        )
+      ) : null}
+      {props.canRecontract && props.checkoutAvailable === false ? (
+        <Alert variant="info" title="Nova contratação temporariamente indisponível">
+          A renovação anterior terminou, mas novos checkouts estão pausados. Seus dados foram
+          preservados; volte a esta página quando a contratação for liberada.
+        </Alert>
       ) : null}
       {props.managementAvailable && props.contractId && !cancelled ? (
         props.cancellationState === 'requested' ? (
@@ -273,9 +326,23 @@ export function DeferredSubscription(props: Props) {
       {message ? <Alert variant="warning">{message}</Alert> : null}
       {props.planChanges?.amountChangeBlocked ? (
         <Alert variant="info" title="Pagamento por Pix Automático">
-          O valor autorizado no banco é fixo. Para mudar o plano ou a quantidade de médicos com
-          outro valor, será necessária uma nova contratação e autorização bancária. Fale com o
-          suporte antes de alterar sua assinatura.
+          O banco não permite alterar o valor desta autorização.{' '}
+          {props.checkoutAvailable === false
+            ? 'A troca está temporariamente indisponível. Não cancele a renovação apenas para tentar mudar de plano enquanto novos checkouts estiverem pausados.'
+            : `Para trocar de plano, primeiro cancele a renovação pelo botão acima; seu acesso continua até ${accessUntil ? `${accessUntil} (Brasília)` : 'o fim do período já pago'}. Depois desse prazo, escolha o novo plano nesta página e autorize uma nova assinatura no checkout. Não haverá duas recorrências simultâneas nem mudança de cotas antes do novo pagamento.`}
+          {props.planChanges.options.length ? (
+            <ul className="mt-3 list-disc space-y-1 pl-5">
+              {props.planChanges.options.map((plan) => (
+                <li key={plan.id}>
+                  {plan.name}:{' '}
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                    plan.amountMinor / 100,
+                  )}
+                  /mês
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </Alert>
       ) : props.planChanges ? (
         <div className="space-y-3">
@@ -331,11 +398,11 @@ export function DeferredSubscription(props: Props) {
             </>
           )}
         </div>
-      ) : (
+      ) : !cancelled ? (
         <p className="text-sm text-fg-muted">
           Alterações de plano e médicos adicionais não estão disponíveis para esta assinatura agora.
         </p>
-      )}
+      ) : null}
     </section>
   );
 }
