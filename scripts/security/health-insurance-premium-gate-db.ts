@@ -442,6 +442,21 @@ try {
     await sql`update public.subscriptions set billing_status = 'active', trial_ends_at = null,
         current_period_start = now(), current_period_end = now() + interval '30 days'
       where clinic_id = ${c.clinicId}::uuid`;
+    // Integrado sobre o #53, o pagamento verificado também libera a política de trial (0136) pela
+    // fatura paga da assinatura, como `releaseTrialAfterVerifiedPaymentTx` faz; enquanto ela não é
+    // liberada, a decisão comercial é "payment_pending". A branch sozinha não tem a política.
+    const [{ policy }] = (await sql`select to_regclass('public.trial_access_policies') is not null as policy`) as unknown as [
+      { policy: boolean },
+    ];
+    if (policy) {
+      assert.equal(await denial(c.clinicId), 'payment_pending', 'só o status ativo não libera sem a fatura paga');
+      const [inv] = await sql`insert into public.invoices (clinic_id, subscription_id, total_amount, status, due_date, paid_at)
+        select s.clinic_id, s.id, 199.00, 'paid', current_date, now() from public.subscriptions s
+         where s.clinic_id = ${c.clinicId}::uuid returning id`;
+      await sql`update public.trial_access_policies set released_at = now(), released_by_invoice_id = ${inv!.id}::uuid,
+          updated_at = now() where clinic_id = ${c.clinicId}::uuid and released_at is null`;
+      assert.equal(await denial(c.clinicId), null, 'com a política liberada pela fatura paga, Convênios libera');
+    }
     assert.equal(await denial(c.clinicId), null);
     const ins = await enableInsurance(c);
     const patientId = await newPatient(c);
