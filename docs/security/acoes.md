@@ -644,9 +644,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/abacatepay-renewal-db.ts:58`             | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/security/abacatepay-renewal-db.ts:59`             | `ABACATEPAY_API_KEY_PROD`              | `process.env.ABACATEPAY_API_KEY_PROD`                                       |
 | `scripts/security/abacatepay-renewal-db.ts:61`             | `<object>`                             | `process.env`                                                               |
-| `scripts/security/abacatepay-renewal-db.ts:228`            | `QORO_ABACATEPAY_SCALE`                | `process.env.QORO_ABACATEPAY_SCALE`                                         |
-| `scripts/security/abacatepay-renewal-db.ts:557`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
-| `scripts/security/abacatepay-renewal-db.ts:619`            | `QORO_ABACATEPAY_SCALE`                | `process.env.QORO_ABACATEPAY_SCALE`                                         |
+| `scripts/security/abacatepay-renewal-db.ts:230`            | `QORO_ABACATEPAY_SCALE`                | `process.env.QORO_ABACATEPAY_SCALE`                                         |
+| `scripts/security/abacatepay-renewal-db.ts:559`            | `ABACATEPAY_WEBHOOK_SECRET`            | `process.env.ABACATEPAY_WEBHOOK_SECRET`                                     |
+| `scripts/security/abacatepay-renewal-db.ts:621`            | `QORO_ABACATEPAY_SCALE`                | `process.env.QORO_ABACATEPAY_SCALE`                                         |
 | `scripts/security/abacatepay-scale-proof.ts:8`             | `QORO_ABACATEPAY_SCALE_CONCURRENCY`    | `process.env.QORO_ABACATEPAY_SCALE_CONCURRENCY`                             |
 | `scripts/security/abacatepay-statement-scan-db.ts:10`      | `<object>`                             | `process.env`                                                               |
 | `scripts/security/abacatepay-statement-scan-db.ts:21`      | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
