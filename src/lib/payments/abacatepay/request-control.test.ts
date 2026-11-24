@@ -113,8 +113,35 @@ describe('AbacatePay distributed admission boundary', () => {
     await expect(request({ method: 'GET', path: '/stores/get' })).rejects.toMatchObject({
       code: 'rate_limited',
     });
-    expect(control.admit).toHaveBeenCalledTimes(3);
+    expect(control.admit).toHaveBeenCalledTimes(20);
     expect(fetcher).not.toHaveBeenCalled();
+  });
+  it('waits through concurrent store-slot contention before a safe GET', async () => {
+    const control = {
+      admit: vi
+        .fn()
+        .mockResolvedValueOnce({ allowed: false, retryAfterMs: 1 })
+        .mockResolvedValueOnce({ allowed: false, retryAfterMs: 1 })
+        .mockResolvedValueOnce({ allowed: false, retryAfterMs: 1 })
+        .mockResolvedValueOnce({ allowed: false, retryAfterMs: 1 })
+        .mockResolvedValueOnce({ allowed: false, retryAfterMs: 1 })
+        .mockResolvedValue({ allowed: true, retryAfterMs: 0 }),
+      observe: vi.fn(),
+      throttle: vi.fn(),
+    };
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({ success: true, data: { id: 'store_synthetic' } }));
+    const request = createAbacatePayTransport(
+      { apiKey: 'synthetic', requestControl: control },
+      fetcher,
+    );
+    await expect(request({ method: 'GET', path: '/stores/get' })).resolves.toEqual({
+      success: true,
+      data: { id: 'store_synthetic' },
+    });
+    expect(control.admit).toHaveBeenCalledTimes(6);
+    expect(fetcher).toHaveBeenCalledOnce();
   });
   it.each([200, 503])(
     'preserves an unknown POST outcome if coordination fails after HTTP %s',
