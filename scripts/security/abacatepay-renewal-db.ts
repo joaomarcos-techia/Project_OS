@@ -92,6 +92,8 @@ const { createPostgresGatewayInbox } = await import('../../src/lib/payments/saas
 const { POST: webhook } = await import('../../src/app/api/webhooks/abacatepay/route');
 const { requestAbacatePayPlanChange: changePlan } =
   await import('../../src/contexts/billing/internal/abacatepay-plan-changes');
+const { applyAbacatePayRecontractPaymentTx } =
+  await import('../../src/contexts/billing/internal/abacatepay-management');
 const { assertClinicCanWriteTx } = await import('../../src/lib/tenant-access');
 const { reconcileAbacatePayIntegrity: inspectIntegrity } =
   await import('../../src/contexts/billing/internal/abacatepay-integrity');
@@ -1721,6 +1723,87 @@ try {
       const [row] =
         await sql`SELECT count(*)::int n FROM public.billing_events WHERE clinic_id=${f.clinicId}::uuid AND type='subscription.recurrence.checked'`;
       assert.deepEqual(row, { n: 0 });
+    },
+  );
+  await check(
+    'Pix recontract applies a different paid plan exactly once after the old period ends',
+    async () => {
+      const f = await seed(-120_000, 'consultorio_2026');
+      const [target] = await sql<{ plan_id: string; price_id: string }[]>`
+        SELECT p.id::text plan_id,pr.id::text price_id FROM public.plans p
+        JOIN public.prices pr ON pr.plan_id=p.id
+        WHERE p.code='clinica_2026_2' AND pr.billing_cycle='monthly'
+          AND pr.campaign_code IS NULL AND pr.active_until IS NULL`;
+      assert.ok(target);
+      await sql`UPDATE public.invoices SET payment_method='PIX'
+        WHERE clinic_id=${f.clinicId}::uuid AND subscription_id=${f.subscription_id}::uuid`;
+      await sql`UPDATE public.subscriptions SET cancel_at_period_end=true
+        WHERE id=${f.subscription_id}::uuid`;
+      await sql`INSERT INTO billing_gateway.cancellations(account_id,external_subscription_id,subscription_id,clinic_id,
+        external_customer_id,external_checkout_id,paid_period_start,paid_period_end,requested_by,confirmed_at)
+        VALUES(${f.account_id}::uuid,${f.evidence.subscriptionId},${f.subscription_id}::uuid,${f.clinicId}::uuid,
+          ${f.evidence.customerId},${f.evidence.originCheckoutId},${f.anchor},${f.end},${f.userId}::uuid,now())`;
+      const checkoutId = `bill_recontract_${randomUUID().replaceAll('-', '')}`;
+      const newSubscriptionId = `subs_recontract_${randomUUID().replaceAll('-', '')}`;
+      await sql`INSERT INTO billing_gateway.recontracts(subscription_id,clinic_id,account_id,prior_external_subscription_id,
+        prior_period_end,prior_external_customer_id,price_id,product_id,amount_minor,external_checkout_id)
+        VALUES(${f.subscription_id}::uuid,${f.clinicId}::uuid,${f.account_id}::uuid,${f.evidence.subscriptionId},
+          ${f.end},${f.evidence.customerId},${target.price_id}::uuid,'prod_synthetic',39700,${checkoutId})`;
+      const evidence: import('../../src/lib/payments/abacatepay/initial-payment').InitialPaymentEvidence =
+        {
+          account,
+          subscriptionId: newSubscriptionId,
+          customerId: f.evidence.customerId,
+          checkoutId,
+          amountMinor: 39700,
+          paidAmountMinor: 39700,
+          currency: 'BRL',
+          method: 'pix',
+          state: 'paid',
+          rawStatus: 'PAID',
+          settlement: 'unknown',
+          subscriptionCreatedAt: new Date().toISOString(),
+          recurrence: 'running',
+        };
+      assert.equal(
+        await dbAdmin.transaction((tx) =>
+          applyAbacatePayRecontractPaymentTx(tx, {
+            ...evidence,
+            amountMinor: 19700,
+            paidAmountMinor: 19700,
+          }),
+        ),
+        'review',
+      );
+      assert.equal(
+        await dbAdmin.transaction((tx) => applyAbacatePayRecontractPaymentTx(tx, evidence)),
+        'applied',
+      );
+      assert.equal(
+        await dbAdmin.transaction((tx) => applyAbacatePayRecontractPaymentTx(tx, evidence)),
+        'duplicate',
+      );
+      const [state] = await sql<
+        {
+          plan_id: string;
+          price_id: string;
+          status: string;
+          invoices: number;
+          attempts: number;
+        }[]
+      >`
+        SELECT s.plan_id::text,s.price_id::text,s.billing_status::text status,
+          (SELECT count(*)::int FROM public.invoices i WHERE i.subscription_id=s.id AND i.total_amount=397) invoices,
+          (SELECT count(*)::int FROM public.payment_attempts pa JOIN public.invoices i ON i.id=pa.invoice_id
+            WHERE i.subscription_id=s.id AND pa.provider='abacatepay') attempts
+        FROM public.subscriptions s WHERE s.id=${f.subscription_id}::uuid`;
+      assert.deepEqual(state, {
+        plan_id: target.plan_id,
+        price_id: target.price_id,
+        status: 'active',
+        invoices: 1,
+        attempts: 1,
+      });
     },
   );
   await check(

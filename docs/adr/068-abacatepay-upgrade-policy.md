@@ -1,5 +1,9 @@
 # ADR-068 — alteração de plano na AbacatePay
 
+## Complemento — Pix Automático, 24/11/2026
+
+A alternativa C abaixo continua sendo a mudança dentro da **mesma assinatura no cartão**. Para Pix Automático, a autorização bancária tem valor fixo; a AbacatePay só admite `change-plan` sem mudança de valor. Uma mensalidade diferente exige cancelar a renovação vigente e criar uma nova assinatura com autorização bancária, conforme [ADR-070](070-abacatepay-cancellation-and-recontract.md). O Qoro conserva o período já pago e só oferece o novo checkout após o seu término. Nenhum novo plano ou médico é liberado antes do pagamento integral confirmado. A implementação candidata está no PR #53, commit `8f8cd606`; não foi publicada nem altera Asaas.
+
 Status: **alternativa C aprovada pelo founder; implementada e validada localmente em 09/11/2026; homologação externa pendente**. Decisão de 08/11/2026. Aplica-se somente às futuras assinaturas SaaS AbacatePay. Não muda Asaas, contratos antigos ou pagamentos dos pacientes.
 
 ## Evidência e problema

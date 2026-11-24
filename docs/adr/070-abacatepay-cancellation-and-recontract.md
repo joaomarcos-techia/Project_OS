@@ -1,5 +1,9 @@
 # ADR-070 — cancelamento da renovação e nova contratação AbacatePay
 
+## Complemento — escolher outro plano ao recontratar (24/11/2026)
+
+O titular que pagou por Pix Automático pode usar o cancelamento da renovação para trocar a mensalidade. O acesso e as cotas atuais duram até o fim do período pago; não existe cobrança proporcional. Depois do término e da confirmação do cancelamento externo, a tela oferece os planos mensais configurados. O novo preço e produto são resolvidos no servidor; a capacidade ativa da clínica precisa caber no plano menor. O checkout gera uma nova autorização Pix ou cartão e permanece único por geração cancelada. Uma tentativa pendente fixa o plano escolhido e deve ser retomada, não substituída silenciosamente. O Qoro só atualiza plano, preço, invoice e direitos quando comprova o pagamento integral da nova assinatura. Checkout expirado ou estado ambíguo exige reconciliação, sem repetir criação cegamente. O código candidato está no PR #53 `8f8cd606`; Production e Asaas legado não foram alterados. Este complemento não autoriza C4 nem publicação.
+
 Status: regra aprovada pelo founder em 08/11/2026 (Brasília); 47 verificações PostgreSQL aprovadas, 0139 autorizada/aplicada somente no DEV e cancelamento da fixture Sandbox comprovado em 09/11. Recontratação após passagem temporal real continua pendente; código testado com relógio/dados sintéticos locais. Não altera contratos Asaas nem autoriza Produção ou migrations remotas adicionais. [Evidências e limites](../quality/abacatepay-cancelamento-recontratacao-2026-11-08.md).
 
 ## Regra aprovada

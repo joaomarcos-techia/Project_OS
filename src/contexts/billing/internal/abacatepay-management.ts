@@ -1,4 +1,8 @@
-import { abacatePayEnvironment, abacatePayProbeProductId } from '@/lib/payments/saas/acquisition';
+import {
+  abacatePayEnvironment,
+  abacatePayPlanProducts,
+  abacatePayProbeProductId,
+} from '@/lib/payments/saas/acquisition';
 import 'server-only';
 
 import { createHash, randomUUID } from 'node:crypto';
@@ -9,6 +13,7 @@ import { z } from 'zod';
 import type { Tx } from '@/lib/db';
 import { env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
+import { publishEvent } from '@/lib/outbox/publish';
 import {
   assertAbacatePayRuntime,
   isAbacatePayRuntime,
@@ -28,11 +33,14 @@ import {
   type InitialPaymentEvidence,
 } from '@/lib/payments/abacatepay/initial-payment';
 
+import { BILLING_EVENTS } from '../events';
+import { OFFER_2026_PLAN_CODES } from '../proposed-offer';
 import { invoices } from '../schema';
 import { initialAbacatePayAccessPeriod } from './abacatepay-period';
 import { DUNNING_READONLY_DAYS } from './dunning';
 import { toCents, toReaisString } from './money';
-import { markInvoicePaid, recordBillingEvent } from './subscriptions';
+import { assertTargetPlanCapacity } from './plan-changes';
+import { markInvoicePaid, recordBillingEvent, toPlanCode } from './subscriptions';
 import { recoverAbacatePayCheckout } from './abacatepay-checkout-recovery';
 const READBACK_BUDGET_MS = 20_000;
 
@@ -316,7 +324,12 @@ export async function finishAbacatePayCancellationTx(tx: Tx, clinicId: string): 
 
 export async function createAbacatePayRecontractCheckout(
   database: ManagementDatabase,
-  input: { clinicId: string; productId: string | undefined; callbackUrl: string },
+  input: {
+    clinicId: string;
+    productId: string | undefined;
+    targetPlanId?: string;
+    callbackUrl: string;
+  },
 ) {
   if (!abacatePayCheckoutAllowed(input.clinicId))
     throw new AbacatePayManagementError('unavailable');
@@ -327,9 +340,9 @@ export async function createAbacatePayRecontractCheckout(
   if (!current?.cancellation_confirmed || !current.cancel_at_period_end)
     throw new AbacatePayManagementError('not_eligible');
   if (!current.period_ended) throw new AbacatePayManagementError('period_active');
-  if (!input.productId || !/^prod_[A-Za-z0-9_-]+$/.test(input.productId))
+  if (input.targetPlanId) z.uuid().parse(input.targetPlanId);
+  if (!input.targetPlanId && (!input.productId || !/^prod_[A-Za-z0-9_-]+$/.test(input.productId)))
     throw new AbacatePayManagementError('unavailable');
-  const productId = input.productId;
   if (!(await verifyStopped(current))) throw new AbacatePayManagementError('reconcile_required');
   const read = createAbacatePayReadClient(settings);
   const old = await read.listSubscriptionsForCheckout(current.external_checkout_id);
@@ -349,10 +362,45 @@ export async function createAbacatePayRecontractCheckout(
     )
       throw new AbacatePayManagementError('reconcile_required');
     await finishAbacatePayCancellationTx(tx, input.clinicId);
+    let targetPriceId = fresh.price_id;
+    let targetAmountMinor = toCents(fresh.amount);
+    let targetProductId = input.productId;
+    if (input.targetPlanId) {
+      const [target] = z
+        .array(
+          z.object({ price_id: z.uuid(), code: z.enum(OFFER_2026_PLAN_CODES), amount: z.string() }),
+        )
+        .max(1)
+        .parse(
+          await tx.execute(sql`
+          SELECT pr.id::text price_id,p.code,pr.amount::text amount
+          FROM public.plans p JOIN public.prices pr ON pr.plan_id=p.id
+          WHERE p.id=${input.targetPlanId}::uuid AND p.ativo AND pr.active_from<=now()
+            AND pr.active_until IS NULL AND pr.billing_cycle='monthly' AND pr.currency='BRL'
+            AND pr.campaign_code IS NULL AND p.code IN (${sql.join(
+              OFFER_2026_PLAN_CODES.map((code) => sql`${code}`),
+              sql`,`,
+            )})`),
+        );
+      if (!target) throw new AbacatePayManagementError('not_eligible');
+      let products: Partial<Record<(typeof OFFER_2026_PLAN_CODES)[number], string>>;
+      try {
+        products = z
+          .partialRecord(z.enum(OFFER_2026_PLAN_CODES), z.string().regex(/^prod_[A-Za-z0-9_-]+$/))
+          .parse(JSON.parse(abacatePayPlanProducts() ?? '{}'));
+      } catch {
+        throw new AbacatePayManagementError('unavailable');
+      }
+      await assertTargetPlanCapacity(tx, input.clinicId, input.targetPlanId);
+      targetPriceId = target.price_id;
+      targetAmountMinor = toCents(target.amount);
+      targetProductId = products[target.code];
+    }
+    if (!targetProductId) throw new AbacatePayManagementError('unavailable');
     await tx.execute(sql`INSERT INTO billing_gateway.recontracts(subscription_id,clinic_id,account_id,prior_external_subscription_id,
       prior_period_end,prior_external_customer_id,price_id,product_id,amount_minor)
       SELECT c.subscription_id,c.clinic_id,c.account_id,c.external_subscription_id,
-        c.paid_period_end,c.external_customer_id,${fresh.price_id}::uuid,${productId},${toCents(fresh.amount)}
+        c.paid_period_end,c.external_customer_id,${targetPriceId}::uuid,${targetProductId},${targetAmountMinor}
       FROM billing_gateway.cancellations c WHERE c.account_id=${fresh.account_id}::uuid
         AND c.external_subscription_id=${fresh.external_subscription_id} AND c.confirmed_at IS NOT NULL
       ON CONFLICT DO NOTHING`);
@@ -365,7 +413,12 @@ export async function createAbacatePayRecontractCheckout(
         price_id::text,product_id,amount_minor::text,external_checkout_id,external_customer_id,external_subscription_id,invoice_id
       FROM billing_gateway.recontracts WHERE account_id=${fresh.account_id}::uuid AND prior_external_subscription_id=${fresh.external_subscription_id}`),
       );
-    if (!row || row.price_id !== fresh.price_id || row.amount_minor !== toCents(fresh.amount))
+    if (
+      !row ||
+      row.price_id !== targetPriceId ||
+      row.product_id !== targetProductId ||
+      row.amount_minor !== targetAmountMinor
+    )
       throw new AbacatePayManagementError('reconcile_required');
     return row;
   });
@@ -480,11 +533,33 @@ export async function applyAbacatePayRecontractPaymentTx(
     !current.period_ended ||
     !current.cancel_at_period_end ||
     current.external_subscription_id !== row.prior_external_subscription_id ||
-    current.period_end.getTime() !== row.prior_period_end.getTime() ||
-    current.price_id !== row.price_id ||
-    toCents(current.amount) !== row.amount_minor
+    current.period_end.getTime() !== row.prior_period_end.getTime()
   )
     return 'review';
+  const [target] = z
+    .array(z.object({ plan_id: z.uuid(), code: z.enum(OFFER_2026_PLAN_CODES), amount: z.string() }))
+    .max(1)
+    .parse(
+      await tx.execute(sql`
+      SELECT p.id::text plan_id,p.code,pr.amount::text amount
+      FROM public.prices pr JOIN public.plans p ON p.id=pr.plan_id
+      WHERE pr.id=${row.price_id}::uuid AND pr.billing_cycle='monthly' AND pr.currency='BRL'
+        AND pr.campaign_code IS NULL AND p.code IN (${sql.join(
+          OFFER_2026_PLAN_CODES.map((code) => sql`${code}`),
+          sql`,`,
+        )})`),
+    );
+  if (!target || toCents(target.amount) !== row.amount_minor) return 'review';
+  const [previous] = z
+    .array(z.object({ plan_id: z.uuid(), code: z.string() }))
+    .max(1)
+    .parse(
+      await tx.execute(sql`SELECT p.id::text plan_id,p.code FROM public.prices pr
+        JOIN public.plans p ON p.id=pr.plan_id WHERE pr.id=${current.price_id}::uuid`),
+    );
+  if (!previous) return 'review';
+  if (previous.plan_id !== target.plan_id)
+    await assertTargetPlanCapacity(tx, row.clinic_id, target.plan_id);
   const period = initialAbacatePayAccessPeriod({
     subscriptionCreatedAt: evidence.subscriptionCreatedAt,
     trialEndsAt: row.prior_period_end,
@@ -509,11 +584,27 @@ export async function applyAbacatePayRecontractPaymentTx(
     invoice_id=${invoice.id}::uuid,period_start=${period.start.toISOString()}::timestamptz,period_end=${period.end.toISOString()}::timestamptz WHERE id=${row.id}::uuid`);
   // Explicit, approved recontract only; generic late payments stay terminal.
   await tx.execute(sql`INSERT INTO public.subscription_history(clinic_id,subscription_id,old_plan_id,new_plan_id,old_status,new_status,reason)
-    SELECT clinic_id,id,plan_id,plan_id,billing_status::text,'active','abacatepay_verified_recontract' FROM public.subscriptions WHERE id=${row.subscription_id}::uuid`);
-  await tx.execute(sql`UPDATE public.subscriptions SET billing_status='active',cancel_at_period_end=false,cancelled_at=NULL,cancel_reason=NULL,cancelled_by=NULL,
+    SELECT clinic_id,id,plan_id,${target.plan_id}::uuid,billing_status::text,'active','abacatepay_verified_recontract' FROM public.subscriptions WHERE id=${row.subscription_id}::uuid`);
+  await tx.execute(sql`UPDATE public.subscriptions SET plan_id=${target.plan_id}::uuid,price_id=${row.price_id}::uuid,
+    billing_status='active',cancel_at_period_end=false,cancelled_at=NULL,cancel_reason=NULL,cancelled_by=NULL,
     current_period_start=${period.start.toISOString()}::timestamptz,current_period_end=${period.end.toISOString()}::timestamptz,
     grace_period_until=${new Date(period.end.getTime() + DUNNING_READONLY_DAYS * 86_400_000).toISOString()}::timestamptz,dunning_stage=0,updated_at=now()
     WHERE id=${row.subscription_id}::uuid`);
+  if (current.price_id !== row.price_id) {
+    await publishEvent(tx, {
+      clinicId: row.clinic_id,
+      eventType: BILLING_EVENTS.SUBSCRIPTION_CHANGED,
+      payload: {
+        clinicId: row.clinic_id,
+        subscriptionId: row.subscription_id,
+        oldPlanCode: toPlanCode(previous.code),
+        newPlanCode: toPlanCode(target.code),
+        oldStatus: current.billing_status,
+        newStatus: 'active',
+      },
+      idempotencyKey: `abacatepay-recontract-plan:${row.id}`,
+    });
+  }
   await markInvoicePaid(tx, row.clinic_id, invoice, {
     provider: 'abacatepay',
     paymentMethod: evidence.method === 'pix' ? 'PIX' : 'CARD',

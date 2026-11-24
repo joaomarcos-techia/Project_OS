@@ -276,12 +276,7 @@ export async function getAbacatePayPlanChangeOverview(
     );
   if (!configured.success) return null;
   const options = (await plans(database))
-    .filter(
-      (p) =>
-        current.payment_method === 'CARD' &&
-        p.price_id !== current.price_id &&
-        configured.data[p.code],
-    )
+    .filter((p) => p.price_id !== current.price_id && configured.data[p.code])
     .map((p) => ({
       id: p.id,
       name: p.name,
@@ -299,4 +294,60 @@ export async function getAbacatePayPlanChangeOverview(
         }
       : null,
   };
+}
+
+/** A cancelled Pix mandate cannot change value. The next checkout starts only after its paid period. */
+export async function getAbacatePayRecontractOptions(
+  database: ManagementDatabase,
+  clinicId: string,
+) {
+  const current = await getAbacatePayManagementContext(database, clinicId);
+  if (!current?.cancellation_confirmed || !current.cancel_at_period_end || !current.period_ended)
+    return { options: [], pendingPlanId: null };
+  let configured: Partial<Record<(typeof OFFER_2026_PLAN_CODES)[number], string>>;
+  try {
+    configured = z
+      .partialRecord(z.enum(OFFER_2026_PLAN_CODES), z.string().regex(/^prod_[A-Za-z0-9_-]+$/))
+      .parse(JSON.parse(abacatePayPlanProducts() ?? '{}'));
+  } catch {
+    return { options: [], pendingPlanId: null };
+  }
+  const [pendingRecontract] = z
+    .array(
+      z.object({
+        plan_id: z.uuid(),
+        name: z.string(),
+        code: z.enum(OFFER_2026_PLAN_CODES),
+        amount_minor: z.coerce.number().int().positive(),
+      }),
+    )
+    .max(1)
+    .parse(
+      await database.execute(sql`
+      SELECT p.id::text plan_id,p.name,p.code,r.amount_minor::text FROM billing_gateway.recontracts r
+      JOIN public.prices pr ON pr.id=r.price_id JOIN public.plans p ON p.id=pr.plan_id
+      WHERE r.subscription_id=${current.subscription_id}::uuid AND r.clinic_id=${clinicId}::uuid
+        AND r.prior_external_subscription_id=${current.external_subscription_id} AND r.invoice_id IS NULL`),
+    );
+  if (pendingRecontract)
+    return {
+      options: [
+        {
+          id: pendingRecontract.plan_id,
+          name: pendingRecontract.name,
+          code: pendingRecontract.code,
+          amountMinor: pendingRecontract.amount_minor,
+        },
+      ],
+      pendingPlanId: pendingRecontract.plan_id,
+    };
+  const options = (await plans(database))
+    .filter((plan) => configured[plan.code])
+    .map((plan) => ({
+      id: plan.id,
+      name: plan.name,
+      code: plan.code,
+      amountMinor: toCents(plan.amount),
+    }));
+  return { options, pendingPlanId: null };
 }

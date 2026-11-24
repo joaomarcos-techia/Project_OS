@@ -40,6 +40,17 @@ describe('subscription checkout HTTP boundary (unit doubles)', () => {
     expect(result.headers.get('cache-control')).toBe('no-store');
     expect(mocks.checkout).toHaveBeenCalledWith({ clinicId: 'server-owned-clinic' });
   });
+  it('accepts only a plan identifier for a server-validated recontract', async () => {
+    const targetPlanId = '160f137d-fc57-4e91-9a77-69d0f0a40711';
+    expect((await POST(request(JSON.stringify({ targetPlanId })))).status).toBe(200);
+    expect(mocks.checkout).toHaveBeenCalledWith({
+      clinicId: 'server-owned-clinic',
+      targetPlanId,
+    });
+    mocks.checkout.mockClear();
+    expect((await POST(request('{"targetPlanId":"invalid"}'))).status).toBe(400);
+    expect(mocks.checkout).not.toHaveBeenCalled();
+  });
   it.each([null, undefined])('blocks an untrusted or unconfigured origin', async (origin) => {
     mocks.origin.mockReturnValue(origin);
     expect((await POST(request())).status).toBe(origin === null ? 403 : 503);
