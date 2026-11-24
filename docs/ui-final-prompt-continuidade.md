@@ -1,4 +1,4 @@
-# Prompt de continuidade — Qoro, frente "Otimização UI final" (estado de 20/11/2026, ciclo 8: P-29 corrigido no app e no spec oficial, P-26 fechado, handoffs)
+# Prompt de continuidade — Qoro, frente "Otimização UI final" (estado de 22/11/2026, ciclo 10: frente UI encerrada, PR #56 em revisão)
 
 > Cole este texto, inteiro, numa sessão nova de IA com acesso ao repositório e à máquina do
 > fundador. Ele foi escrito para que quem o leia continue exatamente do ponto em que a frente parou.
@@ -23,7 +23,7 @@ código ficam como estão. O fundador é quem decide política, merge e Producti
 
 ## 2. Leia nesta ordem antes de qualquer ação
 1. `docs/otimização_ui_final.md`:
-   - bloco **ESTADO ATUAL DA EXECUÇÃO** (o item "CICLO 8 (20/11/2026)" primeiro, depois o 7, o 6 e o 5);
+   - bloco **ESTADO ATUAL DA EXECUÇÃO** (o item "CICLO 9" primeiro, depois o 8, o 7, o 6 e o 5);
    - **`docs/handoff/README.md`**: os handoffs do ciclo 7 (P-28, P-29, P-19, P-27, AbacatePay, #418);
    - seção **00**: 00.1 ordem de leitura, 00.2 onde o trabalho vive, 00.3 ambiente local, 00.4 regras
      invioláveis, 00.5 segurança do ambiente;
@@ -58,6 +58,29 @@ código ficam como estão. O fundador é quem decide política, merge e Producti
    - evidências em `.tmp/ui-audit/evidence/2026-11-1{4,5,7}/`; o log da CI fica em `.tmp/ci/`.
 
 ## 3. Estado exato em que parou
+- **Ciclo 10 (22/11): frente UI encerrada.** O PR #56 está em revisão, sem merge, e o código não
+  mudou desde o `2b6d72b7`. O que resta é dos donos (handoff C10):
+  - `0159` e os testes de journal do #55 (#53 e #55);
+  - P-29 no #53 e no C3;
+  - P-19 no servidor (financeiro);
+  - P-27 (#53).
+
+  Reprodução: `docs/handoff/c10-reproduzir-composicao.sh`.
+- **Ciclo 9 (20–21/11):**
+  - `fef8ec30`: origem dos links de Auth no Preview;
+  - `2b6d72b7`: link de redefinição usado não reabre o formulário.
+
+  Composições descartáveis (branches no repositório, worktrees removidos):
+  - `integracao/c9-53-56`;
+  - `integracao/c9-56-55`;
+  - `integracao/c9-53-56-55`.
+
+  Ferramentas novas:
+  - `ui-audit/c9-integrada.ts` (auditoria visual por tela, largura e tema);
+  - `ui-audit/c9-trilho.ts` e `c9-trilho-altura.ts` (ritmo e transbordo do trilho);
+  - `ui-audit/rodada-ciclo9.sh <preview> <rótulo> <lote>`.
+
+  A conta `ui-fixture` é criada e removida por `ui-fixture.ts create|cleanup`.
 - **Ciclo 8 (20/11):**
   - `26cb73ff`: recuperação da conta confirmada sem senha (P-29, defeito real);
   - `947426b1`: premissas do spec oficial corrigidas, com autorização do fundador, e regressões
