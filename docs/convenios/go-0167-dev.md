@@ -1,6 +1,8 @@
 # GO condicional: aplicar a migration 0167 no DEV compartilhado (versão da P8.4-r, 24/11/2026)
 
-**Situação:** o fundador deu **GO condicional** em 24/11 para a versão da 0167 atualizada à política P8.4-r aprovada, **depois dos gates** da seção 5. Não vale para produção. Enquanto um gate não passar, a 0167 continua candidata e o DEV fica como está.
+**Situação (24/11, 13h52 UTC): APLICADA NO DEV**, com todos os gates da seção 5 cumpridos. Resultado na seção 9 e em `evidence/tiss-0167-dev-2026-11-24/`. Produção não muda.
+
+**GO:** o fundador deu **GO condicional** em 24/11 para a versão da 0167 atualizada à política P8.4-r aprovada, **depois dos gates** da seção 5. Não vale para produção.
 
 **O que mudou desde o pedido de 23/11:** a versão de 23/11 (`22390fcc…`) só conhecia `active` e `cancelled`. A política aprovada precisa do ciclo de faturamento do item (ligar a autorização, incluir na guia, não faturar com motivo), então o SQL mudou **antes** de qualquer aplicação. A versão de 23/11 nunca foi aplicada em lugar nenhum.
 
@@ -32,8 +34,8 @@
 
 | Prova | Estado em 24/11 | Onde |
 | --- | --- | --- |
-| Banco + serviço da P8.4-r: 28 provas (registro, posse da sessão do médico, transições, autorização e saldo, consumo uma vez, regra da operadora, aprovação bloqueada, "aprovar sem o item" atômico, guia cancelada, XML no XSD, recebível, concorrência, RLS, outra clínica, comercial, módulo, reprocessamento, indisponível) | **NOT RUN**: escrita e com typecheck verde; o runner do GitHub não inicia por causa da cobrança da conta, e o notebook não roda Postgres (decisão de 15/11) | `health-insurance-extra-items-db.ts`, job `convenios-synthetic-db.yml` |
-| Ensaio da aplicação com o migrador real (guarda de composição, lock ocupado, locks da aplicação nas cinco tabelas, aplicação, segunda execução, reaplicação indevida, compatibilidade, reversão recusada com dados, reversão exata, reaplicação) | **NOT RUN** (mesmo motivo) | `hi-0167-apply-rehearsal.ts`, mesmo job |
+| Banco + serviço da P8.4-r: 28 provas (registro, posse da sessão do médico, transições, autorização e saldo, consumo uma vez, regra da operadora, aprovação bloqueada, "aprovar sem o item" atômico, guia cancelada, XML no XSD, recebível, concorrência, RLS, outra clínica, comercial, módulo, reprocessamento, indisponível) | **28/28 PASS** no #55 `5c1b8d09` (run `45404255259`), com a 0167 promovida; também na composição `b509a93c` (run `45404694262`) | `health-insurance-extra-items-db.ts`, job `convenios-synthetic-db.yml` |
+| Ensaio da aplicação com o migrador real (guarda de composição, lock ocupado, locks da aplicação nas cinco tabelas, aplicação, segunda execução, reaplicação indevida, compatibilidade, reversão recusada com dados, reversão exata, reaplicação) | **11/11 PASS** no #55 `5c1b8d09` (run `45404255259`) e na composição `b509a93c` | `hi-0167-apply-rehearsal.ts`, mesmo job |
 | Política, ações, painel, montador, regras da operadora | **PASS** local (vitest dirigido) | `extra-item-policy.test.ts`, `extra-item-actions.test.ts`, `extra-items-ui.test.tsx`, `sp-sadt-assembler.test.ts`, `insurer-rules.test.ts` |
 | Versão de 23/11 | 18/18 e 11/11 (run `45189165431`): histórico, **não vale** para esta versão | — |
 
@@ -90,3 +92,18 @@ Qualquer divergência interrompe e preserva o estado.
 > "MIGRATION 0167 NO DEV: GO CONDICIONAL PARA A VERSÃO ATUALIZADA À POLÍTICA APROVADA, DEPOIS DOS GATES." … "O GO já fica concedido para a versão atualizada que cumpra exatamente os critérios, sem necessidade de pedir autorização genérica novamente."
 
 Não autoriza produção nem faturamento fora da política aprovada.
+
+## 9. Aplicação no DEV (24/11/2026)
+
+| Gate | Resultado | Evidência |
+| --- | --- | --- |
+| 1. Provas de banco e ensaio nesta versão | 28/28 e 11/11 no runner (com a 0167 como candidata e depois promovida) | runs `45400597559`, `45396028919`, `45404255259` |
+| 2. CI do commit da promoção | verde em `bc20e3c8` (run `45400951131`) e no head `5c1b8d09` (run `45404272490`) | GitHub Actions |
+| 3. Pré-voo só leitura | ledger 167 linhas, última a 0166 com o hash dela; nenhum objeto da 0167; arquivo com o sha256 do GO; nenhuma transação > 60 s; nenhum lock forte nas cinco tabelas; `--dry-run`: pendente só a 0167 | `pre-0167.json`, `apply-0167-dry-run.log` |
+| 4. Backup lógico | estrutura `public` + `drizzle`, dados das tabelas `hi_*` e `clinics`, ledger; contagens conferidas com o pré-voo | `backup-0167-manifest.json` (os arquivos ficam fora do repositório) |
+| 5. Aplicação | aplicador limitado, uma transação, `lock_timeout` 2 s: ledger 167 → 168 em 6,1 s; composição depois: sem pendentes; observador: nenhuma sessão esperando lock | `apply-0167-apply.log`, `apply-0167-observer.json` |
+| 6. Pós-voo | ledger 168 com o sha256 da 0167 (anterior a 0166); tabela, 4 funções, 4 gatilhos e versão; RLS ligada e forçada, 1 política, runtime com UPDATE e sem DELETE; dados das cinco tabelas referenciadas iguais ao pré-voo (contagem e md5) | `post-0167.json` |
+
+**Preview:** o #55 está publicado no `5c1b8d09` (código da P8.4-r); as outras frentes não leem a tabela.
+
+**Falta do pós-voo:** o E2E da P8.4 no Preview (jornada da conferência e do consultório), que ainda não tem spec nem fixture SP/SADT no DEV.
