@@ -744,9 +744,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/ai-handoff-reliability-db.ts:31`                           | `<object>`                             | `process.env`                                                               |
 | `scripts/security/ai-handoff-reliability-db.ts:32`                           | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/ai-handoff-reliability-db.ts:34`                           | `<object>`                             | `process.env`                                                               |
-| `scripts/security/dev-order-chain.ts:20`                                     | `PR53_REF`                             | `process.env.PR53_REF`                                                      |
-| `scripts/security/dev-order-chain.ts:44`                                     | `PR53_CANDIDATE_REF`                   | `process.env.PR53_CANDIDATE_REF`                                            |
-| `scripts/security/dev-order-chain.ts:65`                                     | `PR53_REF`                             | `process.env.PR53_REF`                                                      |
+| `scripts/security/dev-order-chain.ts:22`                                     | `PR53_REF`                             | `process.env.PR53_REF`                                                      |
+| `scripts/security/dev-order-chain.ts:59`                                     | `PR53_CANDIDATE_REF`                   | `process.env.PR53_CANDIDATE_REF`                                            |
+| `scripts/security/dev-order-chain.ts:80`                                     | `PR53_REF`                             | `process.env.PR53_REF`                                                      |
 | `scripts/security/health-insurance-appeal-xml-db.ts:20`                      | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/health-insurance-appeal-xml-db.ts:21`                      | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
 | `scripts/security/health-insurance-appeal-xml-db.ts:22`                      | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |

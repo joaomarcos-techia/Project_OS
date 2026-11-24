@@ -18,6 +18,7 @@ import {
   planComposition,
 } from './migration-composition';
 import { MIGRATION_COMPOSITION_MANIFEST } from './migration-composition.manifest';
+import { journalShape, pr53Pinned, withPr53, withoutPr53 } from './migration-journal-shape';
 
 const M: CompositionManifest = {
   version: 1,
@@ -200,7 +201,7 @@ describe('planComposition — contra o ledger do banco', () => {
   });
 });
 
-describe('journal REAL desta branch', () => {
+describe('journal REAL desta branch (sozinha ou integrada sobre o #53)', () => {
   const dir = resolve(process.cwd(), 'drizzle/migrations');
   const raw = JSON.parse(readFileSync(resolve(dir, 'meta/_journal.json'), 'utf8')) as {
     entries: { idx: number; when: number; tag: string }[];
@@ -215,25 +216,26 @@ describe('journal REAL desta branch', () => {
     };
   });
   const pinned = (tag: string) => MIGRATION_COMPOSITION_MANIFEST.pinned.find((p) => p.tag === tag)!;
-  const local = new Set(journal.map((x) => x.tag));
-  const external = MIGRATION_COMPOSITION_MANIFEST.pinned.filter((p) => !local.has(p.tag));
-  /** A união na ordem do DEV: esta branch + as fixadas do #53 (0136–0142 e 0159) com o hash fixado. */
-  const composed = (): CompositionJournalEntry[] =>
-    [
-      ...journal,
-      ...external.map((p) => ({ idx: p.idx, when: p.when, tag: p.tag, sha256: p.sha256 })),
-    ].sort((a, b) => a.idx - b.idx);
-  const externalAllowances = external.map((p) => ({
-    tag: p.tag,
-    codes: ['JOURNAL_IDX_GAP', 'REQUIRED_MISSING', 'APPLIED_UNKNOWN'] as const,
-  }));
+  const shape = journalShape(journal, MIGRATION_COMPOSITION_MANIFEST);
+  const pr53 = pr53Pinned(MIGRATION_COMPOSITION_MANIFEST);
+  /** O estado da branch sozinha (sem as do #53), nos dois modos: é o que nunca pode migrar. */
+  const alone = withoutPr53(journal, MIGRATION_COMPOSITION_MANIFEST);
+  /** A união na ordem do DEV: esta branch + as fixadas do #53 que ela ainda não tem. */
+  const composed = (): CompositionJournalEntry[] => withPr53(journal, MIGRATION_COMPOSITION_MANIFEST);
+  const allowancesFor = (tags: readonly string[]) =>
+    tags.map((tag) => ({
+      tag,
+      codes: ['JOURNAL_IDX_GAP', 'REQUIRED_MISSING', 'APPLIED_UNKNOWN'] as const,
+    }));
 
-  it('as externas fixadas são exatamente as do #53 (0136–0142 e 0159)', () => {
-    expect(external.map((p) => p.idx)).toEqual([136, 137, 138, 139, 140, 141, 142, 159]);
-    expect(new Set(external.map((p) => p.owner))).toEqual(new Set(['PR #53 (billing AbacatePay)']));
+  it('as fixadas do #53 são exatamente 0136–0142 e 0159, e o journal tem todas ou nenhuma', () => {
+    expect(pr53.map((p) => p.idx)).toEqual([136, 137, 138, 139, 140, 141, 142, 159]);
+    expect(new Set(pr53.map((p) => p.owner))).toEqual(new Set(['PR #53 (billing AbacatePay)']));
+    expect(shape.problems).toEqual([]);
+    expect(shape.mode === 'standalone' ? shape.absent : shape.present).toEqual(pr53);
   });
 
-  it('as migrations fixadas desta branch não mudaram desde aplicadas no DEV (sha256)', () => {
+  it('as migrations fixadas presentes não mudaram desde aplicadas no DEV (sha256)', () => {
     for (const tag of [
       '0143_tiss_catalog',
       '0158_hi_copay_charge',
@@ -244,6 +246,8 @@ describe('journal REAL desta branch', () => {
       '0164_hi_module_switch_guard',
       '0165_hi_guide_cancellations',
       '0166_hi_authorization_alerts',
+      // As do #53, quando a branch já está integrada (iguais às congeladas pelo dono).
+      ...shape.present.map((p) => p.tag),
     ]) {
       expect(journal.find((x) => x.tag === tag)?.sha256, tag).toBe(pinned(tag).sha256);
     }
@@ -268,47 +272,61 @@ describe('journal REAL desta branch', () => {
     ]);
   });
 
-  it('SOZINHA, a branch é recusada: faltam as 0136–0142 e a 0159 do #53 (nunca migrar assim)', () => {
-    const plan = planComposition({ journal, manifest: MIGRATION_COMPOSITION_MANIFEST });
+  it('SEM as do #53, a branch é recusada: faltam as 0136–0142 e a 0159 (nunca migrar assim)', () => {
+    const plan = planComposition({ journal: alone, manifest: MIGRATION_COMPOSITION_MANIFEST });
     expect(codes(plan)).toEqual([
-      ...external.map((p) => `JOURNAL_IDX_GAP:${p.tag}`),
+      ...pr53.map((p) => `JOURNAL_IDX_GAP:${p.tag}`),
       'REQUIRED_MISSING:0142_saas_review_replays',
       'REQUIRED_MISSING:0159_saas_period_snapshot',
     ]);
+    // E o journal real, no estado em que está: sozinho é exatamente esse caso; integrado, passa.
+    const real = planComposition({ journal, manifest: MIGRATION_COMPOSITION_MANIFEST });
+    expect(codes(real)).toEqual(shape.mode === 'standalone' ? codes(plan) : []);
   });
 
-  it('composta com as externas fixadas (ordem do DEV), passa sem exceção', () => {
+  it('composta com as fixadas do #53 (ordem do DEV), passa sem exceção', () => {
     expect(
       planComposition({ journal: composed(), manifest: MIGRATION_COMPOSITION_MANIFEST }).problems,
     ).toEqual([]);
   });
 
-  it('o ledger do DEV (externas com o hash fixado) passa só com as exceções explícitas', () => {
+  it('o ledger do DEV passa só com as exceções explícitas das do #53 que o journal não tem', () => {
     const ledger = composed().map((x) => ({ createdAt: String(x.when), hash: x.sha256! }));
+    const sentinels = new Set(
+      MIGRATION_COMPOSITION_MANIFEST.pinned.flatMap((p) => (p.sentinel ? [p.sentinel] : [])),
+    );
+    // A branch sem as do #53 contra o ledger do DEV: bloqueia sem exceção; com as 8, passa.
     const plan = planComposition({
-      journal,
+      journal: alone,
       manifest: MIGRATION_COMPOSITION_MANIFEST,
       ledger,
-      presentSentinels: new Set(
-        MIGRATION_COMPOSITION_MANIFEST.pinned.flatMap((p) => (p.sentinel ? [p.sentinel] : [])),
-      ),
+      presentSentinels: sentinels,
     });
     expect(plan.pending).toEqual([]);
     expect(new Set(blockingProblems(plan).map((x) => x.code))).toEqual(
       new Set(['APPLIED_UNKNOWN', 'JOURNAL_IDX_GAP', 'REQUIRED_MISSING']),
     );
-    expect(blockingProblems(plan, externalAllowances)).toEqual([]);
+    expect(blockingProblems(plan, allowancesFor(pr53.map((p) => p.tag)))).toEqual([]);
     // Sem a exceção da 0159, ela continua bloqueando.
     expect(
       blockingProblems(
         plan,
-        externalAllowances.filter((a) => a.tag !== '0159_saas_period_snapshot'),
+        allowancesFor(pr53.map((p) => p.tag).filter((t) => t !== '0159_saas_period_snapshot')),
       ).map((x) => `${x.code}:${x.subject}`),
     ).toEqual([
       'JOURNAL_IDX_GAP:0159_saas_period_snapshot',
       'APPLIED_UNKNOWN:0159_saas_period_snapshot',
       'REQUIRED_MISSING:0159_saas_period_snapshot',
     ]);
+    // O journal real precisa exatamente das exceções das que ainda não tem (nenhuma, se integrado).
+    const real = planComposition({
+      journal,
+      manifest: MIGRATION_COMPOSITION_MANIFEST,
+      ledger,
+      presentSentinels: sentinels,
+    });
+    expect(real.pending).toEqual([]);
+    expect(blockingProblems(real, allowancesFor(shape.absent.map((p) => p.tag)))).toEqual([]);
   });
 
   it('um banco de produção que recebesse a 0160 antes da 0159 ficaria com a 0159 pulada — recusado', () => {

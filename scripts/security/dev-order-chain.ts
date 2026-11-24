@@ -9,6 +9,8 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
+import { MIGRATION_COMPOSITION_MANIFEST } from '../../src/lib/db/migration-composition.manifest';
+
 import { readMigrations } from './scratch-schema';
 
 export const PR53_DEFAULT_REF = '8c591c8f';
@@ -29,10 +31,23 @@ export async function readDevOrderChain(
     `esperava 0136–0142 no #53 (${ref}), achei ${pr53Files.join(',')}`,
   );
   const local = await readMigrations();
-  assert.ok(
-    !local.some((m) => /^01(?:3[6-9]|4[0-2])_/u.test(m.file)),
-    'a branch do convênio não deve ter 0136–0142',
-  );
+  // Integrada sobre o #53 (ordem real #53 → #56 → #55): a cadeia do DEV é o próprio journal. Só
+  // aceita se as do #53 estiverem TODAS lá com os bytes fixados (nenhuma composição parcial).
+  if (local.some((m) => /^01(?:3[6-9]|4[0-2])_/u.test(m.file))) {
+    const pins = MIGRATION_COMPOSITION_MANIFEST.pinned.filter(
+      (p) => p.owner === 'PR #53 (billing AbacatePay)',
+    );
+    for (const p of pins) {
+      const m = local.find((x) => x.file === `${p.tag}.sql`);
+      assert.ok(m, `integrada sem ${p.tag} do #53 (composição parcial)`);
+      assert.equal(createHash('sha256').update(m.body).digest('hex'), p.sha256, `${p.tag} difere do fixado`);
+    }
+    const sorted = [...local].sort((a, b) => a.file.localeCompare(b.file));
+    sorted.forEach((m, i) =>
+      assert.equal(Number(m.file.slice(0, 4)), i, `prefixo ${m.file} na posição ${i}`),
+    );
+    return sorted;
+  }
   const chain = [
     ...local,
     ...pr53Files.map((file) => ({ file, body: git('show', `${ref}:drizzle/migrations/${file}`) })),
