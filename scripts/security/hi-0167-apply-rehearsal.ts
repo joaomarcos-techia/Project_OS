@@ -51,15 +51,24 @@ const body0167 = readFileSync(CANDIDATE);
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 
 type JournalEntry = { idx: number; version: string; when: number; tag: string; breakpoints: boolean };
-const journal = JSON.parse(readFileSync('drizzle/migrations/meta/_journal.json', 'utf8')) as {
+const fullJournal = JSON.parse(readFileSync('drizzle/migrations/meta/_journal.json', 'utf8')) as {
   entries: JournalEntry[];
 };
+// Vale nos dois estados: candidata (journal até a 0166) ou promovida (journal com a 0167, que
+// precisa ser BYTE A BYTE a candidata e ter o `when` combinado). O ensaio parte sempre do DEV
+// de hoje: cadeia e ledger até a 0166.
+const promoted = fullJournal.entries.find((e) => e.tag === TAG);
+const journal = { ...fullJournal, entries: fullJournal.entries.filter((e) => e.tag !== TAG) };
 const last = journal.entries.at(-1)!;
-assert.equal(last.tag, '0166_hi_authorization_alerts', 'o journal desta branch deveria terminar na 0166');
+assert.equal(last.tag, '0166_hi_authorization_alerts', 'antes da 0167, o journal desta branch deveria terminar na 0166');
 const WHEN_0166 = String(last.when);
 const WHEN_0167 = String(last.when + 86_400_000);
+if (promoted) {
+  assert.deepEqual([promoted.idx, String(promoted.when)], [167, WHEN_0167], 'a 0167 promovida tem o idx e o when combinados');
+  assert.equal(sha(readFileSync(`drizzle/migrations/${TAG}.sql`)), sha(body0167), 'a 0167 promovida é byte a byte a candidata');
+}
 
-const chain = await readDevOrderChain();
+const chain = (await readDevOrderChain()).filter((m) => m.file !== `${TAG}.sql`);
 assert.equal(chain.at(-1)!.file, '0166_hi_authorization_alerts.sql');
 const cluster = await startScratchSchema({ port: PORT, maxConnections: 8, migrations: chain });
 const { sql } = cluster;

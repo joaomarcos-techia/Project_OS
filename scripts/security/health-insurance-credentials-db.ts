@@ -468,7 +468,18 @@ try {
     requireProfessionalCredential: false,
     maxGuidesPerBatch: 1,
     submissionDeadlineDays: 30,
+    // P8.4-r (24/11): sem a informação no contrato, a regra do item adicional fica desconhecida.
+    extraItemsAfterSession: 'unknown',
   });
+  // P8.4-r: "não aceita" é gravada; salvar sem o campo não a apaga; "não informado" a remove.
+  const rules30 = rules({ maxGuidesPerBatch: 1, requireProfessionalCredential: false, submissionDeadlineDays: 30 });
+  const settingsNow = async () => (await sql`select settings from public.hi_insurers where id = ${insurerId}::uuid`)[0]!.settings as Record<string, unknown>;
+  await as(A, (tx) => cfg.saveInsurerRulesTx(tx, A.clinicId, insurerId, { ...rules30, extraItemsAfterSession: 'forbids' }));
+  assert.equal(cfg.insurerRules(await settingsNow()).extraItemsAfterSession, 'forbids');
+  await as(A, (tx) => cfg.saveInsurerRulesTx(tx, A.clinicId, insurerId, rules30));
+  assert.equal(cfg.insurerRules(await settingsNow()).extraItemsAfterSession, 'forbids', 'salvar sem o campo mantém a regra gravada');
+  await as(A, (tx) => cfg.saveInsurerRulesTx(tx, A.clinicId, insurerId, { ...rules30, extraItemsAfterSession: 'unknown' }));
+  assert.equal('extraItemsAfterSession' in (await settingsNow()), false, '"não informado" não grava nada');
   await assert.rejects(
     () =>
       as(A, (tx) =>
