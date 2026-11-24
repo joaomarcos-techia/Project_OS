@@ -83,6 +83,8 @@ export const gatewayOperations = gateway.table(
         'proration_checkout',
         'recontract_checkout',
         'close_paid_checkout',
+        'close_unpaid_checkout',
+        'replace_checkout',
       ],
     }).notNull(),
     businessKey: text('business_key').notNull(),

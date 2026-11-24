@@ -294,6 +294,7 @@ try {
     paidAmountMinor: 19700,
     currency: 'BRL',
     state: 'paid',
+    method: 'card',
     rawStatus: 'PAID',
     settlement: 'unknown',
     subscriptionCreatedAt: new Date(Date.now() - 60_000).toISOString(),

@@ -20,6 +20,20 @@ afterEach(() => {
 });
 
 describe('deferred subscription controls', () => {
+  it('explains the fixed Pix authorization without offering an unsupported amount change', () => {
+    render(
+      <DeferredSubscription
+        {...baseline}
+        paid
+        billingStatus="active"
+        paidPeriodActive
+        planChanges={{ amountChangeBlocked: true, options: [], pending: null }}
+      />,
+    );
+    expect(screen.getByText('Pagamento por Pix Automático')).toBeTruthy();
+    expect(screen.getByText(/O valor autorizado no banco é fixo/)).toBeTruthy();
+    expect(screen.queryByRole('combobox')).toBeNull();
+  });
   it('offers conversion during trial once, without treating pending checkout as paid', async () => {
     const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => undefined);
     const fetcher = vi.fn().mockResolvedValue(

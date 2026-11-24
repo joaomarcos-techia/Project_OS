@@ -106,6 +106,7 @@ export async function applyInitialAbacatePayPaymentTx(
     evidence.account.provider !== 'abacatepay' ||
     !['sandbox', 'production'].includes(evidence.account.environment) ||
     evidence.currency !== 'BRL' ||
+    !['card', 'pix'].includes(evidence.method) ||
     evidence.state !== 'paid' ||
     evidence.recurrence !== 'running' ||
     evidence.amountMinor <= 0 ||
@@ -178,7 +179,7 @@ export async function applyInitialAbacatePayPaymentTx(
       dueDate: period.start.toISOString().slice(0, 10),
       periodStart: period.start.toISOString().slice(0, 10),
       periodEnd: period.end.toISOString().slice(0, 10),
-      paymentMethod: 'CARD',
+      paymentMethod: evidence.method === 'pix' ? 'PIX' : 'CARD',
     })
     .returning();
   if (!invoice) throw new Error('Initial SaaS invoice persistence failed');
@@ -197,7 +198,7 @@ export async function applyInitialAbacatePayPaymentTx(
     .where(eq(subscriptions.id, binding.subscription_id));
   await markInvoicePaid(tx, binding.clinic_id, invoice, {
     provider: 'abacatepay',
-    paymentMethod: 'CARD',
+    paymentMethod: evidence.method === 'pix' ? 'PIX' : 'CARD',
     providerPaymentId: billingResourceKey(evidence.account, 'checkout', evidence.checkoutId),
     idemSuffix: `abacatepay:${binding.account_id}:${evidence.checkoutId}`,
     deferPeriodAdvance: true,
@@ -457,6 +458,13 @@ export async function reconcileAbacatePayInbox(
       observeFailure(error, 'negative_readback_or_transaction');
       return { applied: 0, review: Number(!retry), scanned: 1, retry };
     }
+  }
+  if (event.event_type === 'checkout.completed') {
+    // AbacatePay sends this for every paid subscription charge as well as
+    // subscription.completed/renewed. Only the subscription event grants or
+    // advances access; the recovery workers handle a missing subscription event.
+    await finish('ignored', 'checkout_completed_non_authoritative');
+    return { applied: 0, review: 0, scanned: 1 };
   }
   if (event.event_type !== 'subscription.completed') {
     // Renewal must not reuse the initial bill's PAID status to extend access.
@@ -749,12 +757,19 @@ export async function reconcileMissingAbacatePayInitialPayment(
       duplicate: Number(outcome === 'duplicate'),
       review: Number(outcome === 'review'),
     };
-  } catch {
+  } catch (error) {
+    const code = error instanceof GatewayReadError ? error.code : 'transaction_or_unknown';
     await checked('readback_or_transaction_failed');
-    metrics.emit('billing.abacatepay.reconcile_failed', { reason: 'missing_initial_webhook' });
-    captureBackgroundError(new Error('AbacatePay initial payment recovery needs attention'), {
-      flow: 'billing.abacatepay.initial_recovery',
+    metrics.emit('billing.abacatepay.reconcile_failed', {
+      reason: 'missing_initial_webhook',
+      code,
     });
+    captureBackgroundError(
+      new Error(`AbacatePay initial payment recovery needs attention: ${code}`),
+      {
+        flow: 'billing.abacatepay.initial_recovery',
+      },
+    );
     return { ...idle, scanned: 1, review: 1 };
   }
 }

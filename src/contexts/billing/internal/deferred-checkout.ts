@@ -21,12 +21,14 @@ import { createPostgresGatewayOperationJournal } from '@/lib/payments/saas/postg
 import { createAbacatePayCommands } from '@/lib/payments/abacatepay/sandbox-commands';
 import { createAbacatePayReadClient } from '@/lib/payments/abacatepay/reader';
 import { CommandOperationError } from '@/lib/payments/saas/command-operation';
+import { GatewayReadError } from '@/lib/payments/saas/contracts';
 import type { RecoveredCheckout } from '@/lib/payments/abacatepay/checkout-recovery';
 
 import { OFFER_2026_PLAN_CODES } from '../proposed-offer';
 import { toCents } from './money';
 import { reconcileMissingAbacatePayInitialPayment } from './abacatepay-processing';
 import { recoverAbacatePayCheckout } from './abacatepay-checkout-recovery';
+import { readInitialReplacementCheckout } from './abacatepay-initial-checkout-replacement';
 import {
   getAbacatePayPlanChangeOverview,
   requestAbacatePayPlanChange,
@@ -204,27 +206,38 @@ export async function createDeferredSubscriptionCheckout(input: { clinicId: stri
     },
     journal,
   );
-  let checkout: RecoveredCheckout;
+  let checkout: RecoveredCheckout | null;
   try {
-    checkout = await commands.createSubscriptionCheckout({
-      operationId: randomUUID(),
-      externalId: `qoro-initial-${contract.subscription_id}`,
-      productId,
-      expectedAmountMinor: amountMinor,
-      expectedCycle: 'MONTHLY',
-      expectedNativeTrialDays: null,
-      returnUrl: callbackUrl,
-      completionUrl: callbackUrl,
-    });
-  } catch (error) {
-    if (!(error instanceof CommandOperationError) || error.code === 'invalid_input') throw error;
-    const recovered = await recoverAbacatePayCheckout(dbAdmin, {
+    checkout = await readInitialReplacementCheckout(dbAdmin, {
       subscriptionId: contract.subscription_id,
       clinicId,
     });
-    if (recovered.state !== 'recovered') throw new DeferredCheckoutError('reconcile_required');
-    checkout = recovered.result;
+  } catch (error) {
+    if (error instanceof GatewayReadError) throw new DeferredCheckoutError('reconcile_required');
+    throw error;
   }
+  if (!checkout)
+    try {
+      checkout = await commands.createSubscriptionCheckout({
+        operationId: randomUUID(),
+        externalId: `qoro-initial-${contract.subscription_id}`,
+        productId,
+        expectedAmountMinor: amountMinor,
+        expectedCycle: 'MONTHLY',
+        expectedNativeTrialDays: null,
+        methods: ['CARD', 'PIX'],
+        returnUrl: callbackUrl,
+        completionUrl: callbackUrl,
+      });
+    } catch (error) {
+      if (!(error instanceof CommandOperationError) || error.code === 'invalid_input') throw error;
+      const recovered = await recoverAbacatePayCheckout(dbAdmin, {
+        subscriptionId: contract.subscription_id,
+        clinicId,
+      });
+      if (recovered.state !== 'recovered') throw new DeferredCheckoutError('reconcile_required');
+      checkout = recovered.result;
+    }
   const attached = z.array(z.object({ subscription_id: z.uuid() })).parse(
     await dbAdmin.transaction(async (tx) => {
       // Match the payment processor's lock order: contract, then binding.

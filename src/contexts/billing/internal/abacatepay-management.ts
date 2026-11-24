@@ -63,6 +63,7 @@ const contextSchema = z.object({
   external_checkout_id: z.string(),
   price_id: z.uuid(),
   amount: z.string(),
+  payment_method: z.enum(['CARD', 'PIX']).nullable(),
   billing_status: z.enum(['trial', 'active', 'past_due', 'cancelled']),
   cancel_at_period_end: z.boolean(),
   period_start: z.coerce.date(),
@@ -129,6 +130,10 @@ export async function getAbacatePayManagementContext(
       coalesce(r.external_customer_id,b.external_customer_id) external_customer_id,
       coalesce(r.external_checkout_id,b.external_checkout_id) external_checkout_id,
       s.price_id::text,pr.amount::text,s.billing_status,s.cancel_at_period_end,
+      (SELECT invoice.payment_method FROM public.invoices invoice
+        WHERE invoice.id=coalesce(r.invoice_id,(SELECT paid.invoice_id FROM billing_gateway.paid_checkouts paid
+          WHERE paid.account_id=b.account_id AND paid.checkout_id=b.external_checkout_id
+            AND paid.subscription_id=s.id AND paid.clinic_id=s.clinic_id))) payment_method,
       s.current_period_start period_start,s.current_period_end period_end,
       (c.requested_at IS NOT NULL) cancellation_requested,(c.confirmed_at IS NOT NULL) cancellation_confirmed,
       (s.current_period_end <= now()) period_ended
@@ -388,6 +393,7 @@ export async function createAbacatePayRecontractCheckout(
       expectedAmountMinor: reserved.amount_minor,
       expectedCycle: 'MONTHLY',
       expectedNativeTrialDays: null,
+      methods: ['CARD', 'PIX'],
       returnUrl: input.callbackUrl,
       completionUrl: input.callbackUrl,
     });
@@ -440,6 +446,7 @@ export async function applyAbacatePayRecontractPaymentTx(
     evidence.account.provider !== 'abacatepay' ||
     !['sandbox', 'production'].includes(evidence.account.environment) ||
     evidence.currency !== 'BRL' ||
+    !['card', 'pix'].includes(evidence.method) ||
     evidence.state !== 'paid' ||
     evidence.recurrence !== 'running' ||
     evidence.amountMinor <= 0 ||
@@ -494,7 +501,7 @@ export async function applyAbacatePayRecontractPaymentTx(
       dueDate: period.start.toISOString().slice(0, 10),
       periodStart: period.start.toISOString().slice(0, 10),
       periodEnd: period.end.toISOString().slice(0, 10),
-      paymentMethod: 'CARD',
+      paymentMethod: evidence.method === 'pix' ? 'PIX' : 'CARD',
     })
     .returning();
   if (!invoice) throw new Error('Recontract invoice persistence failed');
@@ -509,7 +516,7 @@ export async function applyAbacatePayRecontractPaymentTx(
     WHERE id=${row.subscription_id}::uuid`);
   await markInvoicePaid(tx, row.clinic_id, invoice, {
     provider: 'abacatepay',
-    paymentMethod: 'CARD',
+    paymentMethod: evidence.method === 'pix' ? 'PIX' : 'CARD',
     providerPaymentId: billingResourceKey(evidence.account, 'checkout', evidence.checkoutId),
     idemSuffix: `abacatepay-recontract:${row.id}`,
     deferPeriodAdvance: true,

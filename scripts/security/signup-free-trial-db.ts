@@ -317,7 +317,7 @@ try {
   );
   // Domain integration only: these are synthetic reader results, not a claim
   // that a Sandbox payment or an external webhook has occurred.
-  async function paymentFixture() {
+  async function paymentFixture(method: 'card' | 'pix' = 'card') {
     const owner = await seed({ old: true });
     const trial = await run(owner);
     assert.ok(trial.ok);
@@ -340,6 +340,7 @@ try {
       paidAmountMinor: 39700,
       currency: 'BRL',
       state: 'paid',
+      method,
       rawStatus: 'PAID',
       settlement: 'unknown',
       subscriptionCreatedAt: new Date(Date.now() - 60_000).toISOString(),
@@ -350,6 +351,24 @@ try {
   const paid = await paymentFixture();
   const apply = (evidence: Evidence) =>
     dbAdmin.transaction((tx) => applyInitialAbacatePayPaymentTx(tx, evidence));
+  await check(
+    'verified Pix activation preserves method, releases trial quotas and deduplicates its invoice',
+    async () => {
+      const pix = await paymentFixture('pix');
+      assert.equal(await apply(pix.evidence), 'applied');
+      assert.equal(await apply(pix.evidence), 'duplicate');
+      const [row] = await sql<
+        { method: string; status: string; invoices: number; released: boolean }[]
+      >`
+      SELECT i.payment_method method,i.status,
+        (SELECT count(*)::int FROM public.invoices WHERE subscription_id=${pix.subscription_id}::uuid) invoices,
+        ta.released_at IS NOT NULL released
+      FROM public.invoices i JOIN public.trial_access_policies ta ON ta.subscription_id=i.subscription_id
+      WHERE i.subscription_id=${pix.subscription_id}::uuid`;
+      assert.deepEqual(row, { method: 'PIX', status: 'paid', invoices: 1, released: true });
+      await dbAdmin.transaction((tx) => assertClinicCanWriteTx(tx, pix.clinicId));
+    },
+  );
   await check(
     'verified initial payment atomically records one invoice, origin, paid period and releases quotas',
     async () => {
@@ -483,6 +502,7 @@ try {
       customerId: string;
       subscriptionId: string;
       createdAt: string;
+      methods?: ('CARD' | 'PIX')[];
       cancelled?: boolean;
     }
   >();
@@ -526,7 +546,7 @@ try {
       status: value.paid ? 'PAID' : 'PENDING',
       devMode: true,
       items: [{ id: 'prod_synthetic', quantity: 1 }],
-      methods: ['CARD'],
+      methods: value.methods ?? ['CARD'],
       returnUrl: 'https://qoro.example/configuracoes/assinatura',
       completionUrl: 'https://qoro.example/configuracoes/assinatura',
       createdAt: value.createdAt,
@@ -559,6 +579,9 @@ try {
       const checkoutId = `bill_http${postCalls}`;
       external.set(checkoutId, {
         externalId: body.externalId,
+        methods: z
+          .array(z.enum(['CARD', 'PIX']))
+          .parse('methods' in body ? body.methods : undefined),
         paid: false,
         customerId: `cust_http${postCalls}`,
         subscriptionId: `subs_http${postCalls}`,
@@ -908,6 +931,7 @@ try {
     paidAmountMinor: 39700,
     currency: 'BRL',
     state: 'paid',
+    method: 'card',
     rawStatus: 'PAID',
     settlement: 'unknown',
     recurrence: 'running',

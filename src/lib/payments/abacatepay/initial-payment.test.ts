@@ -68,6 +68,18 @@ function setup(amountMinor = 19700) {
 }
 
 describe('authoritative initial subscription payment evidence', () => {
+  it('retains the authoritative Pix method without granting access from the browser', async () => {
+    const f = setup();
+    f.subscription.method = 'PIX';
+    expect(await f.reader.readInitialPayment(input)).toMatchObject({
+      state: 'paid',
+      method: 'pix',
+    });
+    f.subscription.method = 'BOLETO';
+    await expect(f.reader.readInitialPayment(input)).rejects.toMatchObject({
+      code: 'binding_mismatch',
+    });
+  });
   it.each([19700, 39700, 54400, 69100, 83800])(
     'verifies an exact approved monthly amount of %i cents instead of hardcoding the entry plan',
     async (amountMinor) => {

@@ -16,7 +16,9 @@ const API_V2 = 'https://api.abacatepay.com/v2';
 const DEFAULT_TIMEOUT_MS = 10_000;
 const MAX_RESPONSE_BYTES = 1_048_576;
 const READ_RETRY_DELAY_MS = 100;
-const MAX_ADMISSION_ATTEMPTS = 3;
+// Concurrent workers can collide on the store-wide 20 ms slot repeatedly.
+// Keep a finite cap while allowing normal contention to clear within the deadline.
+const MAX_ADMISSION_ATTEMPTS = 20;
 const RETRYABLE_HTTP = new Set([502, 503, 504]);
 function fetchFailureKind(error: unknown, timedOut: boolean) {
   if (timedOut) return 'timeout';

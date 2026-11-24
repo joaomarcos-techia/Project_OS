@@ -121,6 +121,7 @@ export async function requestAbacatePayPlanChange(
       !current ||
       current.generation_id !== input.contractId ||
       current.billing_status !== 'active' ||
+      current.payment_method !== 'CARD' ||
       current.period_ended ||
       current.cancel_at_period_end ||
       current.cancellation_requested
@@ -275,7 +276,12 @@ export async function getAbacatePayPlanChangeOverview(
     );
   if (!configured.success) return null;
   const options = (await plans(database))
-    .filter((p) => p.price_id !== current.price_id && configured.data[p.code])
+    .filter(
+      (p) =>
+        current.payment_method === 'CARD' &&
+        p.price_id !== current.price_id &&
+        configured.data[p.code],
+    )
     .map((p) => ({
       id: p.id,
       name: p.name,
@@ -284,6 +290,7 @@ export async function getAbacatePayPlanChangeOverview(
     }));
   return {
     options,
+    amountChangeBlocked: current.payment_method !== 'CARD',
     pending: change
       ? {
           planId: change.to_plan_id,

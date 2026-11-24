@@ -103,7 +103,7 @@ export function createAbacatePayRenewalPaymentReader(
         subscription.checkoutId !== expected.originCheckoutId ||
         subscription.customerId !== expected.customerId ||
         subscription.amount !== expected.expectedAmountMinor ||
-        subscription.method !== 'CARD' ||
+        !['CARD', 'PIX'].includes(subscription.method) ||
         subscription.trialEndsAt !== null ||
         !['ACTIVE', 'CANCELLED'].includes(subscription.status)
       )
@@ -170,6 +170,7 @@ export function createAbacatePayRenewalPaymentReader(
         expectedAmountMinor: expected.expectedAmountMinor,
         periodStart: expected.windowStart,
         periodEnd: expected.windowEnd,
+        ...(subscription.method === 'PIX' ? { paymentMethod: 'PIX' as const } : {}),
         ...(consumedCheckout ? { requireCustomer: true } : {}),
       });
       if (!receipt) return { state: 'pending' };
@@ -195,7 +196,7 @@ export function createAbacatePayRenewalPaymentReader(
           currency: 'BRL',
           chargeCreatedAt: checkout && !originalCheckout ? checkout.createdAt : receipt.createdAt,
           confirmedAt: receipt.createdAt,
-          method: 'card',
+          method: subscription.method === 'PIX' ? 'pix' : 'card',
           recurrence: subscription.status === 'ACTIVE' ? 'running' : 'stopped',
           obligation: 'paid',
           settlement: 'unknown',
@@ -229,6 +230,7 @@ export function createAbacatePayRenewalPaymentReader(
         expectedAmountMinor: expected.expectedAmountMinor,
         periodStart: windowStart,
         periodEnd: windowEnd,
+        ...(subscription.method === 'PIX' ? { paymentMethod: 'PIX' as const } : {}),
         requireCustomer: true,
       });
       if (!receipt) return { state: 'pending' };

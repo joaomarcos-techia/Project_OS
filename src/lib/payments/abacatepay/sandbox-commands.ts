@@ -33,6 +33,12 @@ const checkoutInput = operation
     expectedAmountMinor: amount,
     expectedCycle: cycle,
     expectedNativeTrialDays: z.number().int().min(1).max(90).nullable(),
+    methods: z
+      .array(z.enum(['CARD', 'PIX']))
+      .min(1)
+      .max(2)
+      .refine((methods) => new Set(methods).size === methods.length)
+      .optional(),
     returnUrl: z
       .url()
       .refine((value) => new URL(value).protocol === 'https:')
@@ -59,6 +65,14 @@ const changeInput = subscriptionInput
 const closeInput = subscriptionInput
   .extend({
     checkoutId: prefixedId('bill_'),
+    productId: prefixedId('prod_'),
+    expectedAmountMinor: amount,
+  })
+  .strict();
+const closeUnpaidInput = operation
+  .extend({
+    checkoutId: prefixedId('bill_'),
+    externalId,
     productId: prefixedId('prod_'),
     expectedAmountMinor: amount,
   })
@@ -126,6 +140,10 @@ const checkoutDetailsShape = z.object({
     customerId: z.null(),
     url: hostedUrl,
     items: z.array(z.object({ id: prefixedId('prod_'), quantity: z.literal(1) })).length(1),
+    methods: z
+      .array(z.enum(['CARD', 'PIX']))
+      .min(1)
+      .max(2),
   }),
 });
 
@@ -199,6 +217,100 @@ export function createAbacatePayCommands(
 
   return {
     account,
+    /** Operator-only replacement seam. Never cancels or refunds a subscription. */
+    async closeUnpaidCheckout(raw: z.input<typeof closeUnpaidInput>) {
+      const input = inputValue(closeUnpaidInput, raw);
+      const parameters = { ...input, operationId: undefined };
+      const resultSchema = z.object({
+        checkoutId: z.literal(input.checkoutId),
+        productId: z.literal(input.productId),
+        amountMinor: z.literal(input.expectedAmountMinor),
+        closed: z.literal(true),
+      });
+      return execute(
+        input.operationId,
+        'close_unpaid_checkout',
+        parameters,
+        resultSchema,
+        async () => {
+          const product = await read.readProduct(input.productId);
+          if (
+            product.price !== input.expectedAmountMinor ||
+            product.cycle !== 'MONTHLY' ||
+            product.trialDays != null
+          )
+            throw new GatewayReadError('binding_mismatch');
+          const listed = async () =>
+            parseBillingValue(
+              z.object({
+                success: z.literal(true),
+                data: z
+                  .array(
+                    z.object({
+                      id: prefixedId('bill_'),
+                      externalId,
+                      devMode: z.literal(expectedDevMode),
+                    }),
+                  )
+                  .max(1),
+                pagination: z.object({ hasMore: z.literal(false), next: z.null() }),
+              }),
+              await request({
+                method: 'GET',
+                path: '/subscriptions/checkouts/list',
+                params: new URLSearchParams({ externalId: input.externalId, limit: '100' }),
+              }),
+            ).data;
+          const unpaid = async () => {
+            const checkout = await read.readSubscriptionCheckoutFinancials(input.checkoutId);
+            if (
+              checkout.status !== 'PENDING' ||
+              checkout.customerId !== null ||
+              checkout.amount !== input.expectedAmountMinor ||
+              (checkout.paidAmount ?? 0) !== 0 ||
+              checkout.items.length !== 1 ||
+              checkout.items[0]?.id !== input.productId ||
+              checkout.items[0]?.quantity !== 1 ||
+              (await read.listSubscriptionsForCheckout(input.checkoutId)).length !== 0
+            )
+              throw new GatewayReadError('binding_mismatch');
+          };
+          const before = await listed();
+          if (
+            before.length !== 1 ||
+            before[0]?.id !== input.checkoutId ||
+            before[0]?.externalId !== input.externalId
+          )
+            throw new GatewayReadError('binding_mismatch');
+          await unpaid();
+          const response = parseBillingValue(
+            z.object({
+              success: z.literal(true),
+              data: z.object({
+                id: z.literal(input.checkoutId),
+                devMode: z.literal(expectedDevMode),
+              }),
+            }),
+            await request({
+              method: 'POST',
+              path: '/subscriptions/checkouts/delete',
+              params: new URLSearchParams({ id: input.checkoutId }),
+              body: {},
+            }),
+          );
+          if (!response.success || (await listed()).length !== 0)
+            throw new GatewayReadError('binding_mismatch');
+          // Deleted links remain readable by GET. It must still show no payment or subscription.
+          await unpaid();
+          return {
+            checkoutId: input.checkoutId,
+            productId: input.productId,
+            amountMinor: input.expectedAmountMinor,
+            closed: true as const,
+          };
+        },
+      );
+    },
     async closePaidCheckout(raw: z.input<typeof closeInput>) {
       const input = inputValue(closeInput, raw);
       const parameters = {
@@ -235,7 +347,7 @@ export function createAbacatePayCommands(
             checkout.items[0]?.quantity !== 1 ||
             before.checkoutId !== input.checkoutId ||
             before.customerId !== input.customerId ||
-            before.method !== 'CARD' ||
+            !['CARD', 'PIX'].includes(before.method) ||
             before.trialEndsAt !== null ||
             !['ACTIVE', 'CANCELLED'].includes(before.status) ||
             linked.length !== 1 ||
@@ -265,6 +377,7 @@ export function createAbacatePayCommands(
             after.checkoutId !== before.checkoutId ||
             after.customerId !== before.customerId ||
             after.status !== before.status ||
+            after.method !== before.method ||
             after.amount !== before.amount ||
             remaining.length !== 1 ||
             remaining[0]?.id !== before.id ||
@@ -310,6 +423,8 @@ export function createAbacatePayCommands(
     },
     async createSubscriptionCheckout(raw: z.input<typeof checkoutInput>) {
       const input = inputValue(checkoutInput, raw);
+      if (input.methods?.includes('PIX') && input.expectedNativeTrialDays !== null)
+        throw new GatewayReadError('invalid_input');
       const parameters = { ...input, operationId: undefined };
       const schema = checkoutResult.refine(
         (value) =>
@@ -333,13 +448,15 @@ export function createAbacatePayCommands(
           }
           const body = {
             items: [{ id: product.id, quantity: 1 }],
-            methods: ['CARD'],
+            methods: input.methods ?? ['CARD'],
             externalId: input.externalId,
             metadata:
               account.environment === 'sandbox'
                 ? { qoroSandboxReference: input.externalId }
                 : { qoroReference: input.externalId },
-            retryPolicy: { maxRetry: 3, retryEvery: 1 },
+            ...((input.methods ?? ['CARD']).includes('CARD')
+              ? { retryPolicy: { maxRetry: 3, retryEvery: 1 } }
+              : {}),
             ...(input.returnUrl ? { returnUrl: input.returnUrl } : {}),
             ...(input.completionUrl ? { completionUrl: input.completionUrl } : {}),
           };
@@ -358,6 +475,7 @@ export function createAbacatePayCommands(
           if (
             details.id !== response.data.id ||
             details.items[0]?.id !== input.productId ||
+            JSON.stringify(details.methods) !== JSON.stringify(body.methods) ||
             details.externalId !== input.externalId
           )
             throw new GatewayReadError('binding_mismatch');
@@ -415,6 +533,8 @@ export function createAbacatePayCommands(
         if (
           subscription.customerId !== input.customerId ||
           subscription.status !== 'ACTIVE' ||
+          !['CARD', 'PIX'].includes(subscription.method) ||
+          (subscription.method === 'PIX' && subscription.amount !== input.expectedAmountMinor) ||
           originalCycle !== input.expectedCycle ||
           product.cycle !== input.expectedCycle ||
           product.price !== input.expectedAmountMinor ||

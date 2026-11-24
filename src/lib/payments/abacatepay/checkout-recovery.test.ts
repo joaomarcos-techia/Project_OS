@@ -93,6 +93,21 @@ function setup(
 }
 
 describe('unknown checkout recovery: reference, original fingerprint and unique GET-only result', () => {
+  it.each([['PIX'], ['CARD', 'PIX']])(
+    'recovers explicitly fingerprinted methods %j without a second POST',
+    async (...methods) => {
+      const f = setup({ patch: { methods } });
+      const requestFingerprint = commandOperationFingerprint('create_subscription_checkout', {
+        ...parameters,
+        methods,
+      });
+      expect(await f.reader.discover({ ...input, requestFingerprint })).toMatchObject({
+        state: 'found',
+      });
+      await expect(f.reader.discover(input)).rejects.toMatchObject({ code: 'binding_mismatch' });
+      expect(f.fetcher.mock.calls.every(([, init]) => init?.method === 'GET')).toBe(true);
+    },
+  );
   it('recovers the original creation result without claiming a paid period', async () => {
     const { reader, fetcher } = setup();
     const result = await reader.discover(input);

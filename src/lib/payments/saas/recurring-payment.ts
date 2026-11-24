@@ -15,7 +15,7 @@ export interface RecurringPaymentEvidence {
   currency: 'BRL';
   chargeCreatedAt: string;
   confirmedAt: string;
-  method: 'card';
+  method: 'card' | 'pix';
   recurrence: 'running' | 'stopped';
   obligation: 'paid';
   settlement: 'unknown';

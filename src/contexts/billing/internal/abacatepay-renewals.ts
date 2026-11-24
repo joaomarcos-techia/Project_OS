@@ -330,7 +330,7 @@ export async function applyAbacatePayRenewalTx(
       dueDate: period.start.toISOString().slice(0, 10),
       periodStart: period.start.toISOString().slice(0, 10),
       periodEnd: period.end.toISOString().slice(0, 10),
-      paymentMethod: 'CARD',
+      paymentMethod: evidence.method === 'pix' ? 'PIX' : 'CARD',
     })
     .returning();
   if (!invoice) throw new Error('Recurring SaaS invoice persistence failed');
@@ -388,7 +388,7 @@ export async function applyAbacatePayRenewalTx(
       .where(eq(subscriptions.id, context.subscription_id));
     await markInvoicePaid(tx, context.clinic_id, invoice, {
       provider: 'abacatepay',
-      paymentMethod: 'CARD',
+      paymentMethod: evidence.method === 'pix' ? 'PIX' : 'CARD',
       providerPaymentId: paymentKey,
       idemSuffix: `abacatepay:${context.account_id}:${evidence.paymentId}`,
       deferPeriodAdvance: true,
