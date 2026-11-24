@@ -1,5 +1,20 @@
 # AbacatePay SaaS — decisão final de release e piloto
 
+## Checkpoint prevalente — limite contratual da troca Pix (24/11/2026)
+
+A [documentação oficial de assinaturas](https://docs.abacatepay.com/pages/cobrar/assinaturas) e a de [Pix Automático](https://docs.abacatepay.com/pages/cobrar/pix-automatico) confirmam: `change-plan` agenda a mudança para o próximo ciclo, sem pró-rata, mas **só aceita Pix quando o valor permanece igual**. Todos os cinco preços da oferta Qoro são diferentes; upgrade, downgrade e alteração da quantidade de médicos mudam o valor. Uma autorização Pix de valor novo exige outro checkout e outra autorização humana, com primeira cobrança no pagamento. O [portal do cliente](https://docs.abacatepay.com/pages/vender/portal-do-cliente) permite cancelar no próximo ciclo, porém também oferece reembolso integral automático; o cancelamento pela API do lojista é imediato no provedor. Não há neste contrato documentado uma operação atômica que substitua uma autorização Pix por outra de valor diferente, preservando a renovação antiga até a confirmação da nova e impedindo cobranças sobrepostas. Essa é uma limitação do fluxo, não um defeito do pagamento já concluído.
+
+| Operação | Suporte comprovado | Estratégia segura no Qoro agora | Limite pendente |
+| --- | --- | --- | --- |
+| Upgrade, downgrade e mudança de médicos no cartão | `change-plan` para a próxima cobrança, mesmo ciclo e uma mudança pendente | Fluxo já implementado; só aplicar plano/cotas após renovação paga comprovada | Renovação natural live ainda não observada |
+| Upgrade, downgrade e mudança de médicos no Pix | `change-plan` somente sem mudança de valor | Manter plano, cobrança e direitos atuais; exibir preços sem oferecer alteração financeira | Novo contrato requer política e jornada de consentimento sem dupla recorrência ou perda de acesso |
+| Cartão → Pix ou Pix → cartão | Nenhuma troca direta do método na assinatura foi comprovada | Não oferecer como troca nativa | Exige nova contratação e política de transição |
+| Pix → Pix com mesmo valor | `change-plan` documentado | Não há par de planos de mesmo preço na oferta atual | Sem caso comercial elegível |
+| Cancelamento voluntário | API cancela no provedor imediatamente; portal cancela no fim do ciclo | Preservar o período local já pago e reconciliar a operação existente | Não tratar cancelamento voluntário como mecanismo automático de upgrade |
+| Renovação | `subscription.renewed` e leitura financeira da cobrança | Processamento idempotente existente | Renovação natural live permanece pendente |
+
+**Correção localizada nesta rodada:** a tela de assinatura deixou de instruir o cliente Pix a cancelar primeiro quando o checkout de novas contratações está aberto. O cancelamento voluntário permanece disponível, mas a troca de valor continua bloqueada. O caminho já existente de nova contratação após cancelamento confirmado e fim do período pago permanece para quem encerrou sua assinatura por decisão própria; ele não comprova uma troca contínua de plano. A clínica piloto não foi alterada, não houve novo checkout, pagamento, cancelamento, migration ou deploy. Teste de interface dirigido: 27/27 PASS. PR #53 continua draft; C4 e aquisição pública permanecem NO-GO. Esta decisão prevalece sobre a orientação anterior de cancelar primeiro para mudar de plano, mantida abaixo apenas como histórico.
+
 ## Checkpoint prevalente — troca de plano Pix publicada com aquisição fechada (24/11/2026)
 
 O fundador autorizou publicar o SHA `dddc650b33cedf8c69a6de9bd2f7c976643a7651`. A Vercel confirmou o deployment Production `dpl_HFDyevnCy4j2DTBupq9xatKqX65s` como `READY`, associado a `app.qoro.dev` e ao SHA exato. A [CI oficial 45448939884](https://github.com/joaomarcos-techia/Project_OS/actions/runs/45448939884) passou. A qualificação financeira sintética do código de troca Pix foi [45445749338](https://github.com/joaomarcos-techia/Project_OS/actions/runs/45445749338); os commits seguintes foram documentais e de inventário. O diff desde `cf712ab4` não contém migrations nem alteração de preço ou contrato Asaas legado.

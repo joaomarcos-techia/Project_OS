@@ -329,7 +329,7 @@ export function DeferredSubscription(props: Props) {
           O banco não permite alterar o valor desta autorização.{' '}
           {props.checkoutAvailable === false
             ? 'A troca está temporariamente indisponível. Não cancele a renovação apenas para tentar mudar de plano enquanto novos checkouts estiverem pausados.'
-            : `Para trocar de plano, primeiro cancele a renovação pelo botão acima; seu acesso continua até ${accessUntil ? `${accessUntil} (Brasília)` : 'o fim do período já pago'}. Depois desse prazo, escolha o novo plano nesta página e autorize uma nova assinatura no checkout. Não haverá duas recorrências simultâneas nem mudança de cotas antes do novo pagamento.`}
+            : 'A troca para outro valor ainda não está disponível. Sua assinatura e seus limites atuais continuam válidos. Não cancele a renovação apenas para tentar mudar de plano; uma nova autorização Pix exige outra contratação e pagamento.'}
           {props.planChanges.options.length ? (
             <ul className="mt-3 list-disc space-y-1 pl-5">
               {props.planChanges.options.map((plan) => (

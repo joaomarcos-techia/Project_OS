@@ -34,7 +34,7 @@ describe('deferred subscription controls', () => {
     expect(screen.getByText(/O banco não permite alterar o valor desta autorização/)).toBeTruthy();
     expect(screen.queryByRole('combobox')).toBeNull();
   });
-  it('shows Pix upgrade prices and the safe next step without calling change-plan', () => {
+  it('shows Pix upgrade prices without advising cancellation before replacement', () => {
     const fetcher = vi.fn();
     vi.stubGlobal('fetch', fetcher);
     render(
@@ -61,7 +61,13 @@ describe('deferred subscription controls', () => {
       />,
     );
     expect(screen.getByText(/Clínica — 2 médicos.*397,00/)).toBeTruthy();
-    expect(screen.getByText(/Depois desse prazo, escolha o novo plano/)).toBeTruthy();
+    expect(
+      screen.getByText(/Não cancele a renovação apenas para tentar mudar de plano/),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/uma nova autorização Pix exige outra contratação e pagamento/),
+    ).toBeTruthy();
+    expect(screen.queryByText(/primeiro cancele a renovação/)).toBeNull();
     expect(screen.queryByRole('combobox')).toBeNull();
     expect(fetcher).not.toHaveBeenCalled();
   });
@@ -324,14 +330,12 @@ describe('deferred subscription controls', () => {
   });
   it('locks a pending recontract to its original plan and offers the same checkout', async () => {
     const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => undefined);
-    const fetcher = vi
-      .fn()
-      .mockResolvedValue(
-        Response.json({
-          state: 'checkout_pending',
-          checkoutUrl: 'https://app.abacatepay.com/pay/bill_existing',
-        }),
-      );
+    const fetcher = vi.fn().mockResolvedValue(
+      Response.json({
+        state: 'checkout_pending',
+        checkoutUrl: 'https://app.abacatepay.com/pay/bill_existing',
+      }),
+    );
     vi.stubGlobal('fetch', fetcher);
     render(
       <DeferredSubscription
