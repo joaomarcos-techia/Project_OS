@@ -466,6 +466,8 @@ try {
   // 16. Autorização cancelada depois de ligada: a inclusão é recusada, nada consumido.
   const p5 = await patientWithCard(A, 'cinco');
   const r5 = await readyRequest(A, p5, [{ code: CODE_A, quantity: 2 }, { code: CODE_B, quantity: 1 }]);
+  // A indicação clínica é do solicitante e só muda antes da resposta da operadora (regra da 0156).
+  await asUser(A, async (tx) => req.setClinicalIndicationInTx(tx, { clinicId: A.clinicId, requestId: r5.requestId, version: await version(r5.requestId), text: 'Indicação sintética de teste.', actorUserId: A.doctorId }));
   await authorize(A, r5.requestId, [2, 1]);
   const ap5 = await session(A, p5, r5.itemIds[0]!, '2026-11-12');
   await sql`update public.appointments set status = 'em_atendimento' where id = ${ap5}::uuid`;
@@ -482,7 +484,6 @@ try {
 
   // ── Regra 5: "aprovar sem o item" atômico ───────────────────────────────
   // 17. Falha na emissão desfaz a exclusão; com a emissão certa, os pendentes ficam "não faturados".
-  await asUser(A, async (tx) => req.setClinicalIndicationInTx(tx, { clinicId: A.clinicId, requestId: r5.requestId, version: await version(r5.requestId), text: 'Indicação sintética de teste.', actorUserId: A.doctorId }));
   const g5 = await guideOf(ap5);
   await setReviewed(A, g5!.id as string);
   const approveWithout = (membershipId: string) => asUser(A, async (tx) => {
@@ -641,23 +642,31 @@ try {
   assert.equal(await recordingC, 'regra:GUIDE_CLOSED');
   pass('registro × conferência: com a conferência em andamento, o registro espera e é recusado ("guia fechada"), sem item');
 
-  // ── Guia cancelada: o incluído volta a ser pendência e entra na guia nova sem consumir de novo ──
-  // 25.
+  // ── Guia cancelada: o incluído volta a ser pendência; "não faturar" fecha sem consumir de novo ──
+  // 25. Achado (anterior à P8.4): depois de cancelar uma SP/SADT por sessão, a recuperação abre a
+  // pendência "guia cancelada" para quem fatura, e o serviço da conclusão não gera outra guia (a
+  // chave de idempotência sadt:appointment:<id> é da cancelada). A reinclusão numa guia nova só é
+  // alcançável pela substituta da P7.5, que copia a linha (e aí o item segue cobrado).
   const g4c = await guideOf(ap4);
   await asUser(A, (tx) => tx.execute(q`UPDATE public.hi_guides SET status = 'cancelled', cancel_reason = 'Guia emitida com erro de cadastro', cancelled_by = ${A.doctorId}::uuid
     WHERE id = ${g4c!.id}::uuid AND version = ${g4c!.version}`));
-  assert.equal((await decisionOf(A, ap4, eB)).stage, 'included_in_dead_guide');
-  await withTenant(A.clinicId, (tx) => processInsuranceBilling(tx, { clinicId: A.clinicId, appointmentId: ap4, detectedBy: 'event', eventState: 'processed', lock: 'wait' }));
-  const g4n = await guideOf(ap4);
-  assert.ok(g4n && g4n.id !== g4c!.id, 'a sessão ganhou guia nova');
-  assert.deepEqual([g4n!.items, g4n!.total], [1, 9000]);
-  const reinc = await include(A, eB, false);
-  assert.equal(reinc.existing, false);
-  assert.deepEqual([(await guideOf(ap4))!.items, (await guideOf(ap4))!.total], [2, 14000]);
-  assert.deepEqual(await consumptions(`extra:${eB}`), { n: 2, k: 1 }, 'o saldo não é consumido de novo');
+  const dDead = await decisionOf(A, ap4, eB);
+  assert.deepEqual([dDead.stage, dDead.pending, dDead.canInclude, dDead.canExclude], ['included_in_dead_guide', true, false, true]);
+  const reprocessed = await withTenant(A.clinicId, (tx) => processInsuranceBilling(tx, { clinicId: A.clinicId, appointmentId: ap4, detectedBy: 'event', eventState: 'processed', lock: 'wait' }));
+  assert.equal(await guideOf(ap4), null, `a recuperação não gera guia nova sozinha (${reprocessed.kind})`);
+  assert.equal(await outcome(() => include(A, eB, false)), 'regra:GUIDE_NOT_FOUND', 'sem guia viva, nada é incluído');
+  assert.equal(
+    await outcome(() => asUser(A, (tx) => tx.execute(q`UPDATE public.hi_appointment_extra_items SET status = 'included', guide_item_id = ${inc4.guideItemId}::uuid WHERE id = ${eB}::uuid`))),
+    '23514:hi_extra_item_closed',
+    'a linha morta não serve',
+  );
+  await asUser(A, (tx) => extra.excludeExtraItemTx(tx, { clinicId: A.clinicId, itemId: eB, reason: 'Guia cancelada; procedimento não será refaturado' }));
+  const exDead = await itemRow(eB);
+  assert.deepEqual([exDead.status, exDead.guide_item_id, exDead.authorization_item_id, exDead.exclusion_reason], ['excluded', null, aiB.id, 'Guia cancelada; procedimento não será refaturado']);
+  assert.deepEqual(await consumptions(`extra:${eB}`), { n: 2, k: 1 }, 'nada é consumido de novo');
   assert.equal((await authItemOf(r4.requestId, CODE_B)).used, 2);
-  assert.equal((await decisionOf(A, ap4, eB)).stage, 'included');
-  pass('guia cancelada: o adicional incluído volta a ser pendência; na guia nova da sessão ele entra de novo (2 linhas, 140,00) sem consumir o saldo outra vez (2 de 2, um consumo)');
+  assert.equal((await decisionOf(A, ap4, eB)).stage, 'not_billed');
+  pass('guia cancelada: o adicional incluído volta a ser pendência ("guia anterior cancelada"); sem guia viva nada é incluído (nem pela linha morta, no banco); "não faturar" fecha o item com motivo, mantém o vínculo com a autorização e não consome de novo (2 de 2, um consumo)');
 
   // ── Isolamento, comercial, módulo, reprocessamento, indisponível ────────
   // 26. Comercial primeiro, depois o módulo (registro e decisão pelo serviço).

@@ -1170,6 +1170,13 @@
       "when": 1795641773857,
       "tag": "0166_hi_authorization_alerts",
       "breakpoints": true
+    },
+    {
+      "idx": 167,
+      "version": "7",
+      "when": 1795728173857,
+      "tag": "0167_hi_appointment_extra_items",
+      "breakpoints": true
     }
   ]
 }
