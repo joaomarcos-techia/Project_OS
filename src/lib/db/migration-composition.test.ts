@@ -246,6 +246,7 @@ describe('journal REAL desta branch (sozinha ou integrada sobre o #53)', () => {
       '0164_hi_module_switch_guard',
       '0165_hi_guide_cancellations',
       '0166_hi_authorization_alerts',
+      '0167_hi_appointment_extra_items',
       // As do #53, quando a branch já está integrada (iguais às congeladas pelo dono).
       ...shape.present.map((p) => p.tag),
     ]) {

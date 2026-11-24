@@ -293,5 +293,16 @@ export const MIGRATION_COMPOSITION_MANIFEST: CompositionManifest = {
       requires: ['0165_hi_guide_cancellations'],
       sentinel: 'relation:public.hi_authorization_alerts',
     },
+    {
+      // P8.4 / P8.4-r: itens executados adicionais com a política aprovada em 24/11. Fixada ao ser
+      // promovida (GO condicional do DEV de 24/11, depois das provas de banco e do ensaio no runner).
+      tag: '0167_hi_appointment_extra_items',
+      idx: 167,
+      when: 1795728173857,
+      sha256: '7249f069fc5454e74034e1004f3be7d04606c020d7b16244b4014aafc861f3f0',
+      owner: 'PR #55 (convênios)',
+      requires: ['0166_hi_authorization_alerts'],
+      sentinel: 'relation:public.hi_appointment_extra_items',
+    },
   ],
 };
