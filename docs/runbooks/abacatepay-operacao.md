@@ -1,5 +1,11 @@
 # Operação e recuperação AbacatePay
 
+## C3 — 24/11/2026: alertas Sentry e candidato corretivo
+
+`QORO-3J` ocorreu antes do pagamento e não permite atribuir a falha ao provedor: o código antigo não guardou a causa. `QORO-3M` foi o `checkout.completed` adicional que chegou antes do `subscription.completed`; o último aplicou corretamente o pagamento. A leitura Production de 03:49 UTC confirma uma assinatura ativa, uma invoice Pix paga de R$ 197, cotas liberadas, cinco contratos Asaas preservados e nenhum segundo pagamento. Não reemitir checkout, replay ou alterar o evento histórico em `review` apenas para limpar o painel.
+
+O candidato `39d16938` no PR #53 ignora futuros `checkout.completed` como sinal não autoritativo, classifica futuras falhas do scanner sem expor payload e tolera contenção limitada entre workers no controle distribuído de requisições. [Ensaio sintético 45321821193](https://github.com/joaomarcos-techia/Project_OS/actions/runs/45321821193) passou a recuperação de dez renovações atrasadas em 64,5 segundos e o build composto com 160 migrations. Não equivale à renovação natural live. Antes de publicar, conferir CI do SHA exato, flags de aquisição fechada, saúde do C2 e autorização para novo deployment. Após publicar, manter webhook/consumidores ativos, verificar Auth, banco, Redis, Asaas, AbacatePay, cron, invoice, cotas e ausência de novos alertas. Não abrir C4 nem aquisição pública.
+
 ## C3 — 24/11/2026: primeiro pagamento Pix live confirmado
 
 O checkout `bill_pbMYRx5JMSbB6cEkEBQKr6Np` foi pago uma vez por Pix: provedor `PAID`/R$ 197 e assinatura `ACTIVE`. O Qoro aplicou `subscription.completed` na primeira tentativa, gravou uma invoice paga de R$ 197, ativou Consultório com um médico e até três administrativos, liberou as cotas do trial e confirmou o fechamento do link pago. Período local: 24/11 03:09 UTC até 24/12 03:09 UTC. O checkout CARD anterior continua sem pagamento/assinatura. **Não emitir outro checkout nem reaplicar o evento.** Cadastro e aquisição pública seguem fechados; manter webhook, scanner, cron e obrigações existentes ativos.
