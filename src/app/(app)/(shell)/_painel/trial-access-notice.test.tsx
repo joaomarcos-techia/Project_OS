@@ -16,6 +16,8 @@ describe('trial usage notice', () => {
     expect(html).toContain('agentes de IA');
     expect(html).toContain('pagar não');
     expect(html).toContain('convites de equipe');
+    expect(html).toContain('Consulte as opções de contratação em Assinatura');
+    expect(html).not.toContain('A contratação está disponível a qualquer momento');
     expect(html).toContain('excluir ou cancelar não devolve a cota');
     expect(html).toContain('href="/configuracoes/assinatura"');
   });

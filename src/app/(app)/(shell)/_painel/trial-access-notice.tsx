@@ -11,7 +11,7 @@ export function TrialAccessNotice({ snapshot }: { snapshot: TrialAccessSnapshot 
       <p>
         Durante os 14 dias de avaliação, você pode conhecer o sistema. WhatsApp, cobranças de
         pacientes pelo Asaas, convênios, agentes de IA e convites de equipe não podem ser usados
-        operacionalmente. A contratação está disponível a qualquer momento.
+        operacionalmente. Consulte as opções de contratação em Assinatura.
       </p>
       <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1" aria-label="Uso da avaliação">
         {Object.entries(TRIAL_RESOURCE_LIMITS).map(([metric, definition]) => (
