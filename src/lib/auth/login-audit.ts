@@ -60,3 +60,31 @@ export async function countRecentLoginFailures(
   const row = rows[0];
   return { byEmail: Number(row?.by_email ?? 0), byIp: Number(row?.by_ip ?? 0) };
 }
+
+/**
+ * R42 (requisito 42 da ANS): depois de um login bem-sucedido, o ÚLTIMO acesso anterior (o login de sucesso antes
+ * deste) e as tentativas sem sucesso desde então. Lido da trilha `login_attempts` pelo e-mail em HMAC — nunca por
+ * dado vindo do navegador; nunca expõe IP. Chamar ANTES de registrar o login atual: assim o último sucesso é sempre
+ * o anterior, sem depender de relógio.
+ */
+export async function readLastAccessSummary(
+  emailHash: string,
+): Promise<{ previousSuccessAt: Date | null; failuresSince: number }> {
+  const rows = (await dbAdmin.execute(sql`
+    WITH prev AS (
+      SELECT attempted_at FROM public.login_attempts
+       WHERE email_hash = ${emailHash} AND success = true
+       ORDER BY attempted_at DESC LIMIT 1
+    )
+    SELECT (SELECT attempted_at FROM prev) AS previous_success_at,
+           (SELECT count(*)::int FROM public.login_attempts
+             WHERE email_hash = ${emailHash} AND success = false
+              
+               AND attempted_at > coalesce((SELECT attempted_at FROM prev), '-infinity'::timestamptz)) AS failures_since
+  `)) as unknown as Array<{ previous_success_at: Date | string | null; failures_since: number }>;
+  const r = rows[0];
+  return {
+    previousSuccessAt: r?.previous_success_at ? new Date(r.previous_success_at) : null,
+    failuresSince: Number(r?.failures_since ?? 0),
+  };
+}

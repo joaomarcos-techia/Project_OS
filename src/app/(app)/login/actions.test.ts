@@ -47,7 +47,10 @@ vi.mock('@/lib/auth/pretenant-onboarding', () => ({
   resolvePreTenantOnboarding: mocks.resolvePreTenantOnboarding,
 }));
 vi.mock('@/lib/auth/email-hash', () => ({ hashEmail: mocks.hashEmail }));
-vi.mock('@/lib/auth/login-audit', () => ({ recordLoginAttempt: mocks.recordLoginAttempt }));
+vi.mock('@/lib/auth/login-audit', () => ({
+  recordLoginAttempt: mocks.recordLoginAttempt,
+  readLastAccessSummary: vi.fn(async () => ({ previousSuccessAt: null, failuresSince: 0 })),
+}));
 vi.mock('@/lib/auth/login-attempts-fallback', () => ({
   checkLoginByAuditTrail: mocks.checkLoginByAuditTrail,
 }));

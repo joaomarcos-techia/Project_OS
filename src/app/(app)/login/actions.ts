@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { z } from 'zod';
 
 import { sendPasswordResetEmail } from '@/contexts/identity/internal/password-reset-email';
@@ -21,7 +21,14 @@ import { hashEmail } from '@/lib/auth/email-hash';
 import { readTissFootprintLazy } from '@/app/(app)/_lib/tiss-footprint';
 import { checkLoginByAuditTrail } from '@/lib/auth/login-attempts-fallback';
 import { tissPasswordAge } from '@/lib/auth/security-profile/password-lifecycle';
-import { recordLoginAttempt } from '@/lib/auth/login-audit';
+import { isInTissPasswordScope } from '@/lib/auth/security-profile/password-policy';
+import {
+  LAST_ACCESS_COOKIE,
+  LAST_ACCESS_MAX_AGE_SECONDS,
+  encodeLastAccess,
+  lastAccessSecret,
+} from '@/lib/auth/last-access';
+import { readLastAccessSummary, recordLoginAttempt } from '@/lib/auth/login-audit';
 import { assertLoginAllowed, assertPasswordResetAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { postLoginRedirect } from '@/lib/auth/policies';
 import { resolvePreTenantOnboarding } from '@/lib/auth/pretenant-onboarding';
@@ -150,6 +157,8 @@ export async function loginAction(
     metrics.emit('auth.login.failed', { reason: 'invalid_credentials' });
     return { error: 'Email ou senha inválidos.' };
   }
+  // R42: o último acesso ANTERIOR é lido antes de registrar este (best-effort; nunca bloqueia o login).
+  const lastAccess = await readLastAccessSummary(emailHash).catch(() => null);
   await recordLoginAttempt(emailHash, ip, true);
 
   // Leitura server-side autoritativa. Não usa PostgREST/Data API: o navegador
@@ -220,6 +229,35 @@ export async function loginAction(
       error:
         'Sua senha venceu (troca a cada 90 dias no perfil de segurança de Convênios). Enviamos um link para o seu e-mail para criar uma nova.',
     };
+  }
+
+  // R42 (requisito 42 da ANS): aviso de último acesso no perfil TISS. Cookie curto, HttpOnly e assinado (só data e
+  // contagem); o layout lê uma vez e apaga. Fora do alcance, nada muda.
+  if (
+    lastAccess &&
+    (await isInTissPasswordScope(profile.clinicId ?? null, readTissFootprintLazy))
+  ) {
+    try {
+      (await cookies()).set(
+        LAST_ACCESS_COOKIE,
+        encodeLastAccess(
+          {
+            previousSuccessAt: lastAccess.previousSuccessAt?.toISOString() ?? null,
+            failuresSince: lastAccess.failuresSince,
+          },
+          lastAccessSecret(),
+        ),
+        {
+          httpOnly: true,
+          secure: true,
+          sameSite: 'lax',
+          path: '/',
+          maxAge: LAST_ACCESS_MAX_AGE_SECONDS,
+        },
+      );
+    } catch {
+      /* o aviso é informativo: falhar aqui não bloqueia o login */
+    }
   }
 
   const aal = await getAal(supabase);
