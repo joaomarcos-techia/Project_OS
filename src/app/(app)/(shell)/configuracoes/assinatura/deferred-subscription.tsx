@@ -423,7 +423,7 @@ export function DeferredSubscription(props: Props) {
                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
                       props.pixReplacement.pending.amountMinor / 100,
                     )}
-                    /mês. O período pago atual termina em{' '}
+                    /mês. Quando este pedido foi registrado, o período pago informado terminava em{' '}
                     {new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo' }).format(
                       new Date(props.pixReplacement.pending.priorPeriodEnd),
                     )}

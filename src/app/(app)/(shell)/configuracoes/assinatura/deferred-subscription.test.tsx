@@ -111,6 +111,9 @@ describe('deferred subscription controls', () => {
       />,
     );
     expect(screen.getByText('Pedido registrado, sem troca financeira')).toBeTruthy();
+    expect(
+      screen.getByText(/Quando este pedido foi registrado, o período pago informado terminava em/),
+    ).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Solicitar análise da troca' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar somente o pedido de troca' }));
     await waitFor(() => expect(reload).toHaveBeenCalledOnce());
