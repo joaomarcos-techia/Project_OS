@@ -94,13 +94,15 @@ async function sadtSession(c: Clinic, pt: { patientId: string; membershipId: str
   const [proc] = await sql`select id from public.procedures where clinic_id = ${c.clinicId}::uuid limit 1`;
   const [a] = await sql`insert into public.appointments (clinic_id, doctor_id, patient_id, procedure_id, scheduled_at, duration_min, status, valor,
       snapshot_procedure_name, snapshot_procedure_valor, snapshot_procedure_duracao_min, snapshot_doctor_nome, created_via, billing_mode)
-    values (${c.clinicId}::uuid, ${c.doctorId}::uuid, ${pt.patientId}::uuid, ${proc!.id}::uuid, ${`${day}T13:00:00Z`}::timestamptz + ${slot} * interval '55 minutes', 50, 'em_atendimento', 120,
+    values (${c.clinicId}::uuid, ${c.doctorId}::uuid, ${pt.patientId}::uuid, ${proc!.id}::uuid, ${`${day}T13:00:00Z`}::timestamptz + ${slot} * interval '55 minutes', 50, 'agendado', 120,
       'Psicoterapia', 120, 50, 'Profissional sintético', 'attendant', 'convenio') returning id`;
+  // A cobertura só se registra antes do atendimento começar (regra do banco); depois, em atendimento.
   await asUser(c, (tx) => recordAppointmentCoverage(tx, {
     clinicId: c.clinicId, appointmentId: a!.id as string, patientId: pt.patientId, procedureId: proc!.id as string, appointmentDate: day,
     guideType: 'sp_sadt', insurerId: c.insurerId, planId: null, membershipId: pt.membershipId, authorizationId: null,
     sadtRequestItemId: requestItemId, actor: { kind: 'user', userId: c.doctorId },
   }));
+  await sql`update public.appointments set status = 'em_atendimento' where id = ${a!.id}::uuid`;
   return a!.id as string;
 }
 async function complete(c: Clinic, appointmentId: string, patientId: string) {
@@ -271,13 +273,14 @@ try {
   await sql`update public.hi_memberships set patient_id = ${pc.patientId}::uuid where id = ${pc2.membershipId}::uuid`;
   const [ca] = await sql`insert into public.appointments (clinic_id, doctor_id, patient_id, procedure_id, scheduled_at, duration_min, status, valor,
       snapshot_procedure_name, snapshot_procedure_valor, snapshot_procedure_duracao_min, snapshot_doctor_nome, created_via, billing_mode)
-    values (${A.clinicId}::uuid, ${A.doctorId}::uuid, ${pc.patientId}::uuid, ${proc!.id}::uuid, '2026-11-13T16:00:00Z', 30, 'atendido', 150,
+    values (${A.clinicId}::uuid, ${A.doctorId}::uuid, ${pc.patientId}::uuid, ${proc!.id}::uuid, '2026-11-13T16:00:00Z', 30, 'agendado', 150,
       'Consulta', 150, 30, 'Dra. Sintética', 'attendant', 'convenio') returning id`;
   const capId = ca!.id as string;
   await asUser(A, (tx) => recordAppointmentCoverage(tx, {
     clinicId: A.clinicId, appointmentId: capId, patientId: pc.patientId, procedureId: proc!.id as string, appointmentDate: '2026-11-13',
     guideType: 'consulta', insurerId: A.insurerId, planId: null, membershipId: pc.membershipId, authorizationId: null, actor: { kind: 'user', userId: A.doctorId },
   } as Parameters<typeof recordAppointmentCoverage>[1]));
+  await sql`update public.appointments set status = 'atendido' where id = ${capId}::uuid`;
   const cg = await withTenant(A.clinicId, (tx) => createConsultaGuideForAppointment(tx, {
     clinicId: A.clinicId, appointment: { id: capId, patientId: pc.patientId, professionalId: A.doctorId, procedureId: proc!.id as string, date: '2026-11-13', billingMode: 'convenio' },
     coverage: { insurerId: A.insurerId, planId: null, membershipId: pc.membershipId }, terminologyVersion: '202609', actor: { kind: 'automation' },

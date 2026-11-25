@@ -22,6 +22,7 @@ import { listPayoutReviewsTx, type PayoutReviewRow } from './internal/payout-rev
 import { listGuideCancellationsTx, type GuideCancellationRow } from './internal/guide-cancellation-service';
 import { extraItemsAvailableTx, listExtraItemsTx, type ExtraItemView } from './internal/extra-executed-items';
 import { reissueBlockTx, reissuedFromTx } from './internal/guide-reissue';
+import { COVERAGE_STATUS_LABELS } from './config-queries';
 import { GUIDE_STATUS_LABELS } from './guide-status-labels';
 import {
   CONSULTA_CODE_FIELD_KEYS,
@@ -1522,8 +1523,20 @@ export interface SessionExtraItem {
   stateLabel: string;
   recordedByMe: boolean;
 }
+/** P5.2 (consultório): resumo administrativo da cobertura, sem valor; carteirinha só mascarada. */
+export interface SessionInsuranceSummary {
+  guideType: string;
+  insurerName: string;
+  last4: string | null;
+  status: string;
+  statusLabel: string;
+  /** Primeira pendência pré-consulta, quando há (mensagem para a tela). */
+  issue: string | null;
+}
 export interface SessionExtraItems {
   available: boolean;
+  /** Cobertura do atendimento (qualquer convênio, Consulta ou SP/SADT); null sem cobertura viva. */
+  summary?: SessionInsuranceSummary | null;
   items: SessionExtraItem[];
   /** Linhas SP/SADT da operadora do atendimento vigentes na data da sessão (sem valor). */
   options: Array<{ id: string; label: string }>;
@@ -1548,27 +1561,43 @@ export async function getAppointmentExtraItems(
   viewer: { userId: string; broad: boolean },
 ): Promise<SessionExtraItems | null> {
   return withTenant(clinicId, async (tx) => {
-    if (!(await extraItemsAvailableTx(tx))) return { available: false, items: [], options: [] };
     const ap = (await tx.execute(sql`
       SELECT a.doctor_id::text AS doctor_id, cov.insurer_id::text AS insurer_id, cov.plan_id::text AS plan_id,
-             cov.guide_type, cov.status::text AS cov_status,
+             cov.guide_type, cov.status::text AS cov_status, cov.issues, i.name AS insurer_name, m.card_last4,
              (a.scheduled_at AT TIME ZONE coalesce(c.timezone, 'America/Sao_Paulo'))::date::text AS day
         FROM public.appointments a
         JOIN public.clinics c ON c.id = a.clinic_id
         LEFT JOIN public.hi_appointment_coverages cov ON cov.clinic_id = a.clinic_id AND cov.appointment_id = a.id
+        LEFT JOIN public.hi_insurers i ON i.clinic_id = cov.clinic_id AND i.id = cov.insurer_id
+        LEFT JOIN public.hi_memberships m ON m.clinic_id = cov.clinic_id AND m.id = cov.membership_id
        WHERE a.clinic_id = ${clinicId}::uuid AND a.id = ${appointmentId}::uuid`)) as unknown as Array<{
       doctor_id: string;
       insurer_id: string | null;
       plan_id: string | null;
       guide_type: string | null;
       cov_status: string | null;
+      issues: Array<{ message?: string }> | null;
+      insurer_name: string | null;
+      card_last4: string | null;
       day: string;
     }>;
     const a = ap[0];
     if (!a) return null;
     if (!viewer.broad && a.doctor_id !== viewer.userId) return null;
+    const summary: SessionInsuranceSummary | null =
+      a.insurer_id && a.cov_status && a.cov_status !== 'cancelled'
+        ? {
+            guideType: a.guide_type ?? '',
+            insurerName: a.insurer_name ?? 'Convênio',
+            last4: a.card_last4,
+            status: a.cov_status,
+            statusLabel: COVERAGE_STATUS_LABELS[a.cov_status] ?? a.cov_status,
+            issue: a.issues?.[0]?.message ?? null,
+          }
+        : null;
+    if (!(await extraItemsAvailableTx(tx))) return { available: false, summary, items: [], options: [] };
     if (a.guide_type !== 'sp_sadt' || a.cov_status === 'cancelled' || !a.insurer_id) {
-      return { available: true, items: [], options: [] };
+      return { available: true, summary, items: [], options: [] };
     }
     const items = await listExtraItemsTx(tx, { clinicId, appointmentId });
     const lines = (await tx.execute(sql`
@@ -1586,6 +1615,7 @@ export async function getAppointmentExtraItems(
     }>;
     return {
       available: true,
+      summary,
       items: items.map((i) => ({
         id: i.id,
         tableCode: i.tableCode,

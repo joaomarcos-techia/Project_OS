@@ -171,6 +171,10 @@ test('recepção registra os itens, vê cada estado e liga a autorização do qu
   const s = await session(browser, 'p84-recepcao');
   await s.page.goto(guidePath());
   await expect(panel(s.page)).toBeVisible();
+  // P12.11: fornecedor, software e a versão DO BUILD (o commit que este runner testa) na tela.
+  const identity = s.page.locator('[data-software-identity]').first();
+  await expect(identity).toContainText('Fornecedor Qoro · Qoro Convênios · versão');
+  if (process.env.GITHUB_SHA) await expect(identity).toContainText(process.env.GITHUB_SHA.slice(0, 12));
   await expect(procedures(s.page).getByRole('row')).toHaveCount(2); // cabeçalho + a sessão agendada
   // O primeiro registro é capturado para as recusas do servidor depois.
   const form = panel(s.page).getByRole('form', { name: 'Registrar item executado' }).first();

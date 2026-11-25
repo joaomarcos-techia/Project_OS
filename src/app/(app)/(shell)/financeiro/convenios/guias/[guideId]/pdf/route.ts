@@ -18,6 +18,7 @@ import {
 import { CONVENIOS_RULES } from '@/contexts/health-insurance/rights';
 import { resourceGate } from '@/lib/auth/page-guard';
 import { assertClinicalPdfDownloadAllowed } from '@/lib/auth/rate-limit';
+import { softwareIdentity } from '@/lib/software-identity';
 
 import { attachment, TISS_DOWNLOAD_HEADERS, tissNotFound, tissText } from '../../../../../../_lib/tiss-download';
 
@@ -25,7 +26,11 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /** Versão do build no rodapé (rastreabilidade do software, req. 36). */
-const BUILD = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) ?? null;
+/** P12.11: identificação do software no rodapé, sempre do build. */
+const SOFTWARE = (() => {
+  const id = softwareIdentity();
+  return { vendor: id.vendor, name: id.name, version: id.version };
+})();
 
 export async function GET(
   request: Request,
@@ -45,7 +50,7 @@ export async function GET(
       clinicId: gate.clinicId,
       guideId: parsed.data,
       surface: 'rota_pdf_guia',
-      software: { name: 'Qoro', version: BUILD },
+      software: SOFTWARE,
     });
     const inline = new URL(request.url).searchParams.get('download') !== '1';
     return new Response(new Uint8Array(pdf.pdf), {

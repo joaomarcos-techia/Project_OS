@@ -47,7 +47,8 @@ export interface PrintMeta {
   guideNumber: string;
   revision: number | null;
   snapshotSha256: string | null;
-  software: { name: string; version: string | null };
+  /** P12.11: fornecedor, software e versão do build (src/lib/software-identity.ts). */
+  software: { name: string; version: string | null; vendor?: string };
   /**
    * D-5 fase 1: `attendance` = via de atendimento (assinatura do paciente), sem valores. O PDF
    * leva a marca visível e o rodapé diz que não serve para faturamento.
@@ -299,7 +300,7 @@ function dedupe(items: PrintLayout['continuation']): PrintLayout['continuation']
 function footer(model: OfficialModel, sadt: boolean, meta: PrintMeta): DrawText {
   const parts = [
     meta.copy === 'attendance' ? 'Via de atendimento (sem valores)' : null,
-    `Gerado por ${meta.software.name}${meta.software.version ? ` ${meta.software.version}` : ''}`,
+    `Gerado por ${meta.software.name} ${meta.software.version ? `v. ${meta.software.version}` : '(sem build)'}${meta.software.vendor ? `, fornecedor ${meta.software.vendor}` : ''}`,
     `guia nº ${meta.guideNumber}`,
     meta.revision !== null ? `revisão ${meta.revision}` : null,
     meta.snapshotSha256 ? `snapshot ${meta.snapshotSha256.slice(0, 16)}` : null,

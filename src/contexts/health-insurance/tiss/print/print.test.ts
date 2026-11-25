@@ -236,6 +236,19 @@ describe('Guia de Consulta (P7.6) — o PDF reproduz o modelo da p. 469', { time
     expect(text).not.toMatch(/\bCID\b/u);
   });
 
+  it('P12.11: o rodapé identifica fornecedor, software e versão do build; sem build diz "sem build"', () => {
+    const view = consultaView({});
+    const footerOf = (software: PrintMeta['software']) =>
+      layoutGuide(view, { ...META(view), software })
+        .pages[0]!.filter((o): o is DrawText => o.t === 'text' && o.text.startsWith('Gerado por'))
+        .map((o) => o.text)
+        .join('');
+    expect(footerOf({ vendor: 'Qoro', name: 'Qoro Convênios', version: 'a9fa253832aa' })).toContain(
+      'Gerado por Qoro Convênios v. a9fa253832aa, fornecedor Qoro',
+    );
+    expect(footerOf({ vendor: 'Qoro', name: 'Qoro Convênios', version: null })).toContain('Gerado por Qoro Convênios (sem build), fornecedor Qoro');
+  });
+
   it('nada fictício: campo sem dado fica em branco (nome social, guia da operadora, validade da carteira)', () => {
     const view = consultaView({ numeroGuiaOperadora: null });
     expect([view.fields[26], view.fields[3], view.fields[5], view.fields[24], view.fields[25]]).toEqual(['', '', '', '', '']);

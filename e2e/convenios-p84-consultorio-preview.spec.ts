@@ -7,7 +7,11 @@
  *   1. a médica registra, na própria sessão, o item do contrato executado (sem valor, sem decisão
  *      de faturamento, sem campo clínico); repetir não duplica; o estado fica depois do reload;
  *   2. o servidor recusa o registro na sessão de outra médica, pela recepção e por outra clínica;
- *   3. a outra médica vê só a sessão dela, sem o item da primeira.
+ *   3. a outra médica vê só a sessão dela, sem o item da primeira;
+ *   4. P5.2: o painel do atendimento mostra o resumo do convênio (operadora, carteirinha mascarada,
+ *      situação), sem valor;
+ *   5. P3.3/P5.2: a agenda oficial mostra "Convênios de hoje" — a recepção vê a pendência pré-consulta
+ *      (sessão sem cobertura) e o link para resolver em Convênios; cada médica vê só os próprios.
  */
 import { readFileSync } from 'node:fs';
 
@@ -30,7 +34,9 @@ const fx = STATE
   ? (JSON.parse(readFileSync(STATE, 'utf8')) as {
       run: string;
       patientName: string;
-      sessions: { s1: string; s2: string; s3: string };
+      insurerName: string;
+      cardLast4: string;
+      sessions: { s1: string; s2: string; s3: string; s4: string; s5: string };
       codes: { doctor: string };
       lines: Record<string, string>;
     })
@@ -120,6 +126,11 @@ test('médica registra o item executado na PRÓPRIA sessão, sem valor nem decis
   test.setTimeout(300_000);
   const s = await session(browser, 'p84-medica');
   const panel = await openAttendance(s.page);
+  // P5.2: resumo administrativo do convênio no consultório (sem valor, carteirinha mascarada).
+  const summary = panel.getByRole('note', { name: 'Convênio do atendimento' });
+  await expect(summary).toContainText(fx!.insurerName);
+  await expect(summary).toContainText(`••••${fx!.cardLast4}`);
+  await expect(summary).not.toContainText(/R\$/u);
   const block = panel.locator('details').filter({ hasText: 'Itens executados além do agendado' });
   await block.locator('summary').click();
   const form = block.getByRole('form', { name: 'Registrar item executado' });
@@ -166,4 +177,36 @@ test('a outra médica vê só a própria sessão, sem o item registrado pela pri
   await expect(block.getByRole('list', { name: 'Itens registrados nesta sessão' })).toHaveCount(0);
   await expect(block).not.toContainText(fx!.codes.doctor);
   expect(s.errors).toEqual([]);
+});
+
+const strip = (page: Page) => page.getByRole('region', { name: 'Convênios de hoje' });
+const row = (page: Page, id: string) => strip(page).locator(`li[data-appointment="${id}"]`);
+
+test('agenda: a recepção vê a pendência pré-consulta de hoje e vai resolver em Convênios', async ({ browser }) => {
+  test.setTimeout(180_000);
+  const s = await session(browser, 'p84-recepcao');
+  await s.page.goto('/agenda');
+  await expect(strip(s.page)).toBeVisible({ timeout: 60_000 });
+  await expect(row(s.page, fx!.sessions.s5)).toHaveAttribute('data-pending', 'yes');
+  await expect(row(s.page, fx!.sessions.s5)).toContainText('Sem cobertura de convênio registrada.');
+  await expect(row(s.page, fx!.sessions.s4)).toHaveAttribute('data-pending', 'no');
+  await expect(row(s.page, fx!.sessions.s4)).toContainText(`••••${fx!.cardLast4}`);
+  await expect(strip(s.page)).not.toContainText(/R\$/u);
+  await strip(s.page).getByRole('link', { name: 'Resolver as pendências em Convênios' }).click();
+  await s.page.waitForURL(/\/convenios\/atendimentos/u, { timeout: 60_000 });
+  await expect(s.page.locator('body')).toContainText(fx!.patientName);
+  expect(s.errors).toEqual([]);
+});
+
+test('agenda: cada médica vê só os próprios convênios de hoje, sem o link de resolver', async ({ browser }) => {
+  const m1 = await session(browser, 'p84-medica');
+  await m1.page.goto('/agenda');
+  await expect(row(m1.page, fx!.sessions.s4)).toBeVisible({ timeout: 60_000 });
+  await expect(row(m1.page, fx!.sessions.s5)).toHaveCount(0);
+  await expect(strip(m1.page).getByRole('link', { name: 'Resolver as pendências em Convênios' })).toHaveCount(0);
+  const m2 = await session(browser, 'p84-medica2');
+  await m2.page.goto('/agenda');
+  await expect(row(m2.page, fx!.sessions.s5)).toHaveAttribute('data-pending', 'yes', { timeout: 60_000 });
+  await expect(row(m2.page, fx!.sessions.s4)).toHaveCount(0);
+  await expect(strip(m2.page)).toContainText('A recepção resolve as pendências em Convênios.');
 });

@@ -48,7 +48,11 @@ if (!GH_TOKEN || !GITHUB_REPOSITORY || !GITHUB_SHA || !GITHUB_RUN_ID || !GITHUB_
 const seqFile = join(tmpdir(), `fixture-relay-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT ?? '1'}.seq`);
 const seq = (existsSync(seqFile) ? Number(readFileSync(seqFile, 'utf8')) : 0) + 1;
 writeFileSync(seqFile, String(seq));
-const id = `${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT ?? '1'}.${seq}`;
+// Cada grupo do pedido roda num runner próprio, com o MESMO run id: a sequência local recomeça em 1
+// em cada um. Sem o grupo no id, o 1º pedido do grupo 2 colidia com o do grupo 1 (achado em 24/11:
+// o p84-state recebeu a resposta de um set-state). Grupo × 1000 + sequência mantém o formato N.N.N.
+const group = Number(process.env.PREVIEW_E2E_GROUP ?? 0);
+const id = `${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT ?? '1'}.${group * 1000 + seq}`;
 
 const api = async (path, init = {}) => {
   const r = await fetch(`https://api.github.com/repos/${GITHUB_REPOSITORY}${path}`, {

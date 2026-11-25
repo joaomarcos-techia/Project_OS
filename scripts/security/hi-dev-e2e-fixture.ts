@@ -461,7 +461,7 @@ async function setupStates() {
             'agendado'::appointment_status, 150, 'Sintético E2E', 150, 30, 'Dra. Sintética E2E', 'attendant', ${tag})
           RETURNING id::text AS id, ${date}::text AS date`);
       } catch (e) {
-        if (pgCode(e) !== '23P01') throw e; // horário ocupado: tenta o dia seguinte
+        if (pgCode(e) !== '23P01' && pgCode(e) !== '23505') throw e; // horário ocupado (exclusão ou índice do horário do médico) // horário ocupado: tenta o dia seguinte
       }
     }
     if (!ap) throw new Error('sem horário livre para a médica sintética em outubro/2026');
@@ -708,7 +708,7 @@ async function setupI2() {
             'agendado'::appointment_status, 150, 'Sintético E2E', 150, 30, ${doctorName}, 'attendant', ${tag})
           RETURNING id::text AS id, ${date}::text AS date`);
       } catch (e) {
-        if (pgCode(e) !== '23P01') throw e;
+        if (pgCode(e) !== '23P01' && pgCode(e) !== '23505') throw e; // horário ocupado (exclusão ou índice do horário do médico)
       }
     }
     if (!ap) throw new Error(`sem horário livre (${key})`);
@@ -1015,7 +1015,7 @@ async function setupP75() {
             'agendado'::appointment_status, 150, 'Sintético E2E', 150, 30, 'Dra. Substituição E2E', 'attendant', ${tag})
           RETURNING id::text AS id, ${date}::text AS date`);
       } catch (e) {
-        if (pgCode(e) !== '23P01') throw e;
+        if (pgCode(e) !== '23P01' && pgCode(e) !== '23505') throw e; // horário ocupado (exclusão ou índice do horário do médico)
       }
     }
     if (!ap) throw new Error(`sem horário livre (${key})`);
@@ -1147,7 +1147,7 @@ async function setupSadt() {
             'agendado'::appointment_status, 120, 'Psicoterapia sintética E2E', 120, 50, 'Dra. Solicitante SP/SADT E2E', 'attendant', ${tag}, 'convenio')
           RETURNING id::text AS id`);
       } catch (e) {
-        if (pgCode(e) !== '23P01') throw e;
+        if (pgCode(e) !== '23P01' && pgCode(e) !== '23505') throw e; // horário ocupado (exclusão ou índice do horário do médico)
       }
     }
     if (!ap) throw new Error('sem horário livre hoje para as sessões');
@@ -1275,7 +1275,7 @@ async function setupR54() {
           FROM public.procedures pr WHERE pr.id = ${ref.procedure_id}::uuid
         RETURNING id::text AS id, status::text AS status`);
     } catch (e) {
-      if (pgCode(e) !== '23P01') throw e;
+      if (pgCode(e) !== '23P01' && pgCode(e) !== '23505') throw e; // horário ocupado (exclusão ou índice do horário do médico)
     }
   }
   if (!ap) throw new Error('sem horário livre hoje');
@@ -1536,10 +1536,40 @@ async function setupP84() {
     SELECT g.id::text AS id, g.status::text AS status, g.total_value_cents::int AS total FROM public.hi_guides g
      WHERE g.clinic_id = ${c}::uuid AND g.live AND EXISTS (SELECT 1 FROM public.hi_guide_items i WHERE i.guide_id = g.id AND i.appointment_id = ${s1}::uuid)`);
   if (!g) throw new Error('a guia da 1ª sessão não nasceu (outbox)');
+  // P3.3/P5.2 (agenda): duas sessões AGENDADAS de hoje — a 4ª com a cobertura da solicitação (pronta), da
+  // médica; a 5ª de convênio SEM cobertura (pendência pré-consulta), da outra médica.
+  for (const [key, doctor, doctorName, withCoverage] of [['s4', medica, 'Dra. Itens Adicionais E2E', true], ['s5', medica2, 'Dra. Outra Itens Adicionais E2E', false]] as const) {
+    const tag = `e2e-hi:p84-${run}-${key}`;
+    let [ap] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.appointments WHERE clinic_id = ${c}::uuid AND observacoes = ${tag}`);
+    for (; !ap && hour <= 23; hour++) {
+      try {
+        [ap] = await exec<{ id: string }>(sql`
+          INSERT INTO public.appointments (clinic_id, doctor_id, patient_id, procedure_id, scheduled_at, duration_min, status, valor,
+            snapshot_procedure_name, snapshot_procedure_valor, snapshot_procedure_duracao_min, snapshot_doctor_nome, created_via, observacoes, billing_mode)
+          VALUES (${c}::uuid, ${doctor}::uuid, ${p!.id}::uuid, ${proc!.id}::uuid, ${`${today!.d}T${String(hour).padStart(2, '0')}:30:00Z`}::timestamptz, 25,
+            'agendado'::appointment_status, 120, 'Psicoterapia sintética E2E', 120, 25, ${doctorName}, 'attendant', ${tag}, 'convenio')
+          RETURNING id::text AS id`);
+      } catch (e) {
+        if (pgCode(e) !== '23P01' && pgCode(e) !== '23505') throw e; // horário ocupado
+      }
+    }
+    if (!ap) throw new Error(`sem horário livre hoje (${key})`);
+    if (withCoverage) {
+      const [cv] = await exec<{ n: number }>(sql`SELECT count(*)::int AS n FROM public.hi_appointment_coverages WHERE appointment_id = ${ap.id}::uuid`);
+      if (cv!.n === 0) {
+        await withTenant(c, (tx) => coverage.recordAppointmentCoverage(tx, {
+          clinicId: c, appointmentId: ap!.id, patientId: p!.id, procedureId: proc!.id, appointmentDate: today!.d, guideType: 'sp_sadt',
+          insurerId, planId: null, membershipId: m!.id, authorizationId: null, sadtRequestItemId: mainItem!.id,
+          actor: { kind: 'user', userId: recepcao },
+        }), recepcao);
+      }
+    }
+    sessionsOut[key] = ap.id;
+  }
   const lines = await exec<{ code: string; id: string }>(sql`
     SELECT procedure_code AS code, id::text AS id FROM public.hi_procedure_contracts WHERE clinic_id = ${c}::uuid AND insurer_id = ${insurerId}::uuid AND guide_type = 'sp_sadt'`);
   const out = {
-    clinicId: c, otherClinicId: cb, run, today: today!.d, insurerName, patientName: nome, requestId: r.id,
+    clinicId: c, otherClinicId: cb, run, today: today!.d, insurerName, patientName: nome, cardLast4: card.slice(-4), requestId: r.id,
     guide: g, sessions: sessionsOut, codes: Object.fromEntries(Object.entries(P84_CODES).map(([k, v]) => [k, v.code])),
     lines: Object.fromEntries(lines.map((l) => [l.code, l.id])),
   };

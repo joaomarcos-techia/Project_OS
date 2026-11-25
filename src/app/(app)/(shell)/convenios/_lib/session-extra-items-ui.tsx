@@ -22,6 +22,14 @@ import { RecordExtraItemForm } from './extra-items-ui';
 
 export interface SessionExtraItemsView {
   available: boolean;
+  /** P5.2: resumo administrativo da cobertura (sem valor; carteirinha mascarada). */
+  summary?: {
+    insurerName: string;
+    last4: string | null;
+    status: string;
+    statusLabel: string;
+    issue: string | null;
+  } | null;
   items: Array<{
     id: string;
     tableCode: string;
@@ -44,7 +52,37 @@ export function SessionExtraItemsSection({
   view: SessionExtraItemsView | null;
   recordAction: (input: { appointmentId: string; contractLineId: string; quantity: number }) => Promise<ActionResult<unknown>>;
 }) {
-  if (!view?.available || view.options.length === 0) return null;
+  const summary = view?.summary ?? null;
+  const extras = view?.available === true && view.options.length > 0;
+  if (!summary && !extras) return null;
+  return (
+    <div className="flex flex-col gap-(--sp-2)">
+      {summary ? (
+        <p
+          role="note"
+          aria-label="Convênio do atendimento"
+          data-insurance-summary={summary.status}
+          className="rounded-(--r-md) border border-border px-(--sp-3) py-(--sp-2) text-(length:--fs-sm)"
+        >
+          <span className="font-semibold">Convênio:</span> {summary.insurerName}
+          {summary.last4 ? <span className="tabular-nums"> ••••{summary.last4}</span> : null} · {summary.statusLabel}
+          {summary.issue ? <span className="text-fg-muted"> — {summary.issue}</span> : null}
+        </p>
+      ) : null}
+      {extras ? <ExtraItemsDetails appointmentId={appointmentId} view={view!} recordAction={recordAction} /> : null}
+    </div>
+  );
+}
+
+function ExtraItemsDetails({
+  appointmentId,
+  view,
+  recordAction,
+}: {
+  appointmentId: string;
+  view: SessionExtraItemsView;
+  recordAction: (input: { appointmentId: string; contractLineId: string; quantity: number }) => Promise<ActionResult<unknown>>;
+}) {
   return (
     <details className="rounded-(--r-md) border border-border p-(--sp-3) text-(length:--fs-sm)">
       <summary className="cursor-pointer font-semibold">Itens executados além do agendado</summary>
