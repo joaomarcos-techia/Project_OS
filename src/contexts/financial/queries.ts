@@ -7,7 +7,7 @@
  */
 import 'server-only';
 
-import { and, asc, desc, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 
 import { withTenant } from '@/lib/db/tenant';
 
@@ -927,11 +927,54 @@ export interface ListLancamentosFilter {
   limit?: number;
 }
 
+/**
+ * P10.6: origem do lançamento. `operadora` = recebível de guia de convênio (0153, mantido pelo
+ * Convênios, `source_hi_guide_id` preenchido); `paciente` = todo o resto (particular, fornecedor,
+ * avulso). O Caixa já fica só com o que a recepção cobra (`getCaixaLancamentos`).
+ */
+export type LancamentoOrigem = 'paciente' | 'operadora';
+
 export interface ListLancamentosPageFilter {
   tipo?: LancamentoTipo;
   status?: LancamentoStatus;
+  origem?: LancamentoOrigem;
   page?: number;
   pageSize?: number;
+}
+
+export interface OpenReceivablesByOrigin {
+  paciente: { valor: number; qtd: number };
+  operadora: { valor: number; qtd: number };
+}
+
+/**
+ * P10.6: o "A receber" em aberto separado por origem, com a MESMA fórmula do fluxo
+ * (`valor - valor_pago - valor_glosado`, status pendente/parcial): a soma das duas partes é o
+ * `receber` de `getCashFlowToday`. A glosa definitiva da operadora não está a receber.
+ */
+export async function getOpenReceivablesByOrigin(clinicId: string): Promise<OpenReceivablesByOrigin> {
+  return withTenant(clinicId, async (tx) => {
+    const open = sql`${lancamentos.valor} - ${lancamentos.valorPago} - ${lancamentos.valorGlosado}`;
+    const [row] = await tx
+      .select({
+        paciente: sql<string>`coalesce(sum(${open}) filter (where ${lancamentos.sourceHiGuideId} is null), 0)`,
+        operadora: sql<string>`coalesce(sum(${open}) filter (where ${lancamentos.sourceHiGuideId} is not null), 0)`,
+        qtdPaciente: sql<number>`coalesce(count(*) filter (where ${lancamentos.sourceHiGuideId} is null), 0)::int`,
+        qtdOperadora: sql<number>`coalesce(count(*) filter (where ${lancamentos.sourceHiGuideId} is not null), 0)::int`,
+      })
+      .from(lancamentos)
+      .where(
+        and(
+          eq(lancamentos.clinicId, clinicId),
+          eq(lancamentos.tipo, 'receber'),
+          inArray(lancamentos.status, ['pendente', 'parcial']),
+        ),
+      );
+    return {
+      paciente: { valor: num(row?.paciente), qtd: Number(row?.qtdPaciente ?? 0) },
+      operadora: { valor: num(row?.operadora), qtd: Number(row?.qtdOperadora ?? 0) },
+    };
+  });
 }
 
 export interface PaginatedLancamentos {
@@ -986,6 +1029,8 @@ export async function listLancamentosPage(
     const conds = [eq(lancamentos.clinicId, clinicId)];
     if (filter.tipo) conds.push(eq(lancamentos.tipo, filter.tipo));
     if (filter.status) conds.push(eq(lancamentos.status, filter.status));
+    if (filter.origem === 'operadora') conds.push(isNotNull(lancamentos.sourceHiGuideId));
+    else if (filter.origem === 'paciente') conds.push(isNull(lancamentos.sourceHiGuideId));
     const where = and(...conds);
 
     const [rows, [countRow]] = await Promise.all([

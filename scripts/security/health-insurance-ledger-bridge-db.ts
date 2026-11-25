@@ -333,6 +333,37 @@ try {
   assert.equal((await sql`select count(*)::int as n from public.lancamentos where clinic_id = ${trialClinic}::uuid and source_hi_guide_id is not null`)[0]!.n, 0);
   pass('assinatura suspensa (cancelada): lote novo negado, mas o pagamento de lote JÁ enviado entra no livro (D24-a); trial: nenhuma operação de faturamento de convênio, nenhum recebível de operadora; ativa: fluxo normal (cenários acima)');
 
+  // ── P10.6: relatórios separam paciente × operadora; o Caixa fica só com o que a recepção cobra ──
+  {
+    const finq = await import('../../src/contexts/financial/queries');
+    const from = new Date(Date.now() - 86_400_000);
+    const to = new Date(Date.now() + 86_400_000);
+    const split = await finq.getOpenReceivablesByOrigin(A.clinicId);
+    const flow = await finq.getCashFlowToday(A.clinicId, from, to);
+    const [ref] = (await sql`select
+        coalesce(sum(valor - valor_pago - valor_glosado) filter (where source_hi_guide_id is not null), 0)::numeric as op,
+        coalesce(sum(valor - valor_pago - valor_glosado) filter (where source_hi_guide_id is null), 0)::numeric as pac
+      from public.lancamentos where clinic_id = ${A.clinicId}::uuid and tipo = 'receber' and status in ('pendente','parcial')`) as unknown as [{ op: string; pac: string }];
+    assert.equal(split.operadora.valor.toFixed(2), Number(ref.op).toFixed(2));
+    assert.equal(split.paciente.valor.toFixed(2), Number(ref.pac).toFixed(2));
+    assert.ok(split.operadora.qtd > 0 && split.paciente.qtd > 0, JSON.stringify(split));
+    assert.equal((split.paciente.valor + split.operadora.valor).toFixed(2), flow.receber.toFixed(2));
+    assert.equal(split.paciente.qtd + split.operadora.qtd, flow.contagens.receber);
+    const all = await finq.listLancamentosPage(A.clinicId, { tipo: 'receber', pageSize: 200 });
+    const op = await finq.listLancamentosPage(A.clinicId, { tipo: 'receber', origem: 'operadora', pageSize: 200 });
+    const pac = await finq.listLancamentosPage(A.clinicId, { tipo: 'receber', origem: 'paciente', pageSize: 200 });
+    assert.equal(op.total + pac.total, all.total);
+    assert.ok(op.total > 0 && pac.total > 0);
+    assert.ok(op.items.every((l) => l.sourceHiGuideId !== null) && pac.items.every((l) => l.sourceHiGuideId === null));
+    const caixa = await finq.getCaixaLancamentos(A.clinicId, from, to);
+    const inCaixa = [...caixa.pendentes, ...caixa.parciais, ...caixa.pagosHoje];
+    assert.ok(inCaixa.every((l) => l.sourceHiGuideId === null));
+    assert.equal(caixa.pendentes.length + caixa.parciais.length, split.paciente.qtd);
+    const splitB = await finq.getOpenReceivablesByOrigin(B.clinicId);
+    assert.equal(splitB.operadora.qtd, 0);
+    pass(`P10.6: "A receber" separado por origem com a fórmula valor − pago − glosado (paciente R$ ${split.paciente.valor.toFixed(2)} + operadora R$ ${split.operadora.valor.toFixed(2)} = fluxo R$ ${flow.receber.toFixed(2)}); filtro de origem na lista (${pac.total} + ${op.total} = ${all.total}); Caixa só com recebíveis do paciente; outra clínica não vê os de A`);
+  }
+
   // ── Fecho: divergência vazia e nada fora do convênio mudou ────────────
   assert.deepEqual((await drift(A)).length, 0);
   const [{ n: lancOutsideAfter }] = (await sql`select count(*)::int as n from public.lancamentos where source_hi_guide_id is null and descricao <> 'Particular sintético'`) as unknown as [{ n: number }];
@@ -340,8 +371,8 @@ try {
   const [{ n: entries }] = (await sql`select count(*)::int as n from public.hi_ledger_entries`) as unknown as [{ n: number }];
   pass(`conferência final: divergência vazia; ${entries} movimentos no diário da ponte, cada um com origem única; nenhum lançamento particular criado ou alterado pela ponte`);
 
-  console.log(`\n${passed}/18 cenários da ponte financeira (0153) passaram.`);
-  assert.equal(passed, 18);
+  console.log(`\n${passed}/19 cenários da ponte financeira (0153) e da separação paciente × operadora (P10.6) passaram.`);
+  assert.equal(passed, 19);
 } finally {
   await cluster.stop();
 }

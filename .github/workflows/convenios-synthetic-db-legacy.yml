@@ -137,7 +137,7 @@ jobs:
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55596 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-guides-db.ts
 
-      - name: "Ponte com o livro (0153)"
+      - name: "Ponte com o livro (0153) e separação paciente × operadora (P10.6)"
         if: ${{ !cancelled() }}
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55597 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-ledger-bridge-db.ts
