@@ -51,3 +51,36 @@ linha entrava no reconcile do TISS e podia virar guia de atendimento já faturad
 - A referência histórica e a regra ficam no TISS.
 - A implementação entra **depois** do rebase final do #55 sobre #53 → #56, para não editar arquivos do #56 antes
   do merge dele.
+
+## Implementação (25/11/2026, noite) — opção (b), diretriz do fundador
+
+**Estado: PASS TÉCNICO LOCAL.** A migration é **candidata** (fora do journal), testada em Postgres local; não
+aplicada no DEV nem em produção. Sem E2E no Preview neste ciclo (GitHub Actions suspenso; publicar exigiria push).
+
+- **Número: 0169**, não 0168. A 0168 é a `saas_pix_replacement_intents` do #64, já aplicada no DEV (ledger lido em
+  25/11, READ ONLY: 169 linhas, última com hash `844cf2f2…`, igual ao arquivo do #64).
+- **Arquivo:** `docs/convenios/migrations/0169_hi_historical_coverages.candidate.sql` (+ `.rollback.sql`).
+- **Formato do arquivo de importação:** por linha, `billingMode: "convenio"`, `insurerAnsRegistry` (6 dígitos) e,
+  opcional, `planCode` (código do plano na operadora, `hi_plans.operator_code`). Sem carteirinha.
+- **Validação:** esquema (convênio exige registro; registro exige convênio; plano exige registro) e, na mesma
+  transação, a porta do Convênios: Convênios contratado (D24) e ligado; operadora da clínica e ativa; plano da
+  operadora e ativo. Qualquer erro recusa o lote inteiro, com "linha N: motivo".
+- **Desenho sem ciclo:** a agenda define a porta (`HistoricalCoveragePort`); a camada do app injeta a do Convênios
+  (`historicalCoveragePort`). Linha de convênio sem porta é recusada.
+- **Banco:** guardas comercial (0151) e de módulo (0164); a referência só para atendimento importado, do mesmo lote,
+  como convênio; operadora da clínica e ativa; plano da operadora; uma por atendimento (PK); imutável; RLS forçada.
+- **Faturamento:** nada nasce. Evento, reconcile e correção ignoram o importado (guarda de `0005813e`).
+- **Auditoria:** a do lote (`scheduling.import.completed`) passa a levar a contagem `historicalCoverages`, sem dado
+  pessoal.
+- **Idempotência:** a da importação (chave do lote); reimportar o mesmo atendimento não duplica a referência (PK).
+
+**Provas locais:**
+
+| Prova | Resultado |
+| --- | --- |
+| `scripts/security/health-insurance-historical-import-db.ts` (cadeia do DEV + 0169, Postgres 17 local) | **7/7**: linha válida; 6 erros legíveis por linha (inexistente, de outra clínica, suspensa, plano inexistente, de outra operadora, arquivado); trial e módulo desligado recusados; guardas do banco; nenhuma guia, pendência, recebível ou coparticipação; isolamento; reversão |
+| `src/contexts/scheduling/historical-convenio-import.test.ts` | 5/5 (esquema; sem porta recusa; erro recusa o lote antes de gravar; grava a referência do mesmo atendimento; lote particular não chama a porta) |
+| gates estruturais locais | madge, arch DB, observabilidade, registro de handlers e inventário (regenerado: só linhas) |
+
+**Falta para PASS integral:** aplicar a 0169 no DEV na janela de integração (depois da 0168 do #64, com pré-voo,
+backup e reversão, como a 0167) e o E2E no Preview com um arquivo misto.

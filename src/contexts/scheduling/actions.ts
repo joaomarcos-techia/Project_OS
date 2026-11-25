@@ -17,6 +17,7 @@
 import { and, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 
 import { PERMISSIONS } from '@/lib/auth/permissions';
+import type { Tx } from '@/lib/db';
 import { requireClinicId, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
 import { idempotentMutation } from '@/lib/idempotency/mutation';
 import { MUTATION_IDEM_TTL_SECONDS } from '@/lib/idempotency/ttl';
@@ -84,6 +85,8 @@ import {
   type DoctorAbsenceResult,
   type HistoricalAppointmentImportInput,
   type HistoricalAppointmentImportResult,
+  type HistoricalCoverageLine,
+  type HistoricalCoveragePort,
   type RescheduleInput,
   type RecoverAppointmentInput,
   type RecurrenceSeriesResult,
@@ -289,6 +292,7 @@ export async function createRecurringAppointments(
 export async function importAppointmentHistory(
   input: HistoricalAppointmentImportInput,
   idempotencyKey: string,
+  deps: { historicalCoverage?: HistoricalCoveragePort<Tx> } = {},
 ): Promise<HistoricalAppointmentImportResult> {
   const user = await requireUser();
   await requireFreshPermission(PERMISSIONS.IMPORT_AGENDA);
@@ -299,6 +303,24 @@ export async function importAppointmentHistory(
   if (data.items.some((item) => new Date(item.scheduledAt).getTime() >= now)) {
     throw new SchedulingValidationError(
       'a importacao historica aceita apenas atendimentos passados',
+    );
+  }
+  // P4.7-b: linhas de convênio histórico. Sem a porta do Convênios, recusa (nunca grava convênio sem validar).
+  const coverageLines: HistoricalCoverageLine[] = data.items.flatMap((item, index) =>
+    item.billingMode === 'convenio'
+      ? [
+          {
+            line: index + 1,
+            insurerAnsRegistry: item.insurerAnsRegistry!,
+            planCode: item.planCode ?? null,
+          },
+        ]
+      : [],
+  );
+  const coveragePort = deps.historicalCoverage;
+  if (coverageLines.length > 0 && !coveragePort) {
+    throw new SchedulingValidationError(
+      'a importação de atendimento de convênio não está disponível por este caminho',
     );
   }
 
@@ -319,6 +341,14 @@ export async function importAppointmentHistory(
         },
       },
       async (tx) => {
+        // Valida TODAS as linhas de convênio antes de gravar qualquer coisa: o lote é atômico.
+        const resolved =
+          coverageLines.length > 0
+            ? await coveragePort!.resolve(tx, clinicId, coverageLines)
+            : null;
+        if (resolved && !resolved.ok) {
+          throw new SchedulingValidationError(`importação recusada: ${resolved.errors.join('; ')}`);
+        }
         const [batch] = await tx
           .insert(appointmentImportBatches)
           .values({
@@ -350,6 +380,23 @@ export async function importAppointmentHistory(
           appointmentIds.push(appointment.id);
         }
 
+        if (resolved?.ok) {
+          await coveragePort!.record(
+            tx,
+            coverageLines.map((l) => {
+              const ref = resolved.byLine.get(l.line)!;
+              return {
+                clinicId,
+                appointmentId: appointmentIds[l.line - 1]!,
+                insurerId: ref.insurerId,
+                planId: ref.planId,
+                importBatchId: batch!.id,
+                createdBy: user.userId,
+              };
+            }),
+          );
+        }
+
         await tx
           .update(appointmentImportBatches)
           .set({
@@ -371,6 +418,7 @@ export async function importAppointmentHistory(
             clinicId,
             source: data.source,
             importedAppointments: appointmentIds.length,
+            historicalCoverages: coverageLines.length,
           },
           idempotencyKey: `${idempotencyKey}:import_completed`,
           correlationId: ctx.correlationId ?? null,
@@ -379,6 +427,7 @@ export async function importAppointmentHistory(
           batchId: batch!.id,
           importedAppointments: appointmentIds.length,
           appointmentIds,
+          historicalCoverages: coverageLines.length,
         };
       },
     );

@@ -77,6 +77,8 @@ export type {
   DoctorAbsenceResult,
   HistoricalAppointmentImportInput,
   HistoricalAppointmentImportResult,
+  HistoricalCoverageLine,
+  HistoricalCoveragePort,
   CreateSchedulableResourceInput,
   SchedulableResourceDTO,
   CreateRecurringAppointmentsInput,

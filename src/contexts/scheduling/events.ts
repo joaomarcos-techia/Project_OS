@@ -280,6 +280,8 @@ export const AppointmentImportCompletedSchema = z.object({
   clinicId: uuid,
   source: z.string().min(1),
   importedAppointments: z.number().int().positive(),
+  /** P4.7-b: linhas registradas como convênio histórico (referência, nunca faturamento). */
+  historicalCoverages: z.number().int().min(0).optional(),
 });
 export type AppointmentImportCompletedPayload = z.infer<typeof AppointmentImportCompletedSchema>;
 

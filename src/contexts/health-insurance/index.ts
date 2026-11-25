@@ -41,3 +41,9 @@ export {
   type TissXsdLimitsProbe,
   type TissXsdSelfCheck,
 } from './tiss/xml/self-check';
+// P4.7-b — convênio em atendimento histórico importado (referência; nunca faturamento).
+export {
+  historicalCoveragePort,
+  recordHistoricalCoveragesTx,
+  resolveHistoricalCoverageLinesTx,
+} from './historical-coverage';
