@@ -10,7 +10,6 @@ import { parse } from 'dotenv';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 // This isolated migrator must hold a session advisory lock on its own guarded DEV connection.
-// eslint-disable-next-line no-restricted-imports
 import postgres from 'postgres';
 import { z } from 'zod';
 

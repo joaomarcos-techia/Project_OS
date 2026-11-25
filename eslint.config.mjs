@@ -152,6 +152,8 @@ const config = [
       'scripts/security/tenant-isolation.ts',
       // Guarded DEV release operator; explicit fixed ref and frozen manifest.
       'scripts/security/abacatepay-dev-release.ts',
+      // One-shot Pix migrator: exact DEV ref, pinned journal/hash and session lock.
+      'scripts/abacatepay-pix-dev-apply.ts',
       'scripts/security/signup-regression.ts',
       // Mesmo bootstrap, para o harness de provisionamento O-6: cluster efêmero
       // sob o TEMP do SO, loopback fixo, migrations reais aplicadas em ordem.

@@ -42,6 +42,8 @@ const DB_ORIGIN = 'src/lib/db/index.ts';
 const ALLOWED_POSTGRES_IMPORTS = new Set([
   // Exact DEV ref, frozen hashes, read-only default; one reviewed migrator session.
   'scripts/security/abacatepay-dev-release.ts',
+  // One-shot Pix migrator: exact DEV ref, pinned journal/hash and session lock.
+  'scripts/abacatepay-pix-dev-apply.ts',
   'src/lib/db/index.ts',
   // Cluster temporário próprio, loopback fixo e data_directory conferido antes do DDL.
   'scripts/security/tenant-isolation.ts',
@@ -65,6 +67,9 @@ const ALLOWED_POSTGRES_IMPORTS = new Set([
 const ALLOWED_DRIZZLE_PG_IMPORTS = new Set([
   'src/lib/db/index.ts',
   'scripts/security/abacatepay-dev-release.ts',
+  'scripts/abacatepay-pix-dev-apply.ts',
+  // Disposable PostgreSQL fixture; the shared scratch-schema owns its loopback pool.
+  'scripts/security/abacatepay-pix-release-db.ts',
 ]);
 const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
   db: new Set(['src/lib/db/tenant.ts']),
