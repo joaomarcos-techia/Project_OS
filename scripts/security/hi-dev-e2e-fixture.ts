@@ -1541,8 +1541,11 @@ async function setupP84() {
      WHERE g.clinic_id = ${c}::uuid AND g.live AND EXISTS (SELECT 1 FROM public.hi_guide_items i WHERE i.guide_id = g.id AND i.appointment_id = ${s1}::uuid)`);
   if (!g) throw new Error('a guia da 1ª sessão não nasceu (outbox)');
   // P3.3/P5.2 (agenda): duas sessões AGENDADAS de hoje — a 4ª com a cobertura da solicitação (pronta), da
-  // médica; a 5ª de convênio SEM cobertura (pendência pré-consulta), da outra médica.
-  for (const [key, doctor, doctorName, withCoverage] of [['s4', medica, 'Dra. Itens Adicionais E2E', true], ['s5', medica2, 'Dra. Outra Itens Adicionais E2E', false]] as const) {
+  // médica; a 5ª de convênio SEM cobertura (pendência pré-consulta), da outra médica. `--sem-agenda`
+  // (explícito) pula as duas: só o spec do consultório/agenda as usa, e a agenda da médica sintética
+  // lota com várias rodadas no mesmo dia. Sem a opção, faltar horário continua sendo erro.
+  const agenda = !process.argv.includes('--sem-agenda');
+  for (const [key, doctor, doctorName, withCoverage] of agenda ? ([['s4', medica, 'Dra. Itens Adicionais E2E', true], ['s5', medica2, 'Dra. Outra Itens Adicionais E2E', false]] as const) : []) {
     const tag = `e2e-hi:p84-${run}-${key}`;
     let [ap] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.appointments WHERE clinic_id = ${c}::uuid AND observacoes = ${tag}`);
     for (; !ap && hi < HOURS.length; hi++) {
