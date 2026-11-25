@@ -1,13 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { bump, signOut, clearSelector, currentUser, redirect, logError } = vi.hoisted(() => ({
+const { bump, signOut, clearSelector, currentUser, logError } = vi.hoisted(() => ({
   bump: vi.fn(),
   signOut: vi.fn(),
   clearSelector: vi.fn(),
   currentUser: vi.fn(),
-  redirect: vi.fn((url: string): never => {
-    throw new Error(`redirect:${url}`);
-  }),
   logError: vi.fn(),
 }));
 vi.mock('@/lib/auth/session-epoch', () => ({ bumpSessionEpoch: bump }));
@@ -17,7 +14,6 @@ vi.mock('@/lib/auth/supabase-server', () => ({
 }));
 vi.mock('@/lib/auth/tenant-context', () => ({ getCurrentUser: currentUser }));
 vi.mock('@/lib/observability/logger', () => ({ logger: { error: logError } }));
-vi.mock('next/navigation', () => ({ redirect }));
 
 import { POST } from './route';
 
@@ -30,8 +26,10 @@ beforeEach(() => {
 });
 
 describe('logout global só confirma as duas revogações', () => {
-  it('revoga access antes de refresh e só então redireciona', async () => {
-    await expect(POST()).rejects.toThrow('redirect:/login');
+  it('revoga access antes de refresh e usa 303 para abrir login por GET', async () => {
+    const response = await POST();
+    expect(response.status).toBe(303);
+    expect(response.headers.get('Location')).toBe('/login');
     expect(bump).toHaveBeenCalledWith('local-user', 'logout');
     expect(signOut).toHaveBeenCalledWith({ scope: 'global' });
     expect(bump.mock.invocationCallOrder[0]).toBeLessThan(signOut.mock.invocationCallOrder[0]!);
@@ -46,7 +44,6 @@ describe('logout global só confirma as duas revogações', () => {
     });
     const response = await POST();
     expect(response.status).toBe(503);
-    expect(redirect).not.toHaveBeenCalled();
     expect(clearSelector).not.toHaveBeenCalled();
     expect(JSON.stringify(logError.mock.calls)).not.toContain('sensitive provider data');
   });
@@ -57,12 +54,13 @@ describe('logout global só confirma as duas revogações', () => {
       else bump.mockResolvedValue(failure);
       expect((await POST()).status).toBe(503);
       expect(signOut).not.toHaveBeenCalled();
-      expect(redirect).not.toHaveBeenCalled();
     },
   );
   it('sem sessão limpa os cookies sem alterar um profile', async () => {
     currentUser.mockResolvedValue(null);
-    await expect(POST()).rejects.toThrow('redirect:/login');
+    const response = await POST();
+    expect(response.status).toBe(303);
+    expect(response.headers.get('Location')).toBe('/login');
     expect(bump).not.toHaveBeenCalled();
     expect(signOut).toHaveBeenCalledWith({ scope: 'global' });
   });

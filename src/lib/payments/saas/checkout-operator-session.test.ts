@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   assertSamePreparation,
+  assertFixtureAuthReadiness,
   assertCheckoutDevHistory,
   checkoutUrl,
   checkoutSnapshotSchema,
@@ -60,6 +61,24 @@ afterEach(async () => {
 });
 
 describe('checkout operator environment and immutable preparation', () => {
+  it('accepts an unused probe for a fresh run and requires the exact Auth marker on resume', () => {
+    expect(() => assertFixtureAuthReadiness(null, 404, null)).not.toThrow();
+    expect(() => assertFixtureAuthReadiness(sample, 404, null)).not.toThrow();
+    expect(() => assertFixtureAuthReadiness(null, 200, {})).toThrow();
+    const resumed = { ...sample, userId: 'dc3b7ad9-a829-4821-8cde-9197c8ec0c42' };
+    const identity = {
+      id: resumed.userId,
+      user_metadata: { qoro_fixture_run: resumed.runId },
+    };
+    expect(() => assertFixtureAuthReadiness(resumed, 200, identity)).not.toThrow();
+    expect(() => assertFixtureAuthReadiness(resumed, 404, null)).toThrow();
+    expect(() =>
+      assertFixtureAuthReadiness(resumed, 200, {
+        ...identity,
+        user_metadata: { qoro_fixture_run: '07c56fa7-fb2a-4290-9235-b84e81b99950' },
+      }),
+    ).toThrow();
+  });
   const requiredMigrations = Array.from({ length: 7 }, (_, index) => ({
     tag: `0${136 + index}_synthetic`,
     when: 1794000000000 + index,
@@ -182,6 +201,18 @@ describe('checkout operator environment and immutable preparation', () => {
         hash: 'a3af4a973f14cc3fb3720423d4c03f71f32330024f028d07191f40f4077c64cb',
         created_at: '1795555373857',
       },
+      {
+        hash: 'ccf1639b4eccbdd50e5aa5b2f49a0b55d964ff8092dc47c09d77db61487025c6',
+        created_at: '1795641773857',
+      },
+      {
+        hash: '7249f069fc5454e74034e1004f3be7d04606c020d7b16244b4014aafc861f3f0',
+        created_at: '1795728173857',
+      },
+      {
+        hash: '844cf2f2592edba659bbcc84fa2d9ab3b265b7e688ce60112307db5815be2520',
+        created_at: '1795814573857',
+      },
     ];
     for (let prefix = 1; prefix <= extensions.length; prefix++) {
       const applied = [...appliedMigrations, ...frozen, ...extensions.slice(0, prefix)];
@@ -193,12 +224,12 @@ describe('checkout operator environment and immutable preparation', () => {
     }
     const full = [...appliedMigrations, ...frozen, ...extensions];
     expect(
-      assertCheckoutDevHistory(166, full, requiredMigrations, reviewed).parallelMigrations.at(-1),
-    ).toBe('0165_hi_guide_cancellations');
+      assertCheckoutDevHistory(169, full, requiredMigrations, reviewed).parallelMigrations.at(-1),
+    ).toBe('0168_saas_pix_replacement_intents');
     for (const extension of extensions) {
       expect(() =>
         assertCheckoutDevHistory(
-          166,
+          169,
           full.map((row) => (row === extension ? { ...row, hash: 'f'.repeat(64) } : row)),
           requiredMigrations,
           reviewed,
@@ -206,7 +237,7 @@ describe('checkout operator environment and immutable preparation', () => {
       ).toThrow();
       expect(() =>
         assertCheckoutDevHistory(
-          166,
+          169,
           full.filter((row) => row !== extension),
           requiredMigrations,
           reviewed,
@@ -217,7 +248,7 @@ describe('checkout operator environment and immutable preparation', () => {
     for (const extension of extensions.slice(0, -1)) {
       expect(() =>
         assertCheckoutDevHistory(
-          165,
+          168,
           full.filter((row) => row !== extension),
           requiredMigrations,
           reviewed,
@@ -226,12 +257,12 @@ describe('checkout operator environment and immutable preparation', () => {
     }
     expect(() =>
       assertCheckoutDevHistory(
-        167,
+        170,
         [
           ...full,
           {
             hash: 'f'.repeat(64),
-            created_at: '1795641773857',
+            created_at: '1795900973857',
           },
         ],
         requiredMigrations,
@@ -240,7 +271,7 @@ describe('checkout operator environment and immutable preparation', () => {
     ).toThrow();
     expect(() =>
       assertCheckoutDevHistory(
-        166,
+        169,
         [{ ...appliedMigrations[0], hash: 'f'.repeat(64) }, ...full.slice(1)],
         requiredMigrations,
         reviewed,

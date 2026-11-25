@@ -12,8 +12,10 @@ import { GatewayReadError } from '../src/lib/payments/saas/contracts';
 import { initialAbacatePayAccessPeriod } from '../src/contexts/billing/internal/abacatepay-period';
 import {
   assertSamePreparation,
+  assertFixtureAuthReadiness,
   assertCheckoutDevHistory,
   BILLING_BRANCH,
+  COMMERCIAL_INTEGRATION_BRANCH,
   checkoutUrl,
   checkoutSnapshotSchema,
   checkoutScenario,
@@ -41,7 +43,7 @@ const deploymentSchema = z.object({
   target: z.string().nullable().optional(),
   projectId: z.literal(PROJECT),
   meta: z.object({
-    githubCommitRef: z.literal(BILLING_BRANCH),
+    githubCommitRef: z.enum([BILLING_BRANCH, COMMERCIAL_INTEGRATION_BRANCH]),
     githubCommitSha: z.string().regex(/^[a-f0-9]{40}$/),
   }),
 });
@@ -134,13 +136,24 @@ async function main(): Promise<void> {
         'x-qoro-e2e-signature': signature,
       },
       body: JSON.stringify({ timestamp, nonce }),
+    }).catch(() => {
+      stage = 'signed_dev_runtime_transport';
+      throw new Error('Signed DEV runtime transport failed');
     });
-    assert.equal(response.status, 200);
-    z.object({
-      environment: z.literal('preview'),
-      authProjectRef: z.literal(DEV_REF),
-      databaseProjectRef: z.literal(DEV_REF),
-    }).parse(await response.json());
+    if (response.status !== 200) {
+      stage = `signed_dev_runtime_http_${response.status}`;
+      throw new Error('Signed DEV runtime proof failed');
+    }
+    try {
+      z.object({
+        environment: z.literal('preview'),
+        authProjectRef: z.literal(DEV_REF),
+        databaseProjectRef: z.literal(DEV_REF),
+      }).parse(await response.json());
+    } catch {
+      stage = 'signed_dev_runtime_response';
+      throw new Error('Signed DEV runtime response invalid');
+    }
   }
   stage = 'signed_dev_runtime';
   await runtimeProof(origin);
@@ -152,24 +165,25 @@ async function main(): Promise<void> {
   z.string()
     .min(1)
     .parse(settings.LOGIN_HASH_PEPPER_DEV ?? settings.LOGIN_HASH_PEPPER);
-  const retainedIdentity = z
-    .object({ userId: z.uuid(), runId: z.uuid() })
-    .parse(JSON.parse(await readFile(path.join(catalogDirectory, 'ui-expired.json'), 'utf8')));
-  // Read only an already identified synthetic user; never enumerate real accounts.
+  const retainedSession = await readSession(directory);
+  // A fresh run proves admin access with an unassigned random ID. A resumed run
+  // must match its own Auth marker; never substitute a catalog user's marker.
+  const readinessUserId = retainedSession?.userId ?? randomUUID();
   const adminProbe = await fetch(
-    `https://${DEV_REF}.supabase.co/auth/v1/admin/users/${retainedIdentity.userId}`,
+    `https://${DEV_REF}.supabase.co/auth/v1/admin/users/${readinessUserId}`,
     {
       redirect: 'error',
       headers: { apikey: authSecret, authorization: `Bearer ${authSecret}` },
       signal: AbortSignal.timeout(30_000),
     },
   );
-  assert.equal(adminProbe.status, 200);
-  const adminUser = z
-    .object({ id: z.uuid(), user_metadata: z.object({ qoro_fixture_run: z.uuid() }) })
-    .parse(await adminProbe.json());
-  assert.equal(adminUser.id, retainedIdentity.userId);
-  assert.equal(adminUser.user_metadata.qoro_fixture_run, retainedIdentity.runId);
+  stage = `dev_auth_admin_http_${adminProbe.status}`;
+  assertFixtureAuthReadiness(
+    retainedSession,
+    adminProbe.status,
+    adminProbe.status === 200 ? await adminProbe.json() : null,
+  );
+  stage = 'payment_reader_import';
   // The transport validates the application's environment at import time. Bind
   // only the guarded DEV settings before importing it; never inherit live DB.
   Object.assign(process.env, {
@@ -188,14 +202,18 @@ async function main(): Promise<void> {
     timeoutMs: 30_000,
     readAttempts: 2,
   });
+  const requiresWebhook = action === 'create' || action === 'verify';
   stage = 'sandbox_store';
   const store = await reader.readStore();
   const catalog = z
     .object({ runId: z.literal('qoro-trial-deferred-20261108'), storeIdSha256: z.string() })
     .parse(JSON.parse(await readFile(path.join(catalogDirectory, 'manifest.json'), 'utf8')));
-  assert.equal(hash(store.id), catalog.storeIdSha256);
-  stage = 'sandbox_probe';
-  await reader.readProduct(PROBE);
+  stage = 'sandbox_store_id_match';
+  if (requiresWebhook) assert.equal(hash(store.id), catalog.storeIdSha256);
+  if (requiresWebhook) {
+    stage = 'sandbox_probe';
+    await reader.readProduct(PROBE);
+  }
   const planCatalog = z
     .object({
       storeHash: z.string().regex(/^[a-f0-9]{64}$/),
@@ -215,81 +233,93 @@ async function main(): Promise<void> {
         ),
       ),
     );
-  assert.equal(planCatalog.storeHash, hash(store.id));
+  if (requiresWebhook) assert.equal(planCatalog.storeHash, hash(store.id));
   const products = planCatalog.products;
-  for (const code of entryPlan.options) {
+  for (const code of requiresWebhook ? entryPlan.options : []) {
     stage = `sandbox_product_${code}`;
     const product = await reader.readProduct(products[code]);
+    stage = `sandbox_product_${code}_price`;
     assert.equal(product.price, expectedAmount(code));
+    stage = `sandbox_product_${code}_currency`;
     assert.equal(product.currency, 'BRL');
     const prefix =
       code === 'consultorio_2026' || code === 'clinica_2026_2'
         ? 'qoro-trial-deferred-20261108'
         : 'plan-catalog-20261109';
+    stage = `sandbox_product_${code}_external_id`;
     assert.equal(product.externalId, `${prefix}-${code}`);
+    stage = `sandbox_product_${code}_cycle`;
     assert.equal(product.cycle, 'MONTHLY');
+    stage = `sandbox_product_${code}_trial`;
     assert.equal(product.trialDays ?? null, null);
   }
-  stage = 'webhook_target';
-  const hooks = await fetch('https://api.abacatepay.com/v2/webhooks/list?limit=100', {
-    redirect: 'error',
-    headers: { authorization: `Bearer ${apiKey}` },
-    signal: AbortSignal.timeout(15_000),
-  });
-  assert.equal(hooks.status, 200);
-  const webhooks = z
-    .object({
-      success: z.literal(true),
-      data: z.array(
-        z.object({
-          id: z.string().startsWith('webh_'),
-          name: z.string(),
-          endpoint: z.url(),
-          devMode: z.boolean(),
-          v2: z.boolean(),
-          events: z.array(z.string()),
-        }),
-      ),
-      pagination: z.object({ hasMore: z.literal(false) }),
-    })
-    .parse(await hooks.json());
-  const [hook] = webhooks.data.filter(
-    (item) => item.name === '[SANDBOX] Qoro trial deferred 20261108',
-  );
-  assert.equal(
-    webhooks.data.filter((item) => item.name === '[SANDBOX] Qoro trial deferred 20261108').length,
-    1,
-  );
-  assert.ok(hook?.devMode && hook.v2 && hook.events.includes('subscription.completed'));
-  const target = new URL(hook.endpoint);
-  previewOrigin.parse(target.origin);
-  assert.equal(target.pathname, '/api/webhooks/abacatepay');
-  assert.equal(
-    target.searchParams.get('x-vercel-protection-bypass'),
-    bypass,
-    'Webhook protection credential is stale',
-  );
-  const targetDeployment = deploymentSchema.parse(
-    vercel(`/v13/deployments/${target.hostname}?teamId=${TEAM}`),
-  );
-  assert.notEqual(targetDeployment.target, 'production');
-  assert.equal(
-    targetDeployment.meta.githubCommitSha,
-    deployment.meta.githubCommitSha,
-    'Webhook points to a different release',
-  );
-  await runtimeProof(target.origin);
-  const denied = await fetch(
-    new URL('/api/webhooks/abacatepay?webhookSecret=invalid-readiness-probe', origin),
-    {
-      method: 'POST',
-      body: '{}',
+  // A login/trial fixture cannot cause a provider event. Require the exact
+  // webhook release only when creating or verifying a Sandbox checkout.
+  if (requiresWebhook) {
+    stage = 'webhook_target';
+    const hooks = await fetch('https://api.abacatepay.com/v2/webhooks/list?limit=100', {
       redirect: 'error',
-      signal: AbortSignal.timeout(45_000),
-      headers: { 'content-type': 'application/json', 'x-vercel-protection-bypass': bypass },
-    },
-  );
-  assert.equal(denied.status, 401);
+      headers: { authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(15_000),
+    });
+    assert.equal(hooks.status, 200);
+    const webhooks = z
+      .object({
+        success: z.literal(true),
+        data: z.array(
+          z.object({
+            id: z.string().startsWith('webh_'),
+            name: z.string(),
+            endpoint: z.url(),
+            devMode: z.boolean(),
+            v2: z.boolean(),
+            events: z.array(z.string()),
+          }),
+        ),
+        pagination: z.object({ hasMore: z.literal(false) }),
+      })
+      .parse(await hooks.json());
+    const [hook] = webhooks.data.filter(
+      (item) => item.name === '[SANDBOX] Qoro trial deferred 20261108',
+    );
+    assert.equal(
+      webhooks.data.filter((item) => item.name === '[SANDBOX] Qoro trial deferred 20261108').length,
+      1,
+    );
+    assert.ok(hook?.devMode && hook.v2 && hook.events.includes('subscription.completed'));
+    const target = new URL(hook.endpoint);
+    previewOrigin.parse(target.origin);
+    assert.equal(target.pathname, '/api/webhooks/abacatepay');
+    assert.equal(
+      target.searchParams.get('x-vercel-protection-bypass'),
+      bypass,
+      'Webhook protection credential is stale',
+    );
+    const targetDeployment = deploymentSchema.parse(
+      vercel(`/v13/deployments/${target.hostname}?teamId=${TEAM}`),
+    );
+    assert.notEqual(targetDeployment.target, 'production');
+    assert.equal(
+      targetDeployment.meta.githubCommitSha,
+      deployment.meta.githubCommitSha,
+      'Webhook points to a different release',
+    );
+    await runtimeProof(target.origin);
+  }
+  stage = 'invalid_webhook_auth_probe';
+  const denied = requiresWebhook
+    ? await fetch(
+        new URL('/api/webhooks/abacatepay?webhookSecret=invalid-readiness-probe', origin),
+        {
+          method: 'POST',
+          body: '{}',
+          redirect: 'error',
+          signal: AbortSignal.timeout(45_000),
+          headers: { 'content-type': 'application/json', 'x-vercel-protection-bypass': bypass },
+        },
+      )
+    : null;
+  if (denied) assert.equal(denied.status, 401);
   // One-shot process only. Bind the canonical pool before its first import;
   // never introduce a new driver origin or inherit a production connection.
   const { dbAdmin } = await import('../src/lib/db');
@@ -351,9 +381,10 @@ async function main(): Promise<void> {
       amountMinor: preparation.amountMinor,
       signedDevRuntime: true,
       devAuthAdminReadiness: true,
-      sandboxProducts: entryPlan.options.length,
-      webhookTargetSameRelease: true,
-      invalidWebhookHttp: denied.status,
+      sandboxProducts: requiresWebhook ? entryPlan.options.length : 0,
+      sandboxCatalogVerified: requiresWebhook,
+      webhookTargetSameRelease: requiresWebhook,
+      invalidWebhookHttp: denied?.status ?? null,
       databaseHistoryCount: verifiedHistory?.migrations,
       reviewedParallelDevMigrations: verifiedHistory?.parallelMigrations,
       newAuthUsers: 0,
@@ -596,6 +627,13 @@ async function main(): Promise<void> {
             ['browser_missing', /Executable doesn't exist|playwright install/],
             ['test_assertion', /expect\(|AssertionError|Test timeout/],
           ] as const;
+          const sourceLines = [
+            ...new Set(
+              [...diagnostics.matchAll(/abacatepay-trial-preview\.spec\.ts:(\d+):\d+/g)].map(
+                (match) => Number(match[1]),
+              ),
+            ),
+          ].filter(Number.isSafeInteger);
           await writeFile(
             path.join(directory, 'browser-diagnostic.json'),
             JSON.stringify(
@@ -605,6 +643,7 @@ async function main(): Promise<void> {
                 categories: categories
                   .filter(([, pattern]) => pattern.test(diagnostics))
                   .map(([name]) => name),
+                sourceLines,
                 rawOutputRetained: false,
               },
               null,

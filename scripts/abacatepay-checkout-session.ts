@@ -8,6 +8,7 @@ import { OFFER_2026_PLAN_CODES, quoteProposedOffer } from '../src/contexts/billi
 
 export const DEV_REF = 'pqhkirrszzpwezdaqrai';
 export const BILLING_BRANCH = 'feat/billing-abacatepay-20261107';
+export const COMMERCIAL_INTEGRATION_BRANCH = 'integration/abacatepay-ui-20261125';
 const CHECKOUT_BASELINE_MIGRATIONS = 143;
 const CRITICAL_MIGRATION_FIRST_INDEX = 136;
 const CRITICAL_MIGRATION_LAST_INDEX = 142;
@@ -19,8 +20,10 @@ const REVIEWED_PARALLEL_DEV_MIGRATION = {
   hash: '9f9b483aaeff60a9ca4f5b182c3b071408a7d3eec9ecea7cfe8f98bcf602e807',
 } as const;
 // Shared DEV only: SQL/source hashes reviewed against TISS commit
-// 4aaff5446f251d23e709360bcc84ef9bceed37ff and read back with TLS/READ ONLY
-// on 2026-11-17. These entries are NOT part of the frozen SaaS release journal.
+// 0160-0165 were reviewed against 4aaff5446f251d23e709360bcc84ef9bceed37ff.
+// 0166-0167 match the SQL blobs in TISS commit 1b2543be6e9e287f96cfc216722d2ce1028cec82;
+// 0168 is the reviewed Pix migration. All match the DEV journal on 2026-11-25.
+// These are not in the frozen SaaS journal.
 // Recognize only a contiguous applied prefix; never apply or copy this SQL.
 const REVIEWED_DEV_EXTENSIONS = [
   {
@@ -52,6 +55,21 @@ const REVIEWED_DEV_EXTENSIONS = [
     tag: '0165_hi_guide_cancellations',
     when: 1795555373857,
     hash: 'a3af4a973f14cc3fb3720423d4c03f71f32330024f028d07191f40f4077c64cb',
+  },
+  {
+    tag: '0166_hi_authorization_alerts',
+    when: 1795641773857,
+    hash: 'ccf1639b4eccbdd50e5aa5b2f49a0b55d964ff8092dc47c09d77db61487025c6',
+  },
+  {
+    tag: '0167_hi_appointment_extra_items',
+    when: 1795728173857,
+    hash: '7249f069fc5454e74034e1004f3be7d04606c020d7b16244b4014aafc861f3f0',
+  },
+  {
+    tag: '0168_saas_pix_replacement_intents',
+    when: 1795814573857,
+    hash: '844cf2f2592edba659bbcc84fa2d9ab3b265b7e688ce60112307db5815be2520',
   },
 ] as const;
 const migrationHash = z.string().regex(/^[a-f0-9]{64}$/);
@@ -349,6 +367,24 @@ export const sessionSchema = z
       context.addIssue({ code: 'custom', message: 'Missing checkout correlation' });
   });
 export type CheckoutSession = z.infer<typeof sessionSchema>;
+
+/** A new run probes an unused Auth ID; a resumed run must match its own marker. */
+export function assertFixtureAuthReadiness(
+  session: CheckoutSession | null,
+  status: number,
+  response: unknown,
+): void {
+  if (!session?.userId) {
+    if (status !== 404) throw new Error('Unexpected Auth identity at random probe ID');
+    return;
+  }
+  if (status !== 200) throw new Error('Retained synthetic Auth identity unavailable');
+  const user = z
+    .object({ id: z.uuid(), user_metadata: z.object({ qoro_fixture_run: z.uuid() }) })
+    .parse(response);
+  if (user.id !== session.userId || user.user_metadata.qoro_fixture_run !== session.runId)
+    throw new Error('Retained synthetic Auth identity mismatch');
+}
 export function checkoutScenario(
   session: Pick<CheckoutSession, 'scenario'>,
 ): 'expired_trial' | 'early_payment' {

@@ -72,6 +72,11 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
     retention: string;
     scope: string;
     browserErrorClasses: string[];
+    postLoginPath?: string;
+    logoutHttpStatus?: number;
+    planPath?: string;
+    planHeading?: boolean;
+    trialLead?: boolean;
     clinicId?: string;
     subscriptionId?: string;
     checkoutId?: string;
@@ -100,13 +105,37 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
     }
     await page.getByRole('button', { name: 'Entrar', exact: true }).click();
     await expect(page).not.toHaveURL(/\/login(?:\?|$)/, { timeout: 90_000 });
+    evidence.postLoginPath = new URL(page.url()).pathname;
+    expect(evidence.postLoginPath).toBe('/cadastro/continuar');
     stages.push('real_browser_login');
+    const logout = await page.evaluate(async () => {
+      const response = await fetch('/logout', { method: 'POST' });
+      return { status: response.status, path: new URL(response.url).pathname };
+    });
+    evidence.logoutHttpStatus = logout.status;
+    expect(logout).toEqual({ status: 200, path: '/login' });
+    await page.goto(new URL('/cadastro/continuar', origin.origin).toString());
+    await expect(page).toHaveURL(/\/login(?:\?|$)/);
+    stages.push('global_logout_revokes_onboarding_session');
+    await page.locator('#email').fill(input.E2E_ABACATEPAY_EMAIL);
+    await page.locator('input[name="password"]').fill(input.E2E_ABACATEPAY_PASSWORD);
+    await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+    await expect(page).toHaveURL(/\/cadastro\/continuar(?:\?|$)/, { timeout: 90_000 });
+    stages.push('fresh_login_after_logout');
     const [existing] = await sql<{ clinic_id: string }[]>`
       SELECT clinic_id::text FROM public.profiles WHERE id=${input.E2E_ABACATEPAY_USER_ID}::uuid`;
     if (!existing) {
       await page.goto(new URL('/cadastro/plano', origin.origin).toString());
+      evidence.planPath = new URL(page.url()).pathname;
+      evidence.planHeading = await page
+        .getByRole('heading', { name: 'Escolha seu plano' })
+        .isVisible();
+      evidence.trialLead = await page
+        .getByText('Sua avaliação começa sem cartão', { exact: false })
+        .isVisible();
+      await expect(page.getByRole('heading', { name: 'Escolha seu plano' })).toBeVisible();
       await expect(
-        page.getByText('sem cartão e sem cobrança inicial', { exact: false }),
+        page.getByText('Sua avaliação começa sem cartão', { exact: false }),
       ).toBeVisible();
       await expect(
         page.getByRole('button', { name: 'Começar avaliação gratuita', exact: true }),
