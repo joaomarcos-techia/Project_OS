@@ -362,10 +362,10 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `next.config.ts:16`                                        | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
 | `next.config.ts:21`                                        | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
 | `next.config.ts:21`                                        | `E2E_SIGNUP_WRITE`                     | `process.env.E2E_SIGNUP_WRITE`                                              |
-| `next.config.ts:84`                                        | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
-| `next.config.ts:85`                                        | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
-| `next.config.ts:86`                                        | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
-| `next.config.ts:142`                                       | `CI`                                   | `process.env.CI`                                                            |
+| `next.config.ts:85`                                        | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
+| `next.config.ts:86`                                        | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
+| `next.config.ts:87`                                        | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
+| `next.config.ts:143`                                       | `CI`                                   | `process.env.CI`                                                            |
 | `playwright.ci.config.ts:40`                               | `E2E_ARTIFACTS`                        | `process.env.E2E_ARTIFACTS`                                                 |
 | `playwright.ci.config.ts:68`                               | `NEXT_PUBLIC_TURNSTILE_SITE_KEY`       | `process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY`                                |
 | `playwright.ci.config.ts:69`                               | `TURNSTILE_SECRET_KEY`                 | `process.env.TURNSTILE_SECRET_KEY`                                          |
