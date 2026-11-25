@@ -35,3 +35,28 @@ export async function recordLoginAttempt(
     logger.warn('login_audit.record_failed', { message: String(err) });
   }
 }
+
+/**
+ * Falhas recentes de login por e-mail (HMAC) e por IP, lidas da trilha `login_attempts`. Base do fallback do limite
+ * de tentativas quando o Upstash está degradado (S8, requisito 69 da ANS): a contagem é a mesma para todas as
+ * instâncias. LANÇA em erro de banco, de propósito: quem chama (`login-attempts-fallback.ts`) fecha o login.
+ *
+ * Usa os índices `login_attempts_email_hash_attempted_at_idx` e `login_attempts_ip_attempted_at_idx`.
+ */
+export async function countRecentLoginFailures(
+  emailHash: string,
+  ip: string,
+  windowMinutes: number,
+): Promise<{ byEmail: number; byIp: number }> {
+  const rows = (await dbAdmin.execute(sql`
+    SELECT
+      count(*) FILTER (WHERE email_hash = ${emailHash})::int AS by_email,
+      count(*) FILTER (WHERE ip = ${ip}::inet)::int AS by_ip
+    FROM public.login_attempts
+    WHERE success = false
+      AND attempted_at > now() - make_interval(mins => ${windowMinutes})
+      AND (email_hash = ${emailHash} OR ip = ${ip}::inet)
+  `)) as unknown as Array<{ by_email: number; by_ip: number }>;
+  const row = rows[0];
+  return { byEmail: Number(row?.by_email ?? 0), byIp: Number(row?.by_ip ?? 0) };
+}

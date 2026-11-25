@@ -1,8 +1,6 @@
 import 'server-only';
 
-import { sql } from 'drizzle-orm';
-
-import { dbAdmin } from '@/lib/db';
+import { countRecentLoginFailures } from '@/lib/auth/login-audit';
 import { logger } from '@/lib/observability/logger';
 
 /**
@@ -47,19 +45,8 @@ export function decideFromRecentFailures(
 
 type Query = (emailHash: string, ip: string) => Promise<RecentFailures>;
 
-const queryRecentFailures: Query = async (emailHash, ip) => {
-  const rows = (await dbAdmin.execute(sql`
-    SELECT
-      count(*) FILTER (WHERE email_hash = ${emailHash})::int AS by_email,
-      count(*) FILTER (WHERE ip = ${ip}::inet)::int AS by_ip
-    FROM public.login_attempts
-    WHERE success = false
-      AND attempted_at > now() - make_interval(mins => ${LOGIN_AUDIT_FALLBACK.windowMinutes})
-      AND (email_hash = ${emailHash} OR ip = ${ip}::inet)
-  `)) as unknown as Array<{ by_email: number; by_ip: number }>;
-  const row = rows[0];
-  return { byEmail: Number(row?.by_email ?? 0), byIp: Number(row?.by_ip ?? 0) };
-};
+const queryRecentFailures: Query = (emailHash, ip) =>
+  countRecentLoginFailures(emailHash, ip, LOGIN_AUDIT_FALLBACK.windowMinutes);
 
 /**
  * Consulta a trilha e decide. Nunca lança: erro do banco vira `unavailable`, que o login trata como FECHADO.

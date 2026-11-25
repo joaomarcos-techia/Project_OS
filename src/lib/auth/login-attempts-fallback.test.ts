@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
-vi.mock('@/lib/db', () => ({ dbAdmin: { execute: vi.fn() } }));
+const countRecentLoginFailures = vi.fn();
+vi.mock('@/lib/auth/login-audit', () => ({
+  countRecentLoginFailures: (...a: unknown[]) => countRecentLoginFailures(...a),
+}));
 const warn = vi.fn();
 vi.mock('@/lib/observability/logger', () => ({
   logger: { warn: (...a: unknown[]) => warn(...a) },
@@ -44,5 +47,11 @@ describe('fallback do limite de login pela trilha login_attempts (S8, req. 69)',
     await expect(checkLoginByAuditTrail('hash', '203.0.113.7', query)).resolves.toBe('unavailable');
     expect(warn).toHaveBeenCalledWith('auth.ratelimit.audit_fallback_failed', { reason: 'Error' });
     expect(JSON.stringify(warn.mock.calls)).not.toContain('example.test');
+  });
+
+  it('sem consulta injetada, lê a trilha pelo login-audit (único ponto de login_attempts) com a janela de 15 min', async () => {
+    countRecentLoginFailures.mockResolvedValue({ byEmail: 1, byIp: 2 });
+    await expect(checkLoginByAuditTrail('hash', '203.0.113.7')).resolves.toBe('allowed');
+    expect(countRecentLoginFailures).toHaveBeenCalledWith('hash', '203.0.113.7', 15);
   });
 });
