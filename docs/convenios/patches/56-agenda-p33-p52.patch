@@ -1,5 +1,33 @@
+diff --git a/src/app/(app)/(shell)/agenda/page.test.tsx b/src/app/(app)/(shell)/agenda/page.test.tsx
+index 4318b8be..d4fc00f2 100644
+--- a/src/app/(app)/(shell)/agenda/page.test.tsx
++++ b/src/app/(app)/(shell)/agenda/page.test.tsx
+@@ -18,6 +18,11 @@ vi.mock('next/navigation', () => ({
+   useRouter: () => ({ refresh: vi.fn() }),
+ }));
+ vi.mock('./data', () => ({ getAgendaData }));
++// P3.3/P5.2 (#55): a faixa "Convênios de hoje" é um Server Component assíncrono que lê a sessão e o
++// banco; aqui ela é só o ponto de montagem (o comportamento dela tem teste próprio no #55).
++vi.mock('../convenios/_lib/agenda-insurance-strip', () => ({
++  AgendaInsuranceStrip: () => <div data-testid="agenda-insurance-strip" />,
++}));
+ 
+ import AgendaPage from './page';
+ 
+@@ -151,6 +156,11 @@ describe('AgendaPage', () => {
+     expect(getAgendaData).toHaveBeenLastCalledWith({ view: 'month', date: '2026-09-09' });
+   });
+ 
++  it('P3.3/P5.2: monta a faixa "Convênios de hoje" do #55 uma vez, antes do calendário', async () => {
++    render(await AgendaPage({ searchParams: Promise.resolve({}) }));
++    expect(screen.getAllByTestId('agenda-insurance-strip')).toHaveLength(1);
++  });
++
+   it('mostra a faixa das mensagens que não chegaram, em qualquer visão', async () => {
+     getAgendaData.mockResolvedValue({ ...agendaData, deliveryFailures: [depositFailure] });
+ 
 diff --git a/src/app/(app)/(shell)/agenda/page.tsx b/src/app/(app)/(shell)/agenda/page.tsx
-index 22053c6..ea550f6 100644
+index 22053c6e..ea550f63 100644
 --- a/src/app/(app)/(shell)/agenda/page.tsx
 +++ b/src/app/(app)/(shell)/agenda/page.tsx
 @@ -19,6 +19,8 @@ import {
