@@ -35,6 +35,7 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
       E2E_ABACATEPAY_PLAN: entryPlan,
       E2E_ABACATEPAY_EXPIRED: z.enum(['true', 'false']),
       E2E_ABACATEPAY_EXPECT_PAID: z.enum(['true', 'false']).default('false'),
+      E2E_ABACATEPAY_EXPECT_PIX: z.enum(['true', 'false']).default('false'),
       E2E_ABACATEPAY_CREATE_OPTIONAL_CHECKOUT: z.enum(['true', 'false']).default('false'),
       E2E_ABACATEPAY_EXPECT_CHECKOUT_UNAVAILABLE: z.enum(['true', 'false']).default('false'),
     })
@@ -237,6 +238,8 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
     expect(contract.code).toBe(input.E2E_ABACATEPAY_PLAN);
     expect(contract.asaas_subscription_id).toBeNull();
     expect(contract.trial_ends_at.getTime()).toBe(identity.created_at.getTime() + 14 * 86_400_000);
+    if (input.E2E_ABACATEPAY_EXPECT_PIX === 'true')
+      expect(input.E2E_ABACATEPAY_EXPECT_PAID).toBe('true');
     if (input.E2E_ABACATEPAY_EXPECT_PAID === 'true') {
       expect(contract.status).toBe('active');
       expect(contract.released_at).not.toBeNull();
@@ -295,6 +298,57 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
       stages.push('paid_asaas_gate_released');
       await page.goto(new URL('/equipe', origin.origin).toString());
       await expect(page.getByRole('button', { name: /Convidar/ }).first()).toBeVisible();
+      if (input.E2E_ABACATEPAY_EXPECT_PIX === 'true') {
+        const [before] = await sql<
+          { payment_method: string; invoice_count: number; checkout_count: number }[]
+        >`SELECT
+          (SELECT payment_method FROM public.invoices WHERE subscription_id=${contract.subscription_id}::uuid AND status='paid' LIMIT 1) payment_method,
+          (SELECT count(*)::int FROM public.invoices WHERE subscription_id=${contract.subscription_id}::uuid) invoice_count,
+          (SELECT count(*)::int FROM billing_gateway.operations WHERE subscription_id=${contract.subscription_id}::uuid AND kind='create_checkout') checkout_count`;
+        expect(before?.payment_method).toBe('PIX');
+        await page.goto(new URL('/configuracoes/assinatura', origin.origin).toString());
+        await expect(
+          page.getByRole('heading', { name: 'Pedido assistido de troca' }),
+        ).toBeVisible();
+        const targetPlanId = await page
+          .locator('#pix-replacement-plan option')
+          .nth(1)
+          .getAttribute('value');
+        expect(targetPlanId).toMatch(/^[a-f0-9-]{36}$/);
+        if (!targetPlanId) throw new Error('Pix replacement target unavailable');
+        await page.locator('#pix-replacement-plan').selectOption(targetPlanId);
+        await page.getByRole('checkbox', { name: /Entendi que este pedido/ }).check();
+        await page.getByRole('button', { name: 'Solicitar análise da troca' }).click();
+        await expect(page.getByText('Pedido registrado, sem troca financeira')).toBeVisible();
+        const [requested] = await sql<
+          { id: string; state: string; to_plan_id: string; count: number }[]
+        >`SELECT id::text,state,to_plan_id::text,
+          (SELECT count(*)::int FROM billing_gateway.pix_replacement_intents WHERE subscription_id=${contract.subscription_id}::uuid) count
+          FROM billing_gateway.pix_replacement_intents
+          WHERE subscription_id=${contract.subscription_id}::uuid AND state='requested'`;
+        expect(requested).toMatchObject({ state: 'requested', to_plan_id: targetPlanId, count: 1 });
+        if (!requested) throw new Error('Pix replacement request not persisted');
+        await page.getByRole('button', { name: 'Cancelar somente o pedido de troca' }).click();
+        await expect(
+          page.getByRole('heading', { name: 'Pedido assistido de troca' }),
+        ).toBeVisible();
+        await expect(page.getByText('Pedido registrado, sem troca financeira')).toHaveCount(0);
+        const [after] = await sql<
+          { state: string; invoice_count: number; checkout_count: number; billing_status: string }[]
+        >`SELECT i.state,s.billing_status,
+          (SELECT count(*)::int FROM public.invoices WHERE subscription_id=s.id) invoice_count,
+          (SELECT count(*)::int FROM billing_gateway.operations WHERE subscription_id=s.id AND kind='create_checkout') checkout_count
+          FROM billing_gateway.pix_replacement_intents i
+          JOIN public.subscriptions s ON s.id=i.subscription_id
+          WHERE i.id=${requested.id}::uuid`;
+        expect(after).toMatchObject({
+          state: 'cancelled',
+          invoice_count: before?.invoice_count,
+          checkout_count: before?.checkout_count,
+          billing_status: 'active',
+        });
+        stages.push('pix_replacement_request_and_cancel_without_financial_action');
+      }
       stages.push('real_sandbox_webhook_invoice_receipt_and_paid_ui');
       stages.push('paid_checkout_repeat_denied_and_integration_invite_gates_released');
       evidence.scope =

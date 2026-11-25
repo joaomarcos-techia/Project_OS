@@ -58,6 +58,7 @@ async function main(): Promise<void> {
       'vercel-cli': { type: 'string' },
       'settings-file': { type: 'string', default: 'C:/dev/ClinicaOS_V2/.env.local' },
       'webhook-name': { type: 'string', default: '[SANDBOX] Qoro trial deferred 20261108' },
+      'expect-method': { type: 'string', default: 'CARD' },
       session: { type: 'string', default: 'next-checkout-20261110' },
       plan: { type: 'string', default: 'clinica_2026_2' },
       scenario: { type: 'string', default: 'expired_trial' },
@@ -71,6 +72,7 @@ async function main(): Promise<void> {
   const origin = previewOrigin.parse(values.preview);
   const plan = entryPlan.parse(values.plan);
   const webhookName = sandboxWebhookName.parse(values['webhook-name']);
+  const expectedMethod = z.enum(['CARD', 'PIX']).parse(values['expect-method']);
   const slot = z
     .string()
     .regex(/^next-checkout-[a-z0-9-]{1,50}$/)
@@ -593,6 +595,7 @@ async function main(): Promise<void> {
           E2E_ABACATEPAY_PLAN: plan,
           E2E_ABACATEPAY_EXPIRED: String(checkoutScenario(session) === 'expired_trial'),
           E2E_ABACATEPAY_EXPECT_PAID: String(paid),
+          E2E_ABACATEPAY_EXPECT_PIX: String(paid && expectedMethod === 'PIX'),
           E2E_ABACATEPAY_CREATE_OPTIONAL_CHECKOUT: String(action === 'create'),
           E2E_ABACATEPAY_EXPECT_CHECKOUT_UNAVAILABLE: String(action === 'stage'),
         });
@@ -772,7 +775,7 @@ async function main(): Promise<void> {
       const remote = subscriptions[0];
       assert.ok(remote);
       assert.equal(remote.amount, session.amountMinor);
-      assert.equal(remote.method, 'CARD');
+      assert.equal(remote.method, expectedMethod);
       assert.equal(remote.trialEndsAt, null);
       assert.equal(remote.customerId, financial.customerId);
       // A paid provider page alone does not prove webhook delivery or local entitlement.

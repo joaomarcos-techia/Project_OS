@@ -407,10 +407,10 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/_env.ts:111`                                      | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
 | `scripts/_env.ts:174`                                      | `USER`                                 | `process.env.USER`                                                          |
 | `scripts/_env.ts:174`                                      | `USERNAME`                             | `process.env.USERNAME`                                                      |
-| `scripts/abacatepay-checkout-operator.ts:78`               | `LOCALAPPDATA`                         | `process.env.LOCALAPPDATA`                                                  |
-| `scripts/abacatepay-checkout-operator.ts:97`               | `<object>`                             | `process.env`                                                               |
-| `scripts/abacatepay-checkout-operator.ts:189`              | `<object>`                             | `process.env`                                                               |
-| `scripts/abacatepay-checkout-operator.ts:197`              | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
+| `scripts/abacatepay-checkout-operator.ts:83`               | `LOCALAPPDATA`                         | `process.env.LOCALAPPDATA`                                                  |
+| `scripts/abacatepay-checkout-operator.ts:102`              | `<object>`                             | `process.env`                                                               |
+| `scripts/abacatepay-checkout-operator.ts:194`              | `<object>`                             | `process.env`                                                               |
+| `scripts/abacatepay-checkout-operator.ts:202`              | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/abacatepay-checkout-operator.ts:412`              | `<object>`                             | `process.env`                                                               |
 | `scripts/abacatepay-checkout-operator.ts:457`              | `<object>`                             | `process.env`                                                               |
 | `scripts/abacatepay-checkout-operator.ts:583`              | `<dynamic>`                            | `process.env[key]`                                                          |
