@@ -1,0 +1,14 @@
+[launcher] variáveis no ambiente do aplicador: APPDATA, ComSpec, DATABASE_URL, HOMEDRIVE, HOMEPATH, LOCALAPPDATA, NODE_ENV, NUMBER_OF_PROCESSORS, OS, PATH, PATHEXT, PROCESSOR_ARCHITECTURE, Path, SYSTEMROOT, SystemRoot, TEMP, TMP, USERPROFILE, windir
+[migrate:dev-limited] 2026-11-17T23:10:31.557Z alvo: postgresql://postgres.pqhkirrszzpwezdaqrai:***@aws-1-us-west-1.pooler.supabase.com:5432/postgres?sslmode=require
+[migrate:dev-limited] 2026-11-17T23:10:35.134Z exceções externas: 0136_trial_resource_limits, 0137_trial_service_role_privileges, 0138_saas_gateway_bindings, 0139_saas_gateway_recontracts, 0140_saas_recurring_payment_observations, 0141_saas_scheduled_plan_changes, 0142_saas_review_replays, 0159_saas_period_snapshot
+[migrate:dev-limited] 2026-11-17T23:10:41.950Z composição antes: ok, pendentes 1
+[migrate:dev-limited] 2026-11-17T23:10:41.951Z aviso APPLIED_HASH_MISMATCH 0033_messaging_connection_status: hash histórico divergente (antes da 0136): não bloqueia
+[migrate:dev-limited] 2026-11-17T23:10:41.951Z aviso APPLIED_HASH_MISMATCH 0037_profiles_invite_and_crm: hash histórico divergente (antes da 0136): não bloqueia
+[migrate:dev-limited] 2026-11-17T23:10:41.951Z aviso APPLIED_HASH_MISMATCH 0051_ai_conversations_panel: hash histórico divergente (antes da 0136): não bloqueia
+[migrate:dev-limited] 2026-11-17T23:10:41.952Z aviso APPLIED_HASH_MISMATCH 0071_runtime_role_timeouts: hash histórico divergente (antes da 0136): não bloqueia
+[migrate:dev-limited] 2026-11-17T23:10:41.952Z aviso APPLIED_HASH_MISMATCH 0093_ai_clinic_config_convenios: hash histórico divergente (antes da 0136): não bloqueia
+[migrate:dev-limited] 2026-11-17T23:10:41.952Z aviso APPLIED_HASH_MISMATCH 0124_offer_2026_trial_deadline: hash histórico divergente (antes da 0136): não bloqueia
+[migrate:dev-limited] 2026-11-17T23:10:42.132Z ledger antes: 166 linhas, última 1795555373857 (0165_hi_guide_cancellations)
+[migrate:dev-limited] 2026-11-17T23:10:42.133Z pendentes (1): 0166_hi_authorization_alerts
+[migrate:dev-limited] 2026-11-17T23:10:42.133Z dry-run: nada aplicado
+[launcher] aplicador terminou com código 0 em 26055 ms

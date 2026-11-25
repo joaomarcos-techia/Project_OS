@@ -1,0 +1,1348 @@
+{
+ "modo": "full",
+ "at": "2026-11-20T00:20:45.674Z",
+ "node": "v22.23.4",
+ "rodadas": [
+  {
+   "cenario": "normal",
+   "lote": 50,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.2,
+   "conclusoes": 30,
+   "clinicas": 2,
+   "eventosProduzidos": 120,
+   "backlogMaximo": 30,
+   "minutosAteDrenar": 3,
+   "minutosExtrasDepoisDoPico": 0,
+   "atrasoMin": {
+    "p50": 1,
+    "p95": 1,
+    "p99": 1,
+    "max": 1
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 12,
+    "p95": 1,
+    "max": 1
+   },
+   "tick": {
+    "n": 3,
+    "piorMs": 845.8,
+    "p95Ms": 845.8,
+    "maxConexoesAtivas": 6,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=12",
+    "scheduling.appointment.checked_in:skipped=30",
+    "scheduling.appointment.completed:processed=30",
+    "scheduling.appointment.insurance_completed:processed=18",
+    "scheduling.appointment.started:processed=30"
+   ],
+   "integridade": {
+    "concluidos": 30,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 4
+  },
+  {
+   "cenario": "normal",
+   "lote": 100,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.2,
+   "conclusoes": 30,
+   "clinicas": 2,
+   "eventosProduzidos": 120,
+   "backlogMaximo": 30,
+   "minutosAteDrenar": 3,
+   "minutosExtrasDepoisDoPico": 0,
+   "atrasoMin": {
+    "p50": 1,
+    "p95": 1,
+    "p99": 1,
+    "max": 1
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 12,
+    "p95": 1,
+    "max": 1
+   },
+   "tick": {
+    "n": 3,
+    "piorMs": 1074.3,
+    "p95Ms": 1074.3,
+    "maxConexoesAtivas": 5,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=12",
+    "scheduling.appointment.checked_in:skipped=30",
+    "scheduling.appointment.completed:processed=30",
+    "scheduling.appointment.insurance_completed:processed=18",
+    "scheduling.appointment.started:processed=30"
+   ],
+   "integridade": {
+    "concluidos": 30,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 4
+  },
+  {
+   "cenario": "normal",
+   "lote": 150,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.2,
+   "conclusoes": 30,
+   "clinicas": 2,
+   "eventosProduzidos": 120,
+   "backlogMaximo": 30,
+   "minutosAteDrenar": 3,
+   "minutosExtrasDepoisDoPico": 0,
+   "atrasoMin": {
+    "p50": 1,
+    "p95": 1,
+    "p99": 1,
+    "max": 1
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 12,
+    "p95": 1,
+    "max": 1
+   },
+   "tick": {
+    "n": 3,
+    "piorMs": 1415.8,
+    "p95Ms": 1415.8,
+    "maxConexoesAtivas": 5,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=12",
+    "scheduling.appointment.checked_in:skipped=30",
+    "scheduling.appointment.completed:processed=30",
+    "scheduling.appointment.insurance_completed:processed=18",
+    "scheduling.appointment.started:processed=30"
+   ],
+   "integridade": {
+    "concluidos": 30,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 5
+  },
+  {
+   "cenario": "normal",
+   "lote": 200,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.2,
+   "conclusoes": 30,
+   "clinicas": 2,
+   "eventosProduzidos": 120,
+   "backlogMaximo": 30,
+   "minutosAteDrenar": 3,
+   "minutosExtrasDepoisDoPico": 0,
+   "atrasoMin": {
+    "p50": 1,
+    "p95": 1,
+    "p99": 1,
+    "max": 1
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 12,
+    "p95": 1,
+    "max": 1
+   },
+   "tick": {
+    "n": 3,
+    "piorMs": 2392,
+    "p95Ms": 2392,
+    "maxConexoesAtivas": 5,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=12",
+    "scheduling.appointment.checked_in:skipped=30",
+    "scheduling.appointment.completed:processed=30",
+    "scheduling.appointment.insurance_completed:processed=18",
+    "scheduling.appointment.started:processed=30"
+   ],
+   "integridade": {
+    "concluidos": 30,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 7
+  },
+  {
+   "cenario": "pico",
+   "lote": 50,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.2,
+   "conclusoes": 150,
+   "clinicas": 3,
+   "eventosProduzidos": 600,
+   "backlogMaximo": 362,
+   "minutosAteDrenar": 11,
+   "minutosExtrasDepoisDoPico": 8,
+   "atrasoMin": {
+    "p50": 4,
+    "p95": 7,
+    "p99": 8,
+    "max": 8
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 60,
+    "p95": 8,
+    "max": 8
+   },
+   "tick": {
+    "n": 11,
+    "piorMs": 3004.6,
+    "p95Ms": 3004.6,
+    "maxConexoesAtivas": 6,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=60",
+    "scheduling.appointment.checked_in:skipped=150",
+    "scheduling.appointment.completed:processed=150",
+    "scheduling.appointment.insurance_completed:processed=90",
+    "scheduling.appointment.started:processed=150"
+   ],
+   "integridade": {
+    "concluidos": 150,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 17
+  },
+  {
+   "cenario": "pico",
+   "lote": 100,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.2,
+   "conclusoes": 150,
+   "clinicas": 3,
+   "eventosProduzidos": 600,
+   "backlogMaximo": 274,
+   "minutosAteDrenar": 6,
+   "minutosExtrasDepoisDoPico": 3,
+   "atrasoMin": {
+    "p50": 2,
+    "p95": 3,
+    "p99": 3,
+    "max": 3
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 60,
+    "p95": 3,
+    "max": 3
+   },
+   "tick": {
+    "n": 6,
+    "piorMs": 1911,
+    "p95Ms": 1911,
+    "maxConexoesAtivas": 5,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=60",
+    "scheduling.appointment.checked_in:skipped=150",
+    "scheduling.appointment.completed:processed=150",
+    "scheduling.appointment.insurance_completed:processed=90",
+    "scheduling.appointment.started:processed=150"
+   ],
+   "integridade": {
+    "concluidos": 150,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 15
+  },
+  {
+   "cenario": "pico",
+   "lote": 150,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.2,
+   "conclusoes": 150,
+   "clinicas": 3,
+   "eventosProduzidos": 600,
+   "backlogMaximo": 186,
+   "minutosAteDrenar": 4,
+   "minutosExtrasDepoisDoPico": 1,
+   "atrasoMin": {
+    "p50": 1,
+    "p95": 2,
+    "p99": 2,
+    "max": 2
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 60,
+    "p95": 2,
+    "max": 2
+   },
+   "tick": {
+    "n": 4,
+    "piorMs": 2828,
+    "p95Ms": 2828,
+    "maxConexoesAtivas": 6,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=60",
+    "scheduling.appointment.checked_in:skipped=150",
+    "scheduling.appointment.completed:processed=150",
+    "scheduling.appointment.insurance_completed:processed=90",
+    "scheduling.appointment.started:processed=150"
+   ],
+   "integridade": {
+    "concluidos": 150,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 14
+  },
+  {
+   "cenario": "pico",
+   "lote": 200,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.2,
+   "conclusoes": 150,
+   "clinicas": 3,
+   "eventosProduzidos": 600,
+   "backlogMaximo": 150,
+   "minutosAteDrenar": 3,
+   "minutosExtrasDepoisDoPico": 0,
+   "atrasoMin": {
+    "p50": 1,
+    "p95": 1,
+    "p99": 1,
+    "max": 1
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 60,
+    "p95": 1,
+    "max": 1
+   },
+   "tick": {
+    "n": 3,
+    "piorMs": 3316.4,
+    "p95Ms": 3316.4,
+    "maxConexoesAtivas": 5,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=60",
+    "scheduling.appointment.checked_in:skipped=150",
+    "scheduling.appointment.completed:processed=150",
+    "scheduling.appointment.insurance_completed:processed=90",
+    "scheduling.appointment.started:processed=150"
+   ],
+   "integridade": {
+    "concluidos": 150,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 14
+  },
+  {
+   "cenario": "acima_do_pico",
+   "lote": 50,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.2,
+   "conclusoes": 200,
+   "clinicas": 3,
+   "eventosProduzidos": 800,
+   "backlogMaximo": 554,
+   "minutosAteDrenar": 14,
+   "minutosExtrasDepoisDoPico": 12,
+   "atrasoMin": {
+    "p50": 6,
+    "p95": 11,
+    "p99": 11,
+    "max": 12
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 80,
+    "p95": 11,
+    "max": 12
+   },
+   "tick": {
+    "n": 14,
+    "piorMs": 958.1,
+    "p95Ms": 958.1,
+    "maxConexoesAtivas": 5,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=80",
+    "scheduling.appointment.checked_in:skipped=200",
+    "scheduling.appointment.completed:processed=200",
+    "scheduling.appointment.insurance_completed:processed=120",
+    "scheduling.appointment.started:processed=200"
+   ],
+   "integridade": {
+    "concluidos": 200,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 18
+  },
+  {
+   "cenario": "acima_do_pico",
+   "lote": 100,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.3,
+   "conclusoes": 200,
+   "clinicas": 3,
+   "eventosProduzidos": 800,
+   "backlogMaximo": 512,
+   "minutosAteDrenar": 7,
+   "minutosExtrasDepoisDoPico": 5,
+   "atrasoMin": {
+    "p50": 3,
+    "p95": 5,
+    "p99": 6,
+    "max": 6
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 80,
+    "p95": 5,
+    "max": 6
+   },
+   "tick": {
+    "n": 7,
+    "piorMs": 1808.6,
+    "p95Ms": 1808.6,
+    "maxConexoesAtivas": 5,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=80",
+    "scheduling.appointment.checked_in:skipped=200",
+    "scheduling.appointment.completed:processed=200",
+    "scheduling.appointment.insurance_completed:processed=120",
+    "scheduling.appointment.started:processed=200"
+   ],
+   "integridade": {
+    "concluidos": 200,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 18
+  },
+  {
+   "cenario": "acima_do_pico",
+   "lote": 150,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.2,
+   "conclusoes": 200,
+   "clinicas": 3,
+   "eventosProduzidos": 800,
+   "backlogMaximo": 470,
+   "minutosAteDrenar": 5,
+   "minutosExtrasDepoisDoPico": 3,
+   "atrasoMin": {
+    "p50": 2,
+    "p95": 3,
+    "p99": 4,
+    "max": 4
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 80,
+    "p95": 3,
+    "max": 4
+   },
+   "tick": {
+    "n": 5,
+    "piorMs": 2680.2,
+    "p95Ms": 2680.2,
+    "maxConexoesAtivas": 5,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=80",
+    "scheduling.appointment.checked_in:skipped=200",
+    "scheduling.appointment.completed:processed=200",
+    "scheduling.appointment.insurance_completed:processed=120",
+    "scheduling.appointment.started:processed=200"
+   ],
+   "integridade": {
+    "concluidos": 200,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 18
+  },
+  {
+   "cenario": "acima_do_pico",
+   "lote": 200,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.2,
+   "conclusoes": 200,
+   "clinicas": 3,
+   "eventosProduzidos": 800,
+   "backlogMaximo": 424,
+   "minutosAteDrenar": 4,
+   "minutosExtrasDepoisDoPico": 2,
+   "atrasoMin": {
+    "p50": 2,
+    "p95": 2,
+    "p99": 3,
+    "max": 3
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 80,
+    "p95": 2,
+    "max": 3
+   },
+   "tick": {
+    "n": 4,
+    "piorMs": 3582.1,
+    "p95Ms": 3582.1,
+    "maxConexoesAtivas": 5,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=80",
+    "scheduling.appointment.checked_in:skipped=200",
+    "scheduling.appointment.completed:processed=200",
+    "scheduling.appointment.insurance_completed:processed=120",
+    "scheduling.appointment.started:processed=200"
+   ],
+   "integridade": {
+    "concluidos": 200,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 19
+  },
+  {
+   "cenario": "pico_com_lentos",
+   "lote": 50,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.2,
+   "conclusoes": 150,
+   "clinicas": 3,
+   "eventosProduzidos": 660,
+   "backlogMaximo": 422,
+   "minutosAteDrenar": 12,
+   "minutosExtrasDepoisDoPico": 9,
+   "atrasoMin": {
+    "p50": 5,
+    "p95": 8,
+    "p99": 9,
+    "max": 9
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 60,
+    "p95": 8,
+    "max": 9
+   },
+   "tick": {
+    "n": 12,
+    "piorMs": 6642,
+    "p95Ms": 6642,
+    "maxConexoesAtivas": 6,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "benchmark.consumer.slow:processed=60",
+    "financial.lancamento.created:processed=60",
+    "scheduling.appointment.checked_in:skipped=150",
+    "scheduling.appointment.completed:processed=150",
+    "scheduling.appointment.insurance_completed:processed=90",
+    "scheduling.appointment.started:processed=150"
+   ],
+   "integridade": {
+    "concluidos": 150,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 32
+  },
+  {
+   "cenario": "pico_com_lentos",
+   "lote": 100,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.2,
+   "conclusoes": 150,
+   "clinicas": 3,
+   "eventosProduzidos": 660,
+   "backlogMaximo": 330,
+   "minutosAteDrenar": 6,
+   "minutosExtrasDepoisDoPico": 3,
+   "atrasoMin": {
+    "p50": 2,
+    "p95": 4,
+    "p99": 4,
+    "max": 4
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 60,
+    "p95": 4,
+    "max": 4
+   },
+   "tick": {
+    "n": 6,
+    "piorMs": 7497.5,
+    "p95Ms": 7497.5,
+    "maxConexoesAtivas": 5,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "benchmark.consumer.slow:processed=60",
+    "financial.lancamento.created:processed=60",
+    "scheduling.appointment.checked_in:skipped=150",
+    "scheduling.appointment.completed:processed=150",
+    "scheduling.appointment.insurance_completed:processed=90",
+    "scheduling.appointment.started:processed=150"
+   ],
+   "integridade": {
+    "concluidos": 150,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 32
+  },
+  {
+   "cenario": "pico_com_lentos",
+   "lote": 150,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.2,
+   "conclusoes": 150,
+   "clinicas": 3,
+   "eventosProduzidos": 660,
+   "backlogMaximo": 242,
+   "minutosAteDrenar": 4,
+   "minutosExtrasDepoisDoPico": 1,
+   "atrasoMin": {
+    "p50": 1,
+    "p95": 2,
+    "p99": 2,
+    "max": 2
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 60,
+    "p95": 2,
+    "max": 2
+   },
+   "tick": {
+    "n": 4,
+    "piorMs": 8398.4,
+    "p95Ms": 8398.4,
+    "maxConexoesAtivas": 5,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "benchmark.consumer.slow:processed=60",
+    "financial.lancamento.created:processed=60",
+    "scheduling.appointment.checked_in:skipped=150",
+    "scheduling.appointment.completed:processed=150",
+    "scheduling.appointment.insurance_completed:processed=90",
+    "scheduling.appointment.started:processed=150"
+   ],
+   "integridade": {
+    "concluidos": 150,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 32
+  },
+  {
+   "cenario": "pico_com_lentos",
+   "lote": 200,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.2,
+   "conclusoes": 150,
+   "clinicas": 3,
+   "eventosProduzidos": 660,
+   "backlogMaximo": 170,
+   "minutosAteDrenar": 3,
+   "minutosExtrasDepoisDoPico": 0,
+   "atrasoMin": {
+    "p50": 1,
+    "p95": 1,
+    "p99": 1,
+    "max": 1
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 60,
+    "p95": 1,
+    "max": 1
+   },
+   "tick": {
+    "n": 3,
+    "piorMs": 9253.7,
+    "p95Ms": 9253.7,
+    "maxConexoesAtivas": 5,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "benchmark.consumer.slow:processed=60",
+    "financial.lancamento.created:processed=60",
+    "scheduling.appointment.checked_in:skipped=150",
+    "scheduling.appointment.completed:processed=150",
+    "scheduling.appointment.insurance_completed:processed=90",
+    "scheduling.appointment.started:processed=150"
+   ],
+   "integridade": {
+    "concluidos": 150,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 32
+  },
+  {
+   "cenario": "falha_e_recuperacao",
+   "lote": 50,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.3,
+   "conclusoes": 20,
+   "clinicas": 2,
+   "eventosProduzidos": 114,
+   "backlogMaximo": 63,
+   "minutosAteDrenar": 10,
+   "minutosExtrasDepoisDoPico": 8,
+   "atrasoMin": {
+    "p50": 1,
+    "p95": 10,
+    "p99": 10,
+    "max": 10
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 8,
+    "p95": 1,
+    "max": 1
+   },
+   "tick": {
+    "n": 10,
+    "piorMs": 894.6,
+    "p95Ms": 894.6,
+    "maxConexoesAtivas": 5,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": {
+    "flakyProcessados": 30,
+    "maxTentativas": 2
+   },
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "benchmark.consumer.flaky:processed=30",
+    "benchmark.consumer.poison:failed=4",
+    "financial.lancamento.created:processed=8",
+    "scheduling.appointment.checked_in:skipped=20",
+    "scheduling.appointment.completed:processed=20",
+    "scheduling.appointment.insurance_completed:processed=12",
+    "scheduling.appointment.started:processed=20"
+   ],
+   "integridade": {
+    "concluidos": 20,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 6
+  },
+  {
+   "cenario": "falha_e_recuperacao",
+   "lote": 100,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.2,
+   "conclusoes": 20,
+   "clinicas": 2,
+   "eventosProduzidos": 114,
+   "backlogMaximo": 47,
+   "minutosAteDrenar": 10,
+   "minutosExtrasDepoisDoPico": 8,
+   "atrasoMin": {
+    "p50": 1,
+    "p95": 9,
+    "p99": 9,
+    "max": 9
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 8,
+    "p95": 1,
+    "max": 1
+   },
+   "tick": {
+    "n": 10,
+    "piorMs": 1391.5,
+    "p95Ms": 1391.5,
+    "maxConexoesAtivas": 5,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": {
+    "flakyProcessados": 30,
+    "maxTentativas": 2
+   },
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "benchmark.consumer.flaky:processed=30",
+    "benchmark.consumer.poison:failed=4",
+    "financial.lancamento.created:processed=8",
+    "scheduling.appointment.checked_in:skipped=20",
+    "scheduling.appointment.completed:processed=20",
+    "scheduling.appointment.insurance_completed:processed=12",
+    "scheduling.appointment.started:processed=20"
+   ],
+   "integridade": {
+    "concluidos": 20,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 9
+  },
+  {
+   "cenario": "falha_e_recuperacao",
+   "lote": 150,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.2,
+   "conclusoes": 20,
+   "clinicas": 2,
+   "eventosProduzidos": 114,
+   "backlogMaximo": 47,
+   "minutosAteDrenar": 10,
+   "minutosExtrasDepoisDoPico": 8,
+   "atrasoMin": {
+    "p50": 1,
+    "p95": 9,
+    "p99": 9,
+    "max": 9
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 8,
+    "p95": 1,
+    "max": 1
+   },
+   "tick": {
+    "n": 10,
+    "piorMs": 1755.4,
+    "p95Ms": 1755.4,
+    "maxConexoesAtivas": 5,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": {
+    "flakyProcessados": 30,
+    "maxTentativas": 2
+   },
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "benchmark.consumer.flaky:processed=30",
+    "benchmark.consumer.poison:failed=4",
+    "financial.lancamento.created:processed=8",
+    "scheduling.appointment.checked_in:skipped=20",
+    "scheduling.appointment.completed:processed=20",
+    "scheduling.appointment.insurance_completed:processed=12",
+    "scheduling.appointment.started:processed=20"
+   ],
+   "integridade": {
+    "concluidos": 20,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 13
+  },
+  {
+   "cenario": "falha_e_recuperacao",
+   "lote": 200,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.2,
+   "conclusoes": 20,
+   "clinicas": 2,
+   "eventosProduzidos": 114,
+   "backlogMaximo": 47,
+   "minutosAteDrenar": 10,
+   "minutosExtrasDepoisDoPico": 8,
+   "atrasoMin": {
+    "p50": 1,
+    "p95": 9,
+    "p99": 9,
+    "max": 9
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 8,
+    "p95": 1,
+    "max": 1
+   },
+   "tick": {
+    "n": 10,
+    "piorMs": 2082.6,
+    "p95Ms": 2082.6,
+    "maxConexoesAtivas": 5,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": {
+    "flakyProcessados": 30,
+    "maxTentativas": 2
+   },
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "benchmark.consumer.flaky:processed=30",
+    "benchmark.consumer.poison:failed=4",
+    "financial.lancamento.created:processed=8",
+    "scheduling.appointment.checked_in:skipped=20",
+    "scheduling.appointment.completed:processed=20",
+    "scheduling.appointment.insurance_completed:processed=12",
+    "scheduling.appointment.started:processed=20"
+   ],
+   "integridade": {
+    "concluidos": 20,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 16
+  },
+  {
+   "cenario": "pico",
+   "lote": 50,
+   "paralelismo": 5,
+   "latenciaIdaMs": 5,
+   "idaEVoltaMedidaMs": 10.3,
+   "conclusoes": 150,
+   "clinicas": 3,
+   "eventosProduzidos": 600,
+   "backlogMaximo": 362,
+   "minutosAteDrenar": 11,
+   "minutosExtrasDepoisDoPico": 8,
+   "atrasoMin": {
+    "p50": 4,
+    "p95": 7,
+    "p99": 8,
+    "max": 8
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 60,
+    "p95": 8,
+    "max": 8
+   },
+   "tick": {
+    "n": 11,
+    "piorMs": 3978.2,
+    "p95Ms": 3978.2,
+    "maxConexoesAtivas": 6,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=60",
+    "scheduling.appointment.checked_in:skipped=150",
+    "scheduling.appointment.completed:processed=150",
+    "scheduling.appointment.insurance_completed:processed=90",
+    "scheduling.appointment.started:processed=150"
+   ],
+   "integridade": {
+    "concluidos": 150,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 46
+  },
+  {
+   "cenario": "pico",
+   "lote": 100,
+   "paralelismo": 5,
+   "latenciaIdaMs": 5,
+   "idaEVoltaMedidaMs": 10.3,
+   "conclusoes": 150,
+   "clinicas": 3,
+   "eventosProduzidos": 600,
+   "backlogMaximo": 274,
+   "minutosAteDrenar": 6,
+   "minutosExtrasDepoisDoPico": 3,
+   "atrasoMin": {
+    "p50": 2,
+    "p95": 3,
+    "p99": 3,
+    "max": 3
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 60,
+    "p95": 3,
+    "max": 3
+   },
+   "tick": {
+    "n": 6,
+    "piorMs": 7791.9,
+    "p95Ms": 7791.9,
+    "maxConexoesAtivas": 6,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=60",
+    "scheduling.appointment.checked_in:skipped=150",
+    "scheduling.appointment.completed:processed=150",
+    "scheduling.appointment.insurance_completed:processed=90",
+    "scheduling.appointment.started:processed=150"
+   ],
+   "integridade": {
+    "concluidos": 150,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 47
+  },
+  {
+   "cenario": "pico",
+   "lote": 150,
+   "paralelismo": 5,
+   "latenciaIdaMs": 5,
+   "idaEVoltaMedidaMs": 10.3,
+   "conclusoes": 150,
+   "clinicas": 3,
+   "eventosProduzidos": 600,
+   "backlogMaximo": 186,
+   "minutosAteDrenar": 4,
+   "minutosExtrasDepoisDoPico": 1,
+   "atrasoMin": {
+    "p50": 1,
+    "p95": 2,
+    "p99": 2,
+    "max": 2
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 60,
+    "p95": 2,
+    "max": 2
+   },
+   "tick": {
+    "n": 4,
+    "piorMs": 11642.5,
+    "p95Ms": 11642.5,
+    "maxConexoesAtivas": 5,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=60",
+    "scheduling.appointment.checked_in:skipped=150",
+    "scheduling.appointment.completed:processed=150",
+    "scheduling.appointment.insurance_completed:processed=90",
+    "scheduling.appointment.started:processed=150"
+   ],
+   "integridade": {
+    "concluidos": 150,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 47
+  },
+  {
+   "cenario": "pico",
+   "lote": 200,
+   "paralelismo": 5,
+   "latenciaIdaMs": 5,
+   "idaEVoltaMedidaMs": 10.4,
+   "conclusoes": 150,
+   "clinicas": 3,
+   "eventosProduzidos": 600,
+   "backlogMaximo": 150,
+   "minutosAteDrenar": 3,
+   "minutosExtrasDepoisDoPico": 0,
+   "atrasoMin": {
+    "p50": 1,
+    "p95": 1,
+    "p99": 1,
+    "max": 1
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 60,
+    "p95": 1,
+    "max": 1
+   },
+   "tick": {
+    "n": 3,
+    "piorMs": 13943.1,
+    "p95Ms": 13943.1,
+    "maxConexoesAtivas": 6,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=60",
+    "scheduling.appointment.checked_in:skipped=150",
+    "scheduling.appointment.completed:processed=150",
+    "scheduling.appointment.insurance_completed:processed=90",
+    "scheduling.appointment.started:processed=150"
+   ],
+   "integridade": {
+    "concluidos": 150,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 46
+  },
+  {
+   "cenario": "pane_de_consumidor",
+   "rodadas": [
+    {
+     "lote": 50,
+     "eventosLentos": 60,
+     "msPorEvento": 6000,
+     "tickMs": 60283.3,
+     "tratados": 50,
+     "excede60s": true
+    },
+    {
+     "lote": 200,
+     "eventosLentos": 60,
+     "msPorEvento": 6000,
+     "tickMs": 73242.8,
+     "tratados": 60,
+     "excede60s": true
+    }
+   ]
+  }
+ ]
+}

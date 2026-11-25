@@ -1,0 +1,33 @@
+04:02
+OK   health-insurance-clinic-db.ts passes=29 7s 
+OK   health-insurance-guides-db.ts passes=24 8s 
+OK   health-insurance-guide-service-db.ts passes=9 7s 
+OK   health-insurance-coverage-db.ts passes=13 14s 
+OK   health-insurance-guide-issuance-db.ts passes=7 13s 
+OK   health-insurance-billing-reconcile-db.ts passes=19 18s 
+OK   health-insurance-batches-db.ts passes=16 82s 
+OK   health-insurance-glosses-payments-db.ts passes=16 79s 
+OK   health-insurance-ledger-bridge-db.ts passes=18 74s 
+OK   health-insurance-ui-data-db.ts passes=6 73s 
+OK   health-insurance-appeal-xml-db.ts passes=6 73s 
+OK   health-insurance-statement-import-db.ts passes=9 72s 
+OK   health-insurance-premium-gate-db.ts passes=11 15s 
+OK   hi-r38-ledger-equivalence-db.ts passes=4 73s 
+OK   health-insurance-payout-db.ts passes=12 76s 
+OK   health-insurance-copay-charge-db.ts passes=13 20s 
+OK   health-insurance-sadt-db.ts passes=11 74s 
+OK   health-insurance-config-db.ts passes=14 15s 
+OK   health-insurance-batch-export-async-db.ts passes=11 79s 
+OK   health-insurance-credentials-db.ts passes=7 13s 
+OK   payments-external-refund-db.ts passes=14 22s 
+OK   health-insurance-modality-change-db.ts passes=9 16s 
+OK   health-insurance-contract-import-db.ts passes=9 13s 
+OK   health-insurance-insurer-credentials-db.ts passes=5 8s 
+FAIL migration-composition-db.ts passes=1 15s AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+OK   health-insurance-tenant-isolation-db.ts passes=5 13s 
+OK   health-insurance-concurrency-db.ts passes=5 7s 
+OK   health-insurance-consulta-overrides-db.ts passes=9 8s 
+exit=0
+04:19
+
+[exited with code 0]

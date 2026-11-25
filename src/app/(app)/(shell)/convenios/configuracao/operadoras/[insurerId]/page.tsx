@@ -1,0 +1,444 @@
+import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
+
+import { Alert } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { EmptyState } from '@/components/ui/empty-state';
+import { PanelCard } from '@/components/ui/panel-card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableWrap } from '@/components/ui/table';
+import {
+  CONTRACT_IMPORT_COLUMNS,
+  contractImportTemplateCsv,
+  getInsurerDetail,
+  INSURER_STATUS_LABELS,
+  listContractImports,
+  listInsurerCredentials,
+  PROVIDER_ID_LABELS,
+  type ContractLineView,
+} from '@/contexts/health-insurance/config-queries';
+
+import { brl, brlOrDash, ConveniosHeader, conveniosAccess, shortDate } from '../../../_lib/access';
+import {
+  ContractRevisionForm,
+  CredentialRevisionForm,
+  InsurerEditForm,
+  InsurerRulesForm,
+  InsurerStatusActions,
+  NewContractLineForm,
+  NewCredentialForm,
+  NewPlanForm,
+  PlanStatusButton,
+} from '../../../_lib/config-ui';
+import { InsurerConnectionPanel } from '../../../_lib/connection-ui';
+import { ContractImportPanel } from '../../../_lib/contract-import-ui';
+
+export const metadata: Metadata = { title: 'Operadora de convênio' };
+
+export const dynamic = 'force-dynamic';
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+const STATUS_TONE: Record<string, 'green' | 'gray' | 'amber' | 'red'> = { active: 'green', draft: 'gray', suspended: 'amber', archived: 'red' };
+const GUIDE_LABEL = { consulta: 'Consulta', sp_sadt: 'SP/SADT' } as const;
+
+/** Rótulos do histórico (ações da configuração; sem dado pessoal no `after`). */
+const HISTORY_LABELS: Record<string, string> = {
+  'health_insurance.config.insurer_created': 'Operadora cadastrada',
+  'health_insurance.config.insurer_updated': 'Dados da operadora alterados',
+  'health_insurance.config.insurer_active': 'Operadora ativada',
+  'health_insurance.config.insurer_suspended': 'Operadora suspensa',
+  'health_insurance.config.insurer_archived': 'Operadora arquivada',
+  'health_insurance.config.plan_created': 'Plano cadastrado',
+  'health_insurance.config.plan_archived': 'Plano arquivado',
+  'health_insurance.config.plan_reactivated': 'Plano reativado',
+  'health_insurance.config.contract_line_created': 'Procedimento contratado',
+  'health_insurance.config.contract_line_correct': 'Item do contrato corrigido',
+  'health_insurance.config.contract_line_new_period': 'Reajuste a partir de uma data',
+  'health_insurance.config.contract_line_end': 'Vigência encerrada',
+  'health_insurance.config.insurer_rules_updated': 'Regras da operadora alteradas',
+  'health_insurance.config.credential_created': 'Credenciamento registrado',
+  'health_insurance.config.credential_end': 'Vigência do credenciamento encerrada',
+  'health_insurance.config.credential_suspend': 'Credenciamento suspenso',
+  'health_insurance.config.credential_reactivate': 'Credenciamento reativado',
+  'health_insurance.config.credential_new_period': 'Nova vigência de credenciamento',
+  'health_insurance.config.contract_import_validated': 'Planilha de contrato validada',
+  'health_insurance.config.contract_import_applied': 'Planilha de contrato aplicada',
+  'health_insurance.config.insurer_credential_saved': 'Credencial da operadora guardada',
+  'health_insurance.config.insurer_credential_revoked': 'Credencial da operadora revogada',
+};
+
+function copayText(l: ContractLineView): string {
+  if (l.copayKind === 'fixed') return brl(l.copayFixedCents ?? 0);
+  if (l.copayKind === 'percentage') return `${String(l.copayPercentage).replace('.', ',')}%`;
+  return '—';
+}
+
+function period(l: ContractLineView): string {
+  return `${shortDate(l.validFrom)} a ${l.validUntil ? shortDate(l.validUntil) : 'sem fim'}`;
+}
+
+export default async function OperadoraPage({ params }: { params: Promise<{ insurerId: string }> }) {
+  const { insurerId } = await params;
+  const access = await conveniosAccess('Operadora');
+  if (!access.ok) return access.view;
+  if (!UUID.test(insurerId)) notFound();
+  // Preço do contrato só para quem configura ou vê faturamento (D-1, matriz 4.4): o servidor nem devolve.
+  const prices = access.rights.configure || access.rights.seeValues;
+  const d = await getInsurerDetail(access.clinicId, insurerId, { prices });
+  if (!d) notFound();
+  const i = d.insurer;
+  const live = d.lines.filter((l) => l.live);
+  const history = d.lines.filter((l) => !l.live);
+  const editable = access.rights.configure && i.status !== 'archived';
+  const imports = editable ? await listContractImports(access.clinicId, insurerId) : [];
+  const credentials = access.rights.configure ? await listInsurerCredentials(access.clinicId, insurerId) : [];
+
+  return (
+    <>
+      <ConveniosHeader
+        commercial={access.commercial}
+        title={i.name}
+        description={`Registro ANS ${i.registroAns}`}
+        crumbs={[{ label: 'Configuração', href: '/convenios/configuracao' }, { label: i.name }]}
+      />
+
+      <PanelCard title="Dados da operadora" regionLabel="Dados da operadora" className="mb-(--sp-4)">
+        <dl className="mb-(--sp-3) grid gap-(--sp-2) text-(length:--fs-sm) sm:grid-cols-2">
+          <div>
+            <dt className="text-fg-muted">Situação</dt>
+            <dd data-testid="insurer-status" data-status={i.status}>
+              <Badge tone={STATUS_TONE[i.status] ?? 'gray'}>{INSURER_STATUS_LABELS[i.status] ?? i.status}</Badge>
+            </dd>
+          </div>
+          <div>
+            <dt className="text-fg-muted">{PROVIDER_ID_LABELS[i.providerIdKind]}</dt>
+            <dd className="tabular-nums">{i.providerIdMasked}</dd>
+          </div>
+          <div>
+            <dt className="text-fg-muted">Sessões SP/SADT</dt>
+            <dd>{i.sadtGrouping === 'per_request' ? 'Sessões da mesma solicitação na mesma guia' : 'Uma guia por sessão'}</dd>
+          </div>
+          <div>
+            <dt className="text-fg-muted">Padrão TISS · envio</dt>
+            <dd>4.03.00 · manual (lote XML)</dd>
+          </div>
+        </dl>
+        {i.status === 'draft' ? (
+          <Alert variant="info" className="mb-(--sp-3)">
+            Rascunho: a operadora ainda não aparece no agendamento. Cadastre os procedimentos contratados e ative-a.
+          </Alert>
+        ) : null}
+        {access.rights.configure ? (
+          <div className="flex flex-col gap-(--sp-3)">
+            <InsurerStatusActions insurerId={i.id} status={i.status} />
+            {i.status !== 'archived' ? <InsurerEditForm insurer={i} /> : null}
+          </div>
+        ) : null}
+      </PanelCard>
+
+      <PanelCard title="Planos" regionLabel="Planos da operadora" className="mb-(--sp-4)">
+        {editable ? (
+          <div className="mb-(--sp-3)">
+            <NewPlanForm insurerId={i.id} />
+          </div>
+        ) : null}
+        {d.plans.length === 0 ? (
+          <p className="text-(length:--fs-sm) text-fg-muted">Sem planos cadastrados: os contratos e carteirinhas valem para a operadora inteira.</p>
+        ) : (
+          <TableWrap>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Plano</TableHead>
+                  <TableHead>Código</TableHead>
+                  <TableHead>Segmentação</TableHead>
+                  <TableHead>Situação</TableHead>
+                  <TableHead className="text-right">Carteirinhas ativas</TableHead>
+                  {editable ? <TableHead aria-label="Ações" /> : null}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {d.plans.map((p) => (
+                  <TableRow key={p.id}>
+                    <TableCell>{p.name}</TableCell>
+                    <TableCell>{p.operatorCode ?? '—'}</TableCell>
+                    <TableCell>{p.category ?? '—'}</TableCell>
+                    <TableCell>{p.status === 'active' ? 'Ativo' : 'Arquivado'}</TableCell>
+                    <TableCell className="text-right tabular-nums">{p.cards}</TableCell>
+                    {editable ? (
+                      <TableCell>
+                        <PlanStatusButton planId={p.id} status={p.status} />
+                      </TableCell>
+                    ) : null}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableWrap>
+        )}
+      </PanelCard>
+
+      <PanelCard title="Regras da operadora" regionLabel="Regras da operadora" className="mb-(--sp-4)">
+        <p className="mb-(--sp-3) text-(length:--fs-sm) text-fg-muted">
+          O que vem do padrão TISS não muda por operadora. Só o que está no contrato com a operadora é ajustável aqui, e
+          nenhum ajuste desliga uma validação obrigatória.
+        </p>
+        <TableWrap>
+          <Table data-testid="insurer-rules">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Regra</TableHead>
+                <TableHead>Valor</TableHead>
+                <TableHead>Origem</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow>
+                <TableCell>Versão do padrão</TableCell>
+                <TableCell>TISS 4.03.00</TableCell>
+                <TableCell>Obrigatório pelo padrão</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>XML validado no esquema oficial (XSD) antes do envio</TableCell>
+                <TableCell>Sempre</TableCell>
+                <TableCell>Obrigatório pelo padrão</TableCell>
+              </TableRow>
+              <TableRow data-rule="max-guides" data-value={String(i.rules.maxGuidesPerBatch)}>
+                <TableCell>Máximo de guias por lote</TableCell>
+                <TableCell className="tabular-nums">{i.rules.maxGuidesPerBatch}</TableCell>
+                <TableCell>Padrão: até 100 · operadora pode exigir menos (contrato)</TableCell>
+              </TableRow>
+              <TableRow data-rule="professional" data-value={i.rules.requireProfessionalCredential ? 'yes' : 'no'}>
+                <TableCell>Profissional executante habilitado</TableCell>
+                <TableCell>{i.rules.requireProfessionalCredential ? 'Exigido' : 'Dispensado'}</TableCell>
+                <TableCell>Obrigatório por contrato</TableCell>
+              </TableRow>
+              <TableRow data-rule="deadline" data-value={String(i.rules.submissionDeadlineDays ?? '')}>
+                <TableCell>Prazo de envio depois do atendimento</TableCell>
+                <TableCell>{i.rules.submissionDeadlineDays ? `${i.rules.submissionDeadlineDays} dias` : 'Não registrado'}</TableCell>
+                <TableCell>Obrigatório por contrato</TableCell>
+              </TableRow>
+              <TableRow data-rule="extra-items" data-value={i.rules.extraItemsAfterSession}>
+                <TableCell>Item executado além do solicitado, regularizado depois da sessão</TableCell>
+                <TableCell>
+                  {i.rules.extraItemsAfterSession === 'accepts'
+                    ? 'Aceita'
+                    : i.rules.extraItemsAfterSession === 'forbids'
+                      ? 'Não aceita'
+                      : 'Não informado'}
+                </TableCell>
+                <TableCell>Por contrato (P8.4-r); sem a informação, nada é presumido</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>Agrupamento das sessões de SP/SADT</TableCell>
+                <TableCell>{i.sadtGrouping === 'per_request' ? 'Por solicitação' : 'Uma guia por sessão'}</TableCell>
+                <TableCell>Obrigatório por contrato</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>Transmissão</TableCell>
+                <TableCell>Portal da operadora (envio registrado no Qoro)</TableCell>
+                <TableCell>Configurável pela clínica · webservice da operadora depende de homologação externa</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </TableWrap>
+        {editable ? (
+          <div className="mt-(--sp-3)">
+            <InsurerRulesForm insurerId={i.id} rules={i.rules} />
+          </div>
+        ) : null}
+      </PanelCard>
+
+      {access.rights.configure ? (
+        <PanelCard title="Conexão com a operadora" regionLabel="Conexão com a operadora" className="mb-(--sp-4)">
+          <InsurerConnectionPanel insurerId={i.id} credentials={credentials} editable={editable} />
+        </PanelCard>
+      ) : null}
+
+      <PanelCard title="Credenciamento" regionLabel="Credenciamento" className="mb-(--sp-4)">
+        <p className="mb-(--sp-3) text-(length:--fs-sm) text-fg-muted">
+          Em que planos a clínica está credenciada nesta operadora, e de quando a quando. Sem credenciamento vigente na
+          data, o atendimento de convênio fica com pendência e a guia não sai.{' '}
+          {d.providerKind === 'PJ' && i.requireProfessionalCredential
+            ? 'Esta operadora exige também o profissional habilitado (clínica pessoa jurídica).'
+            : d.providerKind === 'PF'
+              ? 'A clínica fatura como pessoa física: o credenciamento da clínica é o do profissional.'
+              : 'Esta operadora dispensa a habilitação individual do profissional.'}
+        </p>
+        {editable ? (
+          <div className="mb-(--sp-3)">
+            <NewCredentialForm insurerId={i.id} plans={d.plans} professionals={d.professionals} />
+          </div>
+        ) : null}
+        {d.credentials.length === 0 ? (
+          <EmptyState
+            title="Nenhum credenciamento registrado"
+            description="Registre em que planos a clínica (e, se a operadora exigir, cada profissional) está credenciada."
+          />
+        ) : (
+          <TableWrap>
+            <Table data-testid="credentials">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Credenciado</TableHead>
+                  <TableHead>Plano</TableHead>
+                  <TableHead>Código</TableHead>
+                  <TableHead>Vigência</TableHead>
+                  <TableHead>Situação</TableHead>
+                  {editable ? <TableHead aria-label="Ações" /> : null}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {d.credentials.map((c) => (
+                  <TableRow
+                    key={c.id}
+                    data-testid="credential"
+                    data-target={c.professionalId ? 'professional' : 'clinic'}
+                    data-status={c.status}
+                    data-in-force={c.inForceToday ? 'yes' : 'no'}
+                  >
+                    <TableCell>{c.professionalName ? `Profissional: ${c.professionalName}` : 'A clínica'}</TableCell>
+                    <TableCell>{c.planName ?? 'Todos os planos'}</TableCell>
+                    <TableCell>{c.providerCode ?? '—'}</TableCell>
+                    <TableCell className="tabular-nums">
+                      {shortDate(c.validFrom)} a {c.validUntil ? shortDate(c.validUntil) : 'sem fim'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge tone={c.status === 'suspended' ? 'amber' : c.inForceToday ? 'green' : 'gray'}>
+                        {c.status === 'suspended' ? 'Suspenso' : c.status === 'ended' ? 'Encerrado' : c.inForceToday ? 'Vigente' : 'Fora da vigência'}
+                      </Badge>
+                    </TableCell>
+                    {editable ? (
+                      <TableCell>
+                        {c.status !== 'ended' ? <CredentialRevisionForm credentialId={c.id} status={c.status} /> : null}
+                      </TableCell>
+                    ) : null}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableWrap>
+        )}
+      </PanelCard>
+
+      <PanelCard title="Procedimentos contratados" regionLabel="Contrato" className="mb-(--sp-4)">
+        <p className="mb-(--sp-3) text-(length:--fs-sm) text-fg-muted">
+          Cada item liga um procedimento do catálogo da clínica ao código TUSS, ao valor e às regras da operadora. Alterar nunca apaga: cria uma versão nova e a anterior
+          fica no histórico. Guias já emitidas não mudam.
+        </p>
+        {editable ? (
+          <div className="mb-(--sp-3)">
+            <NewContractLineForm insurerId={i.id} plans={d.plans} procedures={d.procedures} />
+          </div>
+        ) : null}
+        {live.length === 0 ? (
+          <EmptyState title="Nenhum procedimento contratado" description="Sem item vigente, o atendimento de convênio fica com a pendência “procedimento sem contrato”." />
+        ) : (
+          <TableWrap>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Procedimento</TableHead>
+                  <TableHead>TUSS</TableHead>
+                  <TableHead>Guia</TableHead>
+                  <TableHead>Plano</TableHead>
+                  <TableHead>Vigência</TableHead>
+                  <TableHead className="text-right">Valor</TableHead>
+                  <TableHead>Coparticipação</TableHead>
+                  <TableHead>Autorização</TableHead>
+                  {editable ? <TableHead aria-label="Ações" /> : null}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {live.map((l) => (
+                  <TableRow key={l.id} data-testid="contract-line" data-code={l.procedureCode}>
+                    <TableCell>
+                      {l.procedureName ?? '—'}
+                      <div className="text-fg-muted">{l.description}</div>
+                    </TableCell>
+                    <TableCell className="tabular-nums">{l.procedureCode}</TableCell>
+                    <TableCell>{GUIDE_LABEL[l.guideType]}</TableCell>
+                    <TableCell>{l.planName ?? 'Todos'}</TableCell>
+                    <TableCell>{period(l)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{brlOrDash(l.unitValueCents)}</TableCell>
+                    <TableCell>{copayText(l)}</TableCell>
+                    <TableCell>
+                      {l.requiresAuthorization ? 'Exige' : 'Não exige'}
+                      {l.returnDays ? <div className="text-fg-muted">retorno {l.returnDays} dias{l.returnBillable ? ' (faturável)' : ''}</div> : null}
+                    </TableCell>
+                    {editable ? (
+                      <TableCell>
+                        <ContractRevisionForm line={l} procedures={d.procedures} />
+                      </TableCell>
+                    ) : null}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableWrap>
+        )}
+        {history.length > 0 ? (
+          <details className="mt-(--sp-3)">
+            <summary className="cursor-pointer text-(length:--fs-sm) font-medium">Versões anteriores ({history.length})</summary>
+            <TableWrap>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>TUSS</TableHead>
+                    <TableHead>Vigência</TableHead>
+                    <TableHead className="text-right">Valor</TableHead>
+                    <TableHead>Coparticipação</TableHead>
+                    <TableHead>Cadastrada</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {history.map((l) => (
+                    <TableRow key={l.id} data-testid="contract-line-history">
+                      <TableCell className="tabular-nums">
+                        {l.procedureCode} · {GUIDE_LABEL[l.guideType]}
+                      </TableCell>
+                      <TableCell>{period(l)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{brlOrDash(l.unitValueCents)}</TableCell>
+                      <TableCell>{copayText(l)}</TableCell>
+                      <TableCell>
+                        {shortDate(l.createdAt)}
+                        {l.createdByName ? <div className="text-fg-muted">{l.createdByName}</div> : null}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableWrap>
+          </details>
+        ) : null}
+      </PanelCard>
+
+      {editable ? (
+        <PanelCard title="Importar tabela por planilha" regionLabel="Importar tabela por planilha" className="mb-(--sp-4)">
+          <ContractImportPanel
+            insurerId={i.id}
+            templateCsv={contractImportTemplateCsv()}
+            columns={Object.entries(CONTRACT_IMPORT_COLUMNS).map(([name, c]) => ({ name, required: c.required, hint: c.hint }))}
+            history={imports}
+          />
+        </PanelCard>
+      ) : null}
+
+      <PanelCard title="Histórico de alterações" regionLabel="Histórico de alterações" className="mb-(--sp-4)">
+        {d.history.length === 0 ? (
+          <p className="text-(length:--fs-sm) text-fg-muted">Nenhuma alteração registrada pela interface.</p>
+        ) : (
+          <ul className="flex flex-col gap-(--sp-1) text-(length:--fs-sm)" data-testid="insurer-history">
+            {d.history.map((h, idx) => (
+              <li key={`${h.at}-${idx}`}>
+                <span className="tabular-nums text-fg-muted">{new Date(h.at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</span> ·{' '}
+                {HISTORY_LABELS[h.action] ?? h.action}
+                {h.userName ? <span className="text-fg-muted"> · {h.userName}</span> : null}
+                {typeof h.after?.reason === 'string' ? <span className="text-fg-muted"> · “{h.after.reason}”</span> : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </PanelCard>
+    </>
+  );
+}

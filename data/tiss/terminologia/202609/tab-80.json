@@ -1,0 +1,73 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "80",
+  "title": "Tabela 80 - Terminologia de formato do documento",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 9,
+  "terms": [
+    {
+      "code": "01",
+      "term": "JPG ou JPEG",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "02",
+      "term": "PDF",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "03",
+      "term": "PNG",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "04",
+      "term": "TIFF",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "05",
+      "term": "CAdES - JPG ou JPEG",
+      "startsOn": "2021-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "06",
+      "term": "CAdES - PDF",
+      "startsOn": "2021-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "07",
+      "term": "CAdES - PNG",
+      "startsOn": "2021-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "08",
+      "term": "CAdES - TIFF",
+      "startsOn": "2021-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "09",
+      "term": "PAdES",
+      "startsOn": "2021-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    }
+  ]
+}

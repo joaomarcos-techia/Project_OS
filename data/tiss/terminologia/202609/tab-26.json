@@ -1,0 +1,115 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "26",
+  "title": "Tabela 26 - Terminologia de conselho profissional",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 15,
+  "terms": [
+    {
+      "code": "01",
+      "term": "Conselho Regional de Serviço Social (CRESS)",
+      "startsOn": "2020-09-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "02",
+      "term": "Conselho Regional de Enfermagem (COREN)",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "03",
+      "term": "Conselho Regional de Farmácia (CRF)",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "04",
+      "term": "Conselho Regional de Fonoaudiologia (CREFONO)",
+      "startsOn": "2020-09-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "05",
+      "term": "Conselho Regional de Fisioterapia e Terapia Ocupacional (CREFITO)",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "06",
+      "term": "Conselho Regional de Medicina (CRM)",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "07",
+      "term": "Conselho Regional de Nutrição (CRN)",
+      "startsOn": "2020-09-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "08",
+      "term": "Conselho Regional de Odontologia (CRO)",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "09",
+      "term": "Conselho Regional de Psicologia (CRP)",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "10",
+      "term": "Outros Conselhos",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "11",
+      "term": "Conselho Regional de Biologia (CRBio)",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "12",
+      "term": "Conselho Regional de Biomedicina (CRBM)",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "13",
+      "term": "Conselho Regional de Educação Física (CREF)",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "14",
+      "term": "Conselho Regional de Medicina Veterinária (CRMV)",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "15",
+      "term": "Conselho Regional de Técnicos em Radiologia (CRTR)",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    }
+  ]
+}

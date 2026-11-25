@@ -1,0 +1,30 @@
+E2E_RUN=3DGYV
+
+Running 19 tests using 1 worker
+
+E2E_RUN=3DHKF
+  ok  1 [chromium] › e2e\convenios-config-preview.spec.ts:171:1 › o Preview usa o projeto DEV (prova assinada antes de qualquer escrita) (2.3s)
+  ok  2 [chromium] › e2e\convenios-config-preview.spec.ts:176:1 › gestora: procedimento no catálogo da clínica (Configurações › Procedimentos) (24.6s)
+  ok  3 [chromium] › e2e\convenios-config-preview.spec.ts:191:1 › gestora: configura do zero — prestador, operadora, plano, contrato TUSS, ativação e perfil TISS (1.4m)
+  ok  4 [chromium] › e2e\convenios-config-preview.spec.ts:267:1 › recepção: cadastra o paciente e a carteirinha (número cifrado; completo só auditado) (57.7s)
+  ok  5 [chromium] › e2e\convenios-config-preview.spec.ts:306:1 › recepção: agenda como CONVÊNIO e a cobertura nasce pronta, com coparticipação estimada (26.8s)
+  ok  6 [chromium] › e2e\convenios-config-preview.spec.ts:356:1 › gestora: reajuste a partir de uma data cria versão; o passado não muda; histórico registrado (20.5s)
+  ok  7 [chromium] › e2e\convenios-config-preview.spec.ts:378:1 › médica: sem ver o financeiro, não entra na configuração nem nas carteirinhas (23.6s)
+  ok  8 [chromium] › e2e\convenios-config-preview.spec.ts:389:1 › outra clínica: operadora e paciente de outro tenant não aparecem (404 / não encontrado) (22.6s)
+  ok  9 [chromium] › e2e\convenios-config-preview.spec.ts:402:1 › trial: configuração e carteirinhas aparecem como recurso contratável (a recusa da carteirinha no trial é provada no harness) (17.4s)
+  ok 10 [chromium] › e2e\convenios-config-preview.spec.ts:413:1 › celular: configuração, operadora, carteirinhas e atendimentos sem rolagem lateral (32.8s)
+  ok 11 [chromium] › e2e\convenios-config-preview.spec.ts:431:1 › gestora: regra de repasse da médica (40%) em Configurações › Pagamentos (11.6s)
+  ok 12 [chromium] › e2e\convenios-config-preview.spec.ts:444:1 › recepção: encaixe de convênio (o paciente chegou agora) (21.3s)
+ACHADO R51: React #418 em /consultorio
+  ok 13 [chromium] › e2e\convenios-config-preview.spec.ts:464:1 › médica: chama e encerra a consulta; a guia de convênio nasce sozinha do atendimento (1.1m)
+  ok 14 [chromium] › e2e\convenios-config-preview.spec.ts:506:1 › gestora: confere, aprova e emite a guia; o PDF oficial sai do documento congelado (30.0s)
+  ok 15 [chromium] › e2e\convenios-config-preview.spec.ts:522:1 › gestora: lote → XML validado no XSD → enviado → protocolo → em análise (46.9s)
+  ok 16 [chromium] › e2e\convenios-config-preview.spec.ts:570:1 › gestora: glosa parcial → análise → contestação → recurso com XML no XSD → envio → resposta (1.1m)
+  ok 17 [chromium] › e2e\convenios-config-preview.spec.ts:618:1 › gestora: pagamento parcial → alocação → estorno → nova alocação; demonstrativo repetido recusado (50.9s)
+  ok 18 [chromium] › e2e\convenios-config-preview.spec.ts:671:1 › gestora: repasse de 40% sobre o recebido → autorizar → registrar o repasse (40.5s)
+  ok 19 [chromium] › e2e\convenios-config-preview.spec.ts:690:1 › coparticipação: recepção confere R$ 45,00, gestora confirma; só esse valor vira cobrança do paciente (54.4s)
+
+  Slow test file: [chromium] › e2e\convenios-config-preview.spec.ts (11.6m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  19 passed (12.7m)
+exit 0

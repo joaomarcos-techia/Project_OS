@@ -1,0 +1,538 @@
+{
+  "component": "Padrão TISS — Componente de Segurança e Privacidade",
+  "version": "202511",
+  "source": {
+    "publisher": "ANS",
+    "page": "https://www.gov.br/ans/pt-br/assuntos/prestadores/padrao-para-troca-de-informacao-de-saude-suplementar-2013-tiss/padrao-tiss-setembro-2026",
+    "archiveUrl": "https://www.gov.br/ans/pt-br/arquivos/assuntos/prestadores/padrao-para-troca-de-informacao-de-saude-suplementar-tiss/padrao-tiss/PadroTISS_segurana_202511.zip",
+    "archiveSha256": "09af14231ae40b95d055fb3effbadfba1f71bdf676a5a3c69a057bace0d2ff73",
+    "sheetFile": "Padrão TISS_segurança_202511.xlsx",
+    "sheetSha256": "9a834f490eba65a580d6abf475d1f258c0e0f8c373e6185c93f38ac3b54f0a8e"
+  },
+  "scope": "Os requisitos que compõem esta relação, se aplicam a todos os sistemas e portais que tratam os dados que fazem parte do Padrão TISS para troca de informações na saúde suplementar.",
+  "count": 58,
+  "requirements": [
+    {
+      "id": 1,
+      "description": "Identificar e autenticar todo usuário antes de qualquer acesso a dados com identificação do beneficiário.",
+      "condition": "Obrigatório",
+      "startsOn": "2012-10-01",
+      "endsOn": null,
+      "implementationDeadline": "2014-08-01",
+      "note": null
+    },
+    {
+      "id": 2,
+      "description": "Utilizar para autenticação de usuários a site e páginas da Internet (portais) login e senha podendo opcionalmente, desde que acordado entre as partes, ser utilizada a certificação digital.",
+      "condition": "Obrigatório",
+      "startsOn": "2012-10-01",
+      "endsOn": null,
+      "implementationDeadline": "2014-08-01",
+      "note": null
+    },
+    {
+      "id": 3,
+      "description": "Utilizar para autenticação de usuários, via utilização de webservices, login e senha podendo opcionalmente, desde que acordado entre as partes, ser utilizada a certificação digital em substituição ao login e senha.",
+      "condition": "Obrigatório",
+      "startsOn": "2012-10-01",
+      "endsOn": null,
+      "implementationDeadline": "2014-08-01",
+      "note": null
+    },
+    {
+      "id": 12,
+      "description": "Utilizar certificado digital sempre dentro do período de validade além de não aceitar o certificado se o mesmo estiver na lista de certificados revogados da AC.",
+      "condition": "Obrigatório",
+      "startsOn": "2012-10-01",
+      "endsOn": null,
+      "implementationDeadline": "2014-08-01",
+      "note": null
+    },
+    {
+      "id": 13,
+      "description": "Utilizar certificado digital que identifique o endereço eletrônico para o qual foi emitido",
+      "condition": "Obrigatório",
+      "startsOn": "2012-10-01",
+      "endsOn": null,
+      "implementationDeadline": "2014-08-01",
+      "note": null
+    },
+    {
+      "id": 14,
+      "description": "Utilizar certificado digital que contemple em sua estrutura a identificação da autoridade certificadora emissora.",
+      "condition": "Obrigatório",
+      "startsOn": "2012-10-01",
+      "endsOn": null,
+      "implementationDeadline": "2014-08-01",
+      "note": null
+    },
+    {
+      "id": 15,
+      "description": "Utilizar certificado digital que contemple em sua estrutura a identificação do titular do certificado",
+      "condition": "Obrigatório",
+      "startsOn": "2012-10-01",
+      "endsOn": null,
+      "implementationDeadline": "2014-08-01",
+      "note": null
+    },
+    {
+      "id": 18,
+      "description": "Utilizar certificado digital que implemente autenticação por algoritmo HASH",
+      "condition": "Obrigatório",
+      "startsOn": "2012-10-01",
+      "endsOn": null,
+      "implementationDeadline": "2014-08-01",
+      "note": null
+    },
+    {
+      "id": 30,
+      "description": "Deve conter a assinatura digital do prestador de serviços na mensagem enviada à operadora para assegurar a autenticidade, o não repúdio, a integridade e a garantia de origem.",
+      "condition": "Recomendado",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implementationDeadline": null,
+      "note": null
+    },
+    {
+      "id": 31,
+      "description": "Deve conter a assinatura digital da operadora na mensagem enviada ao prestador de serviços para assegurar a autenticidade, a integridade do conteúdo e o não repúdio das informações ali contidas.",
+      "condition": "Recomendado",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implementationDeadline": null,
+      "note": null
+    },
+    {
+      "id": 34,
+      "description": "A sessão de comunicação remota entre cliente e servidor deve possuir controles de segurança que impeçam o roubo ou reuso da sessão do usuário. a) As credenciais de acesso não devem ser transmitidas entre as partes na forma de texto claro. b) Devem haver controles que impeçam o reuso de identificadores de sessão do usuário (por exemplo: ataques de replay e covert-channel) e roubo da sessão. c) Não deve ser possível para qualquer usuário do sistema desativar ou desabilitar tais controles.",
+      "condition": "Obrigatório",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implementationDeadline": "2018-12-01",
+      "note": null
+    },
+    {
+      "id": 35,
+      "description": "Utilizar certificado digital que utilize criptografia de, no mínimo, 256 bits.",
+      "condition": "Obrigatório",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implementationDeadline": "2018-12-01",
+      "note": null
+    },
+    {
+      "id": 36,
+      "description": "O sistema deve apresentar minimamente as informações de identificação do software, contendo obrigatoriamente o nome do software, nome do fornecedor, identificação completa da versão e/ou release e/ou build. Essas informações deverão estar disponíveis minimamente: • na tela inicial do sistema; • nas telas de cada módulo de modo que quando o sistema esteja em uso essas informações estejam sempre visíveis; • impressões geradas oriundas do sistema.",
+      "condition": "Obrigatório",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implementationDeadline": "2018-12-01",
+      "note": null
+    },
+    {
+      "id": 37,
+      "description": "Todo usuário do sistema deve ser identificado e autenticado antes de qualquer acesso a dados ou funcionalidades do sistema.",
+      "condition": "Obrigatório",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implementationDeadline": "2018-12-01",
+      "note": null
+    },
+    {
+      "id": 38,
+      "description": "Utilizar, nos processos de autenticação de usuário para acesso aos sistemas, um dos seguintes métodos: • Identificação de usuário e senha secreta de acesso; • Certificado digital; • Validação biométrica; • OTP.",
+      "condition": "Obrigatório",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implementationDeadline": "2018-12-01",
+      "note": null
+    },
+    {
+      "id": 41,
+      "description": "a)Identidade única: toda pessoa usuária do sistema deverá ser identificada individualmente. b)Vinculação a número legal e único: toda pessoa usuária do sistema deverá ser vinculada minimamente a um documento de identificação pessoal unívoco. c)Unicidade de identificação de usuários: a informação de identificação de tal documento deverá ser validada na inclusão ou alteração de pessoas para garantir a unicidade, ou seja,o sistema não deve permitir a associação de um mesmo documento de identificação a dois usuários no sistema. d)Exclusão de usuários: Para fins de responsabilização, não deve ser possível remover o cadastro ou vínculo de usuários e profissionais de saúde do sistema, caso alguma operação tenha sido realizada pelo mesmo. Que seja possível inativar usuário, apesar de não poder excluir, e que o inativo não consiga fazer login/acessar.",
+      "condition": "Obrigatório",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implementationDeadline": "2018-12-01",
+      "note": null
+    },
+    {
+      "id": 42,
+      "description": "Assim que completada uma autenticação com sucesso,o sistema deve exibir à pessoa usuária as seguintes informações: • Data e hora da última autenticação com sucesso de seu usuário; • Data e hora das tentativas de autenticação sem sucesso depois da última autenticação com sucesso. Nota: Considera-se como “última autenticação” a autenticação anterior à que está ocorrendo.",
+      "condition": "Obrigatório",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implementationDeadline": "2018-12-01",
+      "note": null
+    },
+    {
+      "id": 43,
+      "description": "Condição: Arquitetura cliente-servidor e autenticação por login e senha. A interface de usuário utilizada para digitação de credenciais de acesso ao sistema (login ou nome do usuário, senha secreta de acesso, PIN) deve impedir a memorização e a visualização de dados anteriores (lista de logins já digitados, lembrança automática de senhas associadas a um login, etc.). Além disso, toda e qualquer digitação direta de senhas deve ser feita por meio de máscara de caracteres que impeça sua visualização por outras pessoas.",
+      "condition": "Obrigatório",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implementationDeadline": "2018-12-01",
+      "note": null
+    },
+    {
+      "id": 44,
+      "description": "Impedir acesso ou visualização dos dados por pessoas não autorizadas no sistema.",
+      "condition": "Obrigatório",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implementationDeadline": "2018-12-01",
+      "note": null
+    },
+    {
+      "id": 45,
+      "description": "Garantir que o acesso aos dados do sistema seja somente possível por meio de canais de interação pré-definidos (ex.: web, console local, interface entre aplicativos), com atuação obrigatória de mecanismos de controle de acesso.",
+      "condition": "Obrigatório",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implementationDeadline": "2018-12-01",
+      "note": null
+    },
+    {
+      "id": 46,
+      "description": "a) A sessão de comunicação entre o componente de interação com o usuário (ex.: browser ou executável cliente) e os outros componentes do sistema (ex.: aplicação) deve oferecer os seguintes funcionalidades de segurança: autenticação, integridade dos dados e confidencialidade dos dados. b) O componente de segurança empregado deve implementar criptografia na comunicação utilizando algoritmo de, no mínimo, 256 bits.",
+      "condition": "Obrigatório",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implementationDeadline": "2023-04-30",
+      "note": null
+    },
+    {
+      "id": 49,
+      "description": "Os dados inseridos pelo usuário nos campos de entrada (inputs, caixas de texto, etc) devem ser validados antes de serem processados, de forma a prevenir ataques de buffer overflow e injeção de dados.",
+      "condition": "Obrigatório",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implementationDeadline": "2018-12-01",
+      "note": null
+    },
+    {
+      "id": 50,
+      "description": "O sistema deve permitir o gerenciamento (criação, ativação/inativação e modificação) de usuários e papéis (perfis), por meio da aplicação, de forma a possibilitar o controle de acesso às funcionalidades do sistema conforme os papéis aos quais o usuário possui. Um usuário pode possuir um ou mais papéis.",
+      "condition": "Obrigatório",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implementationDeadline": "2018-12-01",
+      "note": null
+    },
+    {
+      "id": 51,
+      "description": "Em caso de autenticação inválida em tentativa de acesso, a mensagem de erro emitida pelo sistema para o usuário não deve informar qual o motivo do erro.",
+      "condition": "Obrigatório",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implementationDeadline": "2018-12-01",
+      "note": null
+    },
+    {
+      "id": 53,
+      "description": "Todos os processos de validação das regras de negócio (ex.: validação de dados, conteúdo, tamanho, domínio, etc.) devem ser realizados no back-end. Opcionalmente, poderá haver tais validações no front-end, desde que seguidas das validações no back-end.",
+      "condition": "Obrigatório",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implementationDeadline": "2023-04-30",
+      "note": null
+    },
+    {
+      "id": 54,
+      "description": "A arquitetura do sistema deverá estar disposta em camadas e seus componentes distribuídos. O banco de dados deverá estar segregado das aplicações (ex.: componentes, segmentos de rede, API).",
+      "condition": "Recomendado",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implementationDeadline": null,
+      "note": null
+    },
+    {
+      "id": 55,
+      "description": "O acesso de usuários ao SGBD deve ser permitido somente por intermédio do componente de autenticação e controle de acesso com usuário exclusivo para esse fim, exceto nas atividades de cópia de segurança (suporte de maneira geral).",
+      "condition": "Recomendado",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implementationDeadline": null,
+      "note": null
+    },
+    {
+      "id": 56,
+      "description": "Componentes que manipulam dados identificados do sistema para fins de interoperabilidade, visualização, assinatura e outros, não devem manter tais dados fora do SGBD após o término da operação.",
+      "condition": "Obrigatório",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implementationDeadline": "2023-04-30",
+      "note": null
+    },
+    {
+      "id": 57,
+      "description": "Gerar trilhas de auditoria das ações realizadas no tratamento de dados pessoais e pessoais sensiveis.",
+      "condition": "Obrigatório",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implementationDeadline": "2023-04-30",
+      "note": null
+    },
+    {
+      "id": 58,
+      "description": "Os registros de auditoria gerados devem ter garantia de integridade e serem protegidos contra acesso não autorizado.",
+      "condition": "Obrigatório",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implementationDeadline": "2023-04-30",
+      "note": null
+    },
+    {
+      "id": 59,
+      "description": "O sistema deve possuir uma interface para visualização dos registros de auditoria em ordem cronológica.",
+      "condition": "Recomendado",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implementationDeadline": null,
+      "note": null
+    },
+    {
+      "id": 60,
+      "description": "Toda pessoa usuária do sistema deve ter a autenticação confirmada no momento da realização de operações críticas ou sensíveis, mesmo que já tenha se autenticado previamente para ingresso ao sistema.",
+      "condition": "Recomendado",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implementationDeadline": null,
+      "note": null
+    },
+    {
+      "id": 62,
+      "description": "As bases de dados, mídias ou arquivos que contém dados pessoais e/ou dados pessoais sensíveis devem ser protegidas para garantir a confidencialidade (por exemplo: criptografia, somente acessos autorizados, etc.)",
+      "condition": "Obrigatório",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implementationDeadline": "2023-04-30",
+      "note": null
+    },
+    {
+      "id": 63,
+      "description": "Utilização de captcha na tela de acesso ao sistema vinculada ao método de autenticação por login e senha. Não deve ser permitido autenticar o usuário sem a validação simultânea do login, senha e token do captcha.",
+      "condition": "Recomendado",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implementationDeadline": null,
+      "note": null
+    },
+    {
+      "id": 64,
+      "description": "Adotar a criptografia de, no minimo, 256 bits na comunicação entre as partes da aplicação em redes distintas.",
+      "condition": "Recomendado",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implementationDeadline": null,
+      "note": null
+    },
+    {
+      "id": 65,
+      "description": "Utilização de captcha na tela de recuperação de senha de acesso do sistema para evitar ataques do tipo Brute Force",
+      "condition": "Recomendado",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implementationDeadline": null,
+      "note": null
+    },
+    {
+      "id": 66,
+      "description": "Não permitir alterar e remover registros do log de auditoria de sistema por um tempo mínimo de 90 dias",
+      "condition": "Obrigatório",
+      "startsOn": "2021-08-01",
+      "endsOn": "2026-06-30",
+      "implementationDeadline": "2023-04-30",
+      "note": "Será substituído pelo requisito 85"
+    },
+    {
+      "id": 67,
+      "description": "Mínimo de 08 caracteres utilizando pelo menos um (01) caractere de cada um dos quatro (4) tipos de caracteres listados abaixo: • Letras Maiúsculas (AZ) • Letras Minúsculas (az) • Números (0-9) • Símbolos ASCII (`~! @ # $% ^ & * () _ + - = {} | \\:\"; '<>?,. / e espaço) e caracteres Unicode.",
+      "condition": "Obrigatório",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implementationDeadline": "2023-04-30",
+      "note": null
+    },
+    {
+      "id": 68,
+      "description": "Definir o período máximo de troca de senha como controle do sistema. Este período não deve ser superior a 180 (cento e oitenta dias). O sistema deve permitir que o usuário troque sua senha a qualquer momento.",
+      "condition": "Obrigatório",
+      "startsOn": "2021-08-01",
+      "endsOn": "2026-06-30",
+      "implementationDeadline": "2023-04-30",
+      "note": "Será substituído pelo requisito 81"
+    },
+    {
+      "id": 69,
+      "description": "Bloquear, ao menos temporariamente, o usuário após um número máximo de tentativas inválidas de login, por qualquer meio de acesso. Este número de tentativas não deve ser superior a cinco. Após o número máximo de tentativas, o usuário poderá ser bloqueado por, no mínimo, 5 (cinco) minutos ou ser submetido a outros controles para autenticação. O desbloqueio será feito apenas pelo próprio usuário ou a sessão será encerrada.",
+      "condition": "Obrigatório",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implementationDeadline": "2023-04-30",
+      "note": null
+    },
+    {
+      "id": 70,
+      "description": "Registrar log de acessos e de tentativas de acesso ao sistema de informação. O tempo de armazenamento desta informação seja de, no mínimo, 90 (noventa) dias.",
+      "condition": "Obrigatório",
+      "startsOn": "2021-08-01",
+      "endsOn": "2026-06-30",
+      "implementationDeadline": "2023-04-30",
+      "note": "Será substituído pelo requisito 84"
+    },
+    {
+      "id": 71,
+      "description": "Utilizar certificado digital que utilize apenas protocolo criptográfico TLS na versão mínima 1.2.",
+      "condition": "Obrigatório",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implementationDeadline": "2023-04-30",
+      "note": null
+    },
+    {
+      "id": 72,
+      "description": "A interrupção do serviço de troca eletrônica de informações entre prestadores de serviços de saúde e operadoras de planos privados de assistência à saúde deve ser solucionada em até 48 (quarenta e oito) horas corridas, salvo em caso fortuito ou de força maior devidamente justificado.",
+      "condition": "Obrigatório",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implementationDeadline": "2023-04-30",
+      "note": null
+    },
+    {
+      "id": 73,
+      "description": "As operadoras de planos privados de assistência à saúde devem constituir proteções administrativas, técnicas e físicas para impedir o acesso não autorizado à dados pessoais e dados pessoais sensíveis.",
+      "condition": "Obrigatório",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implementationDeadline": "2023-04-30",
+      "note": null
+    },
+    {
+      "id": 74,
+      "description": "Os prestadores de serviços de saúde devem constituir proteções administrativas, técnicas e físicas para impedir o acesso não autorizado à dados pessoais e dados pessoais sensíveis, em especial à toda informação identificada individualmente.",
+      "condition": "Obrigatório",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implementationDeadline": "2023-04-30",
+      "note": null
+    },
+    {
+      "id": 75,
+      "description": "Igualdade de senha: os processos de troca de senha devem exigir que a nova senha seja diferente das três últimas senhas utilizadas pelo usuário.",
+      "condition": "Obrigatório",
+      "startsOn": "2021-08-01",
+      "endsOn": "2026-06-30",
+      "implementationDeadline": "2023-04-30",
+      "note": "Será substituído pelo requisito 82"
+    },
+    {
+      "id": 76,
+      "description": "a) A sessão de usuário deve ser automaticamente bloqueada ou encerrada forçadamente pelo aplicativo após um período de inatividade.Este tempo não deve ser superior a 30 minutos. b) Após o bloqueio ou encerramento da sessão de usuário, as informações em tela não deverão mais estar visíveis, sendo necessária uma nova autenticação para a retomada da atividade. c) Não deve ser possível para qualquer usuário do sistema desativar ou desabilitar tais controles. d)Para que o desbloqueio de sessão seja realizado, o sistema deve requerer novo processo de autenticação do usuário bloqueado.",
+      "condition": "Obrigatório",
+      "startsOn": "2021-08-01",
+      "endsOn": "2026-06-30",
+      "implementationDeadline": "2023-04-30",
+      "note": "Será substituído pelo requisito 83"
+    },
+    {
+      "id": 77,
+      "description": "Armazenar de forma protegida todos os dados ou parâmetros utilizados no processo de autenticação de usuário. Método: Nome de usuário e senha a) A senha deve ser armazenada em banco de dados, de forma codificada por algoritmo criptográfico no minimo igual a 256 bits. b) As codificações das senhas de acesso dos usuários devem ser protegidas contra acesso não autorizado. Método: Biometria (condição: somente para pessoas) c) Os templates biométricos das pessoas devem ser protegidos contra acesso não autorizado. d) As amostras biométricas coletadas e transmitidas durante o processo de autenticação devem ser protegidas contra acesso não autorizado. Método: OTP e) As sementes de geração dos valores devem ser protegidas contra acesso não autorizado.",
+      "condition": "Obrigatório",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implementationDeadline": "2023-04-30",
+      "note": null
+    },
+    {
+      "id": 78,
+      "description": "A comunicação entre componentes distribuídos do sistema (como por exemplo, entre a aplicação e o banco de dados) devem oferecer controles de segurança para impedir acesso não autorizado. Para tal, deverão ser utilizados componentes de segurança que garantam a autenticação e a confidencialidade entre as partes da aplicação e a integridade dos dados.",
+      "condition": "Obrigatório",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implementationDeadline": "2023-04-30",
+      "note": null
+    },
+    {
+      "id": 79,
+      "description": "Dados pessoais e pessoais sensíveis estruturados devem ser armazenados por Sistema(s) de Gerenciamento de Banco de Dados (SGBD) e dados pessoais e pessoais sensíveis não estruturados e não armazenados em SGBD devem atender à requisitos de confidencialidade.",
+      "condition": "Obrigatório",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implementationDeadline": "2023-04-30",
+      "note": null
+    },
+    {
+      "id": 80,
+      "description": "Para as transmissões remotas de dados identificados, os sistemas das operadoras de planos de saúde deverão possuir um certificado digital de servidor emitido por uma Autoridade Certificadora. AC certificados de servidor homologada WebTrust for CAs, WebTrust for CAs - SSL Baseline with Network Security , e ETSI TS 102 042, ETSI EN 319 411-1 e ETSI EN 319 411-2 .",
+      "condition": "Obrigatório",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implementationDeadline": "2023-04-30",
+      "note": null
+    },
+    {
+      "id": 81,
+      "description": "Definir o período máximo de troca de senha como controle do sistema. Este período não deve ser superior a 90 (noventa dias). O sistema deve permitir que o usuário troque sua senha a qualquer momento.",
+      "condition": "Obrigatório",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implementationDeadline": "2026-06-30",
+      "note": null
+    },
+    {
+      "id": 82,
+      "description": "Igualdade de senha: os processos de troca de senha devem exigir que a nova senha seja diferente das dez últimas senhas utilizadas pelo usuário.",
+      "condition": "Obrigatório",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implementationDeadline": "2026-06-30",
+      "note": null
+    },
+    {
+      "id": 83,
+      "description": "a) A sessão de usuário deve ser automaticamente bloqueada ou encerrada forçadamente pelo aplicativo após um período de inatividade.Este tempo não deve ser superior a 10 (dez) minutos. b) Após o bloqueio ou encerramento da sessão de usuário, as informações em tela não deverão mais estar visíveis, sendo necessária uma nova autenticação para a retomada da atividade. c) Não deve ser possível para qualquer usuário do sistema desativar ou desabilitar tais controles. d)Para que o desbloqueio de sessão seja realizado, o sistema deve requerer novo processo de autenticação do usuário bloqueado.",
+      "condition": "Obrigatório",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implementationDeadline": "2026-06-30",
+      "note": null
+    },
+    {
+      "id": 84,
+      "description": "Registrar log de acessos e de tentativas de acesso ao sistema de informação. O tempo de armazenamento dessa informação será de, no mínimo, 180 (cento e oitenta) dias.",
+      "condition": "Obrigatório",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implementationDeadline": "2026-06-30",
+      "note": null
+    },
+    {
+      "id": 85,
+      "description": "As soluções que operam com dados do padrão TISS deverão manter registros de logs de auditoria completos, estruturados e auditáveis, contendo: identificação do usuário ou sistema, data e hora de acesso, dados acessados, tipo de operação realizada (consulta, inserção, alteração ou exclusão) e finalidade declarada do uso da informação. O log deve estar disponível para auditoria por parte da ANS e do titular dos dados quando solicitado por um tempo mínimo de 180 (cento e oitenta) dias, não sendo permitido alterar e/ou remover seus registros durante esse período. O tempo mínimo descrito acima não desconsidera os demais prazos para manutenção dos dados e respectivos metadados previstos na legislação que dispõe sobre a digitalização e a utilização de sistemas informatizados para a guarda, o armazenamento e o manuseio de prontuários clínicos.",
+      "condition": "Obrigatório",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implementationDeadline": "2026-06-30",
+      "note": null
+    },
+    {
+      "id": 86,
+      "description": "Quando utilizar o método \"Nome de Usuário e Senha\" no processo de autenticação, empregar um segundo fator de autenticação que consista em chave constituída por uma sequência de caracteres alfabéticos e/ou numéricos únicos enviados para o e-mail ou número celular do usuário cadastrado. Esse segundo fator deverá ser solicitado, no mínimo, no primeiro acesso do usuário no dia e, no máximo, em todas as seções de acesso.",
+      "condition": "Recomendado",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implementationDeadline": null,
+      "note": null
+    },
+    {
+      "id": 87,
+      "description": "Quando utilizar o método \"Nome de Usuário e Senha\" no processo de autenticação, empregar um segundo fator de autenticação que consista em chave constituída por uma sequência de caracteres alfabéticos e/ou numéricos únicos enviados para o e-mail ou celular do usuário cadastrado quando este alterar o próprio e-mail ou número do celular.",
+      "condition": "Recomendado",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implementationDeadline": null,
+      "note": null
+    }
+  ]
+}

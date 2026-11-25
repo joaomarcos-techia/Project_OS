@@ -28,6 +28,9 @@ const copied = [
   'scripts/abacatepay-checkout-session.ts',
   'scripts/recovery-scheduled-backup.ts',
   'scripts/recovery-backup-alert.ts',
+  // Núcleo da carga TUSS (só módulos do Node): o harness de desempenho da P14.4, em
+  // scripts/security, o importa, e a checagem de tipos do build o precisa na cópia.
+  'scripts/tiss/terminology/load-core.ts',
   'package.json',
   'tsconfig.json',
   'next.config.ts',

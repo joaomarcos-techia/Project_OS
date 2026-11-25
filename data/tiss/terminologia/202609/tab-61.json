@@ -1,0 +1,31 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "61",
+  "title": "Tabela 61 - Terminologia de via de acesso",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 3,
+  "terms": [
+    {
+      "code": "1",
+      "term": "Única",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "2",
+      "term": "Mesma via",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3",
+      "term": "Diferentes vias",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    }
+  ]
+}

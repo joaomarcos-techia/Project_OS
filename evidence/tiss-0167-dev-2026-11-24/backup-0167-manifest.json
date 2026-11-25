@@ -1,0 +1,80 @@
+{
+ "at": "2026-11-24T13:50:16.921Z",
+ "files": [
+  {
+   "file": "schema-public-drizzle.sql",
+   "bytes": 1077200,
+   "sha256": "7ba765d017f138457b1cf2c2c97585543d561162b114d3409a4af7a9b2e54b1a",
+   "ms": 65978
+  },
+  {
+   "file": "data-hi-tables.sql",
+   "bytes": 625515,
+   "sha256": "29dc58833aa7651332d663f43430b6cdc106100a53d5c73356931f949fa73d81",
+   "ms": 27417
+  },
+  {
+   "file": "data-drizzle-ledger.sql",
+   "bytes": 14635,
+   "sha256": "902a31f4069a50d1b63e544a728e1c3ebf8c60d5c351ec8f5376b00312fedaa4",
+   "ms": 15460
+  }
+ ],
+ "rows": {
+  "public.clinics": 60,
+  "public.hi_account_events": 109,
+  "public.hi_insurers": 26,
+  "public.hi_plans": 20,
+  "public.hi_memberships": 31,
+  "public.hi_authorizations": 16,
+  "public.hi_authorization_items": 16,
+  "public.hi_contract_imports": 24,
+  "public.hi_procedure_contracts": 61,
+  "public.hi_professional_profiles": 25,
+  "public.hi_sadt_requests": 8,
+  "public.hi_sadt_request_items": 8,
+  "public.hi_appointment_coverages": 102,
+  "public.hi_authorization_alerts": 1,
+  "public.hi_authorization_attachments": 6,
+  "public.hi_authorization_consumptions": 6,
+  "public.hi_authorization_events": 28,
+  "public.hi_guides": 76,
+  "public.hi_guide_snapshots": 43,
+  "public.hi_files": 42,
+  "public.hi_batches": 20,
+  "public.hi_batch_events": 101,
+  "public.hi_batch_guides": 29,
+  "public.hi_batch_returns": 16,
+  "public.hi_billing_gaps": 1,
+  "public.hi_billing_gap_events": 2,
+  "public.hi_clinic_settings": 26,
+  "public.hi_copayments": 75,
+  "public.hi_counters": 46,
+  "public.hi_credentials": 34,
+  "public.hi_gloss_appeals": 9,
+  "public.hi_guide_items": 80,
+  "public.hi_glosses": 9,
+  "public.hi_gloss_appeal_items": 9,
+  "public.hi_guide_cancellations": 10,
+  "public.hi_guide_cancellation_receipts": 15,
+  "public.hi_guide_events": 305,
+  "public.hi_insurer_credentials": 0,
+  "public.hi_ledger_entries": 62,
+  "public.hi_payments": 8,
+  "public.hi_payment_allocations": 24,
+  "public.hi_payouts": 10,
+  "public.hi_payout_movements": 16,
+  "public.hi_payout_reviews": 0,
+  "public.hi_sadt_request_events": 23
+ },
+ "verify": {
+  "hi_guide_items": true,
+  "hi_authorization_items": true,
+  "no_extra_items_yet": true
+ },
+ "schema_has": {
+  "hi_authorization_alerts": true,
+  "hi_guide_items": true,
+  "no_extra_items_yet": true
+ }
+}

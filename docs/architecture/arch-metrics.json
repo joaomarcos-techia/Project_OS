@@ -1,12 +1,12 @@
 {
   "_comment": "GERADO por `pnpm arch:graphs`. Baseline do Gate de Complexidade (qorov2 §11).",
   "totals": {
-    "modules": 807,
-    "elements": 56,
-    "importEdges": 303,
+    "modules": 918,
+    "elements": 60,
+    "importEdges": 317,
     "moduleCycles": 0,
-    "events": 68,
-    "eventsWithoutConsumer": 42
+    "events": 72,
+    "eventsWithoutConsumer": 41
   },
   "elements": [
     {
@@ -46,7 +46,7 @@
       "id": "app:(app)",
       "kind": "app",
       "fanIn": 0,
-      "fanOut": 33,
+      "fanOut": 34,
       "dependsOn": [
         "app:(admin)",
         "component:admin",
@@ -79,6 +79,7 @@
         "lib:pdf",
         "lib:platform-announcements",
         "lib:realtime",
+        "lib:security",
         "lib:storage",
         "lib:ui"
       ]
@@ -87,12 +88,13 @@
       "id": "app:api",
       "kind": "app",
       "fanIn": 0,
-      "fanOut": 23,
+      "fanOut": 26,
       "dependsOn": [
         "context:ai-agent",
         "context:billing",
         "context:clinical",
         "context:financial",
+        "context:identity",
         "context:messaging",
         "context:onboarding",
         "context:patient",
@@ -102,6 +104,7 @@
         "lib:auth",
         "lib:cron-heartbeat",
         "lib:db",
+        "lib:email",
         "lib:env",
         "lib:env-coherence",
         "lib:http",
@@ -110,6 +113,7 @@
         "lib:outbox",
         "lib:payments",
         "lib:platform-settings",
+        "lib:security",
         "lib:storage",
         "lib:validation"
       ]
@@ -150,8 +154,11 @@
       "id": "app:page",
       "kind": "app",
       "fanIn": 0,
-      "fanOut": 0,
-      "dependsOn": []
+      "fanOut": 2,
+      "dependsOn": [
+        "component:shared",
+        "component:ui"
+      ]
     },
     {
       "id": "component:admin",
@@ -179,7 +186,7 @@
     {
       "id": "component:shared",
       "kind": "component",
-      "fanIn": 5,
+      "fanIn": 6,
       "fanOut": 2,
       "dependsOn": [
         "component:ui",
@@ -189,7 +196,7 @@
     {
       "id": "component:ui",
       "kind": "component",
-      "fanIn": 6,
+      "fanIn": 7,
       "fanOut": 1,
       "dependsOn": [
         "lib:ui"
@@ -226,14 +233,16 @@
     {
       "id": "context:billing",
       "kind": "context",
-      "fanIn": 5,
-      "fanOut": 9,
+      "fanIn": 6,
+      "fanOut": 11,
       "dependsOn": [
         "context:ai-agent",
         "context:scheduling",
         "context:tenancy",
         "lib:crypto",
         "lib:db",
+        "lib:env",
+        "lib:http",
         "lib:observability",
         "lib:outbox",
         "lib:payments",
@@ -275,8 +284,9 @@
       "id": "context:financial",
       "kind": "context",
       "fanIn": 6,
-      "fanOut": 11,
+      "fanOut": 13,
       "dependsOn": [
+        "context:billing",
         "context:payments",
         "context:scheduling",
         "context:tenancy",
@@ -284,6 +294,7 @@
         "lib:auth",
         "lib:db",
         "lib:financial",
+        "lib:format",
         "lib:idempotency",
         "lib:observability",
         "lib:outbox",
@@ -291,9 +302,18 @@
       ]
     },
     {
+      "id": "context:health-insurance",
+      "kind": "context",
+      "fanIn": 0,
+      "fanOut": 1,
+      "dependsOn": [
+        "lib:xlsx"
+      ]
+    },
+    {
       "id": "context:identity",
       "kind": "context",
-      "fanIn": 7,
+      "fanIn": 8,
       "fanOut": 10,
       "dependsOn": [
         "context:tenancy",
@@ -332,7 +352,7 @@
       "id": "context:onboarding",
       "kind": "context",
       "fanIn": 4,
-      "fanOut": 13,
+      "fanOut": 14,
       "dependsOn": [
         "context:ai-agent",
         "context:billing",
@@ -346,7 +366,8 @@
         "lib:http",
         "lib:observability",
         "lib:outbox",
-        "lib:payments"
+        "lib:payments",
+        "lib:validation"
       ]
     },
     {
@@ -478,6 +499,13 @@
       ]
     },
     {
+      "id": "lib:backup",
+      "kind": "lib",
+      "fanIn": 0,
+      "fanOut": 0,
+      "dependsOn": []
+    },
+    {
       "id": "lib:cron-heartbeat",
       "kind": "lib",
       "fanIn": 2,
@@ -521,7 +549,7 @@
     {
       "id": "lib:email",
       "kind": "lib",
-      "fanIn": 4,
+      "fanIn": 5,
       "fanOut": 2,
       "dependsOn": [
         "lib:auth",
@@ -531,7 +559,7 @@
     {
       "id": "lib:env",
       "kind": "lib",
-      "fanIn": 20,
+      "fanIn": 21,
       "fanOut": 2,
       "dependsOn": [
         "lib:env-aliases",
@@ -566,14 +594,14 @@
     {
       "id": "lib:format",
       "kind": "lib",
-      "fanIn": 5,
+      "fanIn": 6,
       "fanOut": 0,
       "dependsOn": []
     },
     {
       "id": "lib:http",
       "kind": "lib",
-      "fanIn": 6,
+      "fanIn": 7,
       "fanOut": 5,
       "dependsOn": [
         "lib:audit",
@@ -635,7 +663,7 @@
     {
       "id": "lib:observability",
       "kind": "lib",
-      "fanIn": 23,
+      "fanIn": 24,
       "fanOut": 2,
       "dependsOn": [
         "lib:env",
@@ -658,14 +686,15 @@
       "id": "lib:payments",
       "kind": "lib",
       "fanIn": 5,
-      "fanOut": 6,
+      "fanOut": 7,
       "dependsOn": [
         "lib:audit",
         "lib:auth",
         "lib:crypto",
         "lib:db",
         "lib:env",
-        "lib:observability"
+        "lib:observability",
+        "lib:sanitize"
       ]
     },
     {
@@ -688,9 +717,10 @@
       "id": "lib:platform-settings",
       "kind": "lib",
       "fanIn": 3,
-      "fanOut": 1,
+      "fanOut": 2,
       "dependsOn": [
-        "lib:db"
+        "lib:db",
+        "lib:observability"
       ]
     },
     {
@@ -703,7 +733,14 @@
     {
       "id": "lib:sanitize",
       "kind": "lib",
-      "fanIn": 4,
+      "fanIn": 5,
+      "fanOut": 0,
+      "dependsOn": []
+    },
+    {
+      "id": "lib:security",
+      "kind": "lib",
+      "fanIn": 2,
       "fanOut": 0,
       "dependsOn": []
     },
@@ -742,7 +779,14 @@
     {
       "id": "lib:validation",
       "kind": "lib",
-      "fanIn": 3,
+      "fanIn": 4,
+      "fanOut": 0,
+      "dependsOn": []
+    },
+    {
+      "id": "lib:xlsx",
+      "kind": "lib",
+      "fanIn": 1,
       "fanOut": 0,
       "dependsOn": []
     }

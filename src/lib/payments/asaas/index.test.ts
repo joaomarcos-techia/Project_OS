@@ -1285,7 +1285,7 @@ describe('estorno e cancelamento de cobrança (ADR-049 1.5)', () => {
     fetchMock.mockImplementation(() =>
       Response.json({
         data: [
-          { id: 'ref_1', status: 'DONE', value: 30 },
+          { id: 'ref_1', status: 'DONE', value: 30, dateCreated: '2026-11-13' },
           { id: 'ref_2', status: 'PENDING', value: '10.50' },
         ],
       }),
@@ -1294,8 +1294,8 @@ describe('estorno e cancelamento de cobrança (ADR-049 1.5)', () => {
     await expect(
       createAsaasClient({ apiKey: 'k' }).listPaymentRefunds('pay/1', { attempts: 1 }),
     ).resolves.toEqual([
-      { refundId: 'ref_1', status: 'DONE', value: 30 },
-      { refundId: 'ref_2', status: 'PENDING', value: 10.5 },
+      { refundId: 'ref_1', status: 'DONE', value: 30, dateCreated: '2026-11-13' },
+      { refundId: 'ref_2', status: 'PENDING', value: 10.5, dateCreated: null },
     ]);
     expect(fetchMock).toHaveBeenCalledWith(
       'https://sandbox.asaas.com/api/v3/payments/pay%2F1/refunds?offset=0&limit=100',

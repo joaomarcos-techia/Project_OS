@@ -1,0 +1,45 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "51",
+  "title": "Tabela 51 - Terminologia de tipo de atendimento em odontologia",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 5,
+  "terms": [
+    {
+      "code": "1",
+      "term": "Tratamento Odontológico",
+      "startsOn": "2008-02-20",
+      "endsOn": null,
+      "implantationEndsOn": "2008-02-20"
+    },
+    {
+      "code": "2",
+      "term": "Exame Radiológico",
+      "startsOn": "2008-02-20",
+      "endsOn": null,
+      "implantationEndsOn": "2008-02-20"
+    },
+    {
+      "code": "3",
+      "term": "Ortodontia",
+      "startsOn": "2008-02-20",
+      "endsOn": null,
+      "implantationEndsOn": "2008-02-20"
+    },
+    {
+      "code": "4",
+      "term": "Urgência/Emergência",
+      "startsOn": "2008-02-20",
+      "endsOn": null,
+      "implantationEndsOn": "2008-02-20"
+    },
+    {
+      "code": "5",
+      "term": "Auditoria",
+      "startsOn": "2008-02-20",
+      "endsOn": null,
+      "implantationEndsOn": "2008-02-20"
+    }
+  ]
+}

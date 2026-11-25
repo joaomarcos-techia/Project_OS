@@ -1,0 +1,52 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "25",
+  "title": "Tabela 25 - Terminologia de código da despesa",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 6,
+  "terms": [
+    {
+      "code": "01",
+      "term": "Gases medicinais",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "02",
+      "term": "Medicamentos",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "03",
+      "term": "Materiais",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "05",
+      "term": "Diárias",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "07",
+      "term": "Taxas e aluguéis",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "08",
+      "term": "OPME",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    }
+  ]
+}

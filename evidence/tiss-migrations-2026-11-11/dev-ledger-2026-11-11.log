@@ -1,0 +1,16 @@
+DEV __drizzle_migrations rows: 144
+id=147 created_at=1792368000008 2026-10-19T00:00:00.008Z hash=7a84577bcf22 -> 0130_subscription_cycle_change_sync [main,pr53,pr55] when_matches_journal=true
+id=148 created_at=1792368000009 2026-10-19T00:00:00.009Z hash=c2a501ea4d67 -> 0131_subscription_upgrade_checkout [main,pr53,pr55] when_matches_journal=true
+id=149 created_at=1792368000010 2026-10-19T00:00:00.010Z hash=1937cd8add4d -> 0132_preserve_contract_owner [main,pr53,pr55] when_matches_journal=true
+id=150 created_at=1793232000000 2026-10-29T00:00:00.000Z hash=e574799edafc -> 0133_offer_2026_feature_permissions [main,pr53,pr55] when_matches_journal=true
+id=151 created_at=1793746800000 2026-11-03T23:00:00.000Z hash=e7c5d4f5e647 -> 0134_signup_code_and_recovery [main,pr53,pr55] when_matches_journal=true
+id=153 created_at=1793804271309 2026-11-04T14:57:51.309Z hash=ff1655034997 -> 0135_ai_clinic_operational_info [main,pr53,pr55] when_matches_journal=true
+id=154 created_at=1794096000000 2026-11-08T00:00:00.000Z hash=43bb658055c5 -> 0136_trial_resource_limits [pr53] when_matches_journal=true
+id=155 created_at=1794168300000 2026-11-08T20:05:00.000Z hash=e1515b18deeb -> 0137_trial_service_role_privileges [pr53] when_matches_journal=true
+id=156 created_at=1794171600000 2026-11-08T21:00:00.000Z hash=22e4c7f622ee -> 0138_saas_gateway_bindings [pr53] when_matches_journal=true
+id=157 created_at=1794189600000 2026-11-09T02:00:00.000Z hash=aa935cd0cadc -> 0139_saas_gateway_recontracts [pr53] when_matches_journal=true
+id=158 created_at=1794199882765 2026-11-09T04:51:22.765Z hash=98269c83b754 -> 0140_saas_recurring_payment_observations [pr53] when_matches_journal=true
+id=159 created_at=1794222981810 2026-11-09T11:16:21.810Z hash=a13faef1aa29 -> 0141_saas_scheduled_plan_changes [pr53] when_matches_journal=true
+id=160 created_at=1794326400000 2026-11-10T16:00:00.000Z hash=410c61834e2a -> 0142_saas_review_replays [pr53] when_matches_journal=true
+id=161 created_at=1794330000000 2026-11-10T17:00:00.000Z hash=9f9b483aaeff -> 0143_tiss_catalog [pr55] when_matches_journal=true
+Arquivos sem linha no DEV: 0033_messaging_connection_status [main,pr53,pr55]; 0037_profiles_invite_and_crm [main,pr53,pr55]; 0051_ai_conversations_panel [main,pr53,pr55]; 0071_runtime_role_timeouts [main,pr53,pr55]; 0093_ai_clinic_config_convenios [main,pr53,pr55]; 0124_offer_2026_trial_deadline [main,pr53,pr55]; 0144_hi_clinic_setup [pr55]; 0145_hi_memberships [pr55]; 0146_hi_authorizations [pr55]

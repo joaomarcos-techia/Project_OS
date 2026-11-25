@@ -19,7 +19,14 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
+import { processOutboxSoon } from '@/app/api/cron/outbox/process-soon';
 import { getFailedJobChargeRef } from '@/contexts/ai-agent/queries';
+import { changeAppointmentModalityAction } from '@/contexts/health-insurance/config-actions';
+import {
+  checkSchedulingChoice,
+  recordSchedulingCoverage,
+  type SchedulingCoverageOutcome,
+} from '@/contexts/health-insurance/scheduling-coverage';
 import { getPatientSummaryById, listPatients } from '@/contexts/patient/queries';
 import { paymentsApiV1 } from '@/contexts/payments';
 import {
@@ -30,12 +37,15 @@ import {
   createWalkInAppointment,
   recoverAppointment,
 } from '@/contexts/scheduling/actions';
+import { SCHEDULING_EVENTS } from '@/contexts/scheduling';
 import { getProcedure, listAppointments } from '@/contexts/scheduling/queries';
 import { zonedWallToUtc } from '@/contexts/scheduling/slot-resolver';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
+import { requestContext } from '@/lib/audit/request-context-from-headers';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireCachedPermission, requireClinicId, requireUser } from '@/lib/auth/tenant-context';
 import { metrics } from '@/lib/observability/metrics';
+import { premiumAccessErrorFrom, premiumDenialMessage } from '@/lib/premium-access';
 
 export type CriarAtendimentoInput = {
   patientId: string;
@@ -46,6 +56,16 @@ export type CriarAtendimentoInput = {
   resourceIds?: string[];
   paymentMethod?: 'pix' | 'cash' | 'credit_card';
   installmentCount?: number;
+  /**
+   * ADR-072 (P4.4): forma de atendimento "Convênio". Ausente = particular (nada muda).
+   * O atendimento nasce como convênio e a cobertura é registrada logo em seguida.
+   */
+  convenio?: {
+    insurerId: string;
+    planId: string | null;
+    membershipId: string | null;
+    guideType: 'consulta' | 'sp_sadt';
+  };
 } & (
   | { modo: 'agora' }
   | {
@@ -57,7 +77,14 @@ export type CriarAtendimentoInput = {
 );
 
 export type CriarAtendimentoResult =
-  | { ok: true; id: string; modo: 'agora' | 'agendar'; createdCount: number }
+  | {
+      ok: true;
+      id: string;
+      modo: 'agora' | 'agendar';
+      createdCount: number;
+      /** Só no convênio: o que aconteceu com a cobertura (pronta, com pendência ou não registrada). */
+      coverage?: SchedulingCoverageOutcome;
+    }
   | { ok: false; message: string };
 
 export type AgendaOperationState =
@@ -65,7 +92,19 @@ export type AgendaOperationState =
   | { ok: false; message: string }
   | null;
 
+const ConvenioChoice = z.object({
+  insurerId: z.string().uuid(),
+  planId: z.string().uuid().nullable(),
+  membershipId: z.string().uuid().nullable(),
+  guideType: z.enum(['consulta', 'sp_sadt']),
+});
+
 function messageFrom(err: unknown): string {
+  // Bloqueio comercial (D24) e regras do banco sobre convênio: mensagem para a recepção.
+  const premium = premiumAccessErrorFrom(err);
+  if (premium) return premiumDenialMessage(premium.feature, premium.reason);
+  const cause = (err as { cause?: { code?: string; message?: string } } | null)?.cause;
+  if (cause?.code && ['55000', '23514'].includes(cause.code) && cause.message) return cause.message;
   if (err && typeof err === 'object' && 'name' in err) {
     const name = (err as { name?: string }).name;
     if (name === 'AuthError') return 'Sem permissão para criar atendimento.';
@@ -129,7 +168,7 @@ export async function criarAtendimento(
   input: CriarAtendimentoInput,
 ): Promise<CriarAtendimentoResult> {
   try {
-    await requireUser();
+    const user = await requireUser();
     await requireCachedPermission(PERMISSIONS.EDIT_AGENDA);
     const clinicId = await requireClinicId();
 
@@ -145,6 +184,13 @@ export async function criarAtendimento(
       return { ok: false, message: 'A forma de pagamento é escolhida pelo paciente no Checkout.' };
     }
 
+    // Convênio: confere a escolha ANTES de criar (escolha inválida não cria nada).
+    const convenio = input.convenio ? ConvenioChoice.parse(input.convenio) : null;
+    if (convenio) {
+      const problem = await checkSchedulingChoice(clinicId, input.patientId, convenio);
+      if (problem) return { ok: false, message: problem };
+    }
+
     const key = crypto.randomUUID();
     const common = {
       doctorId: input.doctorId,
@@ -153,9 +199,34 @@ export async function criarAtendimento(
       resourceIds: input.resourceIds ?? [],
       ...(input.urgencia ? { urgencia: true } : {}),
       ...(input.observacoes?.trim() ? { observacoes: input.observacoes.trim() } : {}),
+      ...(convenio ? { billingMode: 'convenio' as const } : {}),
     };
 
     const tz = (await getClinicTimezone(clinicId)) ?? 'America/Sao_Paulo';
+    const ymdOf = (at: Date | string) =>
+      new Intl.DateTimeFormat('en-CA', {
+        timeZone: tz,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date(at));
+    // Cobertura logo depois da criação (o atendimento já nasceu como convênio).
+    const coverageFor = async (
+      created: ReadonlyArray<{ id: string; scheduledAt: Date | string }>,
+    ) =>
+      convenio
+        ? {
+            coverage: await recordSchedulingCoverage({
+              clinicId,
+              userId: user.userId,
+              patientId: input.patientId,
+              procedureId: input.procedureId,
+              appointments: created.map((a) => ({ id: a.id, date: ymdOf(a.scheduledAt) })),
+              choice: convenio,
+              requestContext: await requestContext(),
+            }),
+          }
+        : {};
     const diaAlvo = input.modo === 'agendar' ? input.date.trim() : todayYmd(tz);
     if (await findDuplicadoNoDia(clinicId, input, diaAlvo)) {
       return {
@@ -181,13 +252,14 @@ export async function criarAtendimento(
           id: series.appointments[0]!.id,
           modo: 'agendar',
           createdCount: series.appointments.length,
+          ...(await coverageFor(series.appointments)),
         };
       }
       const r = await createAppointment({ ...common, scheduledAt }, key);
-      return { ok: true, id: r.id, modo: 'agendar', createdCount: 1 };
+      return { ok: true, id: r.id, modo: 'agendar', createdCount: 1, ...(await coverageFor([r])) };
     }
     const r = await createWalkInAppointment(common, key);
-    return { ok: true, id: r.id, modo: 'agora', createdCount: 1 };
+    return { ok: true, id: r.id, modo: 'agora', createdCount: 1, ...(await coverageFor([r])) };
   } catch (err) {
     return { ok: false, message: messageFrom(err) };
   }
@@ -347,4 +419,23 @@ export async function copiarLinkDeCobrancaAction(jobId: string): Promise<CopiarL
     }
     return { ok: false, message: 'Não foi possível obter o link agora. Tente de novo.' };
   }
+}
+
+/**
+ * P4.3 — trocar particular ↔ convênio de um atendimento já criado (até a chegada). A regra e
+ * as recusas são do Convênios (`changeAppointmentModalityAction`); aqui, depois do commit, o
+ * `billing_mode_changed` é processado logo (o Payments anula o link particular aberto quando
+ * vira convênio). O cron do outbox continua sendo a garantia.
+ */
+export async function trocarFormaDeAtendimentoAction(
+  input: Parameters<typeof changeAppointmentModalityAction>[0],
+): ReturnType<typeof changeAppointmentModalityAction> {
+  const out = await changeAppointmentModalityAction(input);
+  if (out.ok) {
+    processOutboxSoon('agenda.billing_mode', [
+      { eventType: SCHEDULING_EVENTS.BILLING_MODE_CHANGED, idempotencyKeys: [out.data.eventKey] },
+    ]);
+    revalidatePath('/agenda');
+  }
+  return out;
 }

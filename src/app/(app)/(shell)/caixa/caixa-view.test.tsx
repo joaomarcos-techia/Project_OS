@@ -58,6 +58,8 @@ function item(overrides: Partial<CaixaItem> = {}): CaixaItem {
     descricao: 'Atendimento - Consulta',
     valor: 200,
     valorPago: 0,
+    valorGlosado: 0,
+    sourceHiGuideId: null,
     status: 'pendente',
     dueDate: '2026-06-06',
     paidAt: null,
@@ -544,7 +546,18 @@ describe('CaixaView — work queue, rótulos e RBAC', () => {
 
       const guardado = sessionStorage.getItem(PENDING_KEYS_STORAGE_KEY) ?? '';
       expect(guardado).not.toBe('');
-      expect(guardado).not.toMatch(/l1|200|pix|comprovante/u);
+      expect(guardado).not.toMatch(/l1|pix|comprovante/u);
+      // Estrutura exata, e não "não contém 200": a chave (UUID aleatório) e o prazo (ms) podem conter
+      // "200" por acaso (falha intermitente na composição de 25/11). Só o resumo em hexadecimal e
+      // { chave UUID, ate numérico }: nenhum valor, forma de pagamento ou id da operação.
+      const lido = JSON.parse(guardado) as Record<string, Record<string, unknown>>;
+      expect(Object.keys(lido).length).toBeGreaterThan(0);
+      for (const [resumo, valor] of Object.entries(lido)) {
+        expect(resumo).toMatch(/^[0-9a-f]{20,}$/u);
+        expect(Object.keys(valor).sort()).toEqual(['ate', 'chave']);
+        expect(valor.chave).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u);
+        expect(typeof valor.ate).toBe('number');
+      }
 
       await registrar(/Registrar R\$\s*200,00/);
       await painelFechado();

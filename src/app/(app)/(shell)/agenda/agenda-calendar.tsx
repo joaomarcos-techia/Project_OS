@@ -32,6 +32,7 @@ import type { AppointmentStatusDTO } from '@/contexts/scheduling/types';
 
 import type { AgendaAppt, AgendaData } from './data';
 import { AppointmentCorrectionDialog } from './appointment-correction-dialog';
+import { BillingModeDialog } from './billing-mode-dialog';
 import { DeliveryFailureBadge } from './delivery-failure-strip';
 import { BADGE_KINDS, type AgendaDeliveryFailure } from './delivery-failures';
 import { RecurrenceSeriesDialog } from './recurrence-series-dialog';
@@ -327,6 +328,8 @@ function DayView({ data }: { data: AgendaData }) {
                 <TableRow
                   key={a.id}
                   data-status={a.status}
+                  data-appointment-id={a.id}
+                  data-billing-mode={a.convenio ? 'convenio' : 'particular'}
                   className={cn(styles.appointment, isCancelled(a) && 'opacity-60')}
                 >
                   <TableCell data-label="Hora">
@@ -395,6 +398,27 @@ function DayView({ data }: { data: AgendaData }) {
                       >
                         <DepositStatusBadge status={a.depositStatus} />
                       </span>
+                      {a.convenio ? (
+                        <Badge
+                          tone={
+                            a.convenio.coverageStatus === 'ready' ||
+                            a.convenio.coverageStatus === 'authorization_recorded'
+                              ? 'blue'
+                              : 'amber'
+                          }
+                          title={
+                            a.convenio.coverageStatus === 'ready' ||
+                            a.convenio.coverageStatus === 'authorization_recorded'
+                              ? 'Cobertura pronta'
+                              : 'Cobertura com pendência: veja em Convênios › Atendimentos'
+                          }
+                          data-testid="agenda-convenio-badge"
+                        >
+                          {a.convenio.insurerName
+                            ? `Convênio · ${a.convenio.insurerName}`
+                            : 'Convênio'}
+                        </Badge>
+                      ) : null}
                       {(falhas.get(a.id) ?? []).map((failure) => (
                         <DeliveryFailureBadge key={failure.jobId} failure={failure} />
                       ))}
@@ -420,6 +444,14 @@ function DayView({ data }: { data: AgendaData }) {
                       ) : null}
                       {data.canEditAgenda && a.recoveryKinds.length > 0 ? (
                         <AppointmentCorrectionDialog appointment={a} doctors={data.doctors} />
+                      ) : null}
+                      {/* P4.3: até a chegada; convênio → particular mesmo sem o módulo ligado. */}
+                      {data.canEditAgenda &&
+                      (a.status === 'agendado' ||
+                        a.status === 'confirmado' ||
+                        a.status === 'chegou') &&
+                      (a.convenio !== null || (data.insurance?.enabled && a.patientId)) ? (
+                        <BillingModeDialog appointment={a} insurance={data.insurance} />
                       ) : null}
                     </div>
                   </TableCell>

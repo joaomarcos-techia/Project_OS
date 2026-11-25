@@ -1,0 +1,54 @@
+{
+ "pedido": "HS23-1",
+ "commit": "cf182fdb",
+ "run": "45181012754",
+ "workflow": "convenios-preview-e2e.yml",
+ "spec": "e2e/convenios-guide-states-preview.spec.ts",
+ "resultado": "13 passed (5.7m)",
+ "skips": 0,
+ "falhas": 0,
+ "fixture": "setup-states --run HS23A (3 guias novas na clínica e2e-hi-paga, nenhuma exportada antes)",
+ "rele": {
+  "pedidos": 9,
+  "comandos": [
+   "set-state trial/paid",
+   "set-state suspended/paid",
+   "set-active gestor false/true",
+   "guide-state x3"
+  ],
+  "teardown": "último estado paid; nenhuma conta desativada"
+ },
+ "credenciais_no_runner": "nenhuma de banco, Supabase, cifra ou Asaas",
+ "limpeza": {
+  "paga": {
+   "status": "active",
+   "billing": "active",
+   "enforce": false,
+   "denial": null
+  },
+  "perfis": {
+   "gestor": {
+    "ativo": true,
+    "slugPrefix": "e2e-hi-paga"
+   },
+   "recepcao": {
+    "ativo": true,
+    "slugPrefix": "e2e-hi-paga"
+   },
+   "medica": {
+    "ativo": true,
+    "slugPrefix": "e2e-hi-paga"
+   },
+   "cfg-gestor": {
+    "ativo": true,
+    "slugPrefix": "e2e-hi-config-mw"
+   }
+  },
+  "cfgGuides": [
+   {
+    "status": "partially_glossed",
+    "idSuffix": "e050"
+   }
+  ]
+ }
+}

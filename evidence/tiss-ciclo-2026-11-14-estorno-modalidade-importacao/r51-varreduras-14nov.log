@@ -1,0 +1,23 @@
+# R51 no Preview DEV (deploy c5841aa1), clínica sintética da rodada 9SF35, relógio +37 min e fuso de Tóquio.
+## Varredura completa (médica, gestora):
+  ok 1 [chromium] › e2e\hydration-r51-preview.spec.ts:187:1 › o Preview usa o projeto DEV (prova assinada antes de qualquer escrita) (794ms)
+  ok 2 [chromium] › e2e\hydration-r51-preview.spec.ts:192:1 › recepção põe um paciente na sala de espera (encaixe de convênio) (16.3s)
+R51 médica: []
+  ok 3 [chromium] › e2e\hydration-r51-preview.spec.ts:218:1 › médica: consultório com paciente esperando, relógio adiantado e outro fuso — sem #418 (desktop e celular) (1.1m)
+R51 gestora: ["/convenios/conciliacao: Minified React error #418; visit https://react.dev/errors/418?args[]=HTML&args[]= for the full message or use the non-minified dev environme"]
+  x  4 [chromium] › e2e\hydration-r51-preview.spec.ts:231:1 › gestora: convênio e financeiro, relógio adiantado e outro fuso — sem #418 (desktop e celular) (2.2m)
+  -  5 [chromium] › e2e\hydration-r51-preview.spec.ts:263:1 › recepção: painel, agenda, caixa e conciliação, relógio adiantado e outro fuso — sem #418 (desktop e celular)
+  -  6 [chromium] › e2e\hydration-r51-preview.spec.ts:283:1 › estresse (R51): dashboard e conciliação recarregados com rede lenta e cache quente — sem #418
+      259 |   console.log('R51 gestora: ' + JSON.stringify(errors));
+  1 failed
+  3 passed (3.6m)
+## Repetição com captura em JSON (gestora 2x, estresse 2x = 64 cargas):
+R51 gestora: []
+  ok 1 [chromium] › e2e\hydration-r51-preview.spec.ts:231:1 › gestora: convênio e financeiro, relógio adiantado e outro fuso — sem #418 (desktop e celular) (2.2m)
+R51 estresse: 32 cargas; erros: []
+  ok 2 [chromium] › e2e\hydration-r51-preview.spec.ts:283:1 › estresse (R51): dashboard e conciliação recarregados com rede lenta e cache quente — sem #418 (2.7m)
+R51 gestora: []
+  ok 3 [chromium] › e2e\hydration-r51-preview.spec.ts:231:1 › gestora: convênio e financeiro, relógio adiantado e outro fuso — sem #418 (desktop e celular) (2.3m)
+R51 estresse: 32 cargas; erros: []
+  ok 4 [chromium] › e2e\hydration-r51-preview.spec.ts:283:1 › estresse (R51): dashboard e conciliação recarregados com rede lenta e cache quente — sem #418 (2.8m)
+  4 passed (10.0m)

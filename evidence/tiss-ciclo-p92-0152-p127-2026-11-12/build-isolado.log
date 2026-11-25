@@ -1,0 +1,4 @@
+3:   ▲ Next.js 15.5.28
+11: ✓ Compiled successfully in 8.7min
+22:Route (app)                                 Size  First Load JS
+67:├ ƒ /api/health/tiss-xsd                   527 B         166 kB

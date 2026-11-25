@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   assertLoginAllowed: vi.fn(),
   assertPasswordResetAllowed: vi.fn(),
+  checkLoginByAuditTrail: vi.fn(),
+  tissPasswordAge: vi.fn(),
   createPasswordResetRedirectUrl: vi.fn(),
   createServerClient: vi.fn(),
   ensurePasswordAuthenticatedSignupAuthBinding: vi.fn(),
@@ -45,7 +47,17 @@ vi.mock('@/lib/auth/pretenant-onboarding', () => ({
   resolvePreTenantOnboarding: mocks.resolvePreTenantOnboarding,
 }));
 vi.mock('@/lib/auth/email-hash', () => ({ hashEmail: mocks.hashEmail }));
-vi.mock('@/lib/auth/login-audit', () => ({ recordLoginAttempt: mocks.recordLoginAttempt }));
+vi.mock('@/lib/auth/login-audit', () => ({
+  recordLoginAttempt: mocks.recordLoginAttempt,
+  readLastAccessSummary: vi.fn(async () => ({ previousSuccessAt: null, failuresSince: 0 })),
+}));
+vi.mock('@/lib/auth/login-attempts-fallback', () => ({
+  checkLoginByAuditTrail: mocks.checkLoginByAuditTrail,
+}));
+vi.mock('@/lib/auth/security-profile/password-lifecycle', () => ({
+  tissPasswordAge: mocks.tissPasswordAge,
+}));
+vi.mock('@/app/(app)/_lib/tiss-footprint', () => ({ readTissFootprintLazy: vi.fn() }));
 vi.mock('@/lib/auth/rate-limit', () => ({
   assertLoginAllowed: mocks.assertLoginAllowed,
   assertPasswordResetAllowed: mocks.assertPasswordResetAllowed,
@@ -432,5 +444,124 @@ describe('login de usuário verificado pré-tenant', () => {
       mfaEnrolledAt: null,
       aal: 'aal1',
     });
+  });
+});
+
+describe('S8 / requisito 69: Upstash degradado consulta a trilha no banco', () => {
+  function loginForm(): FormData {
+    const data = new FormData();
+    data.set('email', 'pessoa@example.test');
+    data.set('password', 'senha-correta-123');
+    return data;
+  }
+
+  beforeEach(() => {
+    mocks.createServerClient.mockResolvedValue({
+      auth: { signInWithPassword: mocks.signInWithPassword, signOut: mocks.signOut },
+    });
+    mocks.signInWithPassword.mockResolvedValue({
+      data: { user: null },
+      error: { code: 'invalid_credentials', message: 'Invalid login credentials' },
+    });
+  });
+
+  it('limitador normal: não consulta a trilha', async () => {
+    mocks.assertLoginAllowed.mockResolvedValue({ ok: true });
+    const { loginAction } = await import('./actions');
+    await loginAction({ error: null }, loginForm());
+    expect(mocks.checkLoginByAuditTrail).not.toHaveBeenCalled();
+    expect(mocks.signInWithPassword).toHaveBeenCalledOnce();
+  });
+
+  it('degradado e a trilha libera: segue para a senha', async () => {
+    mocks.assertLoginAllowed.mockResolvedValue({ ok: true, degraded: true });
+    mocks.checkLoginByAuditTrail.mockResolvedValue('allowed');
+    const { loginAction } = await import('./actions');
+    await loginAction({ error: null }, loginForm());
+    expect(mocks.checkLoginByAuditTrail).toHaveBeenCalledWith('email-hash', '203.0.113.7');
+    expect(mocks.signInWithPassword).toHaveBeenCalledOnce();
+  });
+
+  it('degradado e a trilha bloqueia: não tenta a senha, conta a tentativa', async () => {
+    mocks.assertLoginAllowed.mockResolvedValue({ ok: true, degraded: true });
+    mocks.checkLoginByAuditTrail.mockResolvedValue('blocked');
+    const { loginAction } = await import('./actions');
+    const result = await loginAction({ error: null }, loginForm());
+    expect(mocks.signInWithPassword).not.toHaveBeenCalled();
+    expect(mocks.recordLoginAttempt).toHaveBeenCalledWith('email-hash', '203.0.113.7', false);
+    expect(mocks.metricsEmit).toHaveBeenCalledWith('auth.ratelimit.tripped', {
+      route: 'login',
+      source: 'audit_blocked',
+    });
+    expect(result).toEqual({
+      error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
+    });
+  });
+
+  it('Upstash e banco fora: o login FECHA (nunca tentativa ilimitada)', async () => {
+    mocks.assertLoginAllowed.mockResolvedValue({ ok: true, degraded: true });
+    mocks.checkLoginByAuditTrail.mockResolvedValue('unavailable');
+    const { loginAction } = await import('./actions');
+    const result = await loginAction({ error: null }, loginForm());
+    expect(mocks.signInWithPassword).not.toHaveBeenCalled();
+    expect(mocks.metricsEmit).toHaveBeenCalledWith('auth.ratelimit.tripped', {
+      route: 'login',
+      source: 'audit_unavailable',
+    });
+    expect(result.error).toMatch(/Muitas tentativas/u);
+  });
+});
+
+describe('S4 / requisito 81: senha vencida no perfil TISS', () => {
+  function loginForm(): FormData {
+    const data = new FormData();
+    data.set('email', 'pessoa@example.test');
+    data.set('password', 'SenhaForte7!');
+    return data;
+  }
+
+  beforeEach(() => {
+    mocks.assertLoginAllowed.mockResolvedValue({ ok: true });
+    mocks.signInWithPassword.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null });
+    mocks.signOut.mockResolvedValue({ error: null });
+    mocks.createServerClient.mockResolvedValue({
+      auth: { signInWithPassword: mocks.signInWithPassword, signOut: mocks.signOut },
+    });
+    mocks.readAuthoritativeProfile.mockResolvedValue({
+      role: 'gestor',
+      ativo: true,
+      deletedAt: null,
+      clinicId: 'clinic-tiss',
+      mfaEnrolledAt: null,
+    });
+    mocks.isRole.mockReturnValue(true);
+    mocks.getAal.mockResolvedValue('aal1');
+    mocks.postLoginRedirect.mockReturnValue('/dashboard');
+    mocks.redirect.mockImplementation((d: string) => {
+      throw new Error(`REDIRECT:${d}`);
+    });
+    mocks.sendPasswordResetEmail.mockResolvedValue('sent');
+  });
+
+  it('vencida: encerra a sessão, manda o link de troca e explica', async () => {
+    mocks.tissPasswordAge.mockResolvedValue({ kind: 'must_change' });
+    const { loginAction } = await import('./actions');
+    const out = await loginAction({ error: null }, loginForm());
+    expect(mocks.tissPasswordAge).toHaveBeenCalledWith('u-1', 'clinic-tiss', expect.anything());
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    expect(mocks.sendPasswordResetEmail).toHaveBeenCalledWith('pessoa@example.test');
+    expect(out.error).toMatch(/Sua senha venceu.*90 dias/u);
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
+  it('dentro do prazo ou fora do alcance: segue para o painel', async () => {
+    for (const age of [{ kind: 'ok', daysLeft: 40 }, null]) {
+      mocks.tissPasswordAge.mockResolvedValueOnce(age);
+      const { loginAction } = await import('./actions');
+      await expect(loginAction({ error: null }, loginForm())).rejects.toThrow(
+        'REDIRECT:/dashboard',
+      );
+    }
+    expect(mocks.sendPasswordResetEmail).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,11 @@
 'use server';
 
+import { readTissFootprintLazy } from '@/app/(app)/_lib/tiss-footprint';
+import {
+  recordTissPasswordChange,
+  tissPasswordReuseError,
+} from '@/lib/auth/security-profile/password-lifecycle';
+import { tissPasswordPolicyError } from '@/lib/auth/security-profile/password-policy';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
@@ -89,6 +95,21 @@ export async function resetPasswordAction(
     return { error: INVALID_GRANT };
   }
 
+  // S3 (requisito 67 da ANS): com perfil, vale a regra TISS da clínica; sem perfil (pré-clínica), só no modo
+  // plataforma. Antes de consumir o link: a pessoa só precisa escolher outra senha.
+  const tissPasswordError = await tissPasswordPolicyError(
+    parsed.data.password,
+    grant.kind === 'profile' ? (profile?.clinicId ?? null) : null,
+    readTissFootprintLazy,
+  );
+  if (tissPasswordError) return { error: tissPasswordError };
+  // S4 (requisito 82): não repetir as 10 últimas, antes de consumir o link.
+  const tissClinicId = grant.kind === 'profile' ? (profile?.clinicId ?? null) : null;
+  const tissReuseError = await tissPasswordReuseError(userId, tissClinicId, parsed.data.password, {
+    readFootprint: readTissFootprintLazy,
+  });
+  if (tissReuseError) return { error: tissReuseError };
+
   const limit = await assertPasswordResetCompletionAllowed(
     getClientIp(await headers()),
     hashEmail(email),
@@ -165,6 +186,10 @@ export async function resetPasswordAction(
       return { error: 'Não foi possível redefinir a senha. Solicite um novo link.' };
     }
 
+    // S4 (requisitos 81 e 82): registra a troca (best-effort; a senha já está no Auth).
+    await recordTissPasswordChange(userId, tissClinicId, parsed.data.password, {
+      readFootprint: readTissFootprintLazy,
+    });
     await supabase.auth.signOut({ scope: 'global' }).catch(() => undefined);
     await clearSupabaseSessionSelector();
     redirect('/login?reason=password_updated');

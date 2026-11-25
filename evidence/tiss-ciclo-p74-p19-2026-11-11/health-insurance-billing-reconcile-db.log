@@ -1,0 +1,21 @@
+# health-insurance-billing-reconcile-db — 2026-11-11T18:14:27Z — exit=0 — árvore de trabalho sobre b450a560 (mudanças do commit deste ciclo, ainda não commitadas)
+PASS: particular: recebível de R$ 150 como antes; nenhuma guia, evento de convênio ou pendência; o banco recusa pendência de convênio para particular
+PASS: convênio completo: o evento gera a guia pronta para conferência; nenhuma pendência; o reconcile não o considera
+PASS: evento perdido: o reconcile acha o atendimento sem guia, gera a guia pronta e deixa o registro (evento "missing", pendência fechada com a prova da guia)
+PASS: evento duplicado: três entregas do mesmo evento → uma guia, numeração intacta, nenhuma pendência
+PASS: evento fora de ordem: o reconcile chega antes do worker e gera a guia; o evento atrasado é processado sem segunda guia nem número
+PASS: worker interrompido e evento esgotado: o reconcile retoma os dois atendimentos, registra o estado do evento ("processing", "failed") e fecha com a guia
+PASS: falha temporária: o savepoint desfaz a guia e o número; a pendência registra a falha (código sem dado pessoal, espera de 15 min); sem a falha, a próxima volta recupera e o histórico mostra o caminho
+PASS: falha persistente: 8 tentativas com espera crescente, depois a recuperação vira humana (suporte), sem próxima tentativa e fora do reconcile
+PASS: cobertura cadastrada depois: pendência "coverage_missing" (recepção); o banco só aceita a cobertura tardia com pendência aberta, nota e usuário autenticado; a correção gera a guia e fecha a pendência; sem pendência aberta, não há correção
+PASS: contrato corrigido: a guia nasce em edição sem procedimento e a pendência aponta o gestor; com o contrato cadastrado, o reconcile reavalia A MESMA guia (mesmo número), põe o item do contrato e fecha a pendência
+PASS: autorização recebida depois: sem a autorização concedida a guia continua em edição (nada presumido); registrada a da operadora, o reconcile liga a autorização à mesma guia e fecha a pendência
+PASS: duas reconciliações simultâneas sobre os mesmos 6 atendimentos: 6 guias, numeração +6, cada pendência com UMA tentativa (ocupados pulados: 4)
+PASS: atendimento cancelado: fora do reconcile; processar não cria guia nem pendência
+PASS: guia já emitida (aprovada com snapshot) e guia substituída: o atendimento segue faturado pela substituta aprovada; nenhuma pendência, nenhuma guia nova
+PASS: guia cancelada sem substituta: pendência humana do financeiro; encerrar sem faturar só por usuário, com motivo; o automático nunca reabre nem gera guia nova; só um usuário reabre
+PASS: o banco exige prova: guia de outro atendimento, guia ainda em edição e "não se aplica" com atendimento concluído são recusados; tentativas só avançam de uma em uma; runtime não apaga pendência nem edita o histórico
+PASS: RLS: a clínica B não lê nem grava pendência ou histórico da clínica A
+PASS: financeiro: nos 18 atendimentos de convênio (evento perdido, falho, duplicado, fora de ordem, correções, falhas) nenhum recebível do paciente e nenhuma cobrança Asaas
+PASS: LGPD: paciente só com pendência (sem guia) é excluído; a pendência fica sem dado pessoal, ligada ao atendimento anonimizado
+OK — 19/19 provas da P7.4 (0149) em Postgres descartável.

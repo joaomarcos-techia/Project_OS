@@ -1,0 +1,7 @@
+PASS: mesma consulta finalizada 4 vezes ao mesmo tempo: 1 guia (nº 1), 3 caminhos recebem a existente, nenhum erro
+PASS: aprovação concorrente (3 ao mesmo tempo): 1 vence, 2 recebem conflito com mensagem ("só se emite guia conferida (estado: approved)"); 1 snapshot, guia aprovada
+PASS: dois usuários montando lotes com uma guia em comum ao mesmo tempo: 1 lote criado, o outro recusado com a regra ("Uma das guias escolhidas já está em outro lote ativo. Atualize a lista e escolha de novo."); nenhuma guia em dois lotes ativos
+PASS: o mesmo pedido de lote reenviado 3 vezes ao mesmo tempo (mesma chave): 1 lote, as 3 respostas com o mesmo id
+PASS: nenhum lançamento financeiro nasce de finalização, aprovação ou formação de lote concorrentes
+
+OK 5/5

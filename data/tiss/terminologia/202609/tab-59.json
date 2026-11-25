@@ -1,0 +1,290 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "59",
+  "title": "Tabela 59 - Terminologia de unidades da federação",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 28,
+  "terms": [
+    {
+      "code": "11",
+      "term": "Rondônia",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "RO"
+      }
+    },
+    {
+      "code": "12",
+      "term": "Acre",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "AC"
+      }
+    },
+    {
+      "code": "13",
+      "term": "Amazonas",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "AM"
+      }
+    },
+    {
+      "code": "14",
+      "term": "Roraima",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "RR"
+      }
+    },
+    {
+      "code": "15",
+      "term": "Pará",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "PA"
+      }
+    },
+    {
+      "code": "16",
+      "term": "Amapá",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "AP"
+      }
+    },
+    {
+      "code": "17",
+      "term": "Tocantins",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "TO"
+      }
+    },
+    {
+      "code": "21",
+      "term": "Maranhão",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "MA"
+      }
+    },
+    {
+      "code": "22",
+      "term": "Piauí",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "PI"
+      }
+    },
+    {
+      "code": "23",
+      "term": "Ceará",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "CE"
+      }
+    },
+    {
+      "code": "24",
+      "term": "Rio Grande do Norte",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "RN"
+      }
+    },
+    {
+      "code": "25",
+      "term": "Paraíba",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "PB"
+      }
+    },
+    {
+      "code": "26",
+      "term": "Pernambuco",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "PE"
+      }
+    },
+    {
+      "code": "27",
+      "term": "Alagoas",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "AL"
+      }
+    },
+    {
+      "code": "28",
+      "term": "Sergipe",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "SE"
+      }
+    },
+    {
+      "code": "29",
+      "term": "Bahia",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "BA"
+      }
+    },
+    {
+      "code": "31",
+      "term": "Minas Gerais",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "MG"
+      }
+    },
+    {
+      "code": "32",
+      "term": "Espírito Santo",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "ES"
+      }
+    },
+    {
+      "code": "33",
+      "term": "Rio de Janeiro",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "RJ"
+      }
+    },
+    {
+      "code": "35",
+      "term": "São Paulo",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "SP"
+      }
+    },
+    {
+      "code": "41",
+      "term": "Paraná",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "PR"
+      }
+    },
+    {
+      "code": "42",
+      "term": "Santa Catarina",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "SC"
+      }
+    },
+    {
+      "code": "43",
+      "term": "Rio Grande do Sul",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "RS"
+      }
+    },
+    {
+      "code": "50",
+      "term": "Mato Grosso do Sul",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "MS"
+      }
+    },
+    {
+      "code": "51",
+      "term": "Mato Grosso",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "MT"
+      }
+    },
+    {
+      "code": "52",
+      "term": "Goiás",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "GO"
+      }
+    },
+    {
+      "code": "53",
+      "term": "Distrito Federal",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "DF"
+      }
+    },
+    {
+      "code": "98",
+      "term": "Países Estrangeiros",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Sigla": "EX"
+      }
+    }
+  ]
+}

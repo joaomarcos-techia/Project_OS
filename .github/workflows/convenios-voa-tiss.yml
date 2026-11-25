@@ -1,0 +1,49 @@
+name: "Convênios — validação independente do corpus TISS (Voa tiss)"
+
+# Corpus sintético 4.03.00 (c1) na biblioteca aberta da Voa (`tiss`, Apache-2.0), offline: o script
+# bloqueia a rede antes de importar a biblioteca. Pacote fixado por versão e sha256 do wheel do PyPI;
+# dependências fixadas por versão. Sem secrets, sem artefato, só leitura do repositório.
+on:
+  push:
+    branches: [feat/convenios-tiss-20261110]
+    paths:
+      - 'data/tiss/corpus/**'
+      - 'scripts/tiss/corpus/validate-voa.py'
+      - 'scripts/tiss/corpus/voa-repro-reducao-acrescimo.py'
+      - 'src/contexts/health-insurance/tiss/schemas/**'
+      - '.github/workflows/convenios-voa-tiss.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: convenios-voa-tiss-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  voa:
+    name: "Corpus TISS 4.03.00 na Voa tiss (offline)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: "Biblioteca tiss 0.5.0 conferida pelo sha256 do wheel"
+        run: |
+          python -m pip download --no-deps --only-binary=:all: -d voa-dl tiss==0.5.0
+          echo "e0cad0c364a81ee11edcc185f995500f9b598c597fee386caa0c0e7e1dc66ec9  voa-dl/tiss-0.5.0-py3-none-any.whl" | sha256sum -c -
+          python -m pip install --only-binary=:all: lxml==6.1.3 google-re2==1.1.20251105
+          python -m pip install --no-deps voa-dl/tiss-0.5.0-py3-none-any.whl
+
+      - name: "38 arquivos: XSD, hash do epílogo e regras, comparados com o resultado gravado"
+        run: python -I scripts/tiss/corpus/validate-voa.py --check
+
+      - name: "Falso positivo da Voa com fator de redução/acréscimo (reprodução mínima, sintética)"
+        run: python -I scripts/tiss/corpus/voa-repro-reducao-acrescimo.py

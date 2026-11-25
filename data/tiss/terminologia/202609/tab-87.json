@@ -1,0 +1,486 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "87",
+  "title": "Tabela 87 - Relação das terminologias unificadas da saúde suplementar",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 68,
+  "terms": [
+    {
+      "code": "00",
+      "term": "Tabela própria das operadoras",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "18",
+      "term": "Diárias, taxas e gases medicinais",
+      "startsOn": "2010-10-18",
+      "endsOn": null,
+      "implantationEndsOn": "2010-10-18"
+    },
+    {
+      "code": "19",
+      "term": "Materiais e Órteses, Próteses e Materiais Especiais (OPME)",
+      "startsOn": "2010-10-18",
+      "endsOn": null,
+      "implantationEndsOn": "2010-10-18"
+    },
+    {
+      "code": "20",
+      "term": "Medicamentos",
+      "startsOn": "2010-10-18",
+      "endsOn": null,
+      "implantationEndsOn": "2010-10-18"
+    },
+    {
+      "code": "22",
+      "term": "Procedimentos e eventos em saúde",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "23",
+      "term": "Caráter do atendimento",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "24",
+      "term": "Classificação Brasileira de Ocupações (CBO)",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "25",
+      "term": "Código da despesa",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "26",
+      "term": "Conselho profissional",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "27",
+      "term": "Débitos e créditos",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "28",
+      "term": "Dentes",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "29",
+      "term": "Diagnóstico por imagem",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "30",
+      "term": "Escala de capacidade funcional (ECOG - Escala de Zubrod)",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "31",
+      "term": "Estadiamento do tumor",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "32",
+      "term": "Faces do dente",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "33",
+      "term": "Finalidade do tratamento",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "34",
+      "term": "Forma de pagamento",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "35",
+      "term": "Grau de participação",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "36",
+      "term": "Indicador de acidente",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "37",
+      "term": "Indicador de débito ou crédito",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "38",
+      "term": "Mensagens (glosas, negativas e outras)",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "39",
+      "term": "Motivo de encerramento",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "40",
+      "term": "Origem da guia",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "41",
+      "term": "Regime de internação",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "42",
+      "term": "Regiões da boca",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "43",
+      "term": "Sexo",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "44",
+      "term": "Situação inicial do dente",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "45",
+      "term": "Status da solicitação",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "46",
+      "term": "Status do cancelamento",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "47",
+      "term": "Status da guia e do protocolo",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "48",
+      "term": "Técnica utilizada",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "49",
+      "term": "Tipo de acomodação",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "50",
+      "term": "Tipo de atendimento",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "51",
+      "term": "Tipo de atendimento em odontologia",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "52",
+      "term": "Tipo de consulta",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "53",
+      "term": "Tipo de demonstrativo",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "54",
+      "term": "Tipo de guia",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "55",
+      "term": "Tipo de faturamento",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "56",
+      "term": "Natureza da guia",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "57",
+      "term": "Tipo de internação",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "58",
+      "term": "Tipo de quimioterapia",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "59",
+      "term": "Unidade da federação",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "60",
+      "term": "Unidade de medida",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "61",
+      "term": "Via de acesso",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "62",
+      "term": "Via de administração",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "63",
+      "term": "Grupos de procedimentos e itens assistenciais para envio para ANS",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "64",
+      "term": "Forma de envio de procedimentos e itens assistenciais para ANS",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "65",
+      "term": "Metástase",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "66",
+      "term": "Nódulo",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "67",
+      "term": "Tumor",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "68",
+      "term": "Categoria de despesa",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "69",
+      "term": "Versão do componente de comunicação do padrão",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "70",
+      "term": "Forma de envio de padrão",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "71",
+      "term": "Tipo de atendimento por operadora intermediária",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implantationEndsOn": "2018-03-31"
+    },
+    {
+      "code": "72",
+      "term": "Tipo de identificação do beneficiário",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2019-05-31"
+    },
+    {
+      "code": "73",
+      "term": "Etapas de autorização",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2019-05-31"
+    },
+    {
+      "code": "74",
+      "term": "Motivos de ausência do código de validação",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2019-05-31"
+    },
+    {
+      "code": "87",
+      "term": "Tabelas de domínio",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2013-11-30"
+    },
+    {
+      "code": "90",
+      "term": "Tabela Própria Pacote Odontológico",
+      "startsOn": "2010-05-14",
+      "endsOn": null,
+      "implantationEndsOn": "2010-05-14"
+    },
+    {
+      "code": "98",
+      "term": "Tabela Própria de Pacotes",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "75",
+      "term": "Cobertura especial",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "76",
+      "term": "Regime de atendimento",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "77",
+      "term": "Saúde ocupacional",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "78",
+      "term": "Tipo de Pagamento",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "79",
+      "term": "Modelos de Remuneração entre Operadoras e Prestadores",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "80",
+      "term": "Formato do documento",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "81",
+      "term": "Tipo do documento",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "82",
+      "term": "Centro de consumo",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    }
+  ]
+}

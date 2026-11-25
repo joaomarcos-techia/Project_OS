@@ -9,10 +9,13 @@ import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Spinner } from '@/components/ui/spinner';
 import { AppointmentStatusBadge } from '@/components/ui/status-badge';
+import { useHydratedNow } from '@/lib/ui/use-hydrated-now';
 
 // Reuso direto do editor de prontuário (C7): autosave 10s (com indicador
 // salvando/salvo/erro próprio), conflito por rowVersion e read-only assinado.
 import { ProntuarioEditor } from '../pacientes/[id]/prontuarios/[pid]/prontuario-editor';
+// P8.4-r (exceção do médico, 24/11): bloco do TISS para itens executados além do agendado.
+import { ConsultorioExtraItems } from '../convenios/_lib/session-extra-items-ui';
 import { sexoLong } from './board-logic';
 import { loadAtendimento } from './actions';
 import type { AtendimentoDTO } from './board-types';
@@ -20,14 +23,14 @@ import { DocumentDrawer } from './document-drawer';
 import { PrescriptionDrawer } from './prescription-drawer';
 import { SignDialog } from './sign-dialog';
 
-/** Tempo desde o check-in — o médico vê há quanto tempo o paciente está na casa. */
+/**
+ * Tempo desde o check-in — o médico vê há quanto tempo o paciente está na casa. Só depois
+ * de montar (R51): calculado na renderização do servidor, divergia do navegador.
+ */
 function ElapsedChip({ since }: { since: string }) {
-  const [, force] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => force((n) => n + 1), 30_000);
-    return () => clearInterval(t);
-  }, []);
-  const mins = Math.max(0, Math.floor((Date.now() - new Date(since).getTime()) / 60_000));
+  const now = useHydratedNow(30_000);
+  if (now === null) return null;
+  const mins = Math.max(0, Math.floor((now - new Date(since).getTime()) / 60_000));
   const label =
     mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}`;
   return (
@@ -196,6 +199,9 @@ export function AttendingPanel({
           </div>
         ) : null}
       </div>
+
+      {/* P8.4-r: só aparece em convênio SP/SADT, na sessão do próprio profissional (posse no servidor). */}
+      {emAtendimento || finalizada ? <ConsultorioExtraItems appointmentId={appointmentId} refreshKey={data.status} /> : null}
 
       {data.prontuario ? (
         <div className="rounded-(--r-lg) border border-border bg-surface p-4 shadow-sm">

@@ -1,0 +1,12 @@
+{
+ "o_que": "Leitura SOMENTE LEITURA do outbox de produção (R61), autorizada no prompt de 24/11/2026 (consultar Production somente por leitura autorizada)",
+ "quando_brasilia": "24/11/2026, 01h46",
+ "como": "uma transação READ ONLY (transaction_read_only = on conferido dentro dela), sem SET de sessão, uma conexão, só agregados; nenhum id, payload, clinic_id ou texto de erro",
+ "outbox_por_status": {"processed": 726, "skipped": 47, "pending": 0, "processing": 0, "failed": 0},
+ "comparado_a_22_11": "processed igual (726); skipped 39 → 47; nada pendente nem falho",
+ "processados_48h": {"n": 0, "observacao": "tráfego quase nulo: a fila saudável não é prova de capacidade de pico"},
+ "sinais_de_corte": {"devolvidos_pelo_janitor_7d": 0, "retentativas_48h": 0, "falhos_7d": 0, "pendentes_vencidos": 0},
+ "heartbeat_outbox": {"ultimo_tick_ha_s": 46, "status": "success", "duration_ms": 708, "campo_deferred": false},
+ "r61b_em_producao": "não comprovado: o #53 incorporou o R61-B no 9e6ed4c7 (24/11 04h37 UTC), sem deploy autorizado; produção segue no último deploy do #53",
+ "classificacao": "R61: risco arquitetural ainda presente em produção até o deploy do R61-B; nenhum atraso, corte ou incidente observado"
+}

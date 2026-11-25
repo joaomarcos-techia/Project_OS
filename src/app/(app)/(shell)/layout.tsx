@@ -17,6 +17,7 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 import { getActiveAnnouncement } from '@/lib/platform-announcements';
 import { loadTrialAccessForRequest } from './_painel/trial-access-request';
 import { TrialAccessNotice } from './_painel/trial-access-notice';
+import { LastAccessNotice } from '@/app/(app)/_lib/last-access-notice';
 
 import { HandoffWatcher } from './_painel/handoff-watcher';
 import { TOUR_STEPS } from '@/contexts/onboarding';
@@ -125,6 +126,8 @@ export default async function ShellLayout({ children }: { children: ReactNode })
           : {})}
       >
         <TrialAccessNotice snapshot={trialAccess} />
+        {/* R42 (requisito 42 da ANS): último acesso, só no perfil TISS (componente do #55). */}
+        <LastAccessNotice />
         {children}
       </PainelShell>
     </>

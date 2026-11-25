@@ -55,6 +55,12 @@ const ALLOWED_POSTGRES_IMPORTS = new Set([
   'scripts/security/signup-browser.integration.ts',
   // Guarded Preview/DEV operator; synthetic resend.dev recipients only.
   'scripts/run-signup-recovery-dev.ts',
+  // Guarded DEV operator (ADR-072, P1.3): carga one-shot da terminologia TUSS;
+  // --expected-ref obrigatório, prod recusado, conexão própria por latência do DEV.
+  'scripts/tiss/terminology/load.ts',
+  // Guarded DEV migrator (docs/convenios/aplicacao-0153.md): o migrador do Drizzle numa
+  // conexão única com lock_timeout/statement_timeout de sessão; --expected-ref, recusa 6543.
+  'scripts/db-migrate-dev-limited.ts',
   'scripts/db-migrate-prod.ts',
   'scripts/delete-test-clinics-prod.ts',
   // P8: conexões descartáveis, guardadas por loopback + prefixo do banco.
@@ -64,12 +70,14 @@ const ALLOWED_POSTGRES_IMPORTS = new Set([
   // DATABASE_URL_PROD após opt-in explícito e gera backup antes da transação.
   'scripts/reset-prod-data.ts',
 ]);
+// O migrador guardado do DEV usa o migrador do Drizzle (o mesmo código do `drizzle-kit migrate`).
 const ALLOWED_DRIZZLE_PG_IMPORTS = new Set([
   'src/lib/db/index.ts',
   'scripts/security/abacatepay-dev-release.ts',
   'scripts/abacatepay-pix-dev-apply.ts',
   // Disposable PostgreSQL fixture; the shared scratch-schema owns its loopback pool.
   'scripts/security/abacatepay-pix-release-db.ts',
+  'scripts/db-migrate-dev-limited.ts',
 ]);
 const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
   db: new Set(['src/lib/db/tenant.ts']),
@@ -149,9 +157,15 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     // Credencial profissional: `profiles` bloqueia UPDATE para authenticated (D31).
     // O comando estreito roda após o gate server-side, restringe id+clinic_id e audita.
     'src/contexts/identity/internal/professional-credential.ts',
+    // R45 (convênios): permissão efetiva de quem pediu a exportação em segundo plano
+    // (effective_permissions_v → role_permissions, invisível para authenticated).
+    // Só leitura, escopo fixo usuário+clínica+permissão, resposta booleana.
+    'src/contexts/health-insurance/internal/delegation-permission.ts',
     // I-11a (0042): auditoria de login via service_role (record_login_attempt SECURITY
     // DEFINER, D9) em vez de anon via PostgREST. Best-effort, nunca bloqueia o login.
     'src/lib/auth/login-audit.ts',
+    // S4 (requisitos 81/82 da ANS): histórico de verificadores de senha (auth_password_history, só service_role).
+    'src/lib/auth/password-history.ts',
     // Perfil da clínica (tenant-facing): clinics UPDATE é super_admin via RLS
     // (S5) → escrita do tenant via dbAdmin+audit, colunas fixas + WHERE id=clinicId
     // (do request). Irmão do connection-store de mensageria.
@@ -212,6 +226,10 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     // lista agendamentos elegíveis a sinal em várias clínicas num scan só.
     'src/contexts/scheduling/deposit-candidates.ts',
     'src/contexts/financial/dunning-candidates.ts',
+    // Convênios P7.4 — mesma forma do dunning-candidates: o SCAN "convênio sem
+    // guia" é cross-tenant, só leitura, só ids + estado do evento, com LIMIT; o
+    // processamento de cada atendimento roda em withTenant, sob RLS.
+    'src/contexts/health-insurance/billing-gap-candidates.ts',
     // WAIT-001 — mesma forma: o SCAN de ofertas vencidas é cross-tenant e só
     // devolve ids; a liberação/repasse de cada uma roda em withTenant, sob RLS.
     'src/contexts/scheduling/waitlist-expiry.ts',

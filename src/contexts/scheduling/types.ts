@@ -127,6 +127,45 @@ export type CreateHolidayInput = z.infer<typeof CreateHolidaySchema>;
 
 // --- appointments ----------------------------------------------------------
 
+/** Forma de atendimento (ADR-072): o convênio paga pela guia; o paciente, no máximo a coparticipação. */
+export const BillingModeSchema = z.enum(['particular', 'convenio']);
+export type BillingMode = z.infer<typeof BillingModeSchema>;
+
+/**
+ * Convênio não tem preço por meio de pagamento nem valor ajustado para o paciente (P4.2):
+ * o valor vem do contrato da operadora e o paciente só paga a coparticipação confirmada.
+ */
+function refineInsuranceBilling(
+  value: {
+    billingMode?: BillingMode | undefined;
+    commercialPaymentMethod?: string | null | undefined;
+    commercialPriceId?: string | null | undefined;
+    pricingPolicyMode?: string | undefined;
+    valorAjustado?: boolean | undefined;
+  },
+  ctx: z.RefinementCtx,
+): void {
+  if (value.billingMode !== 'convenio') return;
+  if (
+    value.commercialPaymentMethod != null ||
+    value.commercialPriceId != null ||
+    value.pricingPolicyMode === 'payment_method_pricing'
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'atendimento de convênio não tem preço por meio de pagamento',
+      path: ['billingMode'],
+    });
+  }
+  if (value.valorAjustado) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'atendimento de convênio não tem valor ajustado para o paciente',
+      path: ['valorAjustado'],
+    });
+  }
+}
+
 const CreateAppointmentFieldsSchema = z.object({
   doctorId: uuid,
   patientId: uuid.nullable().optional(),
@@ -143,6 +182,8 @@ const CreateAppointmentFieldsSchema = z.object({
   commercialPriceId: uuid.nullable().optional(),
   urgencia: z.boolean().optional(),
   observacoes: ObservacoesSchema.optional(),
+  /** ADR-072 (P4.1): modalidade escolhida na criação; padrão particular (nada muda sem convênio). */
+  billingMode: BillingModeSchema.optional(),
 });
 
 export const CreateAppointmentSchema = CreateAppointmentFieldsSchema.refine(
@@ -152,6 +193,7 @@ export const CreateAppointmentSchema = CreateAppointmentFieldsSchema.refine(
     path: ['valorAjusteMotivo'],
   },
 ).superRefine((value, ctx) => {
+  refineInsuranceBilling(value, ctx);
   const installments = value.commercialInstallmentCount ?? null;
   if (value.commercialPaymentMethod === 'credit_card' && installments === null) {
     ctx.addIssue({
@@ -186,8 +228,10 @@ export const CreateWalkInSchema = z
     commercialPaymentMethod: z.enum(['pix', 'cash', 'credit_card']).nullable().optional(),
     commercialInstallmentCount: z.number().int().min(1).max(12).nullable().optional(),
     commercialPriceId: uuid.nullable().optional(),
+    billingMode: BillingModeSchema.optional(),
   })
   .superRefine((value, ctx) => {
+    refineInsuranceBilling(value, ctx);
     if (value.valorAjustado && (value.valor == null || value.valorAjusteMotivo == null)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -219,10 +263,33 @@ const HistoricalAppointmentItemSchema = CreateAppointmentFieldsSchema.omit({
   .extend({
     historicalStatus: z.enum(['atendido', 'cancelado', 'faltou']),
     externalReference: z.string().trim().min(1).max(160).optional(),
+    /**
+     * P4.7-b: atendimento histórico de convênio. Registro ANS da operadora (6 dígitos) e, opcional, o código do
+     * plano na operadora. Fica só como referência HISTÓRICA: nenhuma guia, pendência ou recebível nasce disso.
+     * O número da carteirinha NÃO vem por arquivo de importação.
+     */
+    insurerAnsRegistry: z
+      .string()
+      .trim()
+      .regex(/^[0-9]{6}$/u, 'registro ANS com 6 dígitos')
+      .optional(),
+    planCode: z.string().trim().min(1).max(40).optional(),
   })
   .refine((v) => !v.valorAjustado || (v.valor != null && v.valorAjusteMotivo != null), {
     message: 'valor_ajustado=true exige valor E motivo',
     path: ['valorAjusteMotivo'],
+  })
+  .refine((v) => v.billingMode !== 'convenio' || v.insurerAnsRegistry !== undefined, {
+    message: 'atendimento de convênio exige o registro ANS da operadora (insurerAnsRegistry)',
+    path: ['insurerAnsRegistry'],
+  })
+  .refine((v) => v.insurerAnsRegistry === undefined || v.billingMode === 'convenio', {
+    message: 'registro ANS só com billingMode "convenio"',
+    path: ['billingMode'],
+  })
+  .refine((v) => v.planCode === undefined || v.insurerAnsRegistry !== undefined, {
+    message: 'código do plano exige o registro ANS da operadora',
+    path: ['planCode'],
   });
 
 export const HistoricalAppointmentImportSchema = z.object({
@@ -235,6 +302,43 @@ export interface HistoricalAppointmentImportResult {
   batchId: string;
   importedAppointments: number;
   appointmentIds: string[];
+  /** P4.7-b: linhas gravadas como convênio histórico (referência, nunca faturamento). */
+  historicalCoverages: number;
+}
+
+/** Linha de convênio histórico a validar (1 = primeira linha do arquivo). */
+export interface HistoricalCoverageLine {
+  line: number;
+  insurerAnsRegistry: string;
+  planCode: string | null;
+}
+
+/**
+ * Porta do Convênios para a importação histórica (P4.7-b). Injetada pela camada do app: a agenda não importa o
+ * Convênios (o Convênios importa a agenda; importar de volta criaria ciclo).
+ */
+export interface HistoricalCoveragePort<Tx> {
+  /** Valida as linhas na sessão da clínica; erros legíveis por linha. Lança se o Convênios não for operável. */
+  resolve(
+    tx: Tx,
+    clinicId: string,
+    lines: readonly HistoricalCoverageLine[],
+  ): Promise<
+    | { ok: true; byLine: ReadonlyMap<number, { insurerId: string; planId: string | null }> }
+    | { ok: false; errors: readonly string[] }
+  >;
+  /** Grava a referência histórica (uma por atendimento), na mesma transação da importação. */
+  record(
+    tx: Tx,
+    rows: ReadonlyArray<{
+      clinicId: string;
+      appointmentId: string;
+      insurerId: string;
+      planId: string | null;
+      importBatchId: string;
+      createdBy: string;
+    }>,
+  ): Promise<void>;
 }
 
 export const CreateRecurringAppointmentsSchema = z.object({
@@ -248,6 +352,7 @@ export const CreateRecurringAppointmentsSchema = z.object({
   occurrences: z.number().int().min(2).max(104),
   urgencia: z.boolean().optional(),
   observacoes: ObservacoesSchema.optional(),
+  billingMode: BillingModeSchema.optional(),
 });
 export type CreateRecurringAppointmentsInput = z.infer<typeof CreateRecurringAppointmentsSchema>;
 

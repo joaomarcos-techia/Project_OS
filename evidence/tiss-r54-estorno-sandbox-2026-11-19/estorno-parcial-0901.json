@@ -1,0 +1,68 @@
+{
+ "tentativa": {
+  "at": "2026-11-19T12:01:22Z",
+  "brt": "19/11 09h01",
+  "valorSolicitado": 4,
+  "http": 400,
+  "mensagem": [
+   "Esta transação só pode ser estornada parcialmente no próximo dia."
+  ],
+  "estornosAntes": [],
+  "estornosNaResposta": []
+ },
+ "confirmacaoSoLeitura": {
+  "asaas": {
+   "status": "CONFIRMED",
+   "estornos": []
+  },
+  "qoro": {
+   "cobranca": {
+    "status": "paid",
+    "refundedAt": null,
+    "refundCheckedAt": null,
+    "dispute": null
+   },
+   "evidencias": [],
+   "livro": [
+    {
+     "tipo": "receber",
+     "valor": "10.00",
+     "valorPago": "10.00",
+     "valorGlosado": "0.00",
+     "status": "pago"
+    }
+   ],
+   "transacoes": [
+    {
+     "kind": "payment",
+     "amount": "10.00",
+     "ligadaABaixaOriginal": null,
+     "at": "2026-11-19 02:55:59.11+00"
+    }
+   ],
+   "webhooks": [
+    "02:55:59 PAYMENT_CONFIRMED",
+    "02:56:03 CHECKOUT_PAID"
+   ],
+   "coparticipacao": {
+    "status": "paid",
+    "received_cents": 1000
+   },
+   "auditoria": [],
+   "cobranca45": {
+    "status": "paid",
+    "refunded_at": null
+   }
+  },
+  "qoroIgualAoBaseline": true
+ },
+ "historico": [
+  "18/11 23h59 recusado",
+  "19/11 00h06 recusado",
+  "19/11 07h15 consulta só leitura, sem mudança",
+  "19/11 09h01 recusado (esta)"
+ ],
+ "leitura": "a regra do provedor não é virada de dia pelo calendário (19/11 já é o dia seguinte ao pagamento de 18/11) e a API não expõe o estado de processamento; no Sandbox pode não haver o processamento que libera o parcial",
+ "proximaCondicao": "UMA tentativa no próximo dia útil, segunda 23/11 a partir das 09h00 de Brasília (20/11 é feriado nacional); se vier a mesma recusa, parar e levar ao fundador a pergunta ao suporte do Asaas sobre estorno parcial de cartão no Sandbox",
+ "classificacao": "R54 PARTIAL — PROVIDER TIMING BLOCKED"
+}

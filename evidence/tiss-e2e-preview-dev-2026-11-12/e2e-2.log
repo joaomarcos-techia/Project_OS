@@ -1,0 +1,47 @@
+
+Running 12 tests using 1 worker
+
+  ok  1 [chromium] › e2e\convenios-preview.spec.ts:78:1 › o Preview usa o projeto DEV (prova assinada antes de qualquer escrita) (1.4s)
+  ok  2 [chromium] › e2e\convenios-preview.spec.ts:83:1 › anônimo: Convênios e documentos exigem sessão (4.6s)
+  ok  3 [chromium] › e2e\convenios-preview.spec.ts:93:1 › médica (sem ver o financeiro): vê o aviso de acesso e não baixa documento (404) (20.9s)
+  ok  4 [chromium] › e2e\convenios-preview.spec.ts:105:1 › recepção (vê, não gerencia o financeiro): telas abertas, nenhuma ação disponível (37.4s)
+  ok  5 [chromium] › e2e\convenios-preview.spec.ts:122:1 › trial: as telas mostram Convênios como recurso contratável, sem operação (58.6s)
+  ok  6 [chromium] › e2e\convenios-preview.spec.ts:137:1 › suspensa: modo de consulta com o motivo do banco (14.5s)
+  ok  7 [chromium] › e2e\convenios-preview.spec.ts:150:3 › clínica paga, desktop: todas as telas de Convênios abrem sem erro e sem aviso comercial (46.0s)
+  ok  8 [chromium] › e2e\convenios-preview.spec.ts:150:3 › clínica paga, celular: todas as telas de Convênios abrem sem erro e sem aviso comercial (52.6s)
+  ok  9 [chromium] › e2e\convenios-preview.spec.ts:163:1 › guia de Consulta: conferir → aprovar e emitir → PDF oficial do snapshot (46.8s)
+  ok 10 [chromium] › e2e\convenios-preview.spec.ts:182:1 › ação repetida: dois cliques em "Marcar como conferida" fazem UMA transição (20.1s)
+  x  11 [chromium] › e2e\convenios-preview.spec.ts:197:1 › lote: montar com a guia emitida → XML gerado e validado no XSD → download conferido (1.1m)
+  -  12 [chromium] › e2e\convenios-preview.spec.ts:221:1 › solicitação SP/SADT: registrar → conferir → documento oficial (PDF) → autorização parcial → ligar sessão
+
+
+  1) [chromium] › e2e\convenios-preview.spec.ts:197:1 › lote: montar com a guia emitida → XML gerado e validado no XSD → download conferido 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('XML gerado e validado').first()
+    Expected: visible
+    Timeout: 45000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 45000ms
+      - waiting for getByText('XML gerado e validado').first()
+
+
+      74 | }
+      75 |
+    > 76 | const toast = (page: Page, text: string) => expect(page.getByText(text, { exact: false }).first()).toBeVisible({ timeout: 45_000 });
+         |                                                                                                    ^
+      77 |
+      78 | test('o Preview usa o projeto DEV (prova assinada antes de qualquer escrita)', async () => {
+      79 |   test.setTimeout(90_000);
+        at toast (C:\dev\Qoro_convenios_tiss_20261110\e2e\convenios-preview.spec.ts:76:100)
+        at C:\dev\Qoro_convenios_tiss_20261110\e2e\convenios-preview.spec.ts:206:9
+
+    Error Context: test-results\convenios-preview-lote-mon-49849-no-XSD-→-download-conferido-chromium\error-context.md
+
+  1 failed
+    [chromium] › e2e\convenios-preview.spec.ts:197:1 › lote: montar com a guia emitida → XML gerado e validado no XSD → download conferido 
+  1 did not run
+  10 passed (6.2m)

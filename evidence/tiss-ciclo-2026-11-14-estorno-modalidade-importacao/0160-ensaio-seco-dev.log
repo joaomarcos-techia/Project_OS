@@ -1,0 +1,6 @@
+[launcher] variáveis no ambiente do aplicador: APPDATA, ComSpec, DATABASE_URL, HOMEDRIVE, HOMEPATH, LOCALAPPDATA, NODE_ENV, NUMBER_OF_PROCESSORS, OS, PATH, PATHEXT, PROCESSOR_ARCHITECTURE, Path, SYSTEMROOT, SystemRoot, TEMP, TMP, USERPROFILE, windir
+[migrate:dev-limited] 2026-11-14T04:26:32.616Z alvo: postgresql://postgres.pqhkirrszzpwezdaqrai:***@aws-1-us-west-1.pooler.supabase.com:5432/postgres?sslmode=require
+[migrate:dev-limited] 2026-11-14T04:26:34.507Z ledger antes: 160 linhas, última 1795036973858 (0159_saas_period_snapshot)
+[migrate:dev-limited] 2026-11-14T04:26:34.508Z pendentes (1): 0160_patient_external_refunds
+[migrate:dev-limited] 2026-11-14T04:26:34.508Z dry-run: nada aplicado
+[launcher] aplicador terminou com código 0 em 3397 ms

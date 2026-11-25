@@ -1,0 +1,22 @@
+== run 44230107145
+Lockfile is up to date, resolution step is skipped
+  ✓   1 [chromium] › e2e/convenios-sadt-preview.spec.ts:143:3 › fase 1: solicitação, indicação, documento, autorização e sessões pela tela › recepção registra a solicitação e confere: aguardando a operadora (39.4s)
+  ✓   2 [chromium] › e2e/convenios-sadt-preview.spec.ts:174:3 › fase 1: solicitação, indicação, documento, autorização e sessões pela tela › médica solicitante informa a indicação clínica (cifrada; a recepção só vê que existe) (18.8s)
+  ✓   3 [chromium] › e2e/convenios-sadt-preview.spec.ts:197:3 › fase 1: solicitação, indicação, documento, autorização e sessões pela tela › outra médica: não abre a solicitação e o servidor recusa a indicação dela (11.5s)
+  ✓   4 [chromium] › e2e/convenios-sadt-preview.spec.ts:205:3 › fase 1: solicitação, indicação, documento, autorização e sessões pela tela › documento oficial: recepção abre o PDF do pedido; o XML (validado no XSD) só para quem vê o faturamento (17.1s)
+  ✓   5 [chromium] › e2e/convenios-sadt-preview.spec.ts:240:3 › fase 1: solicitação, indicação, documento, autorização e sessões pela tela › recepção registra a resposta sintética da operadora (8 de 10, senha e validade) (10.2s)
+  ✓   6 [chromium] › e2e/convenios-sadt-preview.spec.ts:262:3 › fase 1: solicitação, indicação, documento, autorização e sessões pela tela › recepção liga as três sessões de hoje à solicitação (26.2s)
+  ✓   7 [chromium] › e2e/convenios-sadt-preview.spec.ts:279:3 › fase 1: solicitação, indicação, documento, autorização e sessões pela tela › financeiro não registra solicitação: o servidor recusa a action chamada direto (9.2s)
+  ✓   8 [chromium] › e2e/convenios-sadt-preview.spec.ts:286:3 › fase 1: solicitação, indicação, documento, autorização e sessões pela tela › outra clínica não vê a solicitação nem registra com a carteirinha desta; sem sessão, nada abre (12.7s)
+  2 skipped
+  8 passed (2.5m)
+== run 44231387176
+Lockfile is up to date, resolution step is skipped
+  ✓   9 [chromium] › e2e/convenios-sadt-preview.spec.ts:303:3 › fase 2: guia SP/SADT das sessões concluídas, lote, XML e protocolo › gestora: guia nascida das 3 sessões; confere, aprova, lote SP/SADT, XML no XSD, envio e protocolo (1.3m)
+  ✓  10 [chromium] › e2e/convenios-sadt-preview.spec.ts:360:3 › fase 2: guia SP/SADT das sessões concluídas, lote, XML e protocolo › recepção vê a guia da solicitação sem os controles de faturamento (11.0s)
+  8 skipped
+  2 passed (1.5m)
+Execuções anteriores (achados):
+- 44227451819 (f992c091): documento já gerado na conferência; o spec presumia clique (spec ajustado)
+- 44228871958 (864836d4): a tela oferecia 'Baixar XML (TISS)' à recepção e a rota devolvia 404 (D-5) — corrigido em ba23b2d0
+- 44228408439 (dc45577a): deploy do Preview falhou no provedor; reexecutado

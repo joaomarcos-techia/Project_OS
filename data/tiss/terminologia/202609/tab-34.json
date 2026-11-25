@@ -1,0 +1,38 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "34",
+  "title": "Tabela 34 - Terminologia de forma de pagamento",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 4,
+  "terms": [
+    {
+      "code": "1",
+      "term": "Depósito / Transferência Bancária",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "2",
+      "term": "Carteira",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3",
+      "term": "Boleto Bancário / DDA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "4",
+      "term": "Dinheiro / Cheque",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    }
+  ]
+}

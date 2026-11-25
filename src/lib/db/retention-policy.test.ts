@@ -33,6 +33,15 @@ describe('retention-policy — registro é a fonte única', () => {
     expect(tables).toContain('idempotency_keys');
   });
 
+  it('login_attempts guarda o registro de acesso pelo piso legal: 6 meses (Marco Civil, art. 15) e 180 dias (ANS, req. 84)', () => {
+    const p = RETENTION_POLICIES.find((x) => x.table === 'login_attempts')!;
+    // O semestre mais longo tem 184 dias; abaixo disso a purga diária apagaria registro ainda obrigatório.
+    expect(p.days).toBeGreaterThanOrEqual(184);
+    expect(p.days).toBeGreaterThanOrEqual(180);
+    // Minimização: não é guarda indefinida.
+    expect(p.days).toBeLessThanOrEqual(200);
+  });
+
   it('não tem tabela duplicada', () => {
     const tables = RETENTION_POLICIES.map((p) => p.table);
     expect(new Set(tables).size).toBe(tables.length);

@@ -1,0 +1,10 @@
+PASS: ledger como o DEV: 144 linhas, última 0143 (dump do DEV)
+PASS: backup dos dados restaurado e IDÊNTICO ao DEV (md5 das linhas): {"appointments":39,"lancamentos":28,"payment_transactions":14}
+PASS: drizzle-kit migrate aplicou exatamente 0144–0158 (15 versões, ledger 144 → 159) em 5781 ms
+PASS: segunda execução: nada aplicado, estrutura byte a byte igual
+PASS: dados existentes intocados (md5 igual); particular continua particular; todos os CHECKs validados
+PASS: reversão: estrutura byte a byte igual à de antes, ledger 144 linhas (0143), dados intocados
+PASS: aplicador do DEV (lock_timeout 2s, statement_timeout 60s): mesmo catálogo da CLI, ledger 159, sessão encerrada
+PASS: composição descartável: candidata do #53 (52de7ada) como 0159 pelo migrador real em 3948 ms; segunda execução sem reaplicar; dados intocados
+
+8 provas do ensaio do migrador passaram. Dumps em C:/Users/joaom/AppData/Local/Temp/claude/347a669c89a168d1/001c561d-7275-4230-86f4-828cec82f47a/scratchpad/dev-apply/rehearsal

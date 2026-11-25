@@ -1,0 +1,620 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "60",
+  "title": "Tabela 60 - Terminologia de unidade de medida",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 61,
+  "terms": [
+    {
+      "code": "001",
+      "term": "AMP",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Ampola"
+      }
+    },
+    {
+      "code": "002",
+      "term": "BUI",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Bilhões de Unidades Internacionais"
+      }
+    },
+    {
+      "code": "003",
+      "term": "BG",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Bisnaga"
+      }
+    },
+    {
+      "code": "004",
+      "term": "BOLS",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Bolsa"
+      }
+    },
+    {
+      "code": "005",
+      "term": "CX",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Caixa"
+      }
+    },
+    {
+      "code": "006",
+      "term": "CAP",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Cápsula"
+      }
+    },
+    {
+      "code": "007",
+      "term": "CARP",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Carpule"
+      }
+    },
+    {
+      "code": "008",
+      "term": "COM",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Comprimido"
+      }
+    },
+    {
+      "code": "009",
+      "term": "DOSE",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Dose"
+      }
+    },
+    {
+      "code": "010",
+      "term": "DRG",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Drágea"
+      }
+    },
+    {
+      "code": "011",
+      "term": "ENV",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Envelope"
+      }
+    },
+    {
+      "code": "012",
+      "term": "FLAC",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Flaconete"
+      }
+    },
+    {
+      "code": "013",
+      "term": "FR",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Frasco"
+      }
+    },
+    {
+      "code": "014",
+      "term": "FA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Frasco Ampola"
+      }
+    },
+    {
+      "code": "015",
+      "term": "GAL",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Galão"
+      }
+    },
+    {
+      "code": "016",
+      "term": "GLOB",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Glóbulo"
+      }
+    },
+    {
+      "code": "017",
+      "term": "GTS",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Gotas"
+      }
+    },
+    {
+      "code": "018",
+      "term": "G",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Grama"
+      }
+    },
+    {
+      "code": "019",
+      "term": "L",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Litro"
+      }
+    },
+    {
+      "code": "020",
+      "term": "MCG",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Microgramas"
+      }
+    },
+    {
+      "code": "021",
+      "term": "MUI",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Milhões de Unidades Internacionais"
+      }
+    },
+    {
+      "code": "022",
+      "term": "MG",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Miligrama"
+      }
+    },
+    {
+      "code": "023",
+      "term": "ML",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Milílitro"
+      }
+    },
+    {
+      "code": "024",
+      "term": "OVL",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Óvulo"
+      }
+    },
+    {
+      "code": "025",
+      "term": "PAS",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Pastilha"
+      }
+    },
+    {
+      "code": "026",
+      "term": "LT",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Lata"
+      }
+    },
+    {
+      "code": "027",
+      "term": "PER",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Pérola"
+      }
+    },
+    {
+      "code": "028",
+      "term": "PIL",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Pílula"
+      }
+    },
+    {
+      "code": "029",
+      "term": "PT",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Pote"
+      }
+    },
+    {
+      "code": "030",
+      "term": "KG",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Quilograma"
+      }
+    },
+    {
+      "code": "031",
+      "term": "SER",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Seringa"
+      }
+    },
+    {
+      "code": "032",
+      "term": "SUP",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Supositório"
+      }
+    },
+    {
+      "code": "033",
+      "term": "TABLE",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Tablete"
+      }
+    },
+    {
+      "code": "034",
+      "term": "TUB",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Tubete"
+      }
+    },
+    {
+      "code": "035",
+      "term": "TB",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Tubo"
+      }
+    },
+    {
+      "code": "036",
+      "term": "UN",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Unidade"
+      }
+    },
+    {
+      "code": "037",
+      "term": "UI",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Unidade Internacional"
+      }
+    },
+    {
+      "code": "038",
+      "term": "CM",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Centímetro"
+      }
+    },
+    {
+      "code": "039",
+      "term": "CONJ",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Conjunto"
+      }
+    },
+    {
+      "code": "040",
+      "term": "KIT",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Kit"
+      }
+    },
+    {
+      "code": "041",
+      "term": "MÇ",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Maço"
+      }
+    },
+    {
+      "code": "042",
+      "term": "M",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Metro"
+      }
+    },
+    {
+      "code": "043",
+      "term": "PC",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Pacote"
+      }
+    },
+    {
+      "code": "044",
+      "term": "PÇ",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Peça"
+      }
+    },
+    {
+      "code": "045",
+      "term": "RL",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Rolo"
+      }
+    },
+    {
+      "code": "046",
+      "term": "GY",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Gray"
+      }
+    },
+    {
+      "code": "047",
+      "term": "CGY",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Centgray"
+      }
+    },
+    {
+      "code": "048",
+      "term": "PAR",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Par"
+      }
+    },
+    {
+      "code": "049",
+      "term": "ADES",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Adesivo Transdérmico"
+      }
+    },
+    {
+      "code": "050",
+      "term": "COM EFEV",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Comprimido Efervecente"
+      }
+    },
+    {
+      "code": "051",
+      "term": "COM MST",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Comprimido Mastigável"
+      }
+    },
+    {
+      "code": "052",
+      "term": "SACHE",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31",
+      "extra": {
+        "Descrição Detalhada": "Sache"
+      }
+    },
+    {
+      "code": "053",
+      "term": "M",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30",
+      "extra": {
+        "Descrição Detalhada": "Metro Linear"
+      }
+    },
+    {
+      "code": "054",
+      "term": "M²",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30",
+      "extra": {
+        "Descrição Detalhada": "Metro Quadrado"
+      }
+    },
+    {
+      "code": "055",
+      "term": "M³",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30",
+      "extra": {
+        "Descrição Detalhada": "Metro Cúbico"
+      }
+    },
+    {
+      "code": "056",
+      "term": "MG/peso",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30",
+      "extra": {
+        "Descrição Detalhada": "Miligrama / peso"
+      }
+    },
+    {
+      "code": "057",
+      "term": "MG/M²",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30",
+      "extra": {
+        "Descrição Detalhada": "Miligrama por metro quadrado"
+      }
+    },
+    {
+      "code": "058",
+      "term": "CAL",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30",
+      "extra": {
+        "Descrição Detalhada": "Calorias"
+      }
+    },
+    {
+      "code": "059",
+      "term": "UI/M²",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30",
+      "extra": {
+        "Descrição Detalhada": "Unidade internacional por metro quadrado"
+      }
+    },
+    {
+      "code": "060",
+      "term": "UI/ML",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30",
+      "extra": {
+        "Descrição Detalhada": "Unidade internacional por mililitro"
+      }
+    },
+    {
+      "code": "061",
+      "term": "CM³",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30",
+      "extra": {
+        "Descrição Detalhada": "Centímetro cúbico"
+      }
+    }
+  ]
+}

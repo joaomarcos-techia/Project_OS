@@ -1,0 +1,66 @@
+{
+ "mode": "pre",
+ "at": "2026-11-16T07:23:48.082Z",
+ "code": {
+  "pr55": "06b03c076adb0ef2b795196499f95acb2a993b0e"
+ },
+ "sha": {
+  "0162": "eed2d0dee2b9d59be3b8f707d1c4963541d0b03e3597a73157be8766d481ec68",
+  "0163": "d94b652d1a602167ea0444740f717fce72afada940c703444965a4b7087ce9be",
+  "0164": "da5f8b90fd45b0afe3b307be689f326a25b7719ddcc664f81a714f99341e6ec1"
+ },
+ "checks": [
+  {
+   "name": "ledger com 163 linhas e última = 0162 (when 1795296173857), hash do arquivo",
+   "ok": true
+  },
+  {
+   "name": "0163 e 0164 ainda não existem (tabela, funções, gatilhos, colunas, versões)",
+   "ok": true
+  },
+  {
+   "name": "0162 registrada",
+   "ok": true
+  },
+  {
+   "name": "arquivos 0163 e 0164 presentes no journal local",
+   "ok": true
+  },
+  {
+   "name": "sem transação ativa longa (> 60 s)",
+   "ok": true
+  },
+  {
+   "name": "sem lock forte de outra sessão nas tabelas afetadas",
+   "ok": true
+  }
+ ],
+ "resumo": {
+  "ledger": {
+   "n": 163,
+   "last": "1795296173857"
+  },
+  "objetos": {
+   "has_table": false,
+   "has_decide": false,
+   "has_open": false,
+   "has_module_fn": false,
+   "has_review_trg": false,
+   "module_trgs": 0,
+   "has_seg_col": false,
+   "has_view_col": false,
+   "has_v163": false,
+   "has_v164": false,
+   "has_v162": true
+  },
+  "guias": 14,
+  "repasses": 9,
+  "movimentos": 14,
+  "clinicas": 19,
+  "moduloDesligado": 16,
+  "inventarioBackfill": [],
+  "transacoesLongas": 0,
+  "locksFortes": 0,
+  "pos": null
+ }
+}

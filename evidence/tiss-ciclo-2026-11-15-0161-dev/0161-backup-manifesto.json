@@ -1,0 +1,76 @@
+{
+ "at": "2026-11-15T10:59:53.644Z",
+ "target": {
+  "host": "aws-1-us-west-1.pooler.supabase.com",
+  "user": "postgres.<ref DEV>"
+ },
+ "files": [
+  {
+   "file": "schema-public-drizzle.sql",
+   "bytes": 1024129,
+   "sha256": "bed403c7d9cc6062cf7483c690ea409ce5edaed220cada782a0e304d245f7614",
+   "ms": 67533
+  },
+  {
+   "file": "data-hi-tables.sql",
+   "bytes": 244064,
+   "sha256": "0a0fcd1c67cc502de169f41de5c75b1f41cd769723b15033c8cd951e36c9e8c8",
+   "ms": 22990
+  },
+  {
+   "file": "data-drizzle-ledger.sql",
+   "bytes": 14137,
+   "sha256": "1de72c4c550c1e6c200b75ad7f58d93f3718494e0d3ed708e0272485fa7fe927",
+   "ms": 14946
+  }
+ ],
+ "schema_has": {
+  "hi_guides": true,
+  "consulta_overrides": false,
+  "patient_external_refunds": true,
+  "hi_guide_transition": true
+ },
+ "data_tables": [
+  "public.clinics",
+  "public.hi_account_events",
+  "public.hi_insurers",
+  "public.hi_plans",
+  "public.hi_memberships",
+  "public.hi_authorizations",
+  "public.hi_authorization_items",
+  "public.hi_contract_imports",
+  "public.hi_procedure_contracts",
+  "public.hi_professional_profiles",
+  "public.hi_sadt_requests",
+  "public.hi_sadt_request_items",
+  "public.hi_appointment_coverages",
+  "public.hi_authorization_attachments",
+  "public.hi_authorization_consumptions",
+  "public.hi_authorization_events",
+  "public.hi_guides",
+  "public.hi_guide_snapshots",
+  "public.hi_files",
+  "public.hi_batches",
+  "public.hi_batch_events",
+  "public.hi_batch_guides",
+  "public.hi_batch_returns",
+  "public.hi_billing_gaps",
+  "public.hi_billing_gap_events",
+  "public.hi_clinic_settings",
+  "public.hi_copayments",
+  "public.hi_counters",
+  "public.hi_credentials",
+  "public.hi_gloss_appeals",
+  "public.hi_guide_items",
+  "public.hi_glosses",
+  "public.hi_gloss_appeal_items",
+  "public.hi_guide_events",
+  "public.hi_insurer_credentials",
+  "public.hi_ledger_entries",
+  "public.hi_payments",
+  "public.hi_payment_allocations",
+  "public.hi_payouts",
+  "public.hi_payout_movements",
+  "public.hi_sadt_request_events"
+ ]
+}

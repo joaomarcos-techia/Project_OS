@@ -1,0 +1,12 @@
+PASS: 1a. sem autorização exigida: solicitação pronta, sessão concluída vira guia SP/SADT pronta para conferência (R$ 120,00); a emissão de "outras terapias" sem indicação clínica é barrada com pendência do MÉDICO; outro usuário não informa a indicação; o solicitante informa (cifrada no banco)
+PASS: 1b. emissão com a indicação do solicitante e as regras TISS (snapshot cifrado, sem indicação nem carteirinha em claro) → lote → XML SP/SADT validado no XSD oficial e guardado
+PASS: 2. vários procedimentos com autorização exigida: sessão antes da resposta vira pendência automática (sem guia, sem consumo); autorização sem evidência é recusada; parcial (2 de 4; 0 de 2) consome uma vez por sessão; a 3ª sessão e o item não autorizado viram pendência "saldo esgotado", nunca guia
+PASS: 3. reprocessamento (3×) e reentrega do evento: as 2 sessões seguem em uma guia cada, consumo 2 (nenhuma sessão nem consumo duplicado)
+PASS: 4. agrupamento por solicitação (regra da operadora): 3 sessões em datas diferentes numa guia, cada uma pelo contrato vigente NA SUA DATA (100,00; 100,00; 125,00); sessão de outro profissional vai para outra guia
+PASS: 5. uma guia por sessão (padrão da operadora); execução parcial: 2 de 5 executadas, a solicitação segue aceitando sessões
+PASS: 6. negada: pendência sem guia; cancelar com sessão executada é recusado (encerra-se), sem sessão cancela também o pedido à operadora e a solicitação deixa de aceitar sessões; sessão depois da validade da senha vira pendência sem consumo
+PASS: 7. concorrência: duas sessões concluídas ao mesmo tempo com saldo 1 → uma guia, consumo 1, a outra vira pendência (trava por item)
+PASS: 8. RLS: outra clínica não lê a solicitação nem liga atendimento ao item dela; clínica suspensa pelo dunning não cria solicitação (D24); procedimento fora do contrato e da TUSS, item duplicado e carteirinha de outro paciente são recusados
+PASS: 9. histórico só de inclusão (rascunho → aguardando → parcialmente autorizada); nenhuma coluna de CID, diagnóstico ou prontuário
+
+OK — 10 provas: solicitação SP/SADT persistida e SP/SADT automática ponta a ponta (até o XML validado no XSD).

@@ -66,6 +66,11 @@ const PERMISSION_LABELS: Partial<Record<Permission, string>> = {
   'view:consultorio': 'Ver consultório',
   'view:conversations': 'Ver conversas IA',
   'manage:conversations': 'Gerenciar conversas IA',
+  'view:convenios': 'Ver convênios',
+  'manage:convenios': 'Configurar convênios',
+  'operate:convenios': 'Operar convênios (recepção)',
+  'view:faturamento_convenio': 'Ver faturamento de convênios',
+  'manage:faturamento_convenio': 'Faturar convênios',
 };
 
 export interface MemberRowActionsProps {

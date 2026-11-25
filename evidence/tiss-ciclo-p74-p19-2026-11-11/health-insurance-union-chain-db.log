@@ -1,0 +1,10 @@
+# health-insurance-union-chain-db — 2026-11-11T18:15:20Z — exit=0 — árvore de trabalho sobre b450a560 (mudanças do commit deste ciclo, ainda não commitadas)
+PASS: cadeia unida aplica inteira no Postgres 17: 151 migrations (0000–0150), 0136–0142 do #53 em b6965447, prefixos contíguos; 121 marcas de versão
+PASS: gatilhos convivem: trial do #53 (AFTER INSERT) e convênio (BEFORE) em appointments e lancamentos
+PASS: clínica em trial: particular gera o recebível de R$ 150 e consome 1 do limite, como no #53; convênio gera a guia, nenhum recebível e não consome o limite de recebíveis
+PASS: recebível cheio de convênio recusado pela rede da 0148 antes do gatilho do trial: nada consumido
+PASS: coparticipação confirmada: recebível de R$ 45 (nunca R$ 150), que conta no limite de recebíveis do trial (política do #53)
+{"ts":"2026-11-11T18:15:44.456Z","kind":"metric","event":"outbox.retry","clinicId":"<uuid>","eventType":"health_insurance.copay.confirmed","attempts":1,"errorCode":"unknown","errorMessage":"Error: Failed query: insert into \"lancamentos\" (\"id\", \"clinic_id\", \"unit_id\", \"tipo\", \"descricao\", \"valor\", \"valor_pago\", \"status\", \"due_date\", \"paid_at\", \"patient_id\", \"supplier_id\", \"appointment_id\""}
+{"ts":"2026-11-11T18:15:44.489Z","kind":"metric","event":"outbox.retry","clinicId":"<uuid>","eventType":"health_insurance.copay.confirmed","attempts":2,"errorCode":"unknown","errorMessage":"Error: Failed query: insert into \"lancamentos\" (\"id\", \"clinic_id\", \"unit_id\", \"tipo\", \"descricao\", \"valor\", \"valor_pago\", \"status\", \"due_date\", \"paid_at\", \"patient_id\", \"supplier_id\", \"appointment_id\""}
+PASS: no limite do trial, o recebível da coparticipação é barrado pelo #53: nenhum lançamento parcial, a coparticipação fica confirmada e o evento fica para retentativa (estado pending, 2 tentativa(s)) — risco registrado para a política de trial
+OK — 6/6 provas da cadeia unida (main + #53 b6965447 + #55) em Postgres descartável.

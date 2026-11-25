@@ -1,0 +1,19 @@
+{"smallBytes":2139,"largeBytes":2964646,"cpus":12}
+{"pool":"off","lote":"1 guia","concorrencia":1,"friaMs":808,"validacoes":48,"porSegundo":1.2,"soloMs":770,"p50":21104,"p95":38532,"p99":40171,"esperaFilaP95Ms":37762,"rssMaxMb":151,"heapMaxMb":40,"erros":0,"invalidos":0,"workers":null}
+{"pool":"off","lote":"1 guia","concorrencia":2,"friaMs":832,"validacoes":48,"porSegundo":2.2,"soloMs":851,"p50":11455,"p95":20340,"p99":21343,"esperaFilaP95Ms":19489,"rssMaxMb":122,"heapMaxMb":9,"erros":0,"invalidos":0,"workers":null}
+{"pool":"off","lote":"1 guia","concorrencia":4,"friaMs":864,"validacoes":48,"porSegundo":3.7,"soloMs":813,"p50":7556,"p95":12928,"p99":12929,"esperaFilaP95Ms":12115,"rssMaxMb":170,"heapMaxMb":9,"erros":0,"invalidos":0,"workers":null}
+{"pool":"off","lote":"1 guia","concorrencia":8,"friaMs":878,"validacoes":48,"porSegundo":4.1,"soloMs":798,"p50":7625,"p95":11623,"p99":11626,"esperaFilaP95Ms":10825,"rssMaxMb":248,"heapMaxMb":10,"erros":0,"invalidos":0,"workers":null}
+{"pool":"off","lote":"100 guias × 30 itens","concorrencia":1,"friaMs":1101,"validacoes":16,"porSegundo":0.8,"soloMs":1279,"p50":10640,"p95":18868,"p99":18868,"esperaFilaP95Ms":17589,"rssMaxMb":169,"heapMaxMb":9,"erros":0,"invalidos":0,"workers":null}
+{"pool":"off","lote":"100 guias × 30 itens","concorrencia":2,"friaMs":1200,"validacoes":16,"porSegundo":1.6,"soloMs":1181,"p50":6224,"p95":9903,"p99":9903,"esperaFilaP95Ms":8722,"rssMaxMb":210,"heapMaxMb":9,"erros":0,"invalidos":0,"workers":null}
+{"pool":"off","lote":"100 guias × 30 itens","concorrencia":4,"friaMs":1232,"validacoes":16,"porSegundo":2.3,"soloMs":1152,"p50":5306,"p95":6751,"p99":6751,"esperaFilaP95Ms":5599,"rssMaxMb":278,"heapMaxMb":8,"erros":0,"invalidos":0,"workers":null}
+{"pool":"off","lote":"100 guias × 30 itens","concorrencia":8,"friaMs":1111,"validacoes":16,"porSegundo":2.3,"soloMs":1179,"p50":6613,"p95":6725,"p99":6725,"esperaFilaP95Ms":5546,"rssMaxMb":404,"heapMaxMb":8,"erros":0,"invalidos":0,"workers":null}
+{"pool":"on","lote":"1 guia","concorrencia":1,"friaMs":420,"validacoes":48,"porSegundo":17.5,"soloMs":62,"p50":1461,"p95":2636,"p99":2744,"esperaFilaP95Ms":2574,"rssMaxMb":99,"heapMaxMb":8,"erros":0,"invalidos":0,"workers":1}
+{"pool":"on","lote":"1 guia","concorrencia":2,"friaMs":282,"validacoes":48,"porSegundo":31.6,"soloMs":52,"p50":850,"p95":1470,"p99":1517,"esperaFilaP95Ms":1418,"rssMaxMb":133,"heapMaxMb":8,"erros":0,"invalidos":0,"workers":2}
+{"pool":"on","lote":"1 guia","concorrencia":4,"friaMs":284,"validacoes":48,"porSegundo":51.8,"soloMs":53,"p50":602,"p95":910,"p99":925,"esperaFilaP95Ms":857,"rssMaxMb":195,"heapMaxMb":8,"erros":0,"invalidos":0,"workers":4}
+{"pool":"on","lote":"1 guia","concorrencia":8,"friaMs":314,"validacoes":48,"porSegundo":59.2,"soloMs":58,"p50":547,"p95":791,"p99":807,"esperaFilaP95Ms":733,"rssMaxMb":307,"heapMaxMb":8,"erros":0,"invalidos":0,"workers":8}
+{"pool":"on","lote":"100 guias × 30 itens","concorrencia":1,"friaMs":587,"validacoes":16,"porSegundo":2.7,"soloMs":377,"p50":3253,"p95":5586,"p99":5586,"esperaFilaP95Ms":5209,"rssMaxMb":412,"heapMaxMb":7,"erros":0,"invalidos":0,"workers":1}
+{"pool":"on","lote":"100 guias × 30 itens","concorrencia":2,"friaMs":635,"validacoes":16,"porSegundo":5,"soloMs":328,"p50":1873,"p95":2938,"p99":2938,"esperaFilaP95Ms":2610,"rssMaxMb":373,"heapMaxMb":7,"erros":0,"invalidos":0,"workers":2}
+{"pool":"on","lote":"100 guias × 30 itens","concorrencia":4,"friaMs":598,"validacoes":16,"porSegundo":8.7,"soloMs":378,"p50":1148,"p95":1593,"p99":1593,"esperaFilaP95Ms":1215,"rssMaxMb":580,"heapMaxMb":8,"erros":0,"invalidos":0,"workers":4}
+{"pool":"on","lote":"100 guias × 30 itens","concorrencia":8,"friaMs":586,"validacoes":16,"porSegundo":9.4,"soloMs":367,"p50":1135,"p95":1506,"p99":1506,"esperaFilaP95Ms":1139,"rssMaxMb":669,"heapMaxMb":7,"erros":0,"invalidos":0,"workers":8}
+
+OK — 16 medições (1/2/4/8 validações simultâneas por processo).

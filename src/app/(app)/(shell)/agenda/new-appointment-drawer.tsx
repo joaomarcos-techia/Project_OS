@@ -30,6 +30,11 @@ import { buscarPacientes, criarAtendimento, type CriarAtendimentoInput } from '.
 import { QuickPatientForm } from './quick-patient-form';
 import type { AgendaData } from './data';
 import { todayYmd } from './range';
+import {
+  emptyBilling,
+  InsuranceBillingFields,
+  type BillingValue,
+} from './insurance-billing-fields';
 
 type Modo = 'agendar' | 'agora';
 
@@ -126,6 +131,7 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
   const [cadastrandoPaciente, setCadastrandoPaciente] = useState(false);
   // Anúncio da seleção feita pelo cadastro rápido (região `status` sempre montada).
   const [avisoPaciente, setAvisoPaciente] = useState('');
+  const [billing, setBilling] = useState<BillingValue>(emptyBilling);
   const [salvando, startSalvar] = useTransition();
 
   const semProcedimentos = data.procedures.length === 0;
@@ -155,6 +161,7 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
     setFormError(null);
     setCadastrandoPaciente(false);
     setAvisoPaciente('');
+    setBilling(emptyBilling());
   }
 
   function submit() {
@@ -185,6 +192,10 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
       return;
     }
     if (!paciente || !docId) return;
+    if (billing.mode === 'convenio' && !billing.insurerId) {
+      setFormError('Escolha a operadora do convênio.');
+      return;
+    }
     const base = {
       patientId: paciente.id,
       procedureId,
@@ -192,6 +203,16 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
       urgencia,
       observacoes,
       resourceIds,
+      ...(billing.mode === 'convenio'
+        ? {
+            convenio: {
+              insurerId: billing.insurerId,
+              planId: billing.planId || null,
+              membershipId: billing.membershipId || null,
+              guideType: billing.guideType,
+            },
+          }
+        : {}),
     };
     const interval = Number(intervalWeeks);
     const count = Number(occurrences);
@@ -208,7 +229,18 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
 
     startSalvar(async () => {
       const res = await criarAtendimento(input);
-      if (res.ok) {
+      if (res.ok && res.coverage && (res.coverage.error || res.coverage.issues.length > 0)) {
+        // Convênio criado, mas a cobertura tem pendência: a recepção vê na hora o que falta.
+        toast.info(
+          'Atendimento de convênio criado com pendência',
+          res.coverage.error ?? res.coverage.issues[0],
+          8000,
+          '/convenios',
+        );
+        setOpen(false);
+        reset();
+        router.refresh();
+      } else if (res.ok) {
         toast.success(
           res.modo === 'agora' ? 'Encaixe criado' : 'Atendimento agendado',
           res.modo === 'agora'
@@ -283,6 +315,7 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
                   value={paciente}
                   onSelect={(item) => {
                     setPaciente(item);
+                    setBilling((b) => ({ ...b, membershipId: '' }));
                     if (item) limparErro('paciente');
                   }}
                   onSearch={async (term) =>
@@ -314,6 +347,7 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
               <QuickPatientForm
                 onCreated={(novo) => {
                   setPaciente(novo);
+                  setBilling((b) => ({ ...b, membershipId: '' }));
                   setCadastrandoPaciente(false);
                   limparErro('paciente');
                   // Concorda com "cadastro", não com a pessoa: o gênero dela
@@ -506,6 +540,13 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
                 </div>
               </Field>
             ) : null}
+
+            <InsuranceBillingFields
+              options={data.insurance}
+              patientId={paciente?.id ?? null}
+              value={billing}
+              onChange={setBilling}
+            />
 
             <label className="flex cursor-pointer items-center gap-2.5 text-(length:--fs-sm)">
               <Checkbox checked={urgencia} onCheckedChange={(v) => setUrgencia(v === true)} />

@@ -1,0 +1,60 @@
+{
+  "models": {
+    "consulta": {
+      "document": "Padrão TISS — Componente de Conteúdo e Estrutura 202511",
+      "zipSha256": "6a720ed27da8397fef584e30d794aa56f18906d253ccdf460c30b1019a3a4d3b",
+      "pdfSha256": "d96ab600aa82e936738b81d18381305bde79b0aa5ede285b5b1cd6376c213d9a",
+      "page": 469
+    },
+    "spSadt": {
+      "document": "Padrão TISS — Componente de Conteúdo e Estrutura 202511",
+      "zipSha256": "6a720ed27da8397fef584e30d794aa56f18906d253ccdf460c30b1019a3a4d3b",
+      "pdfSha256": "d96ab600aa82e936738b81d18381305bde79b0aa5ede285b5b1cd6376c213d9a",
+      "page": 520
+    }
+  },
+  "cases": [
+    {
+      "id": "consulta",
+      "pages": 1,
+      "worstLabelDeltaPt": 0,
+      "missingLabels": 0,
+      "valuesOutsideBox": 0,
+      "continuationFields": []
+    },
+    {
+      "id": "sadt-cobranca",
+      "pages": 1,
+      "worstLabelDeltaPt": 0,
+      "missingLabels": 0,
+      "valuesOutsideBox": 0,
+      "continuationFields": []
+    },
+    {
+      "id": "sadt-cobranca-12-itens",
+      "pages": 3,
+      "worstLabelDeltaPt": 0,
+      "missingLabels": 0,
+      "valuesOutsideBox": 0,
+      "continuationFields": []
+    },
+    {
+      "id": "sadt-solicitacao",
+      "pages": 1,
+      "worstLabelDeltaPt": 0,
+      "missingLabels": 0,
+      "valuesOutsideBox": 0,
+      "continuationFields": []
+    },
+    {
+      "id": "sadt-solicitacao-indicacao-500",
+      "pages": 2,
+      "worstLabelDeltaPt": 0,
+      "missingLabels": 0,
+      "valuesOutsideBox": 0,
+      "continuationFields": [
+        23
+      ]
+    }
+  ]
+}

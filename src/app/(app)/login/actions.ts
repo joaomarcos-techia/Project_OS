@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { z } from 'zod';
 
 import { sendPasswordResetEmail } from '@/contexts/identity/internal/password-reset-email';
@@ -19,7 +19,17 @@ import { AUTH_UNAVAILABLE_MESSAGE, isAuthServiceUnavailable } from '@/lib/auth/a
 import { createServerClient } from '@/lib/auth/supabase-server';
 import { readAuthoritativeProfile } from '@/lib/auth/tenant-context';
 import { hashEmail } from '@/lib/auth/email-hash';
-import { recordLoginAttempt } from '@/lib/auth/login-audit';
+import { readTissFootprintLazy } from '@/app/(app)/_lib/tiss-footprint';
+import { checkLoginByAuditTrail } from '@/lib/auth/login-attempts-fallback';
+import { tissPasswordAge } from '@/lib/auth/security-profile/password-lifecycle';
+import { isInTissPasswordScope } from '@/lib/auth/security-profile/password-policy';
+import {
+  LAST_ACCESS_COOKIE,
+  LAST_ACCESS_MAX_AGE_SECONDS,
+  encodeLastAccess,
+  lastAccessSecret,
+} from '@/lib/auth/last-access';
+import { readLastAccessSummary, recordLoginAttempt } from '@/lib/auth/login-audit';
 import { assertLoginAllowed, assertPasswordResetAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { postLoginRedirect } from '@/lib/auth/policies';
 import { resolvePreTenantOnboarding } from '@/lib/auth/pretenant-onboarding';
@@ -114,6 +124,16 @@ export async function loginAction(
     metrics.emit('auth.ratelimit.tripped', { route: 'login' });
     return { error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' };
   }
+  // S8 / requisito 69 da ANS: com o Upstash fora, a memória da instância não limita nada no serverless. A
+  // trilha login_attempts dá a mesma contagem a todas as instâncias; se o banco também falhar, o login FECHA.
+  if (limit.degraded) {
+    const audit = await checkLoginByAuditTrail(emailHash, ip);
+    if (audit !== 'allowed') {
+      if (audit === 'blocked') await recordLoginAttempt(emailHash, ip, false);
+      metrics.emit('auth.ratelimit.tripped', { route: 'login', source: `audit_${audit}` });
+      return { error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' };
+    }
+  }
 
   const supabase = await createServerClient({ cookieWrites: 'required', newSession: true });
   // `options` é omitido quando não há token: mandar `{ captchaToken: '' }` faz o
@@ -149,6 +169,8 @@ export async function loginAction(
     metrics.emit('auth.login.failed', { reason: 'invalid_credentials' });
     return { error: 'Email ou senha inválidos.' };
   }
+  // R42: o último acesso ANTERIOR é lido antes de registrar este (best-effort; nunca bloqueia o login).
+  const lastAccess = await readLastAccessSummary(emailHash).catch(() => null);
   await recordLoginAttempt(emailHash, ip, true);
 
   // Leitura server-side autoritativa. Não usa PostgREST/Data API: o navegador
@@ -198,6 +220,56 @@ export async function loginAction(
   if (profile.ativo === false || profile.deletedAt != null) {
     await supabase.auth.signOut({ scope: 'local' });
     return { error: 'Acesso desativado. Contate o administrador da clínica.' };
+  }
+
+  // S4 (requisito 81 da ANS): no perfil TISS, a senha vence em 90 dias (carência de 90 contada da ativação).
+  // Vencida: encerra a sessão recém-aberta e manda o link de troca pelo caminho de recuperação de sempre.
+  const age = await tissPasswordAge(data.user.id, profile.clinicId ?? null, {
+    readFootprint: readTissFootprintLazy,
+  });
+  if (age?.kind === 'must_change') {
+    await supabase.auth.signOut({ scope: 'local' });
+    try {
+      await sendPasswordResetEmail(email);
+    } catch (error) {
+      logger.error('login.password_expired_email_failed', {
+        reason: error instanceof Error ? error.name : 'unknown',
+      });
+    }
+    metrics.emit('auth.login.password_expired', {});
+    return {
+      error:
+        'Sua senha venceu (troca a cada 90 dias no perfil de segurança de Convênios). Enviamos um link para o seu e-mail para criar uma nova.',
+    };
+  }
+
+  // R42 (requisito 42 da ANS): aviso de último acesso no perfil TISS. Cookie curto, HttpOnly e assinado (só data e
+  // contagem); o layout lê uma vez e apaga. Fora do alcance, nada muda.
+  if (
+    lastAccess &&
+    (await isInTissPasswordScope(profile.clinicId ?? null, readTissFootprintLazy))
+  ) {
+    try {
+      (await cookies()).set(
+        LAST_ACCESS_COOKIE,
+        encodeLastAccess(
+          {
+            previousSuccessAt: lastAccess.previousSuccessAt?.toISOString() ?? null,
+            failuresSince: lastAccess.failuresSince,
+          },
+          lastAccessSecret(),
+        ),
+        {
+          httpOnly: true,
+          secure: true,
+          sameSite: 'lax',
+          path: '/',
+          maxAge: LAST_ACCESS_MAX_AGE_SECONDS,
+        },
+      );
+    } catch {
+      /* o aviso é informativo: falhar aqui não bloqueia o login */
+    }
   }
 
   const aal = await getAal(supabase);

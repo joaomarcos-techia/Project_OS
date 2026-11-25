@@ -1,0 +1,9 @@
+[launcher] variáveis no ambiente do aplicador: APPDATA, ComSpec, DATABASE_URL, HOMEDRIVE, HOMEPATH, LOCALAPPDATA, NODE_ENV, NUMBER_OF_PROCESSORS, OS, PATH, PATHEXT, PROCESSOR_ARCHITECTURE, Path, SYSTEMROOT, SystemRoot, TEMP, TMP, USERPROFILE, windir
+[migrate:dev-limited] 2026-11-14T04:26:48.005Z alvo: postgresql://postgres.pqhkirrszzpwezdaqrai:***@aws-1-us-west-1.pooler.supabase.com:5432/postgres?sslmode=require
+[migrate:dev-limited] 2026-11-14T04:26:49.864Z ledger antes: 160 linhas, última 1795036973858 (0159_saas_period_snapshot)
+[migrate:dev-limited] 2026-11-14T04:26:49.864Z pendentes (1): 0160_patient_external_refunds
+[migrate:dev-limited] 2026-11-14T04:26:50.394Z sessão: lock_timeout=2s statement_timeout=1min
+[migrate:dev-limited] 2026-11-14T04:26:54.737Z ledger depois: 161 linhas, última 1795123373857 (0160_patient_external_refunds) em 4164 ms
+[migrate:dev-limited] 2026-11-14T04:26:54.737Z ok
+[launcher] aplicador terminou com código 0 em 8001 ms
+[observador] 4 amostras (2 s); máx. sessões esperando lock: 0; maior espera: 0 s; amostras com AccessExclusive do migrador: 2

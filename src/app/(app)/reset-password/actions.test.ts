@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+  tissFootprint: vi.fn(),
   advanceEpoch: vi.fn(),
   finishEpoch: vi.fn(),
   checkExposure: vi.fn(),
@@ -35,6 +36,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('next/headers', () => ({ cookies: mocks.cookies, headers: mocks.headers }));
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
+vi.mock('@/app/(app)/_lib/tiss-footprint', () => ({ readTissFootprintLazy: mocks.tissFootprint }));
 vi.mock('@/contexts/onboarding', () => ({
   advanceSignupCredentialEpoch: mocks.advanceEpoch,
   checkSignupPasswordExposure: mocks.checkExposure,
@@ -749,5 +751,40 @@ describe('resetPasswordAction — senha recusada no ramo profile', () => {
     expect(result.error).toContain('novo link');
     expect(mocks.signGrant).not.toHaveBeenCalled();
     expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'global' });
+  });
+});
+
+describe('S3 — requisito 67 da ANS na redefinição (perfil TISS)', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('perfil TISS ligado e clínica com dado TISS: senha sem símbolo é recusada ANTES de consumir o link', async () => {
+    vi.stubEnv('TISS_SECURITY_PROFILE_ENFORCE', 'true');
+    mocks.readGrant.mockReturnValue({
+      kind: 'profile',
+      userId,
+      epoch: 4,
+      expiresAt: Date.now() + 60_000,
+    });
+    mocks.readProfile.mockResolvedValue({ claimsVersion: 4, clinicId: 'clinic-tiss' });
+    mocks.tissFootprint.mockResolvedValue({ moduleEnabled: false, hasTissData: true });
+    const out = await resetPasswordAction({ error: null }, form('SenhaForte7'));
+    expect(out.error).toMatch(/perfil de segurança de Convênios.*um símbolo/u);
+    expect(mocks.tissFootprint).toHaveBeenCalledWith('clinic-tiss');
+    expect(mocks.bumpEpochIfCurrent).not.toHaveBeenCalled();
+    expect(mocks.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('perfil desligado (padrão): nada muda e o rastro nem é lido', async () => {
+    mocks.readGrant.mockReturnValue({
+      kind: 'profile',
+      userId,
+      epoch: 4,
+      expiresAt: Date.now() + 60_000,
+    });
+    mocks.readProfile.mockResolvedValue({ claimsVersion: 4, clinicId: 'clinic-tiss' });
+    await expect(resetPasswordAction({ error: null }, form('SenhaForte7'))).rejects.toThrow(
+      'REDIRECT:/login?reason=password_updated',
+    );
+    expect(mocks.tissFootprint).not.toHaveBeenCalled();
   });
 });

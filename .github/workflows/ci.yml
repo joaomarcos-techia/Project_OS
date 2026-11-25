@@ -41,6 +41,10 @@ jobs:
         run: pnpm audit --prod --audit-level high
 
       - name: Typecheck
+        # O tsc do projeto inteiro passou do teto padrão do Node (~2 GB) no runner (OOM em 18/11, com
+        # "Reached heap limit" aos 2.028 MB). Só o teto de memória do processo muda; a checagem é a mesma.
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: pnpm typecheck
 
       - name: Lint
@@ -85,6 +89,9 @@ jobs:
 
       - name: Two-tenant isolation (temporary local Postgres)
         run: SECURITY_PG_BIN="$(pg_config --bindir)" pnpm security:tenant
+
+      - name: Convênios — isolamento de todas as tabelas do módulo (temporary local Postgres, P12.1)
+        run: SECURITY_PG_BIN="$(pg_config --bindir)" TENANT_ISOLATION_CHAIN=local pnpm security:tenant:convenios
 
       - name: Build
         run: pnpm security:build

@@ -1,0 +1,17 @@
+{"ts":"2026-11-15T17:11:29.485Z","kind":"metric","event":"insurance.authorization.expired","count":"2"}
+PASS: vencimento: só concedidas com a senha vencida (data da clínica); a de hoje, sem validade, pedida e negada ficam; histórico; repetição sem efeito
+PASS: vencida não se consome (gatilho da 0146); a vigente consome normalmente
+{"ts":"2026-11-15T17:11:29.586Z","kind":"metric","event":"insurance.authorization.expired","count":"1"}
+PASS: o vencimento de uma clínica não toca a outra
+{"ts":"2026-11-15T17:11:29.747Z","kind":"metric","event":"audit.written","action":"health_insurance.authorization.receipt_read","resourceType":"hi_authorization_attachment"}
+PASS: comprovante cifrado no armazenamento, SHA-256 no banco; leitura devolve os mesmos bytes e é auditada sem a referência
+{"ts":"2026-11-15T17:11:29.794Z","kind":"metric","event":"audit.written","action":"health_insurance.authorization.receipt_read","resourceType":"hi_authorization_attachment"}
+{"ts":"2026-11-15T17:11:29.795Z","kind":"authorization_receipt","event":"insurance.file.integrity_failed","outcome":"integrity_failed"}
+{"ts":"2026-11-15T17:11:29.827Z","kind":"metric","event":"audit.written","action":"health_insurance.authorization.receipt_read","resourceType":"hi_authorization_attachment"}
+{"ts":"2026-11-15T17:11:29.827Z","kind":"authorization_receipt","event":"insurance.file.missing","outcome":"missing"}
+PASS: adulterado e ausente nunca são entregues; a auditoria de cada falha fica gravada
+PASS: compensação: a transação que não confirma remove o objeto gravado; nenhum registro novo
+PASS: conteúdo que não bate com o tipo e autorização cancelada: recusados, nada gravado
+PASS: outra clínica não lê o comprovante nem anexa na autorização desta (RLS)
+
+OK: 8/8 provas da P6.1 (autorização: vencimento, comprovante, isolamento)

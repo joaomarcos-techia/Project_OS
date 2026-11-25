@@ -1,0 +1,42 @@
+// SOMENTE LEITURA, PRODUÇÃO: guarda dos registros de acesso (Marco Civil, art. 15; ANS req. 84).
+// Uma transação READ ONLY conferida dentro dela, sem SET de sessão. Só datas mínimas, contagens e
+// presença de IP por faixa de idade: nenhum e-mail, hash, IP, id ou texto sai daqui.
+import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+
+const PROD_REF = 'shlcbxawrxuaebazuiue';
+const require = createRequire('C:/dev/Qoro_convenios_tiss_20261110/package.json');
+const postgres = require('postgres');
+const txt = readFileSync('C:/dev/ClinicaOS_V2/.env.local', 'utf8');
+const line = txt.split(/\r?\n/).find((l) => /^\s*DATABASE_URL_PROD\s*=/.test(l));
+if (!line) throw new Error('DATABASE_URL_PROD ausente');
+const raw = line.replace(/^\s*DATABASE_URL_PROD\s*=\s*/, '').replace(/^['"]|['"]$/g, '');
+const u = new URL(raw);
+if (!(u.hostname + ' ' + decodeURIComponent(u.username)).includes(PROD_REF)) throw new Error('não é o projeto de produção esperado');
+if (!u.searchParams.has('sslmode')) u.searchParams.set('sslmode', 'require');
+const sql = postgres(u.toString(), { connect_timeout: 45, max: 1, prepare: false, idle_timeout: 5, onnotice: () => {} });
+try {
+  const out = await sql.begin('READ ONLY', async (tx) => {
+    const [ro] = await tx`select current_setting('transaction_read_only') as ro, now()::text as agora`;
+    if (ro.ro !== 'on') throw new Error('transação não é read only');
+    const [la] = await tx`select min(attempted_at)::date::text as mais_antigo, count(*)::int as n,
+        count(*) filter (where attempted_at < now() - interval '80 days')::int as mais_de_80_dias,
+        count(*) filter (where ip is not null)::int as com_ip from public.login_attempts`;
+    let auth = null;
+    try {
+      const [a] = await tx`select min(created_at)::date::text as mais_antigo, count(*)::int as n,
+          count(*) filter (where created_at < now() - interval '180 days')::int as mais_de_180_dias,
+          count(*) filter (where payload->>'action' = 'login')::int as logins,
+          count(*) filter (where payload->>'action' = 'login' and coalesce(ip_address,'') <> '')::int as logins_com_ip,
+          count(*) filter (where payload->>'action' = 'login' and created_at < now() - interval '180 days')::int as logins_mais_de_180_dias
+        from auth.audit_log_entries`;
+      auth = a;
+    } catch (e) {
+      auth = { erro: String(e.code ?? e.message).slice(0, 60) };
+    }
+    return { agora: ro.agora, login_attempts: la, auth_audit_log_entries: auth };
+  });
+  console.log(JSON.stringify(out, null, 1));
+} finally {
+  await sql.end({ timeout: 5 });
+}

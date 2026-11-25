@@ -1,0 +1,10 @@
+PASS 1: prévia de uma operadora vazia: 2 itens novos validados pela regra da tela (TUSS oficial, plano, catálogo), política "atômica" registrada, NENHUM contrato gravado
+PASS 2: aplicação: os 2 itens criados com o vínculo à importação (plano Ouro e coparticipação fixa no SP/SADT), importação "aplicada" e auditada
+PASS 3: reenviar a mesma planilha: todas as linhas "sem mudança", aviso de já aplicada e a aplicação recusada; aplicar de novo a importação aplicada também é recusado — nada duplicado
+PASS 4: reajuste por planilha: o item vigente passa a valer até a véspera (R$ 150,00) e o novo começa em 01/07/2027 (R$ 165,00); a linha original continua no histórico
+PASS 5: planilha com erros: plano inexistente, TUSS fora da tabela oficial, procedimento fora do catálogo, reescrita do passado e fórmula disfarçada aparecem por linha; a linha boa NÃO entra sozinha (atômica)
+PASS 6: contrato alterado pela tela entre a prévia e a aplicação: a linha que deixou de ser "novo item" (virou reajuste) derruba a aplicação, NADA da planilha entra e a importação fica "com erros" pedindo nova prévia
+PASS 7: XLSX pelo mesmo caminho: valor em cache de fórmula (nunca executada) e data serial do Excel; reajuste do SP/SADT reconhecido na prévia
+PASS 8: outra clínica: não aplica a importação alheia, não valida contra a operadora alheia e não vê o histórico (RLS); a clínica A vê aplicadas e recusadas
+PASS 9: o item importado é o que a agenda usa: a cobertura do atendimento de psicoterapia (plano Ouro, pela carteirinha) escolhe a linha da importação, R$ 120,00, coparticipação estimada de R$ 20,00 e "aguardando autorização" como a planilha mandou
+9/9 provas do P2.7 passaram (Postgres descartável).

@@ -1,0 +1,3 @@
+# Corpus TISS: bytes exatos (ISO-8859-1, sem fim de linha convertido).
+# O SHA-256 de cada arquivo está no MANIFEST.json e nos registros externos.
+*.xml -text

@@ -1,0 +1,35 @@
+// SOMENTE LEITURA, PRODUÇÃO: guarda dos registros de acesso (Marco Civil, art. 15; ANS req. 84).
+// Uma transação READ ONLY conferida dentro dela, sem SET de sessão. Só datas mínimas, contagens e
+// presença de IP por faixa de idade: nenhum e-mail, hash, IP, id ou texto sai daqui.
+import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+
+const PROD_REF = 'shlcbxawrxuaebazuiue';
+const require = createRequire('C:/dev/Qoro_convenios_tiss_20261110/package.json');
+const postgres = require('postgres');
+const txt = readFileSync('C:/dev/ClinicaOS_V2/.env.local', 'utf8');
+const line = txt.split(/\r?\n/).find((l) => /^\s*DATABASE_URL_PROD\s*=/.test(l));
+if (!line) throw new Error('DATABASE_URL_PROD ausente');
+const raw = line.replace(/^\s*DATABASE_URL_PROD\s*=\s*/, '').replace(/^['"]|['"]$/g, '');
+const u = new URL(raw);
+if (!(u.hostname + ' ' + decodeURIComponent(u.username)).includes(PROD_REF)) throw new Error('não é o projeto de produção esperado');
+if (!u.searchParams.has('sslmode')) u.searchParams.set('sslmode', 'require');
+const sql = postgres(u.toString(), { connect_timeout: 45, max: 1, prepare: false, idle_timeout: 5, onnotice: () => {} });
+try {
+  const out = await sql.begin('READ ONLY', async (tx) => {
+    const [ro] = await tx`select current_setting('transaction_read_only') as ro`;
+    if (ro.ro !== 'on') throw new Error('transação não é read only');
+    const [r] = await tx`select
+        count(*) filter (where attempted_at < timestamptz '2026-12-01 05:00:00+00' - interval '90 days')::int as apagados_em_0112_regra_90,
+        count(*) filter (where attempted_at < timestamptz '2026-12-01 05:00:00+00' - interval '90 days'
+                          and attempted_at + interval '6 months' > timestamptz '2026-12-01 05:00:00+00')::int as dentro_dos_6_meses,
+        count(*) filter (where attempted_at < timestamptz '2026-12-01 05:00:00+00' - interval '186 days')::int as apagados_em_0112_regra_186,
+        min(attempted_at)::date::text as mais_antigo,
+        max(attempted_at) filter (where attempted_at < timestamptz '2026-12-01 05:00:00+00' - interval '90 days')::date::text as ate
+      from public.login_attempts`;
+    return r;
+  });
+  console.log(JSON.stringify(out));
+} finally {
+  await sql.end({ timeout: 5 });
+}
