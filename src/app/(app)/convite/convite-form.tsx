@@ -28,19 +28,25 @@ export function ConviteForm({ valid, meta }: { valid: boolean; meta: InviteMeta 
       <div className="w-full max-w-sm">
         <div className="mb-6 flex flex-col items-center gap-3 text-center">
           <Logo className="h-7 w-auto" />
-          <p className="text-sm text-fg-muted">
-            {meta?.convidado_por ? `${meta.convidado_por} convidou você` : 'Você foi convidado'}
-            {meta?.clinica ? ` para a equipe da ${meta.clinica}` : ''}
-            {meta?.funcao ? `, como ${meta.funcao}` : ''}.
-          </p>
+          {/* UX-017: com o convite inválido, "Você foi convidado" contradizia o estado. */}
+          {valid ? (
+            <p className="text-sm text-fg-muted">
+              {meta?.convidado_por ? `${meta.convidado_por} convidou você` : 'Você foi convidado'}
+              {meta?.clinica ? ` para a equipe da ${meta.clinica}` : ''}
+              {meta?.funcao ? `, como ${meta.funcao}` : ''}.
+            </p>
+          ) : null}
         </div>
 
         <Card>
           <CardContent className="flex flex-col gap-4">
-            <h1 className="text-base font-semibold">Criar senha de acesso</h1>
+            <h1 className="text-base font-semibold">
+              {valid ? 'Criar senha de acesso' : 'Convite inválido ou expirado'}
+            </h1>
             {!valid ? (
-              <Alert variant="danger" title="Convite inválido ou expirado">
-                Abra o link do convite novamente ou peça um novo ao administrador da clínica.
+              <Alert variant="danger">
+                O link já foi usado, venceu ou está incompleto. Abra o link do e-mail de convite
+                mais recente ou peça um novo a quem administra a clínica.
               </Alert>
             ) : (
               <form action={formAction} className="flex flex-col gap-4">

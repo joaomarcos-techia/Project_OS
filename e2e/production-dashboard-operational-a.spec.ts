@@ -202,10 +202,19 @@ test.describe('produção: reconciliação operacional do Dashboard', () => {
       const upcomingPanel = ownerPage
         .getByText('Próximos na agenda', { exact: true })
         .locator('../..');
-      if (state.proximos === 0) {
+      if (state.proximos === 0 && state.consultas_hoje === 0) {
         await expect(upcomingPanel.getByText('Agenda livre hoje', { exact: true })).toBeVisible();
         await expect(
           upcomingPanel.getByText('Nenhum atendimento está agendado para hoje.', { exact: true }),
+        ).toBeVisible();
+      } else if (state.proximos === 0) {
+        await expect(
+          upcomingPanel.getByText('Sem próximas consultas hoje', { exact: true }),
+        ).toBeVisible();
+        await expect(
+          upcomingPanel.getByText('Nenhum paciente a chegar ou aguardando.', {
+            exact: true,
+          }),
         ).toBeVisible();
       } else {
         await expect(upcomingPanel.getByRole('listitem')).toHaveCount(state.proximos);
@@ -220,9 +229,9 @@ test.describe('produção: reconciliação operacional do Dashboard', () => {
       ];
       const checklistDone = checklistFlags.filter(Boolean).length;
       if (checklistDone === checklistFlags.length || state.checklist_dismissed) {
-        await expect(ownerPage.getByText('Ativação da clínica', { exact: true })).toHaveCount(0);
+        await expect(ownerPage.getByText('Primeiros passos', { exact: true })).toHaveCount(0);
       } else {
-        await expect(ownerPage.getByText('Ativação da clínica', { exact: true })).toBeVisible();
+        await expect(ownerPage.getByText('Primeiros passos', { exact: true })).toBeVisible();
         await expect(ownerPage.getByRole('progressbar')).toHaveAttribute(
           'aria-valuenow',
           String(checklistDone),
@@ -245,12 +254,9 @@ test.describe('produção: reconciliação operacional do Dashboard', () => {
       await expect(ownerPage).toHaveURL(/\/dashboard(?:\?|$)/u);
       await expectStat(ownerPage, 'Consultas hoje', state.consultas_hoje);
       await expect(
-        ownerPage.getByText(
-          'Ocupação por profissional ainda não tem fonte de dados nesta clínica.',
-          {
-            exact: true,
-          },
-        ),
+        ownerPage.getByText('Ocupação por profissional ainda não está disponível.', {
+          exact: true,
+        }),
       ).toBeVisible();
 
       console.log(

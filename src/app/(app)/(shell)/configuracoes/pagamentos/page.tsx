@@ -4,7 +4,7 @@ import { PageNoAccess } from '@/components/shared/page-no-access';
 import { Alert } from '@/components/ui/alert';
 import Link from 'next/link';
 import { requireClinicId } from '@/lib/auth/tenant-context';
-import { loadTrialAccess } from '@/lib/trial-access';
+import { loadTrialAccessForRequest } from '../../_painel/trial-access-request';
 
 import { loadPagamentosPage } from './data';
 import { DepositPolicyForm } from './deposit-policy-form';
@@ -36,7 +36,7 @@ export default async function PagamentosSettingsPage() {
     );
   }
 
-  const trial = await loadTrialAccess(await requireClinicId());
+  const trial = await loadTrialAccessForRequest(await requireClinicId());
   if (trial?.restricted) {
     return (
       <Alert title="Asaas disponível após o pagamento">

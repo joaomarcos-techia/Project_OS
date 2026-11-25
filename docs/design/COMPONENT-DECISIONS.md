@@ -1,5 +1,125 @@
 # Component Decisions
 
+## Qoro App v5 — novembro de 2026 (shell e Dashboard)
+
+Pedido do founder: reproduzir fielmente o canvas "Qoro App v5" na área logada da clínica, sem tocar
+em `/admin`, cadastro ou checkout. Refatoração só visual; o onboarding fica para depois. Esta seção
+substitui, para o tenant, a referência de setembro abaixo. Tokens em `globals.css`, num bloco que só
+casa `[data-qoro-shell='tenant']`; `qorov2` (login, cadastro, checkout) segue no bloco de setembro.
+
+| Data       | Avaliados                                                        | Decisão                                                                                                                                                       |
+| ---------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-11-08 | `ShellSidebar`, `SideNavLink`, `MobileNavButton` (`shell-chrome`) | Não serviram: são do admin também e têm classes travadas por teste. Trilho novo só do tenant em `PainelShell` (`qoro-rail*`). `SidebarUserMenu` reutilizado. |
+| 2026-11-08 | `PanelCard`                                                      | Estendido com props opcionais (`headingLevel`, `count`, `description`, `aside`, `flush`). Sem elas, o admin renderiza igual.                                  |
+| 2026-11-08 | `StatCard`, `MetricStrip`                                        | Estendidos: `href` (indicador vira link) e `variant="joined"` (faixa única do v5).                                                                            |
+| 2026-11-08 | `Badge`, `StatusBadge`                                           | Tons `navy`, `orange` e `line`. Mapa de status de consulta do v5 em Agenda, Consultório e Dashboard.                                                          |
+| 2026-11-08 | `BarChart` (`ui/`)                                               | Não serviu: sem grade, dica, hachura ou `aria-label`, e é usado por Relatórios e Caixa. `RevenueChart` próprio do Dashboard.                                  |
+| 2026-11-08 | `StackedBar` (`ui/`)                                             | Não serviu: só tons de primária. Medidor de "Consultas hoje" composto na página.                                                                              |
+| 2026-11-14 | `PageHeader` no Dashboard (UX-011)                               | Reutilizado como na Agenda e no Caixa: `icon` + `title="Dashboard"` (o `<h1>`, na barra de cima) e a saudação em `headline`. A trilha "Dashboard" saiu porque o `<h1>` ocupa o mesmo lugar com o mesmo texto. |
+| 2026-11-14 | `Skeleton` (`ui/`)                                               | Ganhou `SkeletonText` (`<span>` em bloco, mesmo brilho) para caber em `headline`/descrição do `PageHeader`, que são `<p>`. `Skeleton` segue igual.          |
+
+Desvios do canvas, todos por necessidade operacional (Contract §6):
+
+| Canvas                                    | Implementado                                                 | Motivo                                                                                       |
+| ----------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| Botão "Trocar de clínica" + "Plano Clínica" | Link para o início com o nome da clínica                     | Não existe troca de clínica; o plano exigiria leitura nova do billing.                       |
+| Sair dentro da linha do usuário, 32 px    | Item próprio "Sair" no rodapé do menu                        | Fora dos 44 px recolhidos ficava inalcançável; 32 px fica abaixo do alvo de toque.           |
+| Celular: rodapé do menu some              | Barra igual ao canvas + "Abrir navegação" abre gaveta        | O canvas tiraria Sair, tema e conta do celular.                                              |
+| Rótulos `display:none` no celular         | Rótulos só visualmente ocultos                               | Cada link precisa continuar com nome acessível.                                              |
+| Contador no item Consultório              | Ausente                                                      | O shell não tem essa contagem; exigiria consulta nova.                                       |
+| Menu da conta inexistente                 | Mantido no bloco do usuário                                  | É o único caminho para "Perfil da clínica" e "Segurança da conta".                           |
+| "Consultas de hoje", "Atividade de hoje"  | "Consultas hoje", "Atividade recente"                        | Rótulos verificados por teste; o feed não é só do dia.                                       |
+| 12 no total incluindo canceladas          | Total sem canceladas; canceladas só na legenda               | `consultasHoje` exclui canceladas por regra.                                                 |
+| "Maria Souza, desde 10:30"; nomes e "7 cobranças preparadas pelo agente" em "Precisa de você" | "agora" e as três pendências que existem hoje, com os textos atuais | O DTO não tem esses dados. Não se fabrica métrica.                                           |
+| "Faturar", "Assumir"                      | "Abrir o Caixa", "Abrir Conversas IA"                        | O link só navega; o rótulo não promete ação que não executa.                                 |
+| "Cadastrar horários" na faixa de ocupação | Sem botão, como nota discreta                                 | Cadastrar horários não faz o número existir: ele ainda não tem fonte.                        |
+| Domingo "clínica fechada"                 | Barra zerada, R$ 0,00                                        | Exigiria cruzar com horários da clínica.                                                     |
+| Sem tema escuro                           | Escuro derivado da paleta v5, AA conferido par a par         | O produto tem tema escuro e o teste visual cobre os dois.                                    |
+
+| Ação                 | Antes                        | Depois                                 | Motivo                                                 |
+| -------------------- | ---------------------------- | -------------------------------------- | ------------------------------------------------------ |
+| Link "Financeiro"    | Cabeçalho do gráfico         | Removido; "Abrir o Financeiro" no cartão do resumo | Duplicado na mesma tela; o canvas põe a legenda ali.   |
+| Wordmark             | Topo da sidebar              | Marca Q + nome da clínica, mesmo destino | Canvas; continua levando ao início.                    |
+| Alertas do Dashboard | Faixas soltas                | Cartão "Precisa de você"               | Canvas; mesma ordem, textos, destinos e permissões.    |
+| "Precisa de você" (14/11, UX-011) | 2ª linha, à direita, depois dos indicadores; no celular subia só por `order` no CSS | Primeiro bloco da tela, largura toda, também no DOM | Pedido do fundador (prompt de continuidade, §10): pendência antes de indicador. Com `order`, Tab e leitor de tela seguiam a ordem antiga (WCAG 1.3.2/2.4.3). Itens, textos, destinos e permissões iguais. |
+| "Consultas hoje" e "Resumo financeiro do dia" (14/11, UX-011) | 1ª linha, lado a lado | "Consultas hoje" ao lado de "Próximos na agenda"; o resumo financeiro numa linha própria logo abaixo | Operação junto da operação e dinheiro junto do dinheiro. Mesmos dados e o mesmo gate `view:financial` (a leitura continua condicionada à permissão, não ao CSS). |
+| Saudação (14/11, UX-011) | `<h1>` da tela | Faixa grande do cabeçalho (`headline`); `<h1>` = "Dashboard" | O leitor de tela precisa anunciar o destino; a saudação continua visível como complemento. |
+
+### Demais telas, login e microanimações (novembro de 2026)
+
+Todas as telas da área logada seguem a barra superior + faixa de título do canvas. Login, MFA,
+cadastro e checkout usam a moldura pública descrita na seção abaixo. `/admin` não mudou.
+
+| Data       | Avaliados                                      | Decisão                                                                                                                                       |
+| ---------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-11-08 | `PageHeader`                                   | Estendido com `headline`, `icon`, `search`, `controls`, `leading`, `titleAside`. Sem elas o markup é o de sempre, usado pelo /admin.        |
+| 2026-11-08 | `Segmented`, abas inline de Agenda e Pacientes | `Segmented` é radiogroup de cliente; os filtros moram na URL. Criado `LinkSegmented`, que substituiu as versões inline.                       |
+| 2026-11-08 | `DataTable`, `TableToolbar`                    | `DataTable` ganhou `title`/`description` opcionais: cabeçalho de cartão, também no estado vazio.                                            |
+| 2026-11-08 | Lucide por tela                                | Microanimação só em CSS, pela classe `lucide-<nome>`, com pop como padrão. Nenhum componente mudou; desligada com "reduzir movimento".        |
+
+Desvios do canvas nestas telas:
+
+| Canvas                                        | Implementado                                       | Motivo                                                                                   |
+| --------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| h1 contextual ("Novembro de 2026")            | O nome da tela segue como `<h1>`, na barra superior | E2E e leitores de tela procuram o nome da tela; o título contextual mantém a aparência.  |
+| Busca de Pacientes por nome, CPF ou telefone  | "Buscar por nome"                                  | A busca só cobre o nome.                                                                 |
+| "Todos os profissionais" na Agenda            | Ausente                                            | Não existe esse filtro.                                                                  |
+| Status "Filtrar" como lista do Financeiro     | `Select` + "Filtrar"                               | Mantém o envio do formulário sem JavaScript novo.                                        |
+| Cinco indicadores em Conversas                | Só o pulso existente, no subtítulo                 | "Agente respondendo", "Encerradas" e "Abandonadas" exigiriam consulta nova.              |
+| Pílulas clínicas na ficha, "Editar dados" no topo | Só situação do cadastro; editar segue no cartão | Os dados não são carregados ali; mover o botão exigiria subir estado.                    |
+| Equipe em barra + faixa de título             | Só CSS                                             | `equipe/page.tsx` é zona do agente de billing.                                           |
+
+| Ação              | Antes                | Depois                         | Motivo                      |
+| ----------------- | -------------------- | ------------------------------ | --------------------------- |
+| Busca (várias)    | Barra abaixo do título | Barra superior                 | Canvas; mesmos parâmetros.  |
+| Ver repasses      | Link solto           | Ação na barra de Relatórios    | Canvas; mesma permissão.    |
+| Tipo no Financeiro | `Select` + Filtrar   | Filtro segmentado por links    | Canvas; mesma URL `?tipo=`. |
+
+### Login, cadastro e checkout (novembro de 2026)
+
+`PublicPage` e os demais blocos de `components/shared/signup-frame` portam o CSS do canvas "Cadastro";
+`login-frame` porta o do canvas "Login" (tela dividida com a conversa animada). As molduras só trocam
+os tokens que `Button`, `Input`, `Alert` e `OptionCardGroup` leem, então nenhum controle foi reescrito.
+
+| Data       | Avaliados                                     | Decisão                                                                                                                 |
+| ---------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 2026-11-09 | `shared/page-layout`, `PageHeader`, `Card`     | Não serviram: são do shell logado (barra superior, cartão branco). A moldura pública tem cabeçalho de etapas e bloco cinza. |
+| 2026-11-09 | `OptionCardGroup`                             | Reutilizado sem mudar o componente; o indicador é desenhado só no escopo público.                                       |
+
+| Canvas (login)                                     | Implementado                                       | Motivo                                                                        |
+| -------------------------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------- |
+| "E-mail ou senha incorretos", "Acesso pausado"     | Mensagens atuais da server action                  | Só visual: os textos e o limite de tentativas vêm do servidor.                |
+| Código de recuperação no MFA                       | Ausente                                            | Não há códigos de recuperação no produto.                                     |
+| "Voltar" no MFA                                    | "Usar outra conta"                                 | A ação encerra a sessão; "Voltar" esconderia isso.                            |
+| "Código de verificação"                            | "Código de 6 dígitos"                              | E2E de produção e leitores de tela usam esse nome.                            |
+| "Link enviado para {e-mail}", "Trocar", "Reenviar" | Resposta genérica e "Voltar para o login"          | A resposta não pode revelar se a conta existe; reenviar exigiria novo captcha. |
+| "O link vale por 1 hora e só funciona uma vez"     | Ausente                                            | O prazo é configuração do provedor de autenticação; não se promete sem medir. |
+| `<details>` nativo em "Esqueci a senha"            | Troca de tela no cliente, como no canvas           | A rota já depende de JavaScript (`useSearchParams`).                          |
+
+| Canvas                                              | Implementado                                     | Motivo                                                                  |
+| --------------------------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------- |
+| Etapa 1 "Como conheceu", múltipla escolha           | "Perfil", quatro perguntas de escolha única      | O cadastro grava uma resposta por pergunta; mudar exigiria novo contrato. |
+| Indicador quadrado nas opções                       | Indicador redondo                                | As opções são rádio: quadrado promete seleção múltipla.                 |
+| Especialidade, WhatsApp, cidade e UF na etapa 2     | Ausentes                                         | Não existem no cadastro; exigiriam persistência nova.                   |
+| Grupos "Clínica" e "Seu acesso" na etapa 2          | Quatro campos em duas colunas, sem grupos        | O foco inicial é em "Seu nome", e o grupo "Clínica" viria antes dele.   |
+| "Já tem conta? Entrar" em todas as etapas           | Só nas perguntas iniciais                        | Com a conta criada ou o cadastro expirado, o fluxo não oferece login.   |
+| Medidor de força da senha                           | Regras de senha em texto                         | A regra real não é a do canvas; o medidor prometeria outro critério.    |
+| Cartão digitado na etapa 3                          | Escolha do plano; o cartão fica na página do provedor | O pagamento é hospedado; dados de cartão não passam pela Qoro.     |
+| "Hoje R$ 0,00 · 14 dias", "Sem fidelidade", taxas   | Prazo calculado do plano e textos atuais         | Não se escreve condição comercial que o sistema não aplica.             |
+| Título "Confirme o plano e o pagamento"             | "Escolha seu plano"                              | É o que a tela faz; e2e dependem do texto.                              |
+
+Por pedido do founder em 09/11, o favicon passou a ser a marca do menu lateral (quadrado azul com o Q branco), no lugar do Q em gradiente da ADR-035. Fica em `app/favicon.ico`. Como `app/icon.svg`, ele passava pelo middleware de sessão e, sem login, era redirecionado para `/login`; `favicon.ico` já fica fora do `matcher`.
+
+### Menu lateral (novembro de 2026, pedidos do founder)
+
+| Canvas                                | Implementado                                       | Motivo                                                                 |
+| ------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------- |
+| Trilho de 44 px, marca de 44 px       | Trilho de 44 px, marca de 36 px; aberto com 176 px | Foi 72/216 e depois 60/204; em 10/11 o founder pediu menos largura duas vezes, com a barra da referência dele como medida. |
+| Fixar, tema e Sair em lista com nome  | Lista com nome, como o canvas                      | Em 09/11 viraram ícones em linha; em 10/11 o founder pediu a lista de volta. |
+| Ícones estáticos                      | `react-useanimations` (MIT) ao passar o mouse      | Pedido do founder. Consultório segue em Lucide: não há estetoscópio.   |
+| Sair no rodapé em qualquer aparelho   | Em tablet com toque, Sair só no menu da conta      | Decisão delegada pelo founder: nada de saída por engano.              |
+| Ativo com contorno e barra azul       | Bloco branco sem borda nem barra, texto escuro; aberto no cinza do trilho; sem traço entre grupos | Referência visual do founder (10/11). Recolhido, o ativo é um quadrado de 36 px alinhado à marca. "Equipe & Permissões" aparece como "Equipe" para caber na pílula aberta; o link segue anunciado com o nome inteiro. |
+
 ## Referências HTML do tenant — setembro de 2026
 
 Escopo solicitado pelo founder: traduzir os HTMLs fornecidos para as telas atuais na
@@ -126,3 +246,5 @@ muda de lugar, fica registrado onde estava, onde ficou e por quê.
 | 2026-08-23 | Perfil da clínica                                        | Aba `Clínica` na barra de configurações                                            | Item no menu do rodapé da sidebar (a seta ao lado do nome)      | Pedido do founder: é `manage:settings`, e uma aba que só o gestor enxerga desequilibra a barra que todo mundo vê. A rota não mudou; o destino deixou de ser anunciado na barra para não virar navegação duplicada   | founder   |
 | 2026-08-23 | Navegação de configurações                               | Três desenhos anteriores (hub em linhas, barra de dois níveis, diretório agrupado) | Abas de categoria + cards, no padrão Asaas                      | Escolha do founder num preview lado a lado. As doze rotas de destino não mudaram; entraram cinco rotas de categoria como cascas finas sobre `SettingsCategoryPage`                                                  | founder   |
 | 2026-09-20 | "Dispensar" o checklist de ativação | Entre o cabeçalho e a lista, numa faixa com borda superior | Rodapé do card (`CardFooter`) | O DS tem um lugar para ação terminal de card, e é o rodapé — a faixa no meio era o principal indício de UI antiga no bloco. A ação, o rótulo e o efeito não mudaram: continua fora do `<summary>` (dentro dele, o clique também abriria e fecharia o `<details>`) e continua só alcançável com o bloco aberto, como antes | — |
+| 2026-11-14 | "Lista de espera" e "Ausências médicas" (Agenda, abaixo de 1024 px), "Ver repasses por mês" (Relatórios, abaixo de 768 px) | Botões no cabeçalho (3 linhas de botões na Agenda e 2 em Relatórios a 375 px) | Menu "Mais ações" (⋮), ao lado da ação principal, que segue à vista | UX-012, pedido do fundador (prompt de continuidade, §11). Mesmo destino, mesmo `href`, mesma condição de permissão (a lista é montada com o mesmo gate). Acima do ponto de dobra nada muda; a Agenda dobra em 1024 px (`dobraAbaixoDe="lg"`) porque a 768 px os quatro controles ainda ocupavam 2 linhas (medido em 15/11). Novo componente `PageActions` (`components/ui/page-actions.tsx`): só navegação entra no menu; ação com efeito fica à vista. O ⋮ da Agenda passou de "Mais opções" para "Mais ações" | fundador (§11) |
+| 2026-11-15 | Ações de pagamento do Caixa (cartão, tabela e painel) | "Confirmar pagamento" / "Receber saldo" / "Pagar" e o atalho "Pagou em dinheiro" / "Pagou o restante em dinheiro" com o mesmo peso | "Registrar recebimento" / "Registrar o restante" / "Registrar pagamento"; atalho "Recebido em dinheiro" / "Restante em dinheiro" com ícone de nota e peso menor (`ghost`) no cartão; botão final "Registrar R$ X" | UX-015: os botões só registram no livro da clínica — nenhum cobra nem move dinheiro, e "Confirmar pagamento" soava como confirmar pagamento on-line. Mesma posição, mesmas permissões e a mesma ação do servidor | fundador (15/11/2026) |

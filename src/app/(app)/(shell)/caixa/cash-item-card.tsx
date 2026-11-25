@@ -1,11 +1,14 @@
 'use client';
 
+import { Banknote } from 'lucide-react';
+
 import type {
   CaixaItem,
   PaymentMethodDTO,
   PaymentTransactionSummary,
 } from '@/contexts/financial/types';
 import { Button } from '@/components/ui/button';
+import { todayYmd, useClinicTimeZone } from './clinic-timezone';
 import { PaymentStatusBadge } from '@/components/ui/status-badge';
 import { formatBRL } from '@/lib/format';
 import { cn } from '@/lib/ui/cn';
@@ -16,10 +19,12 @@ import {
   cashActionLabel,
   ConfirmPaymentPanel,
   RefundPaymentPanel,
+  registerActionLabel,
   type RefundInput,
 } from './cash-action-panels';
 import { outstandingBalance } from './caixa-money';
 import type { CashPanelMode } from './caixa-types';
+import { cashItemDetail, cashItemTitle } from './cash-item-identity';
 import { PayoutReviewForm } from './payout-review-form';
 
 function FinancialComposition({
@@ -179,11 +184,6 @@ function FinancialComposition({
   );
 }
 
-/** Data local de hoje em `YYYY-MM-DD`, para comparar com `dueDate`. */
-function todayYmd(): string {
-  return new Intl.DateTimeFormat('en-CA').format(new Date());
-}
-
 /** dd/MM — o ano só atrapalha numa fila que é toda do mês corrente. */
 function diaCurto(ymd: string): string {
   const [, mes, dia] = ymd.split('-');
@@ -255,9 +255,9 @@ export function CashItemCard({
   const refundablePayments = paymentTransactions.filter(
     (transaction) => transaction.kind === 'payment' && transaction.refundableAmount > 0,
   );
-  const subject = item.tipo === 'pagar' ? item.descricao : (item.pacienteNome ?? 'Walk-in');
-  const detail =
-    item.tipo === 'pagar' ? 'Conta a pagar' : (item.snapshotProcedureName ?? item.descricao);
+  // UX-015: sem paciente, o título é a descrição; a ausência vai para o apoio.
+  const subject = cashItemTitle(item);
+  const detail = cashItemDetail(item);
   /*
     O catálogo guarda `cartao_credito`; a tela precisa de "Cartão de crédito".
     Mostrar o código cru vazava o identificador do banco para o operador, que
@@ -268,20 +268,13 @@ export function CashItemCard({
     methods.find((m) => m.code === item.paymentMethod)?.label ?? item.paymentMethod;
   const panelId = panelMode ? `cash-panel-${item.id}-${panelMode}` : undefined;
   const emAberto = item.status === 'pendente' || item.status === 'parcial';
-  const hoje = todayYmd();
+  const timeZone = useClinicTimeZone();
+  const hoje = todayYmd(timeZone);
   const vencido = emAberto && item.dueDate != null && item.dueDate < hoje;
 
-  /*
-    Rótulo do design: "Confirmar pagamento" diz o que o clique FAZ. "Receber"
-    sozinho era ambíguo — parecia registrar o dinheiro na hora, sem o painel de
-    conferência que na verdade abre em seguida.
-  */
-  const actionLabel =
-    item.tipo === 'pagar'
-      ? 'Pagar'
-      : item.status === 'parcial'
-        ? 'Receber saldo'
-        : 'Confirmar pagamento';
+  // UX-015: "Registrar recebimento" / "Registrar o restante" / "Registrar
+  // pagamento" — o clique abre a conferência e registra; não cobra ninguém.
+  const actionLabel = registerActionLabel(item);
 
   const badge = (
     <PaymentStatusBadge
@@ -317,13 +310,14 @@ export function CashItemCard({
         <Button
           type="button"
           size="sm"
-          variant="secondary"
+          variant="ghost"
           className="min-h-(--hit-target)"
           aria-expanded={panelMode === 'cash'}
           aria-controls={panelMode === 'cash' ? panelId : undefined}
           onClick={() => onOpenPanel('cash')}
           disabled={pending}
         >
+          <Banknote aria-hidden="true" className="size-4" />
           {cashActionLabel(item)}
         </Button>
       ) : null}
@@ -400,6 +394,7 @@ export function CashItemCard({
       formaDePagamento,
       quitado && item.paidAt
         ? new Intl.DateTimeFormat('pt-BR', {
+            timeZone,
             hourCycle: 'h23',
             hour: '2-digit',
             minute: '2-digit',

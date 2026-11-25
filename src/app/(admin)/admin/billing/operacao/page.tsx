@@ -69,6 +69,39 @@ export default async function BillingOperationsPage() {
               </ul>
             )}
           </PanelCard>
+          <PanelCard title="Pedidos de troca de plano por Pix">
+            {operations.pixIntents === null ? (
+              <p>Pedidos indisponíveis até a migration da intenção ser aplicada.</p>
+            ) : operations.pixIntents.length === 0 ? (
+              <p>Nenhum pedido registrado.</p>
+            ) : (
+              <>
+                <p>
+                  Até 50 pedidos recentes, com os abertos primeiro. Pedido não autoriza cobrança,
+                  cancelamento ou mudança de cotas.
+                </p>
+                <ul className="break-all">
+                  {operations.pixIntents.map((intent) => (
+                    <li key={intent.id}>
+                      Clínica {intent.clinic_id} · pedido {intent.id} · plano {intent.to_plan_id} ·{' '}
+                      {(intent.target_amount_minor / 100).toLocaleString('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL',
+                      })}
+                      /mês ·{' '}
+                      {intent.state === 'requested'
+                        ? 'Aguardando atendimento'
+                        : intent.state === 'cancelled'
+                          ? 'Cancelado pelo titular'
+                          : 'Revisão necessária'}{' '}
+                      · solicitado em {intent.requested_at.toISOString()} · período original até{' '}
+                      {intent.prior_period_end.toISOString()}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </PanelCard>
           {operations.reviews.map((row) => (
             <PanelCard key={`${row.account_id}:${row.event_id}`} title={row.event_type}>
               <p className="break-all">

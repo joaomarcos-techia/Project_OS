@@ -1,9 +1,11 @@
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { PublicPage } from '@/components/shared/signup-frame';
 import { env } from '@/lib/env';
 import { SignupQuestions } from '../signup-questions';
 
 export const dynamic = 'force-dynamic';
+export const metadata: Metadata = { title: 'Cadastro por convite' };
 export default function PilotSignupPage() {
   if (
     env.ABACATEPAY_PILOT_PROVISIONING_ENABLED !== true ||

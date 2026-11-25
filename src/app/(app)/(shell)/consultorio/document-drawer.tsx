@@ -10,6 +10,7 @@ import {
   Drawer,
   DrawerBody,
   DrawerContent,
+  DrawerDescription,
   DrawerFooter,
   DrawerHeader,
   DrawerTitle,
@@ -147,6 +148,9 @@ export function DocumentDrawer({
       <DrawerContent>
         <DrawerHeader>
           <DrawerTitle>Emitir documento</DrawerTitle>
+          <DrawerDescription>
+            Atestado, declaração, pedido de exame ou encaminhamento deste atendimento.
+          </DrawerDescription>
         </DrawerHeader>
         <DrawerBody className="flex flex-col gap-4">
           {error ? <Alert variant="danger">{error}</Alert> : null}

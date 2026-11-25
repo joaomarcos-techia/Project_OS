@@ -54,8 +54,10 @@ describe('documentação dentro da conta Qoro', () => {
       screen.getByRole('region', { name: 'Criar um agendamento' }).querySelectorAll('ol li'),
     ).toHaveLength(4);
     expect(screen.getByRole('link', { name: 'Ajuda' }).getAttribute('href')).toBe('/documentação');
+    // UX-008: a página não repete a marca; o modelo '%s · Qoro' do layout raiz a acrescenta, e a
+    // aba fica "Agendar, remarcar e cancelar · Ajuda · Qoro" (src/app/page-titles.test.ts).
     expect(await generateMetadata({ params: Promise.resolve({ topic: 'agenda' }) })).toEqual({
-      title: 'Agendar, remarcar e cancelar | Ajuda Qoro',
+      title: 'Agendar, remarcar e cancelar · Ajuda',
       description: findAgendaSummary(),
     });
   });

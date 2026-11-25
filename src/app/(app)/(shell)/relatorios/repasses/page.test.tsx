@@ -19,6 +19,12 @@ vi.mock('@/contexts/billing/api', () => ({
   billingApiV1: { hasAdvancedFinancialPolicies: mocks.hasAdvancedFinancialPolicies },
 }));
 vi.mock('next/link', () => ({ default: (props: ComponentProps<'a'>) => <a {...props} /> }));
+// A página lê o usuário por `requirePageUser` (sessão morta vai para /login, OBS-001). Aqui ele
+// delega ao `requireUser` simulado, para os cenários continuarem os mesmos; o redirecionamento
+// tem teste próprio em `src/lib/auth/page-guard.test.ts`.
+vi.mock('@/lib/auth/page-guard', () => ({
+  requirePageUser: async () => (await import('@/lib/auth/tenant-context')).requireUser(),
+}));
 vi.mock('@/lib/auth/tenant-context', () => ({
   requireUser: mocks.requireUser,
   requireClinicId: mocks.requireClinicId,
@@ -90,6 +96,25 @@ describe('RepassesPage', () => {
     expect(mocks.listPayouts).toHaveBeenCalledWith('clinic-a', ['appointment-a'], undefined);
     expect(screen.getByText('Dr. A')).toBeTruthy();
     expect(mocks.getCurrentPractitioner).not.toHaveBeenCalled();
+  });
+
+  // Varredura de 17/11/2026: os links de mês tinham 21 px; como botões, a 320 px a linha passava
+  // de 369 px e rolava para o lado. A navegação quebra linha e leva aos meses vizinhos.
+  it('a navegação de mês leva aos meses vizinhos e quebra linha no celular', async () => {
+    mocks.requireUser.mockResolvedValue({
+      userId: 'manager-a',
+      role: 'gestor',
+      permissions: [PERMISSIONS.MANAGE_FINANCIAL],
+    });
+    render(await RepassesPage({ searchParams: Promise.resolve({ mes: '2026-10' }) }));
+    const nav = screen.getByRole('navigation', { name: 'Mês de competência' });
+    expect(nav.className).toContain('flex-wrap');
+    expect(screen.getByRole('link', { name: 'Mês anterior' }).getAttribute('href')).toBe(
+      '/relatorios/repasses?mes=2026-09',
+    );
+    expect(screen.getByRole('link', { name: 'Próximo mês' }).getAttribute('href')).toBe(
+      '/relatorios/repasses?mes=2026-11',
+    );
   });
 
   it('titular com CRM e sem permissão financeira recebe apenas os próprios repasses', async () => {

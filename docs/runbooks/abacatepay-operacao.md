@@ -2,6 +2,8 @@
 
 ## Regra prevalente — pedido de substituição Pix, 25/11/2026
 
+Após a migration aprovada e o deployment correspondente, o suporte consulta os pedidos em `/admin/billing/operacao` com superadmin e MFA. A lista é somente leitura e distingue pedido aberto, cancelado e em revisão; ela não executa troca, checkout ou cancelamento financeiro. Sem a tabela, a tela informa indisponibilidade. Até a composição do journal e o E2E autenticado, o recurso continua desabilitado. O SQL abaixo serve somente para diagnóstico excepcional autorizado, não como procedimento comercial permanente.
+
 **Não instrua o cliente a cancelar a renovação para iniciar uma troca.** A AbacatePay só muda uma autorização Pix para outro plano se o valor permanecer igual; todos os planos Qoro têm valores diferentes. O cancelamento pela API é imediato e um novo checkout Pix cobra o primeiro período ao autorizar. O Qoro ainda não comprovou uma janela automática sem intervalo de acesso ou cobranças sobrepostas. A seção de 24/11 abaixo é histórica e sua orientação de cancelar primeiro foi revogada.
 
 O PR #53 prepara um pedido assistido, sem efeito financeiro. Após a composição e aplicação autorizada da proposta `docs/decoupling/asaas-to-abacatepay/propostas/pix-replacement-intents.sql`, o titular poderá registrar um plano desejado e cancelar somente o pedido. A tabela não pertence ainda ao journal compartilhado e não foi aplicada em DEV ou Production. Até lá, o botão não aparece e a rota responde indisponível. Nenhum pedido deve ser interpretado como autorização para checkout, cancelamento, crédito ou reembolso.

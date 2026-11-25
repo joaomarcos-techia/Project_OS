@@ -3,7 +3,8 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { authenticate, hasE2ECredentials } from './auth';
 
 const READ_ONLY_ROUTES = [
-  { route: '/dashboard', heading: /Bom dia|Boa tarde|Boa noite|Visão operacional/u },
+  // UX-011: o `<h1>` é o nome da tela; a saudação virou complemento visual.
+  { route: '/dashboard', heading: 'Dashboard' },
   { route: '/agenda', heading: 'Agenda' },
   { route: '/agenda/ausencias', heading: 'Ausências médicas' },
   { route: '/agenda/importar', heading: 'Importar histórico da agenda' },

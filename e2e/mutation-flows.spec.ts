@@ -69,12 +69,12 @@ test.describe('fluxos mutáveis da Clínica A', () => {
     const description = page.getByText(fixture.paymentDescription, { exact: true });
     await expect(description).toBeVisible({ timeout: 30_000 });
     const card = description.locator(
-      'xpath=ancestor::div[.//button[normalize-space()="Confirmar pagamento"]][1]',
+      'xpath=ancestor::div[.//button[normalize-space()="Registrar recebimento"]][1]',
     );
-    await card.getByRole('button', { name: 'Confirmar pagamento' }).click();
+    await card.getByRole('button', { name: 'Registrar recebimento' }).click();
     await expect(card.getByLabel('Forma de pagamento')).toBeVisible();
     await expect(card.getByLabel('Valor recebido')).toHaveValue(fixture.paymentAmount);
-    await card.getByRole('button', { name: /Receber R\$/ }).click();
+    await card.getByRole('button', { name: /Registrar R\$/ }).click();
     await expect(card.getByText('Pago', { exact: true })).toBeVisible({ timeout: 30_000 });
   });
 });

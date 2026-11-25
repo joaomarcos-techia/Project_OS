@@ -10,6 +10,7 @@ import {
   Drawer,
   DrawerBody,
   DrawerContent,
+  DrawerDescription,
   DrawerFooter,
   DrawerHeader,
   DrawerTitle,
@@ -125,6 +126,9 @@ export function InviteDrawer({ ativos, seatLimit }: { ativos: number; seatLimit:
           >
             <DrawerHeader>
               <DrawerTitle>Convidar para a equipe</DrawerTitle>
+              <DrawerDescription>
+                A pessoa recebe um link de convite e entra com a função escolhida.
+              </DrawerDescription>
             </DrawerHeader>
             <DrawerBody className="flex flex-col gap-4">
               {error ? <Alert variant="danger">{error}</Alert> : null}

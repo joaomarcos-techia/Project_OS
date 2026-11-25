@@ -18,14 +18,17 @@ import { toast } from '@/components/ui/use-toast';
 
 import { exportAuditAction } from './actions';
 
-function todayYmd(offsetDays = 0): string {
-  const date = new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000);
-  return date.toISOString().slice(0, 10);
-}
-
-export function AuditExportForm() {
-  const [from, setFrom] = useState(todayYmd(-30));
-  const [to, setTo] = useState(todayYmd());
+export function AuditExportForm({
+  defaultFrom,
+  today,
+}: {
+  /** Data civil no fuso da clínica, calculada no servidor (30 dias atrás). */
+  defaultFrom: string;
+  /** Hoje no fuso da clínica: padrão de "Até" e limite dos dois campos. */
+  today: string;
+}) {
+  const [from, setFrom] = useState(defaultFrom);
+  const [to, setTo] = useState(today);
   const [pending, startTransition] = useTransition();
 
   function download() {
@@ -68,6 +71,7 @@ export function AuditExportForm() {
             <Input
               id="audit-from"
               type="date"
+              max={today}
               value={from}
               onChange={(event) => setFrom(event.target.value)}
             />
@@ -76,6 +80,7 @@ export function AuditExportForm() {
             <Input
               id="audit-to"
               type="date"
+              max={today}
               value={to}
               onChange={(event) => setTo(event.target.value)}
             />

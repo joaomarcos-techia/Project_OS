@@ -438,10 +438,12 @@ test.describe('producao: lifecycle reversivel de pacientes na Clinica A', () => 
       expect(mergeRows?.n).toBe(0);
 
       // LGPD-005 — o hub do paciente ganhou o cartao de consentimento no ciclo
-      // anterior. Este spec procurava o texto "conceder consentimento", que
-      // nunca existiu: os controles se chamam Conceder/Revogar.
+      // anterior. Os controles se chamam "Registrar consentimento" e "Registrar
+      // revogação" (UX-014), seguidos da finalidade no nome acessível.
       const consentControls =
-        (await ownerPage.getByRole('button', { name: /^(Conceder|Revogar)$/u }).count()) > 0;
+        (await ownerPage
+          .getByRole('button', { name: /^Registrar (consentimento|revogação): /u })
+          .count()) > 0;
       expect(consentControls).toBe(true);
 
       // Two users start from the same patient state. A held row lock makes both writes overlap.

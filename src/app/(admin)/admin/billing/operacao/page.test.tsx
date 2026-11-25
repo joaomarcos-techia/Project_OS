@@ -34,6 +34,18 @@ describe('operator review screen', () => {
   it('shows review/cycle evidence, protects TOTP and never offers an arbitrary financial edit', async () => {
     m.operations.mockResolvedValue({
       backlog: { reviews: 2, queued: 1, oldest: new Date('2026-11-10T00:00:00Z') },
+      pixIntents: [
+        {
+          id,
+          clinic_id: id,
+          subscription_id: id,
+          to_plan_id: id,
+          target_amount_minor: 39700,
+          prior_period_end: new Date('2026-12-24T00:00:00Z'),
+          requested_at: new Date('2026-11-25T00:00:00Z'),
+          state: 'requested',
+        },
+      ],
       quarantined: [],
       renewals: [
         {
@@ -58,6 +70,8 @@ describe('operator review screen', () => {
     });
     const { container } = render(await BillingOperationsPage());
     expect(screen.getByText('2 em revisão; 1 aguardando processamento.')).toBeTruthy();
+    expect(screen.getByText(/Aguardando atendimento/u)).toBeTruthy();
+    expect(screen.getByText(/Pedido não autoriza cobrança/u)).toBeTruthy();
     expect(screen.getByLabelText('Código atual do autenticador').getAttribute('type')).toBe(
       'password',
     );
@@ -75,6 +89,7 @@ describe('operator review screen', () => {
   it('disables submission when the daily replay limit was reached', async () => {
     m.operations.mockResolvedValue({
       backlog: { reviews: 1, queued: 0, oldest: null },
+      pixIntents: [],
       renewals: [],
       quarantined: [],
       reviews: [
@@ -100,6 +115,7 @@ describe('operator review screen', () => {
   it('exposes an unbound event for investigation without a replay form', async () => {
     m.operations.mockResolvedValue({
       backlog: { reviews: 1, queued: 0, oldest: null },
+      pixIntents: null,
       renewals: [],
       reviews: [],
       quarantined: [
@@ -113,6 +129,7 @@ describe('operator review screen', () => {
     });
     render(await BillingOperationsPage());
     expect(screen.getByText(/Revisão sem reprocessamento disponível: log_quarantine/)).toBeTruthy();
+    expect(screen.getByText(/Pedidos indisponíveis até a migration/u)).toBeTruthy();
     expect(screen.queryByRole('button')).toBeNull();
   });
 });

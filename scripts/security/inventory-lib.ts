@@ -247,8 +247,8 @@ export function collectInventory(root: string): Inventory {
       call: 'requestSignupRecovery',
     },
     'src/app/api/signup/sessions/destination/route.ts#GET': {
-      guard: 'same-origin-short-browser-cookie-own-destination-read-limit',
-      call: 'readSignupCodeDestination',
+      guard: 'same-origin-limit-uniform-gone-no-account-read',
+      call: 'assertSignupReadAllowed',
     },
     'src/app/api/signup/sessions/verify/route.ts#POST': {
       guard: 'origin-limit-cookie-email-code-expiry-attempts-cas',

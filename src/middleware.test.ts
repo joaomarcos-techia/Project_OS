@@ -96,6 +96,40 @@ describe('matcher de sessão e cutover HttpOnly', () => {
     expect(response.headers.get('location')).toBe('https://qoro.test/login');
   });
 
+  // S-02: o 307 numa Server Action fazia o navegador reenviar o POST para /login e o cliente do
+  // Next lançar. A recusa continua aqui; só muda para a forma que o cliente entende.
+  it('recusa Server Action sem sessão com redirecionamento que o cliente do Next entende', () => {
+    const response = middleware(
+      new NextRequest('https://qoro.test/caixa', {
+        method: 'POST',
+        headers: { 'next-action': 'abc123', accept: 'text/x-component' },
+      }),
+    );
+    expect(response.status).toBe(401);
+    expect(response.headers.get('x-action-redirect')).toBe('/login;replace');
+    expect(response.headers.get('location')).toBeNull();
+    expect(response.headers.get('x-middleware-next')).toBeNull();
+    expect(response.headers.get('x-middleware-rewrite')).toBeNull();
+  });
+
+  it('POST sem next-action e sem sessão segue com o 307 para o login', () => {
+    const response = middleware(request('/caixa', undefined, 'POST'));
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toBe('https://qoro.test/login');
+  });
+
+  it('Server Action com sessão válida passa para a aplicação, que decide a autorização', () => {
+    const cookie = activeSessionCookie(Math.floor(Date.now() / 1000) + 3600);
+    const response = middleware(
+      new NextRequest('https://qoro.test/caixa', {
+        method: 'POST',
+        headers: { cookie, 'next-action': 'abc123' },
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get('x-action-redirect')).toBeNull();
+  });
+
   it.each(['/documentação', '/documenta%C3%A7%C3%A3o', '/documenta%c3%a7%c3%a3o'])(
     'mapeia %s sem perder a sessão, a consulta ou o endereço visível',
     (root) => {

@@ -2,10 +2,10 @@
 
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
-import type { ComponentProps } from 'react';
+import type { ComponentProps, RefObject } from 'react';
 
 import { cn } from '@/lib/ui/cn';
-import { DialogOverlay } from './dialog';
+import { DialogOverlay, useFocusReturn } from './dialog';
 
 /**
  * Drawer lateral — mesmo Radix Dialog do dialog.tsx, posicionado na borda
@@ -27,16 +27,24 @@ export function DrawerContent({
   side = 'right',
   size = 'md',
   showClose = true,
+  returnFocusRef,
+  onOpenAutoFocus,
+  onCloseAutoFocus,
   ...props
 }: ComponentProps<typeof DialogPrimitive.Content> & {
   side?: 'left' | 'right';
   size?: keyof typeof SIZES;
   showClose?: boolean;
+  /** Para onde o foco volta quando quem abriu a gaveta some (ver `useFocusReturn`). */
+  returnFocusRef?: RefObject<HTMLElement | null> | undefined;
 }) {
+  const foco = useFocusReturn({ returnFocusRef, onOpenAutoFocus, onCloseAutoFocus });
   return (
     <DialogPrimitive.Portal>
       <DialogOverlay />
       <DialogPrimitive.Content
+        onOpenAutoFocus={foco.onOpenAutoFocus}
+        onCloseAutoFocus={foco.onCloseAutoFocus}
         className={cn(
           'fixed inset-y-0 z-(--z-modal) flex h-dvh flex-col bg-surface shadow-(--elev-modal) focus:outline-none',
           SIZES[size],

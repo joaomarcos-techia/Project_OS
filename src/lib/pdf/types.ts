@@ -39,6 +39,8 @@ export interface PrescriptionPdfData {
   observacoes?: string | null;
   /** ISO 8601 — formatado em dd/mm/aaaa no render. */
   issuedAt: string;
+  /** Fuso da clínica: a data impressa é o dia local da emissão. */
+  timeZone: string;
 }
 
 /**
@@ -58,6 +60,8 @@ export interface ReceituarioControleEspecialPdfData {
   observacoes?: string | null;
   /** ISO 8601 — formatado em dd/mm/aaaa no render. */
   issuedAt: string;
+  /** Fuso da clínica: a data impressa é o dia local da emissão. */
+  timeZone: string;
 }
 
 export interface AtestadoPdfData {
@@ -66,6 +70,8 @@ export interface AtestadoPdfData {
   cid?: string | null;
   dias?: number | null;
   issuedAt: string;
+  /** Fuso da clínica: a data impressa é o dia local da emissão. */
+  timeZone: string;
 }
 
 export interface DeclaracaoPdfData {
@@ -73,6 +79,8 @@ export interface DeclaracaoPdfData {
   texto: string;
   periodo?: string | null;
   issuedAt: string;
+  /** Fuso da clínica: a data impressa é o dia local da emissão. */
+  timeZone: string;
 }
 
 export interface ExamePdfData {
@@ -80,6 +88,8 @@ export interface ExamePdfData {
   exames: string[];
   indicacaoClinica?: string | null;
   issuedAt: string;
+  /** Fuso da clínica: a data impressa é o dia local da emissão. */
+  timeZone: string;
 }
 
 export interface EncaminhamentoPdfData {
@@ -87,4 +97,6 @@ export interface EncaminhamentoPdfData {
   especialidade: string;
   motivo: string;
   issuedAt: string;
+  /** Fuso da clínica: a data impressa é o dia local da emissão. */
+  timeZone: string;
 }

@@ -14,6 +14,7 @@ import {
   DialogBody,
   DialogClose,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -124,6 +125,9 @@ export function FornecedoresView({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingId ? 'Editar fornecedor' : 'Novo fornecedor'}</DialogTitle>
+            <DialogDescription>
+              Fornecedor usado nas contas a pagar do Financeiro.
+            </DialogDescription>
           </DialogHeader>
           <DialogBody className="grid gap-3 sm:grid-cols-2">
             {error ? (

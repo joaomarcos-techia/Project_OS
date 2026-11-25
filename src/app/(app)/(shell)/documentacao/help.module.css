@@ -1,0 +1,124 @@
+/* Central de ajuda — app v5: cartão de busca e guias agrupados em duas colunas. */
+.index {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.searchCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px 22px 18px;
+}
+
+.searchLabel {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.searchRow {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.searchRow input {
+  height: 48px;
+  font-size: 15px;
+}
+
+.searchFoot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 16px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr));
+  align-items: start;
+  gap: 16px;
+}
+
+.group {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+  background: var(--surface);
+}
+
+.groupHead {
+  display: flex;
+  min-height: 52px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding: 12px 20px;
+}
+
+.groupHead h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-section);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.groupHead span {
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.guide {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border-soft);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.guide:hover {
+  background: var(--surface-head);
+  color: var(--text);
+}
+
+.guide:focus-visible {
+  outline-offset: -2px;
+}
+
+.guide > svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--text-3);
+}
+
+.guideCopy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.guideCopy b {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.guideCopy span {
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.45;
+}

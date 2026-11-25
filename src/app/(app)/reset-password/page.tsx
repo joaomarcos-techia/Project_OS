@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 /**
  * `/reset-password` — destino do link de recovery.
  *
@@ -19,17 +20,26 @@
  * pelo administrador — nunca por este navegador. Além disso, um `code` trocado
  * com sucesso não prova que o fluxo era de RECOVERY, e é exatamente essa prova
  * que o grant precisa carregar. Links legados caem no estado "peça um novo".
+ *
+ * Visual: a mesma moldura do login (`LoginFrame`), para quem chega pelo e-mail
+ * reconhecer onde está. A tela não diz se a conta existe: sem grant, a mensagem
+ * é a mesma para qualquer link.
  */
+import { ArrowLeft } from 'lucide-react';
 import { cookies } from 'next/headers';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
-import { Logo } from '@/components/shared/logo';
+import { LoginFrame, LoginIntro, loginFrame } from '@/components/shared/login-frame';
+import { signupFrame } from '@/components/shared/signup-frame';
 import { Alert } from '@/components/ui/alert';
-import { Card, CardContent } from '@/components/ui/card';
+import { buttonVariants } from '@/components/ui/button';
 import { RECOVERY_GRANT_COOKIE, readRecoveryGrant } from '@/lib/auth/recovery-grant';
 import { createServerClient } from '@/lib/auth/supabase-server';
 
 import { ResetPasswordForm } from './reset-password-form';
+
+export const metadata: Metadata = { title: 'Nova senha' };
 
 export const dynamic = 'force-dynamic';
 
@@ -56,9 +66,10 @@ export default async function ResetPasswordPage({
   // salva e, no login seguinte, preenche a ANTIGA. Não decide nada: quem mostra
   // o formulário continua sendo o grant.
   //
-  // O grant só abre o formulário junto da sessão que o próprio link abriu, a mesma regra da
-  // action. Depois da troca, o logout global revoga essa sessão; cookies capturados antes não
-  // reabrem o formulário de um link já usado (o envio já era recusado).
+  // Ciclo 9: o grant só abre o formulário junto da sessão que o próprio link abriu, a mesma regra
+  // da action. Depois da troca, o logout global revoga essa sessão; os cookies capturados antes
+  // continuavam com o grant assinado e a tela dizia "Ela vale a partir de agora" para um link já
+  // usado (o envio já era recusado). Agora a tela diz que o link não vale mais.
   let username: string | null = null;
   let live = false;
   if (grant) {
@@ -69,26 +80,33 @@ export default async function ResetPasswordPage({
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-canvas px-4 py-12">
-      <div className="w-full max-w-sm">
-        <div className="mb-6 flex flex-col items-center gap-3 text-center">
-          <Logo className="h-7 w-auto" />
-          <p className="text-sm text-fg-muted">Defina uma nova senha de acesso.</p>
-        </div>
-
-        <Card>
-          <CardContent className="flex flex-col gap-4">
-            <h1 className="text-base font-semibold">Nova senha</h1>
-            {live ? (
-              <ResetPasswordForm username={username} />
-            ) : (
-              <Alert variant="danger" title="Link inválido ou expirado">
-                Volte ao login e solicite um novo link de redefinição.
-              </Alert>
-            )}
-          </CardContent>
-        </Card>
+    <LoginFrame>
+      <div className={loginFrame.view}>
+        <LoginIntro
+          title="Nova senha"
+          lead={
+            live
+              ? 'Crie a senha que você vai usar para entrar na Qoro. Ela vale a partir de agora.'
+              : 'Para criar uma senha nova, use um link de redefinição recente.'
+          }
+        />
+        {live ? (
+          <ResetPasswordForm username={username} />
+        ) : (
+          <div className={loginFrame.form}>
+            <Alert variant="danger" title="Link inválido ou expirado">
+              Ele já foi usado ou venceu. Volte ao login e solicite um novo link em “Esqueci a
+              senha”.
+            </Alert>
+            <div className={signupFrame.actions}>
+              <Link href="/login" className={buttonVariants({ variant: 'secondary' })}>
+                <ArrowLeft aria-hidden="true" className="size-4" />
+                Voltar para o login
+              </Link>
+            </div>
+          </div>
+        )}
       </div>
-    </main>
+    </LoginFrame>
   );
 }

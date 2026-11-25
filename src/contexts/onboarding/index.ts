@@ -28,10 +28,7 @@ export {
   signupRecoveryInputSchema,
   SIGNUP_RECOVERY_COOKIE,
 } from './internal/signup-recovery';
-export {
-  signupEmailCodeSchema,
-  readSignupCodeDestination,
-} from './internal/signup-email-code-repository';
+export { signupEmailCodeSchema } from './internal/signup-email-code-repository';
 export {
   claimSignupDraftByVerifiedEmail,
   ensureSignupDraftForVerifiedEmail,

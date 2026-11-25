@@ -14,6 +14,8 @@ import { AuditExportRangeError, exportTenantAudit } from '@/lib/audit/tenant-exp
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { requireClinicId, requireFreshPermission, requireUser } from '@/lib/auth/tenant-context';
 import { withTenant } from '@/lib/db/tenant';
+import { clinicDayRange } from '@/lib/datetime/clinic-calendar';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 
 export type AuditExportResult =
   | { ok: true; csv: string; filename: string; rowCount: number; truncated: boolean }
@@ -26,12 +28,15 @@ export async function exportAuditAction(from: string, to: string): Promise<Audit
   await requireFreshPermission(PERMISSIONS.EXPORT_AUDIT);
   const clinicId = await requireClinicId();
 
+  // "De" e "Até" são dias do calendário da CLÍNICA. Antes viravam dias em UTC:
+  // "até 16/08" perdia os eventos das 21h às 23h59 de Brasília do dia 16, e
+  // "de 01/08" trazia a noite de 31/07. A trilha em si continua em instantes
+  // UTC (ISO com Z) no CSV — só a fronteira dos dias mudou.
+  const range = clinicDayRange(from, to, await getClinicTimezone(clinicId));
+  if (!range) return { ok: false, message: 'Informe um período válido.' };
+
   try {
-    const result = await exportTenantAudit(clinicId, {
-      from: new Date(from),
-      // Fim do dia informado: quem pede "até 16/08" espera o dia 16 inteiro.
-      to: new Date(`${to.slice(0, 10)}T23:59:59.999Z`),
-    });
+    const result = await exportTenantAudit(clinicId, range);
 
     const ctx = await requestContext();
     await withTenant(clinicId, (tx) =>

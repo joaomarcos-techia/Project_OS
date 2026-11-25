@@ -1,0 +1,325 @@
+diff --git a/src/contexts/identity/internal/password-reset-email.test.ts b/src/contexts/identity/internal/password-reset-email.test.ts
+index 22179618..a9cb2fcc 100644
+--- a/src/contexts/identity/internal/password-reset-email.test.ts
++++ b/src/contexts/identity/internal/password-reset-email.test.ts
+@@ -1,21 +1,22 @@
+ import { beforeEach, describe, expect, it, vi } from 'vitest';
+ 
+-const { generateLink, sendEmail } = vi.hoisted(() => ({
++const { generateLink, sendEmail, mockEnv } = vi.hoisted(() => ({
+   generateLink: vi.fn(),
+   sendEmail: vi.fn(),
++  mockEnv: {
++    APP_BASE_URL: 'https://app.qoro.test',
++    NODE_ENV: 'test',
++    MAGIC_TOKEN_SECRET: 'segredo-de-teste-com-tamanho-suficiente',
++    VERCEL_ENV: undefined as 'preview' | undefined,
++    VERCEL_BRANCH_URL: undefined as string | undefined,
++  },
+ }));
+ 
+ vi.mock('@/lib/auth/supabase-admin', () => ({
+   createAdminClient: () => ({ auth: { admin: { generateLink } } }),
+ }));
+ vi.mock('@/lib/email/resend', () => ({ sendTransactionalEmail: sendEmail }));
+-vi.mock('@/lib/env', () => ({
+-  env: {
+-    APP_BASE_URL: 'https://app.qoro.test',
+-    NODE_ENV: 'test',
+-    MAGIC_TOKEN_SECRET: 'segredo-de-teste-com-tamanho-suficiente',
+-  },
+-}));
++vi.mock('@/lib/env', () => ({ env: mockEnv }));
+ vi.mock('@/lib/observability/logger', () => ({ logger: { warn: vi.fn(), error: vi.fn() } }));
+ vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: vi.fn() } }));
+ 
+@@ -25,6 +26,8 @@ const email = 'pessoa@example.test';
+ 
+ beforeEach(() => {
+   vi.clearAllMocks();
++  mockEnv.VERCEL_ENV = undefined;
++  mockEnv.VERCEL_BRANCH_URL = undefined;
+   generateLink.mockResolvedValue({
+     data: { properties: { hashed_token: 'hash-recovery' } },
+     error: null,
+@@ -33,6 +36,17 @@ beforeEach(() => {
+ });
+ 
+ describe('sendPasswordResetEmail', () => {
++  // Ciclo 9: no Preview o link sai no alias da branch, e a trava de origem do template aceita.
++  it('no Preview, entrega o link no alias da branch, não no APP_BASE_URL geral', async () => {
++    mockEnv.VERCEL_ENV = 'preview';
++    mockEnv.VERCEL_BRANCH_URL = 'branch-atual.vercel.app';
++    expect(await sendPasswordResetEmail(email)).toBe('sent');
++    const { text, html } = sendEmail.mock.calls[0]![0] as { text: string; html: string };
++    expect(text).toContain('https://branch-atual.vercel.app/auth/confirm#token_hash=hash-recovery');
++    expect(html).toContain('https://branch-atual.vercel.app/auth/confirm#');
++    expect(text + html).not.toContain('app.qoro.test');
++  });
++
+   it('pede SÓ o token ao GoTrue e entrega o link de /auth/confirm pelo Resend', async () => {
+     expect(await sendPasswordResetEmail(email)).toBe('sent');
+ 
+diff --git a/src/contexts/identity/internal/password-reset-email.ts b/src/contexts/identity/internal/password-reset-email.ts
+index 893ca827..23bf739b 100644
+--- a/src/contexts/identity/internal/password-reset-email.ts
++++ b/src/contexts/identity/internal/password-reset-email.ts
+@@ -6,7 +6,10 @@ import { createAdminClient } from '@/lib/auth/supabase-admin';
+ import { sendTransactionalEmail } from '@/lib/email/resend';
+ import { renderPasswordResetEmail } from '@/lib/email/templates/password-reset';
+ import { env } from '@/lib/env';
+-import { createPasswordResetConfirmationUrl } from '@/lib/http/application-url';
++import {
++  createPasswordResetConfirmationUrl,
++  resolveAuthLinkOrigin,
++} from '@/lib/http/application-url';
+ import { logger } from '@/lib/observability/logger';
+ import { metrics } from '@/lib/observability/metrics';
+ 
+@@ -82,7 +85,7 @@ export async function sendPasswordResetEmail(email: string): Promise<PasswordRes
+   try {
+     const conteudo = renderPasswordResetEmail({
+       resetUrl: createPasswordResetConfirmationUrl(tokenHash),
+-      expectedOrigin: env.APP_BASE_URL ?? '',
++      expectedOrigin: resolveAuthLinkOrigin() ?? '',
+     });
+     await sendTransactionalEmail({
+       to: email,
+diff --git a/src/contexts/identity/internal/team-invite-email.test.ts b/src/contexts/identity/internal/team-invite-email.test.ts
+index 58a11f58..8dc55561 100644
+--- a/src/contexts/identity/internal/team-invite-email.test.ts
++++ b/src/contexts/identity/internal/team-invite-email.test.ts
+@@ -1,24 +1,46 @@
+ import { beforeEach, describe, expect, it, vi } from 'vitest';
+ 
+-const mocks = vi.hoisted(() => ({ send: vi.fn(), metric: vi.fn() }));
+-
+-vi.mock('@/lib/email/resend', () => ({ sendTransactionalEmail: mocks.send }));
+-vi.mock('@/lib/env', () => ({
++const mocks = vi.hoisted(() => ({
++  send: vi.fn(),
++  metric: vi.fn(),
+   env: {
+     APP_BASE_URL: 'https://app.qoro.test',
+     MAGIC_TOKEN_SECRET: 'test-secret-32-bytes-minimum-value',
++    VERCEL_ENV: undefined as 'preview' | undefined,
++    VERCEL_BRANCH_URL: undefined as string | undefined,
+   },
+ }));
++
++vi.mock('@/lib/email/resend', () => ({ sendTransactionalEmail: mocks.send }));
++vi.mock('@/lib/env', () => ({ env: mocks.env }));
+ vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: mocks.metric } }));
+ 
+ import { deliverTeamInviteEmail } from './team-invite-email';
+ 
+ beforeEach(() => {
+   vi.clearAllMocks();
++  mocks.env.VERCEL_ENV = undefined;
++  mocks.env.VERCEL_BRANCH_URL = undefined;
+   mocks.send.mockResolvedValue({ providerMessageId: 'email_1' });
+ });
+ 
+ describe('deliverTeamInviteEmail', () => {
++  it('no Preview, o convite sai no alias da branch e passa pela trava de origem do template', async () => {
++    mocks.env.VERCEL_ENV = 'preview';
++    mocks.env.VERCEL_BRANCH_URL = 'branch-atual.vercel.app';
++    const { link } = await deliverTeamInviteEmail({
++      email: 'ana@example.test',
++      tokenHash: 'token-secreto',
++      stage: 'initial',
++      inviteeName: 'Ana',
++      clinicName: 'Clínica Vida',
++      roleLabel: 'Atendente',
++      inviterName: 'Bruno',
++    });
++    expect(new URL(link).origin).toBe('https://branch-atual.vercel.app');
++    expect(mocks.send).toHaveBeenCalledOnce();
++  });
++
+   it('envia pelo Resend sem expor o token na chave de idempotência', async () => {
+     const tokenHash = 'token-secreto';
+     const result = await deliverTeamInviteEmail({
+diff --git a/src/contexts/identity/internal/team-invite-email.ts b/src/contexts/identity/internal/team-invite-email.ts
+index 1e90b8f1..f9e97c4c 100644
+--- a/src/contexts/identity/internal/team-invite-email.ts
++++ b/src/contexts/identity/internal/team-invite-email.ts
+@@ -5,7 +5,7 @@ import { createHmac } from 'node:crypto';
+ import { sendTransactionalEmail } from '@/lib/email/resend';
+ import { renderTeamInviteEmail } from '@/lib/email/templates/team-invite';
+ import { env } from '@/lib/env';
+-import { createAuthConfirmationUrl } from '@/lib/http/application-url';
++import { createAuthConfirmationUrl, resolveAuthLinkOrigin } from '@/lib/http/application-url';
+ import { metrics } from '@/lib/observability/metrics';
+ 
+ type DeliveryStage = 'initial' | 'resend';
+@@ -31,7 +31,7 @@ export async function deliverTeamInviteEmail(input: {
+   const link = createAuthConfirmationUrl(input.tokenHash, 'recovery');
+   const content = renderTeamInviteEmail({
+     inviteUrl: link,
+-    expectedOrigin: env.APP_BASE_URL ?? '',
++    expectedOrigin: resolveAuthLinkOrigin() ?? '',
+     inviteeName: input.inviteeName,
+     clinicName: input.clinicName,
+     roleLabel: input.roleLabel,
+diff --git a/src/lib/http/application-url.test.ts b/src/lib/http/application-url.test.ts
+index e9906cb8..04a28910 100644
+--- a/src/lib/http/application-url.test.ts
++++ b/src/lib/http/application-url.test.ts
+@@ -4,7 +4,7 @@ const { mockEnv } = vi.hoisted(() => ({
+   mockEnv: {
+     APP_BASE_URL: 'https://app.qoro.test',
+     NODE_ENV: 'test',
+-    VERCEL_ENV: undefined as 'preview' | undefined,
++    VERCEL_ENV: undefined as 'preview' | 'production' | undefined,
+     VERCEL_URL: undefined as string | undefined,
+     VERCEL_BRANCH_URL: undefined as string | undefined,
+     VERCEL_AUTOMATION_BYPASS_SECRET: undefined as string | undefined,
+@@ -22,6 +22,7 @@ import {
+   createOnboardingInviteUrl,
+   createPasswordResetRedirectUrl,
+   resolveTrustedApplicationOrigin,
++  resolveAuthLinkOrigin,
+   resolvePreviewCallbackOrigin,
+ } from './application-url';
+ 
+@@ -192,6 +193,69 @@ describe('buildApplicationUrl', () => {
+     );
+   });
+ 
++  // Ciclo 9 (20/11/2026): a entrada geral de APP_BASE_URL do Preview aponta para outro deploy, e o
++  // link de redefinição abria o código de outra branch.
++  describe('origem dos links de Auth por e-mail', () => {
++    const links = () => [
++      createPasswordResetConfirmationUrl('hash'),
++      createAuthConfirmationUrl('hash', 'recovery'),
++      createOnboardingInviteUrl('a'.repeat(43)),
++      createSignupConfirmationUrl('hash', 'recovery', 'a'.repeat(64)),
++    ];
++
++    it('no Preview, usa o alias da branch injetado pela Vercel, não o APP_BASE_URL geral', () => {
++      mockEnv.VERCEL_ENV = 'preview';
++      mockEnv.APP_BASE_URL = 'https://outro-deploy.vercel.app';
++      mockEnv.VERCEL_URL = 'deploy-atual.vercel.app';
++      mockEnv.VERCEL_BRANCH_URL = 'branch-atual.vercel.app';
++      expect(resolveAuthLinkOrigin()).toBe('https://branch-atual.vercel.app');
++      for (const link of links()) {
++        const url = new URL(link);
++        expect(url.origin).toBe('https://branch-atual.vercel.app');
++        expect(url.search).toBe('');
++      }
++      // Callback que não é link de Auth continua no valor configurado.
++      expect(createMetaWebhookUrl()).toBe('https://outro-deploy.vercel.app/api/webhooks/meta');
++    });
++
++    it('alias inválido cai na URL imutável do deploy; sem nenhuma, no APP_BASE_URL', () => {
++      mockEnv.VERCEL_ENV = 'preview';
++      mockEnv.VERCEL_URL = 'deploy-atual.vercel.app';
++      for (const invalido of [
++        'https://user:pass@evil.test',
++        'evil.test',
++        'vercel.app',
++        'branch.vercel.app:8443',
++        'https://branch.vercel.app/caminho',
++      ]) {
++        mockEnv.VERCEL_BRANCH_URL = invalido;
++        expect(new URL(createPasswordResetConfirmationUrl('hash')).origin).toBe(
++          'https://deploy-atual.vercel.app',
++        );
++      }
++      mockEnv.VERCEL_URL = 'evil.test';
++      expect(new URL(createPasswordResetConfirmationUrl('hash')).origin).toBe(
++        'https://app.qoro.test',
++      );
++    });
++
++    it.each([undefined, 'production'] as const)(
++      'fora do Preview (%s), usa só APP_BASE_URL mesmo com variáveis da Vercel presentes',
++      (vercelEnv) => {
++        mockEnv.VERCEL_ENV = vercelEnv;
++        mockEnv.VERCEL_URL = 'deploy-atual.vercel.app';
++        mockEnv.VERCEL_BRANCH_URL = 'branch-atual.vercel.app';
++        expect(resolveAuthLinkOrigin()).toBe('https://app.qoro.test');
++        for (const link of links()) expect(new URL(link).origin).toBe('https://app.qoro.test');
++      },
++    );
++
++    it('sem APP_BASE_URL fora do Preview, recusa em vez de inventar uma origem', () => {
++      mockEnv.APP_BASE_URL = undefined as unknown as string;
++      expect(() => createPasswordResetConfirmationUrl('hash')).toThrow('[app-url]');
++    });
++  });
++
+   it('rejeita hash de token vazio', () => {
+     expect(() => createAuthConfirmationUrl('  ', 'recovery')).toThrow('[app-url]');
+   });
+diff --git a/src/lib/http/application-url.ts b/src/lib/http/application-url.ts
+index 03195cf5..1f8ebef0 100644
+--- a/src/lib/http/application-url.ts
++++ b/src/lib/http/application-url.ts
+@@ -136,11 +136,37 @@ export function resolveTrustedApplicationOrigin(request: Request): string | null
+   return null;
+ }
+ 
++/**
++ * Origem dos links de Auth enviados por e-mail: redefinição de senha, convite da equipe, convite
++ * de clínica e a confirmação do cadastro quando a requisição não trouxe origem validada.
++ *
++ * Em Preview, o alias da branch injetado pela Vercel (`resolvePreviewCallbackOrigin`), como o
++ * cadastro, o Checkout e a troca de plano já fazem. A entrada geral de `APP_BASE_URL` do Preview
++ * aponta para outro deploy, e o link de redefinição abria o código de outra branch (medido no
++ * ciclo 8, 20/11/2026). Fora do Preview, só `APP_BASE_URL`. Nada vem de `Host`, `Origin` ou de
++ * parâmetro do cliente, e o resultado passa pelas mesmas travas de `buildApplicationUrl`.
++ */
++export function resolveAuthLinkOrigin(): string | undefined {
++  return resolvePreviewCallbackOrigin() ?? env.APP_BASE_URL;
++}
++
++function authLinkUrl(pathname: string): string {
++  const origin = resolveAuthLinkOrigin();
++  if (!origin) {
++    throw new Error(
++      '[app-url] APP_BASE_URL is required for transactional links and Auth redirects',
++    );
++  }
++  return buildApplicationUrl(origin, pathname, {
++    allowInsecureLocalhost: env.NODE_ENV !== 'production',
++  });
++}
++
+ export function createOnboardingInviteUrl(rawToken: string): string {
+   if (!isOnboardingInviteToken(rawToken)) {
+     throw new Error('[app-url] onboarding invite token is invalid');
+   }
+-  const url = new URL(configuredApplicationUrl('/join'));
++  const url = new URL(authLinkUrl('/join'));
+   url.hash = createOnboardingInvitePath(rawToken).slice('/join#'.length);
+   return url.toString();
+ }
+@@ -189,7 +215,7 @@ export function createAuthConfirmationUrl(
+     throw new Error('[app-url] auth confirmation token hash is required');
+   }
+ 
+-  const url = new URL(configuredApplicationUrl('/auth/confirm'));
++  const url = new URL(authLinkUrl('/auth/confirm'));
+   url.hash = new URLSearchParams({
+     token_hash: tokenHash,
+     type,
+@@ -226,7 +252,7 @@ export function createSignupConfirmationUrl(
+       ? buildApplicationUrl(publicOrigin, '/auth/confirm', {
+           allowInsecureLocalhost: env.NODE_ENV !== 'production',
+         })
+-      : configuredApplicationUrl('/auth/confirm'),
++      : authLinkUrl('/auth/confirm'),
+   );
+   url.hash = new URLSearchParams({
+     token_hash: tokenHash,
+@@ -253,7 +279,7 @@ export function createPasswordResetConfirmationUrl(tokenHash: string): string {
+   if (!tokenHash.trim()) {
+     throw new Error('[app-url] password reset token hash is required');
+   }
+-  const url = new URL(configuredApplicationUrl('/auth/confirm'));
++  const url = new URL(authLinkUrl('/auth/confirm'));
+   url.hash = new URLSearchParams({
+     token_hash: tokenHash,
+     type: 'recovery',
