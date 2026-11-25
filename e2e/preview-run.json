@@ -1,6 +1,6 @@
 {
-  "note": "Composição descartável #53 → #56 → #55 (#53 dddc650b, #56 fe892902 via integração c11, #55 35730f46 — o mesmo head do HS25-55E verde): P7.5 (HS25G), estados da guia (HS25H), P8.4 da conferência (HS25I) e P8.4 pelo consultório oficial do #56 + faixa Convênios de hoje na agenda (HS25J, fixture própria). Patches compose-only: consultório, agenda e Financeiro (P10.6).",
-  "run": "HS25-C5",
+  "note": "Composição descartável #53 → #56 → #55 (#53 1175b22c, #56 fe892902 via integração c11, #55 35730f46 — o head do HS25-55E verde): P7.5 (HS25G), estados da guia (HS25H), P8.4 da conferência (HS25I) e P8.4 pelo consultório oficial do #56 + faixa Convênios de hoje na agenda (HS25J). HS25-C5 (9ba19e9a) não rodou: o deploy do Preview falhou na Vercel. A CI acusou o teste da agenda do #56 sem o mock da faixa (corrigido no patch).",
+  "run": "HS25-C6",
   "groups": [
     [
       "e2e/convenios-p75-preview.spec.ts"
