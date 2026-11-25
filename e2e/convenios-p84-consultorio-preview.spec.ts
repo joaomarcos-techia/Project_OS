@@ -183,7 +183,9 @@ test('a outra médica vê só a própria sessão, sem o item registrado pela pri
   await expect(block).toBeVisible();
   await block.locator('summary').click();
   await expect(block.getByRole('list', { name: 'Itens registrados nesta sessão' })).toHaveCount(0);
-  await expect(block).not.toContainText(fx!.codes.doctor);
+  // Nenhum ITEM registrado com o código da 1ª médica. O bloco inteiro contém o código como opção do
+  // seletor "Item do contrato" (as linhas do contrato), por isso a conferência é nos itens (HS25-C8).
+  await expect(block.locator('li').filter({ hasText: fx!.codes.doctor })).toHaveCount(0);
   expect(s.errors).toEqual([]);
 });
 
