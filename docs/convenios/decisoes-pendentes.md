@@ -1,4 +1,13 @@
-# Decisões humanas pendentes do módulo Convênios (atualizado em 24/11/2026)
+# Decisões humanas pendentes do módulo Convênios (atualizado em 25/11/2026)
+
+## Novidades de 25/11 (tarde)
+
+| Decisão | O que mudou | O que se pede |
+| --- | --- | --- |
+| **B7** (validador externo) | a Voa `tiss` 0.5.0 rodou os 38 arquivos offline e em CI: XSD 38/38 e hash 37/37 iguais, esquemas idênticos, um falso positivo dela (fator de redução/acréscimo). O XSD dela é libxml2, a mesma família do nosso; o .NET segue como motor independente (`validacao-independente-voa.md`) | aprovar ou não a troca do critério da P13.5 para "Voa (hash e regras) + .NET (XSD)". Até lá, BLOCKED. Também: OK para abrir a issue a montante (texto pronto) |
+| **P4.7-b** | guarda implementada: o histórico importado nunca gera guia nem pendência, por nenhum caminho | escolher (a), (b) ou (c). A guarda vale para (a) e (b); a (c) exigiria removê-la |
+| **P12.15** | avaliação A × B enviada ao #53 | decisão comercial: A, conectar e barrar o efeito (hoje), ou B, barrar também a conexão |
+| **S9, B6, B5, P15.6** | pacotes prontos para envio ou execução: `consulta-regulatoria-s9.md`, `consulta-juridica-b6.md`, `pacote-homologacao-operadora-b5.md`, `roteiro-revisao-financeira-p156.md` | enviar à assessoria e ao jurídico; indicar a operadora e a piloto; marcar a sessão |
 
 ## Decididas em 24/11 (ciclo de desbloqueio final)
 

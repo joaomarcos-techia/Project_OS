@@ -1,0 +1,461 @@
+{
+ "agora": "2026-11-25 12:26:20.346228+00",
+ "porStatus": [
+  {
+   "status": "processed",
+   "n": 739
+  },
+  {
+   "status": "skipped",
+   "n": 52
+  }
+ ],
+ "janela": {
+  "criados_24h": 18,
+  "processados_24h": 13,
+  "pulados_24h": 5,
+  "falhos_24h": 0,
+  "retentativas_24h": 0,
+  "com_erro_24h": 0,
+  "devolvidos_janitor_24h": 0,
+  "pendentes_vencidos": 0,
+  "em_processamento": 0,
+  "latencia_p50_s": "0.1",
+  "latencia_p95_s": "0.3"
+ },
+ "idempotencia_duplicada": 0,
+ "tipos24": [
+  {
+   "event_type": "billing.clinic.reactivated",
+   "status": "skipped",
+   "n": 2
+  },
+  {
+   "event_type": "billing.invoice.paid",
+   "status": "skipped",
+   "n": 1
+  },
+  {
+   "event_type": "billing.subscription.activated",
+   "status": "skipped",
+   "n": 2
+  },
+  {
+   "event_type": "messaging.business_app_echo.received",
+   "status": "processed",
+   "n": 4
+  },
+  {
+   "event_type": "messaging.inbound.received",
+   "status": "processed",
+   "n": 9
+  }
+ ],
+ "heartbeats": [
+  {
+   "job": "audit-partitions",
+   "ha_s": 2103965,
+   "last_status": "success",
+   "duration_ms": null,
+   "processed": null,
+   "empty": null,
+   "failed": null,
+   "skipped": null,
+   "skipped_bulk": null,
+   "stuck": null,
+   "paused": null,
+   "chaves": [
+    "ensured",
+    "health",
+    "needsRemediation"
+   ]
+  },
+  {
+   "job": "billing-dunning",
+   "ha_s": 15975,
+   "last_status": "success",
+   "duration_ms": null,
+   "processed": null,
+   "empty": null,
+   "failed": null,
+   "skipped": null,
+   "skipped_bulk": null,
+   "stuck": null,
+   "paused": null,
+   "chaves": [
+    "advanced",
+    "scanned"
+   ]
+  },
+  {
+   "job": "billing-reconcile",
+   "ha_s": 12350,
+   "last_status": "success",
+   "duration_ms": null,
+   "processed": null,
+   "empty": null,
+   "failed": null,
+   "skipped": null,
+   "skipped_bulk": null,
+   "stuck": null,
+   "paused": null,
+   "chaves": [
+    "fixed",
+    "found",
+    "paymentsChecked",
+    "scheduledChangesApplied",
+    "subscriptionsScanned"
+   ]
+  },
+  {
+   "job": "cash-flow-rollup",
+   "ha_s": 32143,
+   "last_status": "success",
+   "duration_ms": null,
+   "processed": null,
+   "empty": null,
+   "failed": null,
+   "skipped": null,
+   "skipped_bulk": null,
+   "stuck": null,
+   "paused": null,
+   "chaves": [
+    "rows",
+    "windowDays"
+   ]
+  },
+  {
+   "job": "data-retention",
+   "ha_s": 2100356,
+   "last_status": "success",
+   "duration_ms": null,
+   "processed": null,
+   "empty": null,
+   "failed": null,
+   "skipped": null,
+   "skipped_bulk": null,
+   "stuck": null,
+   "paused": null,
+   "chaves": [
+    "ai_conversations",
+    "ai_messages",
+    "idempotency_keys",
+    "inbound_messages_raw",
+    "login_attempts",
+    "outbound_messages",
+    "outbox",
+    "provider_status_events_raw",
+    "whatsapp_business_app_echoes"
+   ]
+  },
+  {
+   "job": "financial-reconcile",
+   "ha_s": 673,
+   "last_status": "success",
+   "duration_ms": null,
+   "processed": null,
+   "empty": null,
+   "failed": null,
+   "skipped": null,
+   "skipped_bulk": null,
+   "stuck": null,
+   "paused": null,
+   "chaves": [
+    "clinics",
+    "opened",
+    "orphanClinics",
+    "orphanCredits",
+    "paymentAnomalyCandidates",
+    "paymentAnomalyFailed",
+    "paymentAnomalyMismatched",
+    "paymentAnomalyRecovered",
+    "paymentAnomalySkipped",
+    "paymentBackstopSkippedForBudget",
+    "paymentCorrectionCandidates",
+    "paymentCorrectionsApplied",
+    "paymentCorrectionsFailed",
+    "paymentEconomicsCandidates",
+    "paymentEconomicsFailed",
+    "paymentEconomicsMismatched",
+    "paymentEconomicsPending",
+    "paymentEconomicsReconciled",
+    "paymentEconomicsSkipped"
+   ]
+  },
+  {
+   "job": "invites-cleanup",
+   "ha_s": 23157,
+   "last_status": "success",
+   "duration_ms": null,
+   "processed": null,
+   "empty": null,
+   "failed": null,
+   "skipped": null,
+   "skipped_bulk": null,
+   "stuck": null,
+   "paused": null,
+   "chaves": [
+    "anonymized"
+   ]
+  },
+  {
+   "job": "metrics-rollup",
+   "ha_s": 26737,
+   "last_status": "success",
+   "duration_ms": null,
+   "processed": null,
+   "empty": null,
+   "failed": null,
+   "skipped": null,
+   "skipped_bulk": null,
+   "stuck": null,
+   "paused": null,
+   "chaves": [
+    "byMetric",
+    "windowDays"
+   ]
+  },
+  {
+   "job": "outbox",
+   "ha_s": 52,
+   "last_status": "success",
+   "duration_ms": "831",
+   "processed": "0",
+   "empty": "50",
+   "failed": "0",
+   "skipped": "0",
+   "skipped_bulk": "0",
+   "stuck": "0",
+   "paused": "0",
+   "chaves": [
+    "circuit_paused",
+    "duration_ms",
+    "empty",
+    "failed",
+    "processed",
+    "skipped",
+    "skipped_bulk",
+    "stuck_reclaimed"
+   ]
+  },
+  {
+   "job": "patient-hard-delete",
+   "ha_s": 33970,
+   "last_status": "success",
+   "duration_ms": null,
+   "processed": null,
+   "empty": null,
+   "failed": "0",
+   "skipped": null,
+   "skipped_bulk": null,
+   "stuck": null,
+   "paused": null,
+   "chaves": [
+    "anonymized",
+    "deleted",
+    "failed"
+   ]
+  },
+  {
+   "job": "payments-account-closure",
+   "ha_s": 8743,
+   "last_status": "success",
+   "duration_ms": null,
+   "processed": null,
+   "empty": null,
+   "failed": "0",
+   "skipped": null,
+   "skipped_bulk": null,
+   "stuck": null,
+   "paused": null,
+   "chaves": [
+    "accounts",
+    "blocked",
+    "closed",
+    "failed",
+    "noticed"
+   ]
+  },
+  {
+   "job": "payments-deposit",
+   "ha_s": 662,
+   "last_status": "success",
+   "duration_ms": null,
+   "processed": null,
+   "empty": null,
+   "failed": null,
+   "skipped": null,
+   "skipped_bulk": null,
+   "stuck": null,
+   "paused": null,
+   "chaves": [
+    "charged",
+    "expired",
+    "refundsConfirmed",
+    "remainder",
+    "renewed"
+   ]
+  },
+  {
+   "job": "proactive-deposit-link",
+   "ha_s": 677,
+   "last_status": "success",
+   "duration_ms": null,
+   "processed": null,
+   "empty": null,
+   "failed": null,
+   "skipped": null,
+   "skipped_bulk": null,
+   "stuck": null,
+   "paused": null,
+   "chaves": [
+    "sent"
+   ]
+  },
+  {
+   "job": "proactive-dunning",
+   "ha_s": 667,
+   "last_status": "success",
+   "duration_ms": null,
+   "processed": null,
+   "empty": null,
+   "failed": null,
+   "skipped": null,
+   "skipped_bulk": null,
+   "stuck": null,
+   "paused": null,
+   "chaves": [
+    "enqueued",
+    "sent"
+   ]
+  },
+  {
+   "job": "proactive-followup",
+   "ha_s": 648,
+   "last_status": "success",
+   "duration_ms": null,
+   "processed": null,
+   "empty": null,
+   "failed": "0",
+   "skipped": null,
+   "skipped_bulk": null,
+   "stuck": null,
+   "paused": null,
+   "chaves": [
+    "cancelled",
+    "failed",
+    "retried",
+    "scanned",
+    "sent"
+   ]
+  },
+  {
+   "job": "proactive-remainder-link",
+   "ha_s": 634,
+   "last_status": "success",
+   "duration_ms": null,
+   "processed": null,
+   "empty": null,
+   "failed": null,
+   "skipped": null,
+   "skipped_bulk": null,
+   "stuck": null,
+   "paused": null,
+   "chaves": [
+    "sent"
+   ]
+  },
+  {
+   "job": "proactive-reminders",
+   "ha_s": 670,
+   "last_status": "success",
+   "duration_ms": null,
+   "processed": null,
+   "empty": null,
+   "failed": null,
+   "skipped": null,
+   "skipped_bulk": null,
+   "stuck": null,
+   "paused": null,
+   "chaves": [
+    "enqueued",
+    "sent"
+   ]
+  },
+  {
+   "job": "proactive-waitlist",
+   "ha_s": 663,
+   "last_status": "success",
+   "duration_ms": null,
+   "processed": null,
+   "empty": null,
+   "failed": null,
+   "skipped": null,
+   "skipped_bulk": null,
+   "stuck": null,
+   "paused": null,
+   "chaves": [
+    "expiredReleased",
+    "expiredReoffered",
+    "expiredScanned",
+    "sent"
+   ]
+  },
+  {
+   "job": "signup-sessions-cleanup",
+   "ha_s": 361,
+   "last_status": "success",
+   "duration_ms": null,
+   "processed": null,
+   "empty": null,
+   "failed": null,
+   "skipped": null,
+   "skipped_bulk": null,
+   "stuck": null,
+   "paused": null,
+   "chaves": [
+    "deleted",
+    "live"
+   ]
+  },
+  {
+   "job": "whatsapp-health",
+   "ha_s": 1546,
+   "last_status": "success",
+   "duration_ms": null,
+   "processed": null,
+   "empty": null,
+   "failed": null,
+   "skipped": null,
+   "skipped_bulk": null,
+   "stuck": null,
+   "paused": null,
+   "chaves": [
+    "broken",
+    "changed",
+    "scanned"
+   ]
+  },
+  {
+   "job": "whatsapp-messaging-health",
+   "ha_s": 6964,
+   "last_status": "success",
+   "duration_ms": null,
+   "processed": null,
+   "empty": null,
+   "failed": null,
+   "skipped": null,
+   "skipped_bulk": null,
+   "stuck": null,
+   "paused": null,
+   "chaves": [
+    "available",
+    "blocked",
+    "changed",
+    "limited",
+    "scanned",
+    "unavailable"
+   ]
+  }
+ ]
+}

@@ -39,9 +39,9 @@
 
 | Campo | Valor |
 | --- | --- |
-| Data da última atualização | 25/11/2026 (missão final: matriz das 30 tarefas, P8.4 de ponta a ponta, P10.6, P12.11, P3.3/P5.2 na tripla; ver o checkpoint de 25/11) |
+| Data da última atualização | 25/11/2026, tarde (ciclo final de integração: guarda da importação histórica, validação independente Voa, pacotes S9/B6/B5/P15.6, reavaliação das 24 abertas, leitura final do R61-B; ver o checkpoint de 25/11, tarde) |
 | Fase atual | **P1 concluída**; P9 (lotes, XMLs, recurso) e P12 (armazenamento) validadas; ponte financeira (P1.10/P10.2/P10.3) pronta como candidata 0153; interface (P7.7/P9.9) implementada e testada; P9.5, P8.7/P6.2, P10.4 e P10.5 pendentes |
-| Tarefa em andamento | **25/11:** encerramento das 30 tarefas abertas. Head do #55 com E2E verde (P7.5 5/5, estados 13/13, P8.4 7/7); composição #53 → #56 → #55 com os patches do #56; R61-B em observação (leitura final depois das 13h30 UTC); R54 com o suporte do Asaas |
+| Tarefa em andamento | **25/11 (tarde):** à espera da consolidação #53 → #56 para o rebase final do #55 (TISS por último). Baseline: #55 `e020d0cf` com E2E verde e composição `2e8480f6` toda verde; #55 agora em `1b2543be` (guarda da importação histórica, regressões verdes). Patches do #56 não incorporados. R54 com o suporte do Asaas |
 | Última tarefa concluída | **P15.1** (20/11): ajuda do TISS na central de documentação existente (5 tópicos, categoria Financeiro, testes 18/18), além de runbooks, domínio e known-limitations. Mesmo ciclo: P9.4 no teto "Testado" (envio pelo conector com recibo conferido, 7/7), destino do conector só público (P15.5), benchmark do outbox (25 rodadas no runner) |
 | Progresso | **93 de 117 tarefas concluídas (79,5%)** (25/11: **P3.3, P5.2, P8.4, P10.6, P12.11 e P12.15 entraram**; matriz no checkpoint de 25/11) (20/11: **P15.1 entrou**; P9.4 no teto "Testado", não contada; 19/11, madrugada: **P6.5, P12.5 e P14.4 entraram** — P6.5 e P12.5 no alcance sem operadora, P14.4 com um desvio registrado; 18/11, 2º ciclo: **P9.10 e P5.1 entraram**; P4.7 e P15.5 PARCIAIS; achado da P4.7 corrigido; ver o checkpoint de 18/11, 2º ciclo) (P8.6 entrou em 15/11, noite, 2ª rodada: XML SP/SADT do fluxo real validado no XSD oficial no job sintético; ver a linha da P8.6): P0.1–P0.9, P1.1–P1.10, P4.5, P6.2, P7.1, P7.2, P7.3, P7.4, P7.6, P7.7, P8.1, P8.2, P8.3, P8.5, P8.6, P8.7, P9.1, P9.2, P9.3, P9.5, P9.6, P9.7, P10.1, P10.2, P10.3, P10.4, P10.5, P12.7, P12.14, P13.1, P13.2, P13.3, P13.4, P13.7, P14.1, P15.7, P2.1, P2.3, P2.4, P2.6, P3.1, P4.1, P4.4, P9.8, P9.9, P2.2, P4.3, P2.7, P5.3, P12.1, P3.2, P14.2, P4.6, P6.1, P6.4, P7.5, P1.12, P6.3, P6.6, P12.2, P0.10, P1.14, P4.2, P12.4, P9.10, P5.1, P6.5, P12.5, P14.4, P15.1. P10.5 **homologada no alcance do Asaas Sandbox** (13/11). P4.3, P2.7, P3.2 e P4.6 **validadas no Preview DEV**. R54 provado em banco descartável com o Asaas simulado; **homologação de estorno no Sandbox não executada** (procedimento em docs/convenios/homologacao-r54-sandbox.md). P6.5 e P12.5 contadas no teto "Testado" (sem operadora); a homologação de cada operadora segue em L.2 (B5). Nada em produção; nenhuma homologação com operadora real. |
 | CI oficial (GitHub Actions) | **Liberada em 14/11** (GitHub Pro; o job voltou a iniciar). `0d2aa4f3` reexecutado: **CI e ADR advisory verdes** (run 43591045113, 15 min 28 s, 25 passos). SHA final do ciclo: ver o registro M de 14/11 (noite). Até `1b09267e` verde; `e6e91139`…`a77e0aea` não iniciaram por cobrança (não reexecutados: a CI do HEAD cobre a mesma árvore e mais) **Fim da noite de 14/11:** CI 43672065842 verde no `4078a474`, com o passo novo da P12.1 em Postgres temporário (5/5); também verdes `2d3c79e6` (43667255805) e `e552a692` (43669520460). **15/11 (manhã):** CI 43711988363 verde no `2273f96d` e CI 43714907677 verde no `c5fce3fa` (todos os passos, inclusive isolamento entre clínicas e de todas as tabelas de Convênios em Postgres temporário, build e E2E público). **15/11 (tarde):** verde em `6de3c14e` (43745643994) e `a87fbded` (43746993053); vermelha em `0206d7d1` (inventário desatualizado, corrigido) |
@@ -121,6 +121,51 @@
 | Progresso | **68 de 117 (58,1%)** |
 | Coordenação | UI: janela de testes pesados aceita e usada (23:33–00:10); terminologia de guias decidida pela UI e aplicada; títulos de página nas 13 telas; divisão de arquivos (handoff-ui.md §8). #53: release congela a cauda TISS do `4d0ed1d5` |
 | Próximo passo exato | ver "Próxima ação exata" acima |
+
+### Checkpoint de 25/11/2026 (tarde) — ciclo final de integração e fechamento
+
+| Item | Estado |
+| --- | --- |
+| Contagem | **93 de 117**, sem mudança: nenhuma das 24 abertas cumpriu o critério completo neste ciclo (reavaliação abaixo) |
+| Heads | #53 `1175b22c` e #56 `fe892902` (sem mudança desde o baseline); #55 `1b2543be`; composição remota preservada em `2e8480f6` (baseline). O merge local do #55 novo nela (`fcddaad1`, sem push) passou em 197 testes dirigidos |
+| Patches do #56 | **não incorporados**: o head do #56 não mudou e o comentário de 25/11 (06h58) não teve resposta. Os quatro aplicam limpo no `fe892902` |
+| Defeito real corrigido | **histórico importado virava faturamento** (`0005813e`). A importação aceita `billingMode` no JSON; um atendimento importado como convênio e atendido entrava no reconcile e, com a cobertura corrigida, podia gerar guia de algo já faturado fora. Agora `created_via = 'import'` é ignorado em todos os caminhos e sai da seleção do reconcile. P7.4 20/20 no legado (45613349947) |
+| Provas do head `1b2543be` | CI 45613360056 (7.423 testes, 3 SKIPs históricos); sintéticas 45613350265; legado 45613349947; Voa 45613350413. O E2E não roda neste head (a mudança não toca os fluxos do E2E; os gates completos vêm no rebase final) |
+| Validação independente (Voa `tiss` 0.5.0) | XSD 38/38 e hash 37/37 iguais; esquemas byte a byte iguais; falso positivo da Voa no fator de redução/acréscimo; B7 segue BLOCKED (`validacao-independente-voa.md`) |
+| Pacotes de decisão | S9 para a assessoria (`consulta-regulatoria-s9.md`), B6 para o jurídico (`consulta-juridica-b6.md`), B5 (`pacote-homologacao-operadora-b5.md`), prontidão S1–S8 (`perfil-seguranca-s1-s9.md`), P15.6 (`roteiro-revisao-financeira-p156.md`), P11 (`handoff-agente-p11.md`) |
+| P12.15 | avaliação A × B enviada ao #53 (comentário de 25/11), sem presumir aprovação comercial |
+| R54 | Sandbox lido às 12h23 UTC, só leitura: `CONFIRMED`, nenhum estorno. Pedido ao suporte com o fundador |
+| Snyk | BLOCKED — cota externa (também no `1b2543be`) |
+| R61-B produção | **PASS no escopo observado.** O `cf712ab4` foi publicado pelo #53 em 24/11 (promovido antes das 14h31 UTC, conforme o checkpoint dele; a Vercel não é lida por mim). Leitura final de 25/11 às 14h35 UTC, só leitura (`evidence/tiss-r61-producao-2026-11-25/`). Nas últimas 24 h: 16 eventos (14 processados, 2 pulados sem consumidor), 0 falhos, 0 retentativas, 0 erros, 0 devolvidos pelo janitor, 0 pendentes vencidos, 0 chaves duplicadas, latência p50 0,1 s e p95 0,3 s. Tick de 657 ms; lote 50 (0 processados + 50 vagas no tick); 21 heartbeats com sucesso, nas cadências do `vercel.json` (billing-reconcile diário às 09h UTC). **Não comprova capacidade de pico:** tráfego de 16 eventos/dia. A métrica `outbox.handler_slow` fica nos logs, sem acesso daqui. R61-C (lote 200) não autorizado |
+
+#### Reavaliação das 24 tarefas abertas (25/11, tarde)
+
+| ID | Dependência hoje | Resolvida? | Trabalho feito neste ciclo | Estado | Ação humana restante |
+| --- | --- | --- | --- | --- | --- |
+| P1.13 | painel da plataforma | não: o #57 é o console de conversas (S-01), sem nenhum arquivo de Convênios | contrato do backend conferido (`platform.ts`: `convenios.available`, ligar e desligar por clínica, com testes) | BLOCKED | quem faz o painel e quando |
+| P2.5 | operadora real | não | pacote B5 | BLOCKED | B5 |
+| P4.7 | decisão P4.7-b | não | guarda contra faturamento de histórico importado (vale para as opções a e b) | BLOCKED | escolher (a), (b) ou (c) |
+| P9.4 | operadora real | não | pacote B5 (H22–H26) | BLOCKED | B5 |
+| P11.1 | frente do agente | não: o #28 é só a correção do Gemini | contrato e testes esperados (`handoff-agente-p11.md`) | BLOCKED | dono da frente do agente |
+| P11.2 | P11.1 | não | idem | BLOCKED | idem |
+| P12.3 | prazos legais | não | ficha B6 para o jurídico | BLOCKED | jurídico |
+| P12.6 | acesso ao Sentry | não (o token local segue inválido e não foi usado) | — | BLOCKED | criar a regra pela tela (passos em `decisoes-pendentes.md`) |
+| P12.8 | S1–S9 | não | pacote S9 e matriz de prontidão | BLOCKED | S9 |
+| P12.9 | S1–S4 | não | matriz de prontidão | BLOCKED | S9, depois S1–S4 |
+| P12.10 | S5 | não | matriz de prontidão | BLOCKED | S5 (global) |
+| P12.12 | S8 | não | matriz de prontidão | BLOCKED | S8 |
+| P12.13 | prazos legais | não | ficha B6 | BLOCKED | jurídico |
+| P13.5 | validador externo (B7) | parcial: a Voa roda em CI, mas o critério nomeia o programa Windows e o XSD dela é libxml2 | validação Voa 38 arquivos, CI reproduzível | BLOCKED | aprovar ou não a troca do critério |
+| P13.6 | B5 e B7 | não | divergências da camada Voa classificadas | BLOCKED | B5; decisão da B7 |
+| P14.3 | jornadas da P11 | não | — | PARCIAL | P11 |
+| P14.5 | todas as dependências | não | regressões verdes no `1b2543be` | PARCIAL | fecha no rebase final |
+| P15.2 | P14.3 | não | — | PARCIAL | P14.3 |
+| P15.3 | operadora real | não | pacote B5 | BLOCKED | B5 |
+| P15.4 | operadora real | não | pacote B5 | BLOCKED | B5 |
+| P15.5 | S1–S9 | não | — | PARCIAL | S9 e S1–S8 |
+| P15.6 | sessão com o fundador | não | roteiro com 12 casos e valores esperados | BLOCKED | marcar a sessão |
+| P15.8 | aprovação humana | não | — | BLOCKED | depois das anteriores |
+| P15.9 | P15.8 (produção) | não | — | BLOCKED | — |
 
 ### Checkpoint de 25/11/2026 — missão final (30 tarefas abertas)
 

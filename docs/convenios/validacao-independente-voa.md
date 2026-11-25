@@ -77,6 +77,12 @@ Windows), cuja instalação na máquina principal não está autorizada. A Voa:
 - tem um defeito conhecido (fator de redução/acréscimo) que precisa de correção ou de exceção registrada
   antes de servir de portão.
 
+**E o próprio programa Windows, em ambiente isolado?** Tecnicamente um runner Windows efêmero do GitHub, ou uma
+VM, serviria, só com o corpus sintético. O impedimento não é técnico: a licença gratuita do programa veda uso
+comercial, e ele tem telemetria do aparelho e dos arquivos (registrado em 11/11, P13.5). Rodá-lo para validar o
+produto exige licença comercial ou autorização do fornecedor, e isso é despesa que precisa da sua aprovação. Não
+foi executado.
+
 **Proposta para a sua decisão:** trocar o critério da P13.5 de "o programa Windows" para "camada C =
 Voa `tiss` fixada por versão e sha256 (hash e regras) + .NET (XSD)". O CI rodaria o corpus a cada mudança,
 com o falso positivo do fator registrado como exceção até a correção pela Voa. Até a sua aprovação:
@@ -84,6 +90,13 @@ com o falso positivo do fator registrado como exceção até a correção pela V
 - P13.5 continua **BLOCKED (B7)**;
 - P13.6 ganha a classificação das divergências da camada Voa (esta página).
 
-**Correção a montante (precisa do seu OK, porque é comunicação externa):** texto pronto para uma issue no
-repositório da Voa, com o caso sintético (3 × 33,33 × 0,70) e a referência ao próprio `line_total` da biblioteca.
-Não abri a issue.
+**Correção a montante (precisa do seu OK, porque é comunicação externa):** o texto abaixo está pronto para uma
+issue no repositório da Voa. Não abri a issue.
+
+> **Título:** `validate()` ignora `reducaoAcrescimo` em `item.valor_divergente` (falso positivo)
+>
+> Em `tiss` 0.5.0, a regra `item.valor_divergente` de `_validate.py` compara `valorUnitario × quantidadeExecutada`
+> com `valorTotal`, sem o fator `reducaoAcrescimo`. Um item SP/SADT com `quantidadeExecutada` 3,
+> `valorUnitario` 33,33, `reducaoAcrescimo` 0,70 e `valorTotal` 69,99 (3 × 33,33 × 0,70 = 69,993) é recusado
+> como divergente. O próprio `line_total` da biblioteca calcula `unitário × quantidade × fator`. Sugestão:
+> usar o fator, com 1 quando ausente, na conferência do `validate()`. Caso 100% sintético, sem dado de paciente.
