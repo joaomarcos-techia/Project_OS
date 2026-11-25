@@ -61,6 +61,8 @@ export async function listBillingGapCandidates(limit = 50): Promise<BillingGapCa
             ) ev ON true
            WHERE s.enabled
              AND a.billing_mode = 'convenio'
+             -- Histórico importado nunca vira faturamento novo (P4.7-b; o serviço também recusa).
+             AND a.created_via <> 'import'
              AND (
                (a.status = 'atendido'
                 AND a.updated_at < now() - ${sql.raw(GRACE)}

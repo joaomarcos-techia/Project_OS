@@ -109,12 +109,13 @@ type AppointmentRow = {
   procedure_id: string | null;
   scheduled_at: string | Date;
   timezone: string | null;
+  created_via: string;
 };
 
 async function loadAppointment(tx: Tx, clinicId: string, appointmentId: string) {
   const rows = await tx.execute<AppointmentRow>(
     sql`SELECT a.status::text AS status, a.billing_mode, a.patient_id, a.doctor_id, a.procedure_id,
-               a.scheduled_at, c.timezone
+               a.scheduled_at, c.timezone, a.created_via::text AS created_via
           FROM appointments a JOIN clinics c ON c.id = a.clinic_id
          WHERE a.clinic_id = ${clinicId} AND a.id = ${appointmentId}
          LIMIT 1`,
@@ -266,6 +267,11 @@ export async function processInsuranceBilling(
   const appt = await loadAppointment(tx, clinicId, appointmentId);
   if (!appt) return { kind: 'not_found' };
   if (appt.billing_mode !== 'convenio') return { kind: 'ignored' };
+  // Histórico importado (P4.7-b, 25/11): o esquema da importação aceita `billingMode`, mas
+  // atendimento passado trazido de outra plataforma nunca vira faturamento TISS novo (nem guia
+  // nem pendência), por nenhum caminho (evento, reconcile ou correção da cobertura). Registrar a
+  // forma de atendimento sem guia é a opção (b) da ficha; gerar guia (c) exige decisão nova.
+  if (appt.created_via === 'import') return { kind: 'ignored' };
 
   let gap = await lockGap(tx, clinicId, appointmentId);
   if (gap?.status === 'dismissed') return { kind: 'dismissed' };

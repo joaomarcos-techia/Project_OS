@@ -608,6 +608,28 @@ try {
   assert.deepEqual([cancelOut.kind, await gapOf(vCancel), (await guidesOf(vCancel)).length], ['not_applicable', null, 0]);
   pass('atendimento cancelado: fora do reconcile; processar não cria guia nem pendência');
 
+  // ── 13b. Histórico importado (P4.7-b): nunca vira faturamento novo ──
+  // A importação histórica aceita `billingMode` no JSON; mesmo de convênio, atendido e COM
+  // cobertura, o atendimento importado fica fora do reconcile e nenhum caminho cria guia ou
+  // pendência (evento, reconcile ou correção).
+  const vImport = await A.visit(A.consulta, 'convenio');
+  await coverage(A, vImport);
+  // Proveniência exigida pelo gatilho da 0067: lote de importação da mesma clínica.
+  const [importBatch] = await sql`insert into public.appointment_import_batches (clinic_id, source, justification, total_items, created_by)
+    values (${A.clinicId}::uuid, 'Plataforma anterior (sintético)', 'Histórico sintético para a prova da P4.7-b', 1, ${A.doctorId}::uuid) returning id`;
+  await sql`update public.appointments set status = 'atendido', created_via = 'import', import_batch_id = ${importBatch!.id}::uuid
+    where id = ${vImport.appointmentId}::uuid`;
+  await age(vImport);
+  const importCandidates = await listBillingGapCandidates(500);
+  assert.equal(importCandidates.some((c) => c.appointmentId === vImport.appointmentId), false);
+  await reconcile();
+  const importOut = await Promise.all((['event', 'reconcile', 'correction'] as const).map((detectedBy) =>
+    withTenant(A.clinicId, (tx) =>
+      processInsuranceBilling(tx, { clinicId: A.clinicId, appointmentId: vImport.appointmentId, detectedBy, eventState: 'not_checked', lock: 'wait' }),
+    )));
+  assert.deepEqual([importOut.map((o) => o.kind), await gapOf(vImport), (await guidesOf(vImport)).length], [['ignored', 'ignored', 'ignored'], null, 0]);
+  pass('histórico importado de convênio (atendido, com cobertura): fora do reconcile; evento, reconcile e correção não criam guia nem pendência (P4.7-b)');
+
   // ── 14. Guia já emitida e guia substituída ──────────────────────────
   const [okGuide] = await guidesOf(vOk);
   await approve(A, okGuide!.id as string);
@@ -746,7 +768,8 @@ try {
   assert.deepEqual([del.deleted, del.anonymized, del.failed, stillGap!.patient_id], [1, 0, 0, null]);
   pass('LGPD: paciente só com pendência (sem guia) é excluído; a pendência fica sem dado pessoal, ligada ao atendimento anonimizado');
 
-  console.log(`\nOK — ${passed}/19 provas da P7.4 (0149) em Postgres descartável.`);
+  assert.equal(passed, 20);
+  console.log(`\nOK — ${passed}/20 provas da P7.4 (0149) e da importação histórica (P4.7-b) em Postgres descartável.`);
 } finally {
   await cluster.stop();
 }
