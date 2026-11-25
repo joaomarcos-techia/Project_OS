@@ -1,7 +1,30 @@
-diff -ru a/src/lib/db/retention-policy.test.ts b/src/lib/db/retention-policy.test.ts
+From 89a7bc5d1483fb3140db515de5ed4e0b63ff5706 Mon Sep 17 00:00:00 2001
+From: joaomarcos-techia <joaogestor.ia@gmail.com>
+Date: Wed, 25 Nov 2026 19:34:08 -0300
+Subject: [PATCH] fix(retention): guardar login_attempts por 186 dias (Marco
+ Civil, art. 15: 6 meses)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+O cron mensal data-retention (0 5 1 * *) apagaria em 01/12/2026 os registros de acesso com mais de 90 dias.
+Leitura de produção (25/11, READ ONLY, só agregados): 125 registros de 10/08 a 30/08/2026, todos dentro dos
+6 meses. 186 dias cobrem o maior semestre (184) com folga; a purga é mensal.
+
+Validado localmente sobre este head (1175b22c): retention-policy.test.ts 17/17; harness com a rota real do cron
+em Postgres descartável 4/4 (nenhum registro dentro dos 6 meses apagado; demais políticas intactas).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/lib/db/retention-policy.test.ts | 6 ++++++
+ src/lib/db/retention-policy.ts      | 9 +++++++--
+ 2 files changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/src/lib/db/retention-policy.test.ts b/src/lib/db/retention-policy.test.ts
+index db55e4a4..b7a96641 100644
 --- a/src/lib/db/retention-policy.test.ts
 +++ b/src/lib/db/retention-policy.test.ts
-@@ -33,6 +33,12 @@
+@@ -33,6 +33,12 @@ describe('retention-policy — registro é a fonte única', () => {
      expect(tables).toContain('idempotency_keys');
    });
  
@@ -14,10 +37,11 @@ diff -ru a/src/lib/db/retention-policy.test.ts b/src/lib/db/retention-policy.tes
    it('não tem tabela duplicada', () => {
      const tables = RETENTION_POLICIES.map((p) => p.table);
      expect(new Set(tables).size).toBe(tables.length);
-diff -ru a/src/lib/db/retention-policy.ts b/src/lib/db/retention-policy.ts
+diff --git a/src/lib/db/retention-policy.ts b/src/lib/db/retention-policy.ts
+index 9cf39788..a727e6ab 100644
 --- a/src/lib/db/retention-policy.ts
 +++ b/src/lib/db/retention-policy.ts
-@@ -40,7 +40,12 @@
+@@ -40,7 +40,12 @@ export interface RetentionPolicy {
  }
  
  const OUTBOX_DAYS = 30;
@@ -31,7 +55,7 @@ diff -ru a/src/lib/db/retention-policy.ts b/src/lib/db/retention-policy.ts
  /**
   * A2 — mensageria raw. 90d cobre suporte/forense e a janela de reprocessamento;
   * o dado útil já foi promovido para as tabelas de domínio no momento do ingest.
-@@ -68,7 +73,7 @@
+@@ -68,7 +73,7 @@ export const RETENTION_POLICIES: readonly RetentionPolicy[] = [
      idColumns: ['id'],
      days: LOGIN_ATTEMPTS_DAYS,
      expired: () => sql`attempted_at < now() - make_interval(days => ${LOGIN_ATTEMPTS_DAYS})`,
@@ -40,3 +64,6 @@ diff -ru a/src/lib/db/retention-policy.ts b/src/lib/db/retention-policy.ts
    },
    {
      table: 'idempotency_keys',
+-- 
+2.56.0.windows.4
+

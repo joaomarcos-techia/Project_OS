@@ -46,7 +46,8 @@ const OUTBOX_DAYS = 30;
  *   registros de acesso a aplicações por 6 (seis) meses, sob sigilo e em ambiente controlado;
  * - Padrão TISS, componente de Segurança e Privacidade 202511, requisito 84 (limite de implantação 30/06/2026):
  *   log de acessos e de tentativas de acesso por no mínimo 180 dias.
- * 186 dias cobrem o maior semestre (184 dias) com folga para a cadência diária do purge. Não guardar mais que isso
+ * 186 dias cobrem o maior semestre (184 dias) com folga; a purga é MENSAL (vercel.json `0 5 1 * *`), então a linha
+ * sai entre 186 e ~217 dias de idade. Não guardar mais que isso
  * é minimização (LGPD, art. 6º, III): o e-mail já é HMAC (email-hash.ts).
  */
 export const LOGIN_ATTEMPTS_DAYS = 186;
