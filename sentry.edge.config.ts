@@ -13,7 +13,7 @@ const dsn =
 Sentry.init({
   dsn,
   enabled: Boolean(dsn),
-  environment: process.env.NODE_ENV,
+  environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
   tracesSampleRate: 0.1,
   sendDefaultPii: false,
   enableLogs: false,

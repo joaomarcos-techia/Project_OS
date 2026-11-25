@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { SignupPlanState } from '@/contexts/onboarding';
@@ -69,6 +69,125 @@ afterEach(() => {
 });
 
 describe('seleção de plano O-4', () => {
+  it('uses only the restricted provisioning endpoint for the approved pilot', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        json(200, {
+          ...STATE,
+          pilot: true,
+          signupFlow: 'trial_first',
+          selectedPlanId: CONSULTORIO_2026_ID,
+          trialDays: 14,
+          offerTrialEndsAt: '2026-11-30T12:00:00.000Z',
+          plans: [
+            {
+              id: CONSULTORIO_2026_ID,
+              code: 'consultorio_2026',
+              name: 'Consultório',
+              priceCents: 19700,
+              cycle: 'monthly',
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(json(200, { state: 'provisioned' }));
+    render(<PlanSelectionForm />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Começar avaliação gratuita' }));
+    await waitFor(() =>
+      expect(assignMock).toHaveBeenCalledWith('/auth/session-refresh?next=/dashboard'),
+    );
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/api/signup/plan',
+      '/api/signup/pilot/provision',
+    ]);
+    expect(assignMock).toHaveBeenCalledTimes(1);
+  });
+  it.each([2, 3, 4, 5])(
+    'preserva resumo e seleção de %i médicos no redesign sem cobrança inicial',
+    async (doctors) => {
+      const id = `00000000-0000-4000-8000-00000000000${doctors}`;
+      const amount = 39700 + (doctors - 2) * 14700;
+      const checkout = deferredResponse();
+      fetchMock
+        .mockResolvedValueOnce(
+          json(200, {
+            ...STATE,
+            signupFlow: 'trial_first',
+            trialDays: 14,
+            offerTrialEndsAt: '2026-11-24T12:00:00.000Z',
+            plans: [2, 3, 4, 5].map((count) => ({
+              id: `00000000-0000-4000-8000-00000000000${count}`,
+              code: `clinica_2026_${count}`,
+              name: `Clínica ${count}`,
+              priceCents: 39700 + (count - 2) * 14700,
+              cycle: 'monthly',
+            })),
+          }),
+        )
+        .mockResolvedValueOnce(
+          json(200, { rowVersion: 8, selectedPlanId: id, selectedBillingCycle: 'monthly' }),
+        )
+        .mockReturnValueOnce(checkout.promise);
+      render(<PlanSelectionForm />);
+      fireEvent.click(await screen.findByRole('radio', { name: new RegExp(`Clínica ${doctors}`) }));
+      const summary = within(screen.getByRole('complementary'));
+      expect(summary.getByRole('heading', { name: `Clínica ${doctors}` })).toBeTruthy();
+      expect(summary.getByText('Mensalidade do plano')).toBeTruthy();
+      expect(
+        summary.getByText(new RegExp(`R\\$\\s*${(amount / 100).toFixed(2).replace('.', ',')}`)),
+      ).toBeTruthy();
+      const button = screen.getByRole('button', { name: 'Começar avaliação gratuita' });
+      fireEvent.click(button);
+      fireEvent.click(button);
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+      expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
+        rowVersion: 7,
+        planId: id,
+        cycle: 'monthly',
+      });
+      expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({});
+      expect(assignMock).not.toHaveBeenCalled();
+      checkout.resolve(json(200, { state: 'provisioned' }));
+      await waitFor(() =>
+        expect(assignMock).toHaveBeenCalledWith('/auth/session-refresh?next=/dashboard'),
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    },
+  );
+  it('starts a selected free trial without redirecting to a payment provider', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        json(200, {
+          ...STATE,
+          signupFlow: 'trial_first',
+          selectedPlanId: CONSULTORIO_2026_ID,
+          trialDays: 14,
+          offerTrialEndsAt: '2026-11-15T12:00:00.000Z',
+          plans: [
+            {
+              id: CONSULTORIO_2026_ID,
+              code: 'consultorio_2026',
+              name: 'Consultório',
+              priceCents: 19700,
+              cycle: 'monthly',
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(json(200, { state: 'provisioned' }));
+    render(<PlanSelectionForm />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Começar avaliação gratuita' }));
+    await waitFor(() =>
+      expect(assignMock).toHaveBeenCalledWith('/auth/session-refresh?next=/dashboard'),
+    );
+    expect(
+      screen.getByText(/Nenhum cartão ou pagamento é necessário para iniciar a avaliação\./u),
+    ).toBeTruthy();
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/api/signup/plan',
+      '/api/signup/checkout',
+    ]);
+  });
   it('resumes the persisted plan at checkout without another selection or plan write', async () => {
     const checkoutUrl = 'https://sandbox.asaas.com/checkoutSession/show?id=existing_fixture';
     fetchMock
@@ -94,11 +213,35 @@ describe('seleção de plano O-4', () => {
     expect(screen.getByText(/R\$.*249,90/u)).toBeTruthy();
     expect(screen.getAllByText('/mês')).toHaveLength(2);
     expect(screen.getAllByText('7 dias grátis após a ativação')).toHaveLength(2);
-    expect(screen.getByRole('radiogroup', { name: 'Planos disponíveis' }).className).toContain(
-      'md:grid-cols-3',
-    );
+    expect(within(screen.getByRole('complementary')).getByText('Clínica Sintética')).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledWith('/api/signup/plan', { cache: 'no-store' });
     expect(screen.queryByText(/Atendente: já está incluído/u)).toBeNull();
+    expect(screen.queryByText('O que você pode testar')).toBeNull();
+  });
+
+  it('discloses the new evaluation quotas before the checkout', async () => {
+    fetchMock.mockResolvedValueOnce(
+      json(200, {
+        ...STATE,
+        trialDays: 14,
+        offerTrialEndsAt: '2026-11-02T13:45:00.000Z',
+        plans: [
+          {
+            id: CONSULTORIO_2026_ID,
+            code: 'consultorio_2026',
+            name: 'Consultório',
+            priceCents: 19700,
+            cycle: 'monthly',
+          },
+        ],
+      }),
+    );
+    render(<PlanSelectionForm />);
+    expect(await screen.findByText('O que você pode testar')).toBeTruthy();
+    expect(screen.getByText(/10 pacientes, 15 agendamentos e 15 documentos/u)).toBeTruthy();
+    expect(
+      screen.getByText(/convites de equipe ficam disponíveis após a confirmação do pagamento/u),
+    ).toBeTruthy();
   });
 
   it('explica que o prazo da nova oferta começa na criação da conta, sem alterar o legado', async () => {

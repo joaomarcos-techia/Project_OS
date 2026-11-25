@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AsaasClient } from '@/lib/payments/asaas';
+import { assertOperationalModuleAccess } from '@/lib/entitlements';
+import { OperationalAccessError } from '@/lib/entitlements/policy';
+vi.mock('@/lib/entitlements', () => ({ assertOperationalModuleAccess: vi.fn(async () => {}) }));
 
 const mocks = vi.hoisted(() => ({
   env: {
@@ -84,6 +87,7 @@ function renew() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(assertOperationalModuleAccess).mockResolvedValue(undefined);
   mocks.env.APP_BASE_URL = 'https://app.qoro.test';
   mocks.env.VERCEL_ENV = undefined;
   mocks.env.VERCEL_URL = undefined;
@@ -137,6 +141,14 @@ describe('resolveCheckoutWindow', () => {
 });
 
 describe('createInitialHostedCheckout', () => {
+  it('blocks trial before claim, callback construction or any provider call', async () => {
+    vi.mocked(assertOperationalModuleAccess).mockRejectedValueOnce(
+      new OperationalAccessError('patient_payments', 'payment_required'),
+    );
+    await expect(run()).rejects.toMatchObject({ code: 'paid_module_restricted' });
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.createCheckout).not.toHaveBeenCalled();
+  });
   it('retorna do Checkout para a branch Preview atual mesmo com APP_BASE_URL antigo', async () => {
     mocks.env.VERCEL_ENV = 'preview';
     mocks.env.VERCEL_BRANCH_URL = 'preview-atual.vercel.app';
@@ -325,6 +337,15 @@ describe('createInitialHostedCheckout', () => {
 });
 
 describe('renewRemainderHostedCheckout', () => {
+  it('blocks trial renewals without provider GET/POST or acquiring a claim', async () => {
+    vi.mocked(assertOperationalModuleAccess).mockRejectedValueOnce(
+      new OperationalAccessError('patient_payments', 'payment_required'),
+    );
+    await expect(renew()).rejects.toMatchObject({ code: 'paid_module_restricted' });
+    expect(mocks.claimRenewal).not.toHaveBeenCalled();
+    expect(mocks.findPaymentByCheckoutSession).not.toHaveBeenCalled();
+    expect(mocks.createCheckout).not.toHaveBeenCalled();
+  });
   it('não cria nova geração no Asaas após a pausa', async () => {
     mocks.claimRenewal.mockResolvedValue({ state: 'account_paused' });
     await expect(renew()).resolves.toBe('account_paused');

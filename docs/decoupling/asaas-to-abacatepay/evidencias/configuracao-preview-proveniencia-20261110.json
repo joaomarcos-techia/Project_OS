@@ -1,0 +1,42 @@
+{
+  "configuration": {
+    "observedAt": "2026-11-08T23:37:04.382Z",
+    "branch": "feat/billing-abacatepay-20261107",
+    "projectVerified": true,
+    "sandboxAttested": true,
+    "targets": ["preview"],
+    "variables": [
+      "SAAS_SIGNUP_PROVIDER",
+      "ABACATEPAY_API_KEY",
+      "ABACATEPAY_STORE_ID",
+      "ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID",
+      "ABACATEPAY_SANDBOX_PLAN_PRODUCTS",
+      "ABACATEPAY_WEBHOOK_SECRET"
+    ],
+    "applied": [
+      "SAAS_SIGNUP_PROVIDER",
+      "ABACATEPAY_API_KEY",
+      "ABACATEPAY_STORE_ID",
+      "ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID",
+      "ABACATEPAY_SANDBOX_PLAN_PRODUCTS",
+      "ABACATEPAY_WEBHOOK_SECRET"
+    ],
+    "productionWrites": 0,
+    "postflight": "PASS",
+    "otherEnvironmentsPreserved": true
+  },
+  "planMap": {
+    "observedAt": "2026-11-09T12:14:17.292Z",
+    "status": "PASS",
+    "apply": true,
+    "branch": "feat/billing-abacatepay-20261107",
+    "targets": ["preview"],
+    "variable": "ABACATEPAY_SANDBOX_PLAN_PRODUCTS",
+    "verifiedProducts": 5,
+    "updatedVariables": 1,
+    "productionWrites": 0,
+    "otherEnvironmentsPreserved": true,
+    "requiresNewDeployment": true
+  },
+  "scope": "Historical sanitized operator output; no secret values"
+}

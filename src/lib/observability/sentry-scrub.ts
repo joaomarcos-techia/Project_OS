@@ -93,5 +93,19 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent | null {
   if (event.contexts) {
     event.contexts = sanitizePayload(event.contexts) as typeof event.contexts;
   }
+  if (event.breadcrumbs) {
+    event.breadcrumbs = event.breadcrumbs.map(({ data, message, ...breadcrumb }) => {
+      const cleaned = sanitizePayload(data);
+      const safeData =
+        cleaned && typeof cleaned === 'object' && !Array.isArray(cleaned)
+          ? Object.fromEntries(Object.entries(cleaned))
+          : undefined;
+      return {
+        ...breadcrumb,
+        ...(typeof message === 'string' ? { message: scrubRequestUrl(message) } : {}),
+        ...(safeData ? { data: safeData } : {}),
+      };
+    });
+  }
   return event;
 }

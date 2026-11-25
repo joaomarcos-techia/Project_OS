@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "status": "FROZEN_FOR_AUTHORIZED_DEV_PREFLIGHT",
+  "tissHead": "4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269",
+  "financialBaseCommit": "52de7ada99b1556df673d4cd849181dba2243df5",
+  "devProjectRef": "pqhkirrszzpwezdaqrai",
+  "expectedInitialHistoryEntries": 144,
+  "initialTag": "0143_tiss_catalog",
+  "financialEntry": {
+    "idx": 159,
+    "version": "7",
+    "breakpoints": true,
+    "when": 1795036973858,
+    "tag": "0159_saas_period_snapshot"
+  },
+  "financialSql": {
+    "file": "docs/decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql",
+    "sha256": "eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74"
+  },
+  "tissDependencies": [
+    {
+      "tag": "0144_hi_clinic_setup",
+      "idx": 144,
+      "when": 1794367436665,
+      "sha256": "b9ac6c7a0b335582f3bf69385a3b004cf9d0784955f27d7c3cd22776a4590589"
+    },
+    {
+      "tag": "0145_hi_memberships",
+      "idx": 145,
+      "when": 1794391493822,
+      "sha256": "98425850e4c2dae613734aa337ce588df641e5c3b67476c055147cb9c82632c4"
+    },
+    {
+      "tag": "0146_hi_authorizations",
+      "idx": 146,
+      "when": 1794395869610,
+      "sha256": "15cbf34c1439cc1d7a0ca4be40267729b44c1cdea1760d5090deb10288493cb6"
+    },
+    {
+      "tag": "0147_hi_guides",
+      "idx": 147,
+      "when": 1794399173366,
+      "sha256": "a344a7e86074d90a4b13b007ef6f9e3357ac23e3b8bc43743158d131ca45238a"
+    },
+    {
+      "tag": "0148_hi_coverage_copay",
+      "idx": 148,
+      "when": 1794405160338,
+      "sha256": "45f0b90b9307c5888e8e0ac61fab9685561f89a62cdf54ea60d2bd3becfdcb0b"
+    },
+    {
+      "tag": "0149_hi_billing_gaps",
+      "idx": 149,
+      "when": 1794416643149,
+      "sha256": "56c0d5f29a409b65e0fe4fc1ac7512bbd8c979150c2252e375a375b85139d183"
+    },
+    {
+      "tag": "0150_hi_batches",
+      "idx": 150,
+      "when": 1794418524711,
+      "sha256": "e7dc279a073501a4f2e03dd95ff9773564cbc690ea2591a3e94a03f9a273c992"
+    },
+    {
+      "tag": "0151_hi_premium_gate",
+      "idx": 151,
+      "when": 1794432173857,
+      "sha256": "a0e446dbce4121c538c4a3e206a406e0977d5d1729ed14b03417a3937b71ae0b"
+    },
+    {
+      "tag": "0152_hi_glosses_payments",
+      "idx": 152,
+      "when": 1794518573857,
+      "sha256": "f16efcaabf8ed205b102005883c8627d3f1037edbcd91908f1d700123720766a"
+    },
+    {
+      "tag": "0153_hi_ledger_bridge",
+      "idx": 153,
+      "when": 1794604973857,
+      "sha256": "ebb976532db49b2d36947cd5c37724a6b6b9c85713e2f92818fcefc992b23378"
+    },
+    {
+      "tag": "0154_hi_premium_period_evidence",
+      "idx": 154,
+      "when": 1794691373857,
+      "sha256": "3e493911867aa5cf1157ee083a451a9bd1f86a084f371d36da5312d08676925a"
+    },
+    {
+      "tag": "0155_ledger_payment_sum_by_clinic",
+      "idx": 155,
+      "when": 1794777773857,
+      "sha256": "aecc5c2d0b7cf36a3dbdcf7331d4247077acf8c7466cbc853e2d40dc905e1d33"
+    },
+    {
+      "tag": "0156_hi_sadt_requests",
+      "idx": 156,
+      "when": 1794864173857,
+      "sha256": "cdf3004b15a8a09d6e8f2065bf42be39a05b979eb4d12cd8a5ac1d32b492f860"
+    },
+    {
+      "tag": "0157_hi_professional_payouts",
+      "idx": 157,
+      "when": 1794950573857,
+      "sha256": "f39a58d0401b3d221b03cbe0b41c9f4b530947d0f03b4b3564929e11349b5f15"
+    },
+    {
+      "tag": "0158_hi_copay_charge",
+      "idx": 158,
+      "when": 1795036973857,
+      "sha256": "40cc90493b5abf980c209485c83451f33c4cfc5931b87f3af7653f2091af63a2"
+    }
+  ],
+  "authorization": {
+    "date": "2026-11-12",
+    "scope": "Full TISS 0144-0158 and financial successor in DEV only; no Production migration",
+    "sourceSha256": "5ed722712baba7a7c77c9b385d17160ef7a2eff8c154f85d253bf01eb2bf5cbc",
+    "explicitScopeClarification": "Founder approved the complete DEV chain after disclosure of the shared-journal dependency"
+  },
+  "productionAuthorized": false,
+  "reviewedSqlTissHead": "120e8195e4ad267a64157239cb9bc0c22b432033",
+  "initialHistoryAlternatives": [
+    144,
+    159
+  ],
+  "sourceRefresh": "Code pin advanced through bf59cbc3 (configuration, copay UI, delegated asynchronous export and mobile fixes) to 4d0ed1d5 (only tests, fixtures and documentation). SQL/schema 0143-0158 and runtime unchanged in bf59cbc3..4d0ed1d5. Applied financial0159 bytes/when/hash preserved. No owner worktree edits imported."
+}

@@ -1,0 +1,72 @@
+{
+  "observedAt": "2026-11-08T19:33:52.266Z",
+  "environment": "local_synthetic_only",
+  "sourceSha256": "a6fb0e8474b6e07087f50a9ee5e4ecd6567f3e7cb08e31269cd87735d17a4f03",
+  "migrationSha256": "43bb658055c581eae20788c6df87d50fc16ec00e472a73da52500d4a22e2fe10",
+  "build": {
+    "status": "PASS",
+    "exitCode": 0,
+    "completedAt": "2026-11-08T19:17:38.002Z",
+    "sourceMatches": true
+  },
+  "trialDatabase": {
+    "observedAt": "2026-11-08T19:03:05.588Z",
+    "status": "PASS",
+    "checks": 43,
+    "environment": "synthetic_loopback_postgres",
+    "migration": "0136_trial_resource_limits",
+    "remoteWrites": 0,
+    "providerCalls": 0
+  },
+  "candidateGatewayDatabase": {
+    "observedAt": "2026-11-08T19:30:09.305Z",
+    "status": "PASS",
+    "checks": 38,
+    "environment": "disposable_postgres_loopback",
+    "existingMigrations": 137,
+    "candidateMigrationRegistered": false,
+    "remoteWrites": 0,
+    "providerCalls": 0,
+    "syntheticCleanup": "PRESERVED_SYNTHETIC_DIRECTORY"
+  },
+  "initialIntegralRun": {
+    "status": "FAIL",
+    "files": 591,
+    "passed": 6402,
+    "failed": 1,
+    "skipped": 0
+  },
+  "finalFocusedRetest": {
+    "status": "PASS",
+    "files": 18,
+    "passed": 190,
+    "failed": 0,
+    "skipped": 0
+  },
+  "latestPerFileComposition": {
+    "status": "PASS",
+    "files": 594,
+    "passed": 6415,
+    "failed": 0,
+    "skipped": 0,
+    "caveat": "Initial integral batches plus final focused replacements; not one fresh integral run on the final snapshot."
+  },
+  "browserBundle": {
+    "status": "PASS",
+    "scannedClientFiles": 195,
+    "failures": []
+  },
+  "typecheck": "PASS",
+  "lint": "PASS",
+  "databaseArchitectureGuard": {
+    "status": "PASS",
+    "scannedFiles": 1698,
+    "findings": 0
+  },
+  "migrationSafety": "PASS",
+  "remoteMigration": "NOT RUN",
+  "previewTrialE2E": "NOT RUN",
+  "externalPaymentUnlockE2E": "NOT RUN",
+  "remoteWrites": 0,
+  "providerCallsInTrialValidation": 0
+}

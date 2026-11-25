@@ -2,6 +2,9 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 import { pageGate } from '@/lib/auth/page-guard';
 import { PageNoAccess } from '@/components/shared/page-no-access';
 import { Alert } from '@/components/ui/alert';
+import Link from 'next/link';
+import { requireClinicId } from '@/lib/auth/tenant-context';
+import { loadTrialAccess } from '@/lib/trial-access';
 
 import { loadPagamentosPage } from './data';
 import { DepositPolicyForm } from './deposit-policy-form';
@@ -33,6 +36,19 @@ export default async function PagamentosSettingsPage() {
     );
   }
 
+  const trial = await loadTrialAccess(await requireClinicId());
+  if (trial?.restricted) {
+    return (
+      <Alert title="Asaas disponível após o pagamento">
+        A conexão da conta recebedora e as cobranças integradas ficam disponíveis após a confirmação
+        do pagamento da assinatura Qoro. No trial, você pode testar os registros financeiros manuais
+        dentro das cotas.{' '}
+        <Link href="/configuracoes/assinatura" className="underline">
+          Ver assinatura
+        </Link>
+      </Alert>
+    );
+  }
   const data = await loadPagamentosPage();
   return (
     <div className="flex flex-col gap-6">

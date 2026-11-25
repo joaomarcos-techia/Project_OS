@@ -28,6 +28,7 @@ import { TableToolbar, TableToolbarSpacer } from '@/components/ui/table-toolbar'
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { getCurrentUser } from '@/lib/auth/tenant-context';
 import { cn } from '@/lib/ui/cn';
+import { loadTrialAccess } from '@/lib/trial-access';
 
 import { InviteDrawer } from './invite-drawer';
 import { InviteRowActions } from './invite-row-actions';
@@ -129,6 +130,7 @@ export default async function EquipePage({
       : Promise.resolve(false),
   ]);
   const { q: qRaw, filtro: filtroRaw } = await searchParams;
+  const trial = await loadTrialAccess(user.clinicId);
   const q = (qRaw ?? '').trim();
   const filtro: FiltroEquipe = isFiltro(filtroRaw) ? filtroRaw : 'todos';
 
@@ -182,7 +184,11 @@ export default async function EquipePage({
                 {seatLimit - ativos === 1 ? '' : 's'} no plano
               </span>
             ) : null}
-            <InviteDrawer ativos={ativos} seatLimit={seatLimit} />
+            {trial?.restricted ? (
+              <span>Convites disponíveis após o pagamento</span>
+            ) : (
+              <InviteDrawer ativos={ativos} seatLimit={seatLimit} />
+            )}
           </>
         }
       />

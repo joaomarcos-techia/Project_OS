@@ -42,6 +42,7 @@ import {
 import { decryptForTenant, encryptForTenant, phoneLookupHashes } from '@/lib/crypto';
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
+import { getOperationalModuleAccess } from '@/lib/entitlements';
 import { resolveAiSnapshotMode } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
 import { getAiAgentMode } from '@/lib/platform-settings';
@@ -670,6 +671,12 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
       `clinicId divergente: payload=${payload.clinicId} ctx=${clinicId}`,
       'clinic_mismatch',
     );
+  }
+
+  const access = await getOperationalModuleAccess(clinicId, 'ai_agents');
+  if (!access.allowed) {
+    metrics.emit('ai_agent.turn.skipped', { clinicId, eventId, reason: access.reason });
+    return;
   }
 
   // GUARD em transação curta: inbound + dedup final do turno.

@@ -5,6 +5,9 @@
  */
 import { PgDialect } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
+import { assertTrialPaidFeatureTx } from '@/lib/trial-access';
+import { TrialAccessError } from '@/lib/trial-access/policy';
+vi.mock('@/lib/trial-access', () => ({ assertTrialPaidFeatureTx: vi.fn(async () => {}) }));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // vi.hoisted: a fábrica do vi.mock é içada acima dos imports; expor o spy por aqui
@@ -60,6 +63,15 @@ const baseInput: UpsertTenantConnectionInput = {
 beforeEach(() => vi.clearAllMocks());
 
 describe('upsertTenantConnection (Caso 4)', () => {
+  it('trial denies persistence without changing an existing connection', async () => {
+    const { tx } = makeTx([]);
+    runWithTx(tx);
+    vi.mocked(assertTrialPaidFeatureTx).mockRejectedValueOnce(new TrialAccessError('whatsapp'));
+    await expect(upsertTenantConnection(baseInput)).rejects.toMatchObject({
+      code: 'trial_access_restricted',
+    });
+    expect(tx.execute).not.toHaveBeenCalled();
+  });
   it('número já existe (reconexão) → UPDATE in-place, sem INSERT, desativa outras', async () => {
     const { tx, sqls } = makeTx([[{ id: 'found-1' }], [], []]);
     runWithTx(tx);

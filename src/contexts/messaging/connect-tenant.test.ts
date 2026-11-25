@@ -5,6 +5,9 @@
  * src/lib/messaging/connection-store.test.ts (SQL com tx mockada).
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { TrialAccessError } from '@/lib/trial-access/policy';
+import { assertTrialPaidFeature } from '@/lib/trial-access';
+vi.mock('@/lib/trial-access', () => ({ assertTrialPaidFeature: vi.fn(async () => {}) }));
 
 import type * as EnvModule from '@/lib/env';
 
@@ -98,6 +101,16 @@ beforeEach(() => {
 });
 
 describe('connectMyClinicWhatsapp', () => {
+  it('trial blocks before exchanging a token, registering, encrypting or saving', async () => {
+    vi.mocked(assertTrialPaidFeature).mockRejectedValueOnce(new TrialAccessError('whatsapp'));
+    await expect(
+      connectMyClinicWhatsapp({ code: 'CODE', registrationPin: '123456', wabaId: 'waba-1' }),
+    ).rejects.toMatchObject({ code: 'trial_access_restricted' });
+    expect(onboarding.exchangeCodeForToken).not.toHaveBeenCalled();
+    expect(onboarding.subscribeAppToWaba).not.toHaveBeenCalled();
+    expect(encryptForTenant).not.toHaveBeenCalled();
+    expect(upsertTenantConnection).not.toHaveBeenCalled();
+  });
   it('Caso 1: conecta válido → persiste cifrado + retorna número mascarado', async () => {
     const res = await connectMyClinicWhatsapp({
       code: 'CODE',

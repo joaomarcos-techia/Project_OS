@@ -1,0 +1,76 @@
+{
+  "baseCommit": "534995b0a41d3b856fa0310e9e4359245a44589a",
+  "branch": "feat/billing-abacatepay-20261107",
+  "generatedAt": "2026-11-07T23:40:44.169Z",
+  "attestationUpdatedAt": "2026-11-08T01:24:23.497Z",
+  "planningFilesPreserved": 29,
+  "ownMarkdownFiles": 3,
+  "localLinks": 16,
+  "parsedMermaidDiagrams": 3,
+  "sourceFiles": [
+    {
+      "file": "src/lib/payments/saas/asaas-reader.ts",
+      "sha256": "d9e147948eb01e6bdebb86e9fe2039bd773f7839c547dd5cf6d5fd673ebb455a"
+    },
+    {
+      "file": "src/lib/payments/saas/contracts.ts",
+      "sha256": "c1a4baf5e93ef8dbb56f1a0193408b924cfc2eff3497f66329322ea90ec8957f"
+    },
+    {
+      "file": "src/lib/payments/abacatepay/reader.ts",
+      "sha256": "c9f9464c7ed6ecef969f1acbbae4963b4baa0b7e56032bbebfc702ad2860791b"
+    },
+    {
+      "file": "src/lib/payments/abacatepay/webhook.ts",
+      "sha256": "8aa1980346e2019eefc16f623a1be0b03dd367201f066663eed291b7d08526f1"
+    }
+  ],
+  "tests": {
+    "baselineExisting": 397,
+    "intermediateCombined": 495,
+    "latestNew": 100,
+    "latestNewFiles": 3,
+    "failed": 0,
+    "skipped": 0
+  },
+  "realApi": {
+    "totalGetRequests": 14,
+    "successfulAuthentication": true,
+    "sandbox": "PASS",
+    "reason": "user_created_synthetic_product_returned_devMode_true",
+    "attestationFile": "SANDBOX-ATTESTATION-2026-11-07.json",
+    "subscriptionCheckouts": 0,
+    "mutations": 0
+  },
+  "activeCompositionChanged": false,
+  "databaseChanged": false,
+  "productionChanged": false,
+  "buildProductionSourceCopyMatches": true,
+  "checks": {
+    "typecheck": "PASS",
+    "fullLint": "PASS",
+    "formatting": "PASS",
+    "productionBuild": {
+      "status": "PASS",
+      "environment": "isolated_synthetic_no_local_env",
+      "staticPages": 47,
+      "exitCode": 0
+    },
+    "browserBundle": {
+      "status": "PASS",
+      "files": 195,
+      "findings": 0
+    },
+    "architectureDb": {
+      "status": "PASS",
+      "files": 1668,
+      "findings": 0
+    },
+    "integrationDb": "NOT RUN",
+    "externalWebhook": "NOT RUN",
+    "externalPayments": "NOT RUN",
+    "endToEnd": "NOT RUN"
+  },
+  "credentialFoundInNewOutput": false,
+  "errors": []
+}

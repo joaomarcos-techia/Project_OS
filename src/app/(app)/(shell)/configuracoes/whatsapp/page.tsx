@@ -2,6 +2,10 @@ import { env } from '@/lib/env';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { pageGate } from '@/lib/auth/page-guard';
 import { PageNoAccess } from '@/components/shared/page-no-access';
+import Link from 'next/link';
+import { Alert } from '@/components/ui/alert';
+import { requireClinicId } from '@/lib/auth/tenant-context';
+import { loadTrialAccess } from '@/lib/trial-access';
 
 import { readWhatsappProfileAction } from './actions';
 import { loadWhatsappStatus } from './data';
@@ -30,6 +34,18 @@ export default async function WhatsappSettingsPage() {
         title="WhatsApp"
         description="Seu perfil não tem permissão para gerenciar as configurações da clínica. Fale com um gestor se precisar de acesso."
       />
+    );
+  }
+  const trial = await loadTrialAccess(await requireClinicId());
+  if (trial?.restricted) {
+    return (
+      <Alert title="WhatsApp disponível após o pagamento">
+        Durante a avaliação, explore o sistema sem conectar seu número. A integração será liberada
+        após a confirmação do pagamento da assinatura.{' '}
+        <Link href="/configuracoes/assinatura" className="underline">
+          Ver assinatura
+        </Link>
+      </Alert>
     );
   }
   const status = await loadWhatsappStatus();

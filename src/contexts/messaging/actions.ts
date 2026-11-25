@@ -43,6 +43,7 @@ import { assertWhatsappOnboardingReady } from '@/lib/env';
 import { maskPhone } from '@/lib/format';
 import { logger } from '@/lib/observability/logger';
 import { metrics } from '@/lib/observability/metrics';
+import { assertTrialPaidFeature } from '@/lib/trial-access';
 import {
   deactivateTenantConnection,
   loadConnectionForHealth,
@@ -102,6 +103,7 @@ const ClinicIdSchema = z.string().uuid('clinicId inválido.');
 export async function connectWhatsappNumber(input: ConnectNumberInput): Promise<{ id: string }> {
   await requireSuperAdmin(); // B3 — gate ANTES de parse/cripto
   const data = ConnectNumberSchema.parse(input);
+  await assertTrialPaidFeature(data.clinicId, 'whatsapp');
   const ctx = await requestContext();
   const tokenEncrypted = await encryptForTenant(data.clinicId, data.token);
 
@@ -270,6 +272,7 @@ export async function connectMyClinicWhatsapp(
   const clinicId = await requireClinicId();
   const ctx = await requestContext();
   const data = ConnectMyClinicSchema.parse(input);
+  await assertTrialPaidFeature(clinicId, 'whatsapp');
 
   // Fase Meta (sem DB). Falha ⇒ audita connection_failed + lança MetaConnectError;
   // nenhuma escrita no número (Caso 3).

@@ -1,0 +1,56 @@
+{
+  "sourceCodeSha": "099aa2f840846b7cbc9839389197184afe04ff3e",
+  "ci": {
+    "status": "SUCCESS",
+    "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/42556591148",
+    "unitPassed": 6558,
+    "testFiles": 604,
+    "publicE2ePassed": 8,
+    "publicE2eSkipped": 2,
+    "skipReason": "Turnstile keys absent in isolated build"
+  },
+  "localPostgres": {
+    "checks": 47,
+    "migrations": 140,
+    "externalNetworkCalls": 0,
+    "environment": "synthetic_loopback"
+  },
+  "migration": {
+    "observedAt": "2026-11-09T03:44:34.219Z",
+    "environment": "known_dev_project",
+    "preflight": "PASS",
+    "remoteMigrationsBefore": 139,
+    "pending": ["0139_saas_gateway_recontracts"],
+    "applied": ["0139_saas_gateway_recontracts"],
+    "productionWrites": 0,
+    "existingDataPreserved": true,
+    "postflight": "PASS",
+    "remoteMigrationsAfter": 140
+  },
+  "sandboxCancellation": {
+    "observedAt": "2026-11-09T03:57:10.012Z",
+    "status": "PASS",
+    "stage": "cancelled_verified_provider_database_ui",
+    "origin": "https://project-iyhwvgjdd-clinic-os-v2-s-projects.vercel.app",
+    "runId": "6a37f97e-8173-4b88-8875-dd8c0f8b7f78",
+    "providerStatus": "CANCELLED",
+    "localStatus": "active",
+    "paidAccessUntil": "2026-12-09T00:31:10.888Z",
+    "invoices": 1,
+    "cancelOperations": 1,
+    "confirmedCancellations": 1,
+    "repeatCancellation": "PASS_no_second_operation",
+    "earlyRecontract": "DENIED_409",
+    "uiWidths": [1440, 390],
+    "historyAndTrialUnchanged": true,
+    "newCharges": 0,
+    "productionWrites": 0,
+    "temporalEndAndRecontract": "local_synthetic_proof_only"
+  },
+  "boundaries": [
+    "Cancellation and early re-contract denial proved against the retained Sandbox fixture",
+    "End of paid month and successful re-contract proved only with local synthetic dates/HTTP",
+    "No observed temporal monthly renewal",
+    "No new charge, customer contract migration, production change or main merge"
+  ]
+}

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { actionErrorLogFields } from './caixa-types';
+import { actionErrorLogFields, fail } from './caixa-types';
+import { TrialAccessError } from '@/lib/trial-access/policy';
+
+it('returns the known trial quota as a safe business denial', () => {
+  const error = new TrialAccessError('payments');
+  expect(fail(error)).toEqual({ ok: false, code: error.code, message: error.message });
+});
 
 describe('actionErrorLogFields', () => {
   it('retém apenas identificadores técnicos seguros', () => {

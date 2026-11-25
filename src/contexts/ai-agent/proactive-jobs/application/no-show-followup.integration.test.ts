@@ -6,6 +6,10 @@
  * do instante do envio).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+// This controlled integration retains a paid contract; commercial state is tested separately.
+vi.mock('@/lib/entitlements', () => ({
+  getOperationalModuleAccess: vi.fn(async () => ({ allowed: true })),
+}));
 
 import type * as EnvModule from '@/lib/env';
 

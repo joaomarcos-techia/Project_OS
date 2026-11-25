@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 
 import {
   readSignupPlan,
+  readPilotSignupPlan,
+  pilotPlanSelectionAllowed,
   resolveReadyOwnedSignupOnboarding,
   signupPlanMutationSchema,
   writeSignupPlan,
@@ -66,7 +68,8 @@ export async function GET(req: Request): Promise<Response> {
     if (!limit.ok)
       return limited(limit.reason, 'retryAfter' in limit ? limit.retryAfter : undefined);
 
-    const result = await readSignupPlan(identity.userId);
+    const result =
+      (await readPilotSignupPlan(identity.userId)) ?? (await readSignupPlan(identity.userId));
     if (!result.ok) {
       return json({ error: result.reason }, result.reason === 'gone' ? 410 : 503);
     }
@@ -104,6 +107,8 @@ export async function PUT(req: Request): Promise<Response> {
     const input = signupPlanMutationSchema.safeParse(parsed);
     if (!input.success) return json({ error: 'invalid_body' }, 400);
 
+    if (!(await pilotPlanSelectionAllowed(identity.userId, input.data)))
+      return json({ error: 'invalid_plan' }, 422);
     const result = await writeSignupPlan(identity.userId, input.data);
     if (!result.ok) {
       const status =

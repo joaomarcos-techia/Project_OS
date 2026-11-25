@@ -1,0 +1,80 @@
+name: Gate B synthetic recovery and exact composed build
+
+on:
+  push:
+    branches: [feat/billing-abacatepay-20261107]
+    paths:
+      - .github/workflows/gate-b-synthetic.yml
+      - scripts/gate-b-synthetic-ci.ts
+      - scripts/gate-b-composed-build.ts
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-b-synthetic-only
+  cancel-in-progress: false
+
+jobs:
+  private-input:
+    if: github.repository == 'joaomarcos-techia/Project_OS' && github.ref == 'refs/heads/feat/billing-abacatepay-20261107'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    # GitHub requires push access for a DRAFT asset. This job executes no checkout,
+    # package, application or test code. The next VM has only contents:read.
+    permissions:
+      contents: write
+    steps:
+      - name: Fetch private draft input and verify immutable digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api repos/joaomarcos-techia/Project_OS/releases/assets/752472125 \
+            -H 'Accept: application/octet-stream' > "$RUNNER_TEMP/qoro-gate-b0.tar"
+          printf '%s  %s\n' '3902f2007742df4016450eeaece806a8f2bc0b535631d33da9a5e691b59ce3f6' "$RUNNER_TEMP/qoro-gate-b0.tar" | sha256sum --check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gate-b-frozen-private-input
+          path: ${{ runner.temp }}/qoro-gate-b0.tar
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
+  synthetic-and-composed:
+    if: github.repository == 'joaomarcos-techia/Project_OS' && github.ref == 'refs/heads/feat/billing-abacatepay-20261107'
+    needs: private-input
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.4
+      - name: Install frozen tool dependencies (no repository secrets)
+        run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: gate-b-frozen-private-input
+          path: ${{ runner.temp }}
+      - name: Real synthetic PostgreSQL dump, GPG, isolated restore and failures
+        id: restore
+        run: pnpm exec tsx scripts/gate-b-synthetic-ci.ts dist/gate-b-ci/restore.json
+      - name: Exact composed package build after recovery cleanup
+        if: ${{ !cancelled() && steps.restore.outcome != 'skipped' }}
+        run: pnpm exec tsx scripts/gate-b-composed-build.ts "$RUNNER_TEMP/qoro-gate-b0.tar" dist/gate-b-ci/restore.json dist/gate-b-ci
+      - name: Preserve only sanitized reports (never database, ciphertext or build output)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-b-synthetic-evidence-${{ github.sha }}
+          path: |
+            dist/gate-b-ci/*.json
+            dist/gate-b-ci/*.log
+          retention-days: 1
+          if-no-files-found: warn

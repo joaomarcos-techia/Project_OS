@@ -14,6 +14,8 @@ import { getCurrentUser } from '@/lib/auth/tenant-context';
 import { getImpersonationView } from '@/lib/impersonation';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { getActiveAnnouncement } from '@/lib/platform-announcements';
+import { loadTrialAccess } from '@/lib/trial-access';
+import { TrialAccessNotice } from './_painel/trial-access-notice';
 
 import { HandoffWatcher } from './_painel/handoff-watcher';
 import { TOUR_STEPS } from '@/contexts/onboarding';
@@ -86,6 +88,7 @@ export default async function ShellLayout({ children }: { children: ReactNode })
   // para quem o layout vai redirecionar seria trabalho jogado fora. Memoizada
   // por request, então o dashboard reaproveita a mesma linha. Nunca cria linha.
   const onboarding = await currentOnboardingProgress();
+  const trialAccess = user.clinicId ? await loadTrialAccess(user.clinicId) : null;
 
   return (
     <>
@@ -109,6 +112,7 @@ export default async function ShellLayout({ children }: { children: ReactNode })
           ? { clinicSettingsHref: '/configuracoes/perfil' }
           : {})}
       >
+        <TrialAccessNotice snapshot={trialAccess} />
         {children}
       </PainelShell>
     </>
