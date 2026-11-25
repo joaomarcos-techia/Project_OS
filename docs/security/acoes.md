@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 202 actions (0 inline); 69 métodos em 65 handlers; 19 props com referência de action; 581 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
+Contagem: 202 actions (0 inline); 69 métodos em 65 handlers; 19 props com referência de action; 584 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -642,6 +642,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/abacatepay-operational-worker.ts:13`     | `UPSTASH_REDIS_REST_URL`               | `process.env.UPSTASH_REDIS_REST_URL`                                        |
 | `scripts/security/abacatepay-pix-release-db.ts:14`         | `QORO_PIX_MIGRATION_FOLDER`            | `process.env.QORO_PIX_MIGRATION_FOLDER`                                     |
 | `scripts/security/abacatepay-pix-release-db.ts:15`         | `QORO_PIX_MIGRATION_FOLDER`            | `process.env.QORO_PIX_MIGRATION_FOLDER`                                     |
+| `scripts/security/abacatepay-pix-release-db.ts:139`        | `<object>`                             | `process.env`                                                               |
+| `scripts/security/abacatepay-pix-release-db.ts:159`        | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
+| `scripts/security/abacatepay-pix-release-db.ts:160`        | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/security/abacatepay-rate-db.ts:10`                | `<object>`                             | `process.env`                                                               |
 | `scripts/security/abacatepay-rate-db.ts:16`                | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/security/abacatepay-rate-db.ts:17`                | `QORO_DOCKER_BIN`                      | `process.env.QORO_DOCKER_BIN`                                               |
