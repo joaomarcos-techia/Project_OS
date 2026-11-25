@@ -7,6 +7,10 @@ import { z } from 'zod';
 import { readTissFootprintLazy } from '@/app/(app)/_lib/tiss-footprint';
 import { markInviteAccepted } from '@/contexts/identity/internal/members';
 import { assertInviteAcceptAllowed, getClientIp } from '@/lib/auth/rate-limit';
+import {
+  recordTissPasswordChange,
+  tissPasswordReuseError,
+} from '@/lib/auth/security-profile/password-lifecycle';
 import { tissPasswordPolicyError } from '@/lib/auth/security-profile/password-policy';
 import { createServerClient } from '@/lib/auth/supabase-server';
 import { readAuthoritativeProfile } from '@/lib/auth/tenant-context';
@@ -78,6 +82,13 @@ export async function acceptInviteAction(
     readTissFootprintLazy,
   );
   if (tissPasswordError) return { error: tissPasswordError };
+  const tissReuseError = await tissPasswordReuseError(
+    userData.user.id,
+    profile.clinicId ?? null,
+    parsed.data.password,
+    { readFootprint: readTissFootprintLazy },
+  );
+  if (tissReuseError) return { error: tissReuseError };
 
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
   if (error) {
@@ -90,6 +101,11 @@ export async function acceptInviteAction(
   // config invisível do GoTrue). Best-effort — não trava o aceite.
   await supabase.auth.signOut({ scope: 'others' }).catch(() => {
     /* não-fatal: o aceite segue; as outras sessões morrem no epoch se drift */
+  });
+
+  // S4: primeira senha do convidado entra no histórico (best-effort; a senha já está no Auth).
+  await recordTissPasswordChange(userData.user.id, profile.clinicId ?? null, parsed.data.password, {
+    readFootprint: readTissFootprintLazy,
   });
 
   await markInviteAccepted(userData.user.id);

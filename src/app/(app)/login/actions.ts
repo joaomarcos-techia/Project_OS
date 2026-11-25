@@ -18,7 +18,9 @@ import {
 import { createServerClient } from '@/lib/auth/supabase-server';
 import { readAuthoritativeProfile } from '@/lib/auth/tenant-context';
 import { hashEmail } from '@/lib/auth/email-hash';
+import { readTissFootprintLazy } from '@/app/(app)/_lib/tiss-footprint';
 import { checkLoginByAuditTrail } from '@/lib/auth/login-attempts-fallback';
+import { tissPasswordAge } from '@/lib/auth/security-profile/password-lifecycle';
 import { recordLoginAttempt } from '@/lib/auth/login-audit';
 import { assertLoginAllowed, assertPasswordResetAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { postLoginRedirect } from '@/lib/auth/policies';
@@ -197,6 +199,27 @@ export async function loginAction(
   if (profile.ativo === false || profile.deletedAt != null) {
     await supabase.auth.signOut({ scope: 'local' });
     return { error: 'Acesso desativado. Contate o administrador da clínica.' };
+  }
+
+  // S4 (requisito 81 da ANS): no perfil TISS, a senha vence em 90 dias (carência de 90 contada da ativação).
+  // Vencida: encerra a sessão recém-aberta e manda o link de troca pelo caminho de recuperação de sempre.
+  const age = await tissPasswordAge(data.user.id, profile.clinicId ?? null, {
+    readFootprint: readTissFootprintLazy,
+  });
+  if (age?.kind === 'must_change') {
+    await supabase.auth.signOut({ scope: 'local' });
+    try {
+      await sendPasswordResetEmail(email);
+    } catch (error) {
+      logger.error('login.password_expired_email_failed', {
+        reason: error instanceof Error ? error.name : 'unknown',
+      });
+    }
+    metrics.emit('auth.login.password_expired', {});
+    return {
+      error:
+        'Sua senha venceu (troca a cada 90 dias no perfil de segurança de Convênios). Enviamos um link para o seu e-mail para criar uma nova.',
+    };
   }
 
   const aal = await getAal(supabase);

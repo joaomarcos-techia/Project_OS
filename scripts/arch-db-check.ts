@@ -148,6 +148,8 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     // I-11a (0042): auditoria de login via service_role (record_login_attempt SECURITY
     // DEFINER, D9) em vez de anon via PostgREST. Best-effort, nunca bloqueia o login.
     'src/lib/auth/login-audit.ts',
+    // S4 (requisitos 81/82 da ANS): histórico de verificadores de senha (auth_password_history, só service_role).
+    'src/lib/auth/password-history.ts',
     // Perfil da clínica (tenant-facing): clinics UPDATE é super_admin via RLS
     // (S5) → escrita do tenant via dbAdmin+audit, colunas fixas + WHERE id=clinicId
     // (do request). Irmão do connection-store de mensageria.

@@ -31,6 +31,27 @@ const LABEL: Record<TissPasswordProblem, string> = {
 /** `TISS_SECURITY_PROFILE_ENFORCE` e `TISS_SECURITY_PROFILE_SCOPE`; o padrão é o `process.env`. */
 export type TissPasswordPolicyEnv = Readonly<Record<string, string | undefined>>;
 
+/**
+ * Alcance do perfil TISS para regras de senha (S1): perfil ligado E (modo plataforma OU clínica com dado TISS ou
+ * módulo ligado). Sem clínica, só no modo plataforma. Rastro ilegível com o perfil ligado = dentro do alcance.
+ */
+export async function isInTissPasswordScope(
+  clinicId: string | null,
+  readFootprint: FootprintReader,
+  env: TissPasswordPolicyEnv = process.env,
+): Promise<boolean> {
+  if (!isTissProfileEnforced(env)) return false;
+  const mode =
+    env.TISS_SECURITY_PROFILE_SCOPE === 'platform' ? 'platform' : 'clinics_with_tiss_data';
+  if (mode === 'platform') return true;
+  if (clinicId === null) return false;
+  try {
+    return decideTissScope(await readFootprint(clinicId), mode).inScope;
+  } catch {
+    return true; // perfil ligado e rastro ilegível: a regra mais forte
+  }
+}
+
 /** `null` = a regra TISS não se aplica ou foi atendida; texto = o que falta, para mostrar ao usuário. */
 export async function tissPasswordPolicyError(
   password: string,
@@ -38,19 +59,7 @@ export async function tissPasswordPolicyError(
   readFootprint: FootprintReader,
   env: TissPasswordPolicyEnv = process.env,
 ): Promise<string | null> {
-  if (!isTissProfileEnforced(env)) return null;
-  const mode =
-    env.TISS_SECURITY_PROFILE_SCOPE === 'platform' ? 'platform' : 'clinics_with_tiss_data';
-  let inScope: boolean;
-  if (mode === 'platform') inScope = true;
-  else if (clinicId === null) inScope = false;
-  else {
-    try {
-      inScope = decideTissScope(await readFootprint(clinicId), mode).inScope;
-    } catch {
-      inScope = true; // perfil ligado e rastro ilegível: a regra mais forte
-    }
-  }
+  const inScope = await isInTissPasswordScope(clinicId, readFootprint, env);
   if (!inScope) return null;
   const problems = tissPasswordProblems(password);
   if (problems.length === 0) return null;

@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   assertLoginAllowed: vi.fn(),
   assertPasswordResetAllowed: vi.fn(),
   checkLoginByAuditTrail: vi.fn(),
+  tissPasswordAge: vi.fn(),
   createPasswordResetRedirectUrl: vi.fn(),
   createServerClient: vi.fn(),
   ensurePasswordAuthenticatedSignupAuthBinding: vi.fn(),
@@ -50,6 +51,10 @@ vi.mock('@/lib/auth/login-audit', () => ({ recordLoginAttempt: mocks.recordLogin
 vi.mock('@/lib/auth/login-attempts-fallback', () => ({
   checkLoginByAuditTrail: mocks.checkLoginByAuditTrail,
 }));
+vi.mock('@/lib/auth/security-profile/password-lifecycle', () => ({
+  tissPasswordAge: mocks.tissPasswordAge,
+}));
+vi.mock('@/app/(app)/_lib/tiss-footprint', () => ({ readTissFootprintLazy: vi.fn() }));
 vi.mock('@/lib/auth/rate-limit', () => ({
   assertLoginAllowed: mocks.assertLoginAllowed,
   assertPasswordResetAllowed: mocks.assertPasswordResetAllowed,
@@ -452,5 +457,59 @@ describe('S8 / requisito 69: Upstash degradado consulta a trilha no banco', () =
       source: 'audit_unavailable',
     });
     expect(result.error).toMatch(/Muitas tentativas/u);
+  });
+});
+
+describe('S4 / requisito 81: senha vencida no perfil TISS', () => {
+  function loginForm(): FormData {
+    const data = new FormData();
+    data.set('email', 'pessoa@example.test');
+    data.set('password', 'SenhaForte7!');
+    return data;
+  }
+
+  beforeEach(() => {
+    mocks.assertLoginAllowed.mockResolvedValue({ ok: true });
+    mocks.signInWithPassword.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null });
+    mocks.signOut.mockResolvedValue({ error: null });
+    mocks.createServerClient.mockResolvedValue({
+      auth: { signInWithPassword: mocks.signInWithPassword, signOut: mocks.signOut },
+    });
+    mocks.readAuthoritativeProfile.mockResolvedValue({
+      role: 'gestor',
+      ativo: true,
+      deletedAt: null,
+      clinicId: 'clinic-tiss',
+      mfaEnrolledAt: null,
+    });
+    mocks.isRole.mockReturnValue(true);
+    mocks.getAal.mockResolvedValue('aal1');
+    mocks.postLoginRedirect.mockReturnValue('/dashboard');
+    mocks.redirect.mockImplementation((d: string) => {
+      throw new Error(`REDIRECT:${d}`);
+    });
+    mocks.sendPasswordResetEmail.mockResolvedValue('sent');
+  });
+
+  it('vencida: encerra a sessão, manda o link de troca e explica', async () => {
+    mocks.tissPasswordAge.mockResolvedValue({ kind: 'must_change' });
+    const { loginAction } = await import('./actions');
+    const out = await loginAction({ error: null }, loginForm());
+    expect(mocks.tissPasswordAge).toHaveBeenCalledWith('u-1', 'clinic-tiss', expect.anything());
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    expect(mocks.sendPasswordResetEmail).toHaveBeenCalledWith('pessoa@example.test');
+    expect(out.error).toMatch(/Sua senha venceu.*90 dias/u);
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
+  it('dentro do prazo ou fora do alcance: segue para o painel', async () => {
+    for (const age of [{ kind: 'ok', daysLeft: 40 }, null]) {
+      mocks.tissPasswordAge.mockResolvedValueOnce(age);
+      const { loginAction } = await import('./actions');
+      await expect(loginAction({ error: null }, loginForm())).rejects.toThrow(
+        'REDIRECT:/dashboard',
+      );
+    }
+    expect(mocks.sendPasswordResetEmail).not.toHaveBeenCalled();
   });
 });
