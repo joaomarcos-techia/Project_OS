@@ -1,6 +1,6 @@
 {
-  "note": "Composição descartável #53 → #56 → #55 (#53 1175b22c, #56 fe892902 via integração c11, #55 com os ajustes de teste do HS25-C7): P7.5 (HS25T), estados da guia (HS25U), P8.4 da conferência (HS25V) e P8.4 pelo consultório oficial do #56 + faixa Convênios de hoje na agenda (HS25J, intacta). HS25-C7 (a2b75b6e): P7.5 5/5, estados 13/13, P8.4 6/7 (contagem de auditoria da clínica inteira, corrigida para a guia: no DEV o estado é igual ao do #55) e consultório parado no 1º teste (isVisible não espera; corrigido).",
-  "run": "HS25-C8",
+  "note": "Composição descartável #53 → #56 → #55 (#53 1175b22c, #56 fe892902 via integração c11, #55 com os ajustes de teste): P7.5 (HS25W), estados da guia (HS25X), P8.4 da conferência (HS25Y) e P8.4 pelo consultório oficial do #56 + faixa da agenda (HS25J; as provas 1 e 2 são idempotentes e a 3ª do HS25-C8 parou sem escrita). HS25-C8 (91bfae94): CI, sintéticas e legado verdes; P7.5 5/5, estados 13/13, P8.4 7/7; consultório 2/5 (asserção procurava o código no seletor de linhas do contrato; corrigida).",
+  "run": "HS25-C9",
   "groups": [
     [
       "e2e/convenios-p75-preview.spec.ts"
@@ -22,16 +22,16 @@
   "groupEnv": [
     {
       "E2E_HI_P75_ACCOUNTS": "e2e-hi-p75-accounts.json",
-      "E2E_HI_P75": "e2e-hi-p75-hs25t.json"
+      "E2E_HI_P75": "e2e-hi-p75-hs25w.json"
     },
     {
       "E2E_HI_CFG_ACCOUNTS": "e2e-hi-cfg-accounts.json",
-      "E2E_HI_STATES": "e2e-hi-states-hs25u.json",
+      "E2E_HI_STATES": "e2e-hi-states-hs25x.json",
       "E2E_HI_CFG_GUIDE": "e2e-hi-cfg-guide.json"
     },
     {
       "E2E_HI_P84_ACCOUNTS": "e2e-hi-p84-accounts.json",
-      "E2E_HI_P84": "e2e-hi-p84-hs25v.json"
+      "E2E_HI_P84": "e2e-hi-p84-hs25y.json"
     },
     {
       "E2E_HI_P84_ACCOUNTS": "e2e-hi-p84-accounts.json",
