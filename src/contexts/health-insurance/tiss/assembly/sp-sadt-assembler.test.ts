@@ -225,6 +225,57 @@ describe('assembleSpSadtGuide', () => {
     expect(bad).toMatchObject({ decision: 'blocked', issues: [{ code: 'QUANTITY_INVALID' }] });
   });
 
+  it('P8.4-r: item adicional de contrato SEM exigência de autorização, numa guia com autorização, não bloqueia nem consome a senha (achado do E2E de 25/11)', () => {
+    const freeLine = line({ id: 'k3', procedureCode: '20104235', description: 'Item livre sintético', unitValueCents: 2500, requiresAuthorization: false });
+    const withFree = input({
+      sessions: [
+        { appointmentId: 'a1', date: '2026-11-10', tableCode: '22', procedureCode: '20104219', ref: 'g1' },
+        { appointmentId: 'a1', date: '2026-11-10', tableCode: '22', procedureCode: '20104235', quantity: 1, ref: 'g2' },
+      ],
+      contracts: [line(), freeLine],
+    });
+    const r = assembleSpSadtGuide(withFree);
+    expect(r.decision).toBe('bill');
+    if (r.decision !== 'bill') return;
+    expect(r.guide.procedimentos.map((p) => [p.codigoProcedimento, p.quantidade, p.valorUnitarioCentavos])).toEqual([
+      ['20104219', 1, 12000],
+      ['20104235', 1, 2500],
+    ]);
+    expect(r.consumption).toEqual({ '22:20104219': 1 });
+    // O validador da emissão segue a mesma regra quando recebe os códigos livres; sem eles, bloqueia.
+    const ctx = {
+      terminology,
+      requesterPerson: 'PJ' as const,
+      today: '2026-11-10',
+      authorizationRequired: true,
+      authorizedQuantities: new Map([['22:20104219', 4]]),
+    };
+    expect(validateSpSadtGuide(r.guide, { ...ctx, authorizationExempt: new Set(['22:20104235']) }).map((e) => e.code)).not.toContain('ITEM_NOT_AUTHORIZED');
+    expect(validateSpSadtGuide(r.guide, ctx).map((e) => e.code)).toContain('ITEM_NOT_AUTHORIZED');
+    // Basta UMA linha do código que exija autorização (outra vigência do contrato) para voltar a bloquear.
+    const mixed = assembleSpSadtGuide(
+      input({
+        sessions: [
+          { appointmentId: 'a1', date: '2026-11-03', tableCode: '22', procedureCode: '20104235', ref: 'g3' },
+          { appointmentId: 'a2', date: '2026-11-10', tableCode: '22', procedureCode: '20104235', ref: 'g4' },
+        ],
+        contracts: [
+          line({ ...freeLine, id: 'k3a', validUntil: '2026-11-05' }),
+          line({ ...freeLine, id: 'k3b', validFrom: '2026-11-06', requiresAuthorization: true }),
+        ],
+      }),
+    );
+    expect(mixed).toMatchObject({ decision: 'blocked', issues: [{ code: 'ITEM_NOT_AUTHORIZED' }] });
+    // E o código que exige autorização continua bloqueando fora dela (sem regressão).
+    const required = assembleSpSadtGuide(
+      input({
+        sessions: [{ appointmentId: 'a1', date: '2026-11-10', tableCode: '22', procedureCode: '20104235', ref: 'g5' }],
+        contracts: [line({ ...freeLine, requiresAuthorization: true })],
+      }),
+    );
+    expect(required).toMatchObject({ decision: 'blocked', issues: [{ code: 'ITEM_NOT_AUTHORIZED' }] });
+  });
+
   it('mais sessões que o saldo autorizado: bloqueia com o saldo explicado', () => {
     const r = assembleSpSadtGuide(
       input({

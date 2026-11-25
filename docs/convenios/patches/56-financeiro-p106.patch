@@ -1,0 +1,228 @@
+diff --git a/src/app/(app)/(shell)/financeiro/page.test.tsx b/src/app/(app)/(shell)/financeiro/page.test.tsx
+index dfd81710..95ce9ee7 100644
+--- a/src/app/(app)/(shell)/financeiro/page.test.tsx
++++ b/src/app/(app)/(shell)/financeiro/page.test.tsx
+@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
+   listPaymentMethods: vi.fn(),
+   getCashFlowToday: vi.fn(),
+   getAvailablePatientCreditSummary: vi.fn(),
++  getOpenReceivablesByOrigin: vi.fn(),
+   listPatientCards: vi.fn(),
+   redirect: vi.fn(),
+ }));
+@@ -33,6 +34,7 @@ vi.mock('@/contexts/financial/queries', () => ({
+   listPaymentMethods: mocks.listPaymentMethods,
+   getCashFlowToday: mocks.getCashFlowToday,
+   getAvailablePatientCreditSummary: mocks.getAvailablePatientCreditSummary,
++  getOpenReceivablesByOrigin: mocks.getOpenReceivablesByOrigin,
+ }));
+ vi.mock('@/contexts/patient/queries', () => ({ listPatientCards: mocks.listPatientCards }));
+ vi.mock('./new-lancamento-drawer', () => ({ NewLancamentoDrawer: () => null }));
+@@ -63,6 +65,10 @@ beforeEach(() => {
+     },
+   });
+   mocks.getAvailablePatientCreditSummary.mockResolvedValue({ amount: 10, count: 1 });
++  mocks.getOpenReceivablesByOrigin.mockResolvedValue({
++    paciente: { valor: 0, qtd: 0 },
++    operadora: { valor: 0, qtd: 0 },
++  });
+ });
+ 
+ afterEach(cleanup);
+@@ -92,4 +98,74 @@ describe('FinanceiroPage', () => {
+     expect(screen.queryByRole('region', { name: 'Créditos antecipados e excedentes' })).toBeNull();
+     expect(mocks.getAvailablePatientCreditSummary).not.toHaveBeenCalled();
+   });
++  it('P10.6: separa paciente × operadora — filtro de origem, aberto por origem e selo na linha', async () => {
++    mocks.requireUser.mockResolvedValue({
++      clinicId: 'clinic-a',
++      permissions: [PERMISSIONS.VIEW_FINANCIAL],
++    });
++    const base = {
++      tipo: 'receber',
++      status: 'pendente',
++      valorPago: 0,
++      valorGlosado: 0,
++      patientId: null,
++      supplierId: null,
++      snapshotProcedureName: null,
++      dueDate: null,
++      createdAt: '2026-11-20T12:00:00.000Z',
++    };
++    mocks.listLancamentosPage.mockResolvedValue({
++      items: [
++        { ...base, id: 'l-op', descricao: 'Guia de convênio', valor: 150, valorGlosado: 30, sourceHiGuideId: 'g-1' },
++        { ...base, id: 'l-pac', descricao: 'Particular', valor: 200, sourceHiGuideId: null },
++      ],
++      total: 2,
++      pageSize: 50,
++    });
++    mocks.getCashFlowToday.mockResolvedValue({
++      receber: 320,
++      pagar: 0,
++      recebidoHoje: 0,
++      pagoHoje: 0,
++      saldoHoje: 0,
++      contagens: { receber: 2, receberVencidos: 0, pagar: 0, recebimentos: 0, pagamentos: 0 },
++    });
++    mocks.getOpenReceivablesByOrigin.mockResolvedValue({
++      paciente: { valor: 200, qtd: 1 },
++      operadora: { valor: 120, qtd: 1 },
++    });
++
++    const { container } = render(
++      await FinanceiroPage({ searchParams: Promise.resolve({ tipo: 'receber', origem: 'operadora' }) }),
++    );
++
++    expect(mocks.listLancamentosPage).toHaveBeenCalledWith('clinic-a', {
++      tipo: 'receber',
++      origem: 'operadora',
++      page: 1,
++    });
++    const split = container.querySelector('[data-receivable-split]');
++    expect(split?.textContent?.replace(/\s+/gu, ' ')).toMatch(
++      /Pacientes R\$\s200,00 · Operadoras R\$\s120,00/u,
++    );
++    expect(container.querySelectorAll('[data-origin="operadora"]')).toHaveLength(1);
++    const origem = screen.getByRole('combobox', { name: 'Filtrar por origem' }) as HTMLSelectElement;
++    expect(origem.value).toBe('operadora');
++    // A troca de tipo preserva a origem filtrada.
++    expect(screen.getByRole('link', { name: 'A pagar' }).getAttribute('href')).toBe('/financeiro?tipo=pagar&origem=operadora');
++  });
++
++  it('P10.6: origem desconhecida é ignorada e, sem recebível de operadora, a divisão não aparece', async () => {
++    mocks.requireUser.mockResolvedValue({
++      clinicId: 'clinic-a',
++      permissions: [PERMISSIONS.VIEW_FINANCIAL],
++    });
++
++    const { container } = render(
++      await FinanceiroPage({ searchParams: Promise.resolve({ origem: 'tudo' }) }),
++    );
++
++    expect(mocks.listLancamentosPage).toHaveBeenCalledWith('clinic-a', { page: 1 });
++    expect(container.querySelector('[data-receivable-split]')).toBeNull();
++  });
+ });
+diff --git a/src/app/(app)/(shell)/financeiro/page.tsx b/src/app/(app)/(shell)/financeiro/page.tsx
+index d6365dc4..eb17fdbf 100644
+--- a/src/app/(app)/(shell)/financeiro/page.tsx
++++ b/src/app/(app)/(shell)/financeiro/page.tsx
+@@ -6,9 +6,11 @@ import { clinicMonthBounds } from '@/contexts/financial/logic';
+ import {
+   getAvailablePatientCreditSummary,
+   getCashFlowToday,
++  getOpenReceivablesByOrigin,
+   listLancamentosPage,
+   listPaymentMethods,
+   listSuppliers,
++  type LancamentoOrigem,
+ } from '@/contexts/financial/queries';
+ import { listPatientCards } from '@/contexts/patient/queries';
+ import { getClinicTimezone } from '@/contexts/tenancy/queries';
+@@ -51,11 +53,14 @@ import styles from './financeiro.module.css';
+ 
+ export const dynamic = 'force-dynamic';
+ 
+-type SP = { tipo?: string; status?: string; novo?: string; page?: string };
++type SP = { tipo?: string; status?: string; origem?: string; novo?: string; page?: string };
+ 
+ const isTipo = (v: string | undefined): v is LancamentoTipo => v === 'receber' || v === 'pagar';
+ const isStatus = (v: string | undefined): v is LancamentoStatus =>
+   v === 'pendente' || v === 'parcial' || v === 'pago' || v === 'cancelado' || v === 'estornado';
++// P10.6: paciente × operadora (recebível de guia de convênio, mantido pelo Convênios).
++const isOrigem = (v: string | undefined): v is LancamentoOrigem =>
++  v === 'paciente' || v === 'operadora';
+ 
+ export default async function FinanceiroPage({ searchParams }: { searchParams: Promise<SP> }) {
+   const user = await requirePageUser();
+@@ -74,12 +79,14 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
+ 
+   const clinicId = user.clinicId;
+   const canManage = user.permissions.includes(PERMISSIONS.MANAGE_FINANCIAL);
+-  const { tipo, status, novo, page: rawPage } = await searchParams;
++  const { tipo, status, origem, novo, page: rawPage } = await searchParams;
+   const tipoFilter = isTipo(tipo) ? tipo : undefined;
+   const statusFilter = isStatus(status) ? status : undefined;
++  const origemFilter = isOrigem(origem) ? origem : undefined;
+   const paginationFilters = {
+     ...(tipoFilter ? { tipo: tipoFilter } : {}),
+     ...(statusFilter ? { status: statusFilter } : {}),
++    ...(origemFilter ? { origem: origemFilter } : {}),
+   };
+   const page = parseFinanceiroPage(rawPage);
+   // DUAS RODADAS, não três. Só `getCashFlowToday` precisa da janela do mês, e
+@@ -115,12 +122,13 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
+     ...new Set(lancamentosResult.items.filter((l) => l.patientId).map((l) => l.patientId!)),
+   ];
+ 
+-  const [flow, patientCards, advanceCredits] = await withQueryDeadline(
++  const [flow, patientCards, advanceCredits, byOrigin] = await withQueryDeadline(
+     'financeiro.flow',
+     Promise.all([
+       getCashFlowToday(clinicId, from, to),
+       listPatientCards(clinicId, patientIds),
+       getAvailablePatientCreditSummary(clinicId),
++      getOpenReceivablesByOrigin(clinicId),
+     ]),
+   );
+   const nomeDoPaciente = new Map(patientCards.map((card) => [card.id, card.nome]));
+@@ -235,6 +243,7 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
+                   {
+                     ...(option.tipo ? { tipo: option.tipo } : {}),
+                     ...(statusFilter ? { status: statusFilter } : {}),
++                    ...(origemFilter ? { origem: origemFilter } : {}),
+                   },
+                   1,
+                 ),
+@@ -256,6 +265,17 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
+                 <option value="cancelado">Cancelado</option>
+                 <option value="estornado">Estornado</option>
+               </Select>
++              {/* P10.6: o recebível da operadora (guia de convênio) separado do que o paciente paga. */}
++              <Select
++                name="origem"
++                defaultValue={origemFilter ?? ''}
++                aria-label="Filtrar por origem"
++                className="w-52"
++              >
++                <option value="">Todas as origens</option>
++                <option value="paciente">Pacientes e outros</option>
++                <option value="operadora">Operadoras de convênio</option>
++              </Select>
+               <button type="submit" className={buttonVariants({ variant: 'secondary' })}>
+                 <Filter aria-hidden="true" className="size-4" />
+                 Filtrar
+@@ -271,7 +291,18 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
+             label="A receber"
+             value={formatBRL(flow.receber)}
+             valueTone="warning"
+-            hint={`${flow.contagens.receber} lançamento${flow.contagens.receber === 1 ? '' : 's'}${flow.contagens.receberVencidos > 0 ? ` · ${flow.contagens.receberVencidos} vencido${flow.contagens.receberVencidos === 1 ? '' : 's'}` : ''}`}
++            hint={
++              <>
++                {`${flow.contagens.receber} lançamento${flow.contagens.receber === 1 ? '' : 's'}${flow.contagens.receberVencidos > 0 ? ` · ${flow.contagens.receberVencidos} vencido${flow.contagens.receberVencidos === 1 ? '' : 's'}` : ''}`}
++                {byOrigin.operadora.qtd > 0 ? (
++                  // P10.6: quanto do aberto é do paciente e quanto é da operadora (glosa definitiva fora).
++                  <span data-receivable-split className="block">
++                    Pacientes {formatBRL(byOrigin.paciente.valor)} · Operadoras{' '}
++                    {formatBRL(byOrigin.operadora.valor)}
++                  </span>
++                ) : null}
++              </>
++            }
+           />
+           <StatCard
+             label="Recebido no mês"
+@@ -386,6 +417,12 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
+                           <ArrowUpRight aria-hidden="true" className="size-3" />
+                         )}
+                         {l.tipo === 'receber' ? 'A receber' : 'A pagar'}
++                        {l.sourceHiGuideId ? (
++                          // P10.6: recebível da operadora; quem cuida é o Convênios, não o Caixa.
++                          <Badge tone="gray" data-origin="operadora">
++                            Operadora
++                          </Badge>
++                        ) : null}
+                       </span>
+                     }
+                   />

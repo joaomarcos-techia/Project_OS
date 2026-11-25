@@ -187,6 +187,10 @@ export function assembleSpSadtGuide(input: SpSadtAssemblyInput): SpSadtAssembly 
     (a, b) => a.date.localeCompare(b.date) || a.appointmentId.localeCompare(b.appointmentId),
   );
   const lines: ContractLine[] = [];
+  // P8.4-r: um código só fica fora da autorização sem bloquear quando TODA linha dele nesta guia
+  // vem de contrato que não exige autorização (item adicional "livre"). Basta uma linha que exija.
+  const requiredKeys = new Set<string>();
+  const freeKeys = new Set<string>();
   for (const s of sessions) {
     const sel = selectEffectiveContract(input.contracts, {
       insurerId: input.insurer.id,
@@ -196,8 +200,10 @@ export function assembleSpSadtGuide(input: SpSadtAssemblyInput): SpSadtAssembly 
       procedureCode: s.procedureCode,
       date: s.date,
     });
-    if (sel.kind === 'found') lines.push(sel.line);
-    else
+    if (sel.kind === 'found') {
+      lines.push(sel.line);
+      (sel.line.requiresAuthorization ? requiredKeys : freeKeys).add(key(s.tableCode, s.procedureCode));
+    } else
       block(
         sel.kind === 'ambiguous' ? 'CONTRACT_AMBIGUOUS' : 'CONTRACT_NOT_FOUND',
         `sessao[${s.appointmentId}]`,
@@ -222,10 +228,16 @@ export function assembleSpSadtGuide(input: SpSadtAssemblyInput): SpSadtAssembly 
       'recepcao',
     );
   }
+  const exempt = (k: string) => freeKeys.has(k) && !requiredKeys.has(k);
   if (auth) {
     for (const [k, count] of Object.entries(consumption)) {
       const item = auth.items.find((i) => key(i.tableCode, i.procedureCode) === k);
       if (!item) {
+        if (exempt(k)) {
+          // Contrato sem exigência de autorização: não consome a senha nem bloqueia a guia.
+          delete consumption[k];
+          continue;
+        }
         block(
           'ITEM_NOT_AUTHORIZED',
           'autorizacao',
@@ -241,8 +253,12 @@ export function assembleSpSadtGuide(input: SpSadtAssemblyInput): SpSadtAssembly 
         );
       }
     }
+    // A validade da senha só vale para o que a senha cobre (o código livre não depende dela).
     const late = sessions.filter(
-      (s) => auth.passwordValidUntil !== null && s.date > auth.passwordValidUntil,
+      (s) =>
+        auth.passwordValidUntil !== null &&
+        s.date > auth.passwordValidUntil &&
+        !exempt(key(s.tableCode, s.procedureCode)),
     );
     if (late.length > 0) {
       block(

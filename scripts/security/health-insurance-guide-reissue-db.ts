@@ -196,9 +196,9 @@ try {
   pass('repetir a reemissão devolve a mesma guia; reprocessamento (3×) e reentrega da conclusão não criam outra (2 guias: a cancelada e a nova)');
 
   // 4. Clique duplo / duas abas: duas reemissões simultâneas da mesma cancelada dão UMA guia nova.
-  const p2 = await patientWithCard(A, 'dois');
-  const ap2 = await sadtSession(A, p2, ri!.id as string, '2026-11-11');
-  await complete(A, ap2, p2.patientId);
+  // Outra sessão da MESMA solicitação (a cobertura exige o paciente, a operadora e a carteirinha dela).
+  const ap2 = await sadtSession(A, p1, ri!.id as string, '2026-11-11');
+  await complete(A, ap2, p1.patientId);
   const g2 = await liveGuideOf(ap2);
   await cancel(A, g2!.id as string);
   const race = await Promise.all([reissueOf(A, g2!.id as string), reissueOf(A, g2!.id as string)]);
@@ -253,9 +253,8 @@ try {
   pass('a guia nova emite (snapshot), vai ao lote SP/SADT com o XML validado no XSD oficial, e o recebível nasce só dela (120,00); a cancelada não tem recebível');
 
   // 9. Cancelar a guia nova e gerar outra: novo ato legítimo, nova identidade.
-  const p3 = await patientWithCard(A, 'três');
-  const ap3 = await sadtSession(A, p3, ri!.id as string, '2026-11-12');
-  await complete(A, ap3, p3.patientId);
+  const ap3 = await sadtSession(A, p1, ri!.id as string, '2026-11-12');
+  await complete(A, ap3, p1.patientId);
   const g3 = await liveGuideOf(ap3);
   await cancel(A, g3!.id as string);
   const r3 = await reissueOf(A, g3!.id as string);
@@ -308,9 +307,8 @@ try {
   pass('nenhuma segunda guia viva da mesma sessão: a guia cancelada não recebe linha, e o índice "sem cobrança dupla" barra o resto');
 
   // 12. Módulo desligado: nada é reemitido.
-  const p4 = await patientWithCard(A, 'quatro');
-  const ap4 = await sadtSession(A, p4, ri!.id as string, '2026-11-14');
-  await complete(A, ap4, p4.patientId);
+  const ap4 = await sadtSession(A, p1, ri!.id as string, '2026-11-14');
+  await complete(A, ap4, p1.patientId);
   const g4 = await liveGuideOf(ap4);
   await cancel(A, g4!.id as string);
   await sql`update public.hi_clinic_settings set enabled = false where clinic_id = ${A.clinicId}::uuid`;

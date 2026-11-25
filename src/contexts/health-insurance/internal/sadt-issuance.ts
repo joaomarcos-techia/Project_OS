@@ -211,13 +211,21 @@ export async function issueSpSadtGuide(
   }
   if (requester.kind === 'external' && requester.cbo) needs.push(['24', requester.cbo]);
   const terminology = await loadTerms(tx, g.terminologyVersion, needs, SP_SADT_DOMAIN_TABLES);
+  // P8.4-r: o código do item adicional cujo contrato não exige autorização não bloqueia por estar
+  // fora dela (mesma regra da montagem: livre só se NENHUMA linha do código nesta guia exigir).
+  const codeOf = (l: ContractLine) => `${l.tableCode}:${l.procedureCode}`;
+  const requiredCodes = new Set(lines.filter((l) => l.requiresAuthorization).map(codeOf));
+  const authorizationExempt = new Set(lines.map(codeOf).filter((k) => !requiredCodes.has(k)));
   const errors = validateSpSadtGuide(assembly.guide, {
     terminology,
     requesterPerson: settings.providerKind ?? 'PJ',
     today: args.today,
     authorizationRequired: request.authorizationRequirement === 'required',
     ...(authorization
-      ? { authorizedQuantities: new Map(authorization.items.map((i) => [`${i.tableCode}:${i.procedureCode}`, i.authorized])) }
+      ? {
+          authorizedQuantities: new Map(authorization.items.map((i) => [`${i.tableCode}:${i.procedureCode}`, i.authorized])),
+          authorizationExempt,
+        }
       : {}),
   });
   if (errors.length > 0) throw new GuideIssuanceError('a guia não passa na validação TISS', errors);
