@@ -153,3 +153,17 @@ fallback (S8); o rascunho do prontuário no servidor (pré-requisito da S2). Nen
 ## Depois das decisões
 
 Cada aprovação liga a política correspondente e ganha seu E2E (N.9). A P15.5 fecha só com os critérios da seção "Critérios para fechar a P15.5" de `revisao-seguranca-p15-5.md` cumpridos sobre o SHA final.
+
+## Atualização de 25/11/2026 (noite): pesquisa e controles
+
+Fundamentos e conclusões: `QORO-TISS-CONFORMIDADE-REGULATORIA.md`, seções 4, 9 a 12. Os requisitos 81 a 85 têm limite
+de implantação em **30/06/2026** (vencido): quem estiver no alcance precisa deles para operar TISS.
+
+| Item | Mudança | Prova |
+| --- | --- | --- |
+| S1 | alcance = clínicas com **dado TISS** (módulo ligado ou dado guardado) + suporte nelas; requisitos de sistema na plataforma inteira; modo `platform` pronto para ampliar | `security-profile/tiss-scope.ts`, 6 testes |
+| S5 | **requisito 84 atendido:** `login_attempts` guardado por 186 dias (também cumpre o Marco Civil, art. 15, que vale para a plataforma toda) | `retention-policy.ts`, teste do piso legal |
+| S8 | **requisito 69 atendido:** na queda do Upstash, o login conta falhas na trilha do banco (5/e-mail, 10/IP em 15 min); se o banco cair, o login fecha | `login-attempts-fallback.ts` (5 testes), `login/actions.test.ts` (4 novos), `rate-limit.test.ts` |
+| S9 | pesquisa documental completa; resíduos nas questões 1 e 5, controvérsia na 4 | `consulta-regulatoria-s9.md`, seção 6 |
+
+Continuam desligados para usuário real: S2, S3, S4, S6 e o aviso de último acesso (R42). S7 segue PASS.

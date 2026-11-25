@@ -178,3 +178,31 @@ Ficha detalhada, com requisito, situação, risco, opções, recomendação, imp
   - integração #53 → #56 → #55;
   - o painel do #57.
 - **Depois:** gates T2 (pré-voo de produção só leitura), T3 e T4, cada um com autorização própria.
+
+## Novidades de 25/11 (noite): pesquisa regulatória e controles
+
+O dossiê `QORO-TISS-CONFORMIDADE-REGULATORIA.md` substitui a espera por assessoria nos pontos que a documentação oficial
+resolve. Decisões que restam, reduzidas ao mínimo:
+
+1. **Marco Civil (plataforma inteira, já em produção):** `login_attempts` apagado aos 90 dias descumpre o art. 15
+   (6 meses). A correção (186 dias) está no #55; **recomendo levá-la antes num PR próprio** (uma linha + teste).
+2. **B6:** OK para eliminar a carteirinha sem guia de paciente anonimizado; aceitar 5 anos do exercício seguinte para
+   documentos de cobrança (com a ressalva do contrato de cada operadora).
+3. **B7:** aceitar a política composta (libxml2 + .NET + Voa + Qoro) no lugar do programa Windows, ou aprovar a
+   despesa da licença comercial. A issue da Voa está pronta; publicá-la é comunicação pública em nome do Qoro.
+4. **S9 (opcional):** perguntar à ANS os dois pontos residuais (alcance dos requisitos de usuário; "256 bits"). Sem
+   isso, o Qoro segue a medida conservadora.
+5. **P12.15 (recomendação para o #53, sem alterar o código dele):** opção **A com prazo** — manter a conexão Asaas e
+   WhatsApp de clínica cancelada ou suspensa por até 90 dias (reativação sem reconfigurar), sempre com cobrança e IA
+   bloqueadas, e **revogar e apagar os tokens** depois desse prazo ou no encerramento da conta. Por quê: a opção B
+   reduz a superfície (token guardado de quem não paga), mas obriga a reconectar Meta e Asaas na volta; a A pura deixa
+   segredo de terceiro guardado sem prazo. O prazo dá a reativação rápida sem guarda indefinida (LGPD art. 6º, III).
+6. **P12.6 (Sentry):** a regra exige papel Owner, Manager, Admin ou Team Admin (ou Member, se a organização permitir).
+   Passos: Alerts › Create Alert › projeto do app › ambiente `preview` › When "A new issue is created" › If "Tagged
+   event: flow starts with cron.insurance-maintenance" › Then notificar um membro. Sem esse acesso, a P12.6 segue
+   BLOCKED; não há substituto que dispense uma notificação real recebida.
+7. **R54 (Asaas):** a documentação oficial do estorno diz que cartão pode ser estornado quando `CONFIRMED` ou
+   `RECEIVED`, que o estorno parcial usa `value` e que múltiplos estornos parciais estão documentados só para Pix. A
+   regra "só no próximo dia" que o Sandbox devolve **não está documentada**. A pergunta ao suporte continua a de
+   `homologacao-r54-sandbox.md`, com um acréscimo: "o cartão no Sandbox chega a `RECEIVED` ou fica em `CONFIRMED`, e o
+   estorno parcial exige `RECEIVED`?". Nenhuma nova tentativa foi feita.

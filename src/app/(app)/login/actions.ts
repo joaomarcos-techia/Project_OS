@@ -18,6 +18,7 @@ import {
 import { createServerClient } from '@/lib/auth/supabase-server';
 import { readAuthoritativeProfile } from '@/lib/auth/tenant-context';
 import { hashEmail } from '@/lib/auth/email-hash';
+import { checkLoginByAuditTrail } from '@/lib/auth/login-attempts-fallback';
 import { recordLoginAttempt } from '@/lib/auth/login-audit';
 import { assertLoginAllowed, assertPasswordResetAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { postLoginRedirect } from '@/lib/auth/policies';
@@ -112,6 +113,16 @@ export async function loginAction(
     // contagem é o que importa para o alerta).
     metrics.emit('auth.ratelimit.tripped', { route: 'login' });
     return { error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' };
+  }
+  // S8 / requisito 69 da ANS: com o Upstash fora, a memória da instância não limita nada no serverless. A
+  // trilha login_attempts dá a mesma contagem a todas as instâncias; se o banco também falhar, o login FECHA.
+  if (limit.degraded) {
+    const audit = await checkLoginByAuditTrail(emailHash, ip);
+    if (audit !== 'allowed') {
+      if (audit === 'blocked') await recordLoginAttempt(emailHash, ip, false);
+      metrics.emit('auth.ratelimit.tripped', { route: 'login', source: `audit_${audit}` });
+      return { error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' };
+    }
   }
 
   const supabase = await createServerClient({ cookieWrites: 'required', newSession: true });

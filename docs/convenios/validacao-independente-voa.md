@@ -100,3 +100,17 @@ issue no repositório da Voa. Não abri a issue.
 > `valorUnitario` 33,33, `reducaoAcrescimo` 0,70 e `valorTotal` 69,99 (3 × 33,33 × 0,70 = 69,993) é recusado
 > como divergente. O próprio `line_total` da biblioteca calcula `unitário × quantidade × fator`. Sugestão:
 > usar o fator, com 1 quando ausente, na conferência do `validate()`. Caso 100% sintético, sem dado de paciente.
+
+## Reavaliação da B7 (25/11/2026, noite)
+
+- **O que a norma exige:** compatibilidade com os arquivos oficiais (Componente Organizacional 202609, item 142). A ANS
+  não publica nem nomeia validador. A exigência do programa Windows é do plano (P13.5), não da norma.
+- **Política composta proposta:** A (libxml2) + B (.NET, motor independente) + C (Voa: hash e regras independentes,
+  XSD não) + D (validadores do Qoro). Cobre a compatibilidade com o padrão em dois motores independentes e uma terceira
+  opinião externa de hash e regras. Limite: não há terceiro motor XSD independente.
+- **Reprodução mínima do falso positivo:** `scripts/tiss/corpus/voa-repro-reducao-acrescimo.py`, offline, só o
+  corpus sintético; roda no workflow `convenios-voa-tiss.yml` e acusa "CORRIGIDO" quando a Voa consertar. Em 25/11 a
+  versão no PyPI continua 0.5.0 (sem correção).
+- **Issue:** texto pronto acima; **não publicada** (comunicação pública em nome do Qoro; a autorização foi para
+  preparar e reproduzir).
+- **B7 VALIDATION: PARTIAL** até o aceite da troca do critério da P13.5 (ou a licença comercial do programa Windows).

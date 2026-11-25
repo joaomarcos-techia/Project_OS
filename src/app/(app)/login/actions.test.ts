@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   assertLoginAllowed: vi.fn(),
   assertPasswordResetAllowed: vi.fn(),
+  checkLoginByAuditTrail: vi.fn(),
   createPasswordResetRedirectUrl: vi.fn(),
   createServerClient: vi.fn(),
   ensurePasswordAuthenticatedSignupAuthBinding: vi.fn(),
@@ -46,6 +47,9 @@ vi.mock('@/lib/auth/pretenant-onboarding', () => ({
 }));
 vi.mock('@/lib/auth/email-hash', () => ({ hashEmail: mocks.hashEmail }));
 vi.mock('@/lib/auth/login-audit', () => ({ recordLoginAttempt: mocks.recordLoginAttempt }));
+vi.mock('@/lib/auth/login-attempts-fallback', () => ({
+  checkLoginByAuditTrail: mocks.checkLoginByAuditTrail,
+}));
 vi.mock('@/lib/auth/rate-limit', () => ({
   assertLoginAllowed: mocks.assertLoginAllowed,
   assertPasswordResetAllowed: mocks.assertPasswordResetAllowed,
@@ -383,5 +387,70 @@ describe('login de usuário verificado pré-tenant', () => {
       mfaEnrolledAt: null,
       aal: 'aal1',
     });
+  });
+});
+
+describe('S8 / requisito 69: Upstash degradado consulta a trilha no banco', () => {
+  function loginForm(): FormData {
+    const data = new FormData();
+    data.set('email', 'pessoa@example.test');
+    data.set('password', 'senha-correta-123');
+    return data;
+  }
+
+  beforeEach(() => {
+    mocks.createServerClient.mockResolvedValue({
+      auth: { signInWithPassword: mocks.signInWithPassword, signOut: mocks.signOut },
+    });
+    mocks.signInWithPassword.mockResolvedValue({
+      data: { user: null },
+      error: { code: 'invalid_credentials', message: 'Invalid login credentials' },
+    });
+  });
+
+  it('limitador normal: não consulta a trilha', async () => {
+    mocks.assertLoginAllowed.mockResolvedValue({ ok: true });
+    const { loginAction } = await import('./actions');
+    await loginAction({ error: null }, loginForm());
+    expect(mocks.checkLoginByAuditTrail).not.toHaveBeenCalled();
+    expect(mocks.signInWithPassword).toHaveBeenCalledOnce();
+  });
+
+  it('degradado e a trilha libera: segue para a senha', async () => {
+    mocks.assertLoginAllowed.mockResolvedValue({ ok: true, degraded: true });
+    mocks.checkLoginByAuditTrail.mockResolvedValue('allowed');
+    const { loginAction } = await import('./actions');
+    await loginAction({ error: null }, loginForm());
+    expect(mocks.checkLoginByAuditTrail).toHaveBeenCalledWith('email-hash', '203.0.113.7');
+    expect(mocks.signInWithPassword).toHaveBeenCalledOnce();
+  });
+
+  it('degradado e a trilha bloqueia: não tenta a senha, conta a tentativa', async () => {
+    mocks.assertLoginAllowed.mockResolvedValue({ ok: true, degraded: true });
+    mocks.checkLoginByAuditTrail.mockResolvedValue('blocked');
+    const { loginAction } = await import('./actions');
+    const result = await loginAction({ error: null }, loginForm());
+    expect(mocks.signInWithPassword).not.toHaveBeenCalled();
+    expect(mocks.recordLoginAttempt).toHaveBeenCalledWith('email-hash', '203.0.113.7', false);
+    expect(mocks.metricsEmit).toHaveBeenCalledWith('auth.ratelimit.tripped', {
+      route: 'login',
+      source: 'audit_blocked',
+    });
+    expect(result).toEqual({
+      error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
+    });
+  });
+
+  it('Upstash e banco fora: o login FECHA (nunca tentativa ilimitada)', async () => {
+    mocks.assertLoginAllowed.mockResolvedValue({ ok: true, degraded: true });
+    mocks.checkLoginByAuditTrail.mockResolvedValue('unavailable');
+    const { loginAction } = await import('./actions');
+    const result = await loginAction({ error: null }, loginForm());
+    expect(mocks.signInWithPassword).not.toHaveBeenCalled();
+    expect(mocks.metricsEmit).toHaveBeenCalledWith('auth.ratelimit.tripped', {
+      route: 'login',
+      source: 'audit_unavailable',
+    });
+    expect(result.error).toMatch(/Muitas tentativas/u);
   });
 });

@@ -9,6 +9,7 @@ on:
     paths:
       - 'data/tiss/corpus/**'
       - 'scripts/tiss/corpus/validate-voa.py'
+      - 'scripts/tiss/corpus/voa-repro-reducao-acrescimo.py'
       - 'src/contexts/health-insurance/tiss/schemas/**'
       - '.github/workflows/convenios-voa-tiss.yml'
   workflow_dispatch:
@@ -43,3 +44,6 @@ jobs:
 
       - name: "38 arquivos: XSD, hash do epílogo e regras, comparados com o resultado gravado"
         run: python -I scripts/tiss/corpus/validate-voa.py --check
+
+      - name: "Falso positivo da Voa com fator de redução/acréscimo (reprodução mínima, sintética)"
+        run: python -I scripts/tiss/corpus/voa-repro-reducao-acrescimo.py

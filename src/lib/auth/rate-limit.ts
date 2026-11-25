@@ -50,7 +50,11 @@ import { env } from '@/lib/env';
 import { logger } from '@/lib/observability/logger';
 import { metrics } from '@/lib/observability/metrics';
 
-type LimitResult = { ok: true } | { ok: false; reason: 'rate_limited' };
+/**
+ * `degraded: true` só no login: o Upstash falhou e quem liberou foi a memória da instância. O login então confere
+ * a trilha `login_attempts` no banco (S8, requisito 69 da ANS): ver `login-attempts-fallback.ts`.
+ */
+type LimitResult = { ok: true; degraded?: true } | { ok: false; reason: 'rate_limited' };
 
 /**
  * Fallback in-memory: fixed-window counter, BOUNDED (F-08).
@@ -368,7 +372,8 @@ const lazyResetCompletionLimiters = (() => {
 
 /**
  * Chama AMBOS os limites (IP + email_hash). Bloqueia se QUALQUER um exceder.
- * F-08: nunca lança — falha do Upstash → degradado (fail-open + fallback local).
+ * F-08: nunca lança — falha do Upstash → degradado (fallback local + `degraded: true`, e o login confere a
+ * trilha no banco antes de seguir; se o banco também falhar, o login fecha).
  */
 export async function assertLoginAllowed(ip: string, emailHash: string): Promise<LimitResult> {
   const ipKey = ipRateLimitKey(ip);
@@ -385,7 +390,9 @@ export async function assertLoginAllowed(ip: string, emailHash: string): Promise
   } catch (err) {
     const ipOk = fallback.loginIp.hit(ipKey);
     const emailOk = fallback.loginEmail.hit(emailHash);
-    return degraded('login', err, ipOk && emailOk);
+    const result = degraded('login', err, ipOk && emailOk);
+    // S8/R69: a memória da instância não basta no serverless; o login confere a trilha no banco.
+    return result.ok ? { ok: true, degraded: true } : result;
   }
 }
 

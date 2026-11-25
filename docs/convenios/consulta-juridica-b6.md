@@ -63,3 +63,18 @@ Elas podem ser feitas antes da resposta. A rotina de descarte, não.
 
 As tarefas P12.3 (exportação, anonimização e retenção) e P12.13 (exclusão de paciente com guia) continuam
 abertas até esta decisão.
+
+## 6. Pesquisa documental e controles (25/11/2026, noite)
+
+Sem advogado contratado, a pesquisa foi feita nas fontes oficiais (`QORO-TISS-CONFORMIDADE-REGULATORIA.md`, seção 7):
+
+- **prontuário:** 20 anos do último registro (Lei 13.787/2018, art. 6º; Parecer CFM 19/2026), eliminação só com termo;
+- **documentos de cobrança TISS:** 5 anos a partir do exercício seguinte ao último evento financeiro (Código Civil,
+  art. 206, §5º, I e art. 1.194; CTN, arts. 173 e 195) — interpretação, sem prazo TISS expresso;
+- **registro de acesso:** 186 dias (Marco Civil, art. 15; ANS, requisito 84), a única purga automática;
+- **respostas às 5 perguntas** desta ficha, com o texto ao titular, na mesma seção.
+
+Implementado: catálogo das 16 categorias (`src/lib/compliance/retention-catalog.ts`), simulação de vencimento sem
+escrita, trava de descarte com termo humano e inventário por paciente (`retention-inventory.ts`, harness
+`health-insurance-retention-db.ts`). **Nenhum descarte automático de documento.** Pendem só duas decisões do fundador:
+eliminar a carteirinha sem guia de paciente anonimizado e aceitar o prazo interpretado dos documentos de cobrança.

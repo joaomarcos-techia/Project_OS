@@ -103,3 +103,19 @@ O componente vale para a plataforma inteira ou só para as clínicas que trocam 
 
 Material técnico de apoio (sob pedido): a matriz dos 53 requisitos com a evidência de cada um e a ficha das
 decisões S1–S8.
+
+## 6. Resultado da pesquisa documental (25/11/2026, noite)
+
+O fundador não tem assessoria contratada. As cinco perguntas foram pesquisadas nas fontes oficiais; a análise completa,
+com norma, dispositivo, URL, interpretação, medida e evidência, está em `QORO-TISS-CONFORMIDADE-REGULATORIA.md`.
+
+| Pergunta | Conclusão | Categoria | Medida adotada | Resíduo |
+| --- | --- | --- | --- | --- |
+| 1. Alcance | requisitos de sistema na plataforma inteira; de usuário para clínicas que **têm dado TISS** (não só módulo ligado) e para o suporte nelas | interpretação sustentada | `tiss-scope.ts`, modo `platform` pronto | os requisitos 67/81/82/83 valem para inquilinos sem dado TISS? (só a ANS responde) |
+| 2. 56 × 79 | o 79 prevê dado não estruturado fora do SGBD com confidencialidade; o 56 rege cópias transitórias | interpretação sustentada | geração em memória, snapshot canônico no banco, arquivo cifrado, SHA-256, leitura auditada, `no-store` | baixo |
+| 3. Documento unívoco | conselho + UF + número é identidade por lei para profissionais (Lei 6.206/1975, art. 1º); CPF só para os demais, só no perfil `tiss` | interpretação sustentada | desenho pronto (S6), não implementado | inscrição em mais de uma UF; unicidade por clínica |
+| 4. Gerenciadores | o alvo é a memorização pelo sistema; NIST 800-63B-4 manda permitir gerenciadores | ponto controverso | senha mascarada, nenhuma memorização pelo Qoro; gerenciadores permitidos | a ANS exige `autocomplete=off`? A tela é anterior à clínica: a medida seria global |
+| 5. 256 bits | o texto não define a métrica (saída, chave ou força) | ponto controverso | bcrypt do provedor mantido; verificador scrypt de 256 bits já existe para o histórico (S4) | bcrypt atende ou exige saída de 256 bits? |
+
+**S9 RESEARCH:** completa no escopo documental; duas questões com incerteza material residual (1 e 5) e uma
+controversa (4). Nenhuma delas impede o trabalho técnico; cada uma está reduzida a uma pergunta exata.

@@ -171,3 +171,13 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55604 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/hi-r38-ledger-equivalence-db.ts
+
+      - name: "P15.6: pré-auditoria financeira (12 casos do roteiro, dossiê no resumo)"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55605 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-financial-preaudit-db.ts
+
+      - name: "B6: retenção documental (inventário, simulação sem efeito, trava, isolamento)"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55606 NODE_OPTIONS=--conditions=react-server             pnpm exec tsx scripts/security/health-insurance-retention-db.ts

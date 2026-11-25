@@ -92,3 +92,17 @@ demonstrativo, glosa e recurso, coparticipação). Mais duas:
 - nenhum dado real de paciente;
 - nenhuma guia real transmitida;
 - nenhum "homologado" com base em simulador ou validador externo.
+
+## Pesquisa pública de operadoras (25/11/2026, noite)
+
+Resumo (detalhe em `QORO-TISS-CONFORMIDADE-REGULATORIA.md`, seção 17):
+
+- Saúde Petrobras (manual público, webservices em 4.01.00) e Saúde Caixa (webservices públicos em 4.02.00): **não
+  servem**, o Qoro só emite 4.03.00;
+- Unimed Planalto Médio e Copass Saúde: aceitam **só 4.03.00 desde 01/07/2026**; a Copass publica o Coordenador TISS
+  e o suplente com contato;
+- nenhuma publica ambiente de homologação aberto: todas exigem prestador credenciado; o canal oficial é o
+  Coordenador TISS do Portal TISS da operadora (RN 501, art. 16, II).
+
+**Pergunta 18 (nova):** "A operadora aceita a versão 4.03.00 em todas as transações (lote, recurso, demonstrativo,
+elegibilidade, cancelamento)?" — várias versões convivem no pacote de set/2026 (04.00.00 a 04.03.00).
