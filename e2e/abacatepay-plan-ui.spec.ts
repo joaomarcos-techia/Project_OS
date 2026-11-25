@@ -101,28 +101,31 @@ for (const width of [1440, 390]) {
         }),
       );
       await page.goto('/cadastro/qoro-billing-harness');
-      await page
-        .locator('label')
-        .filter({ has: page.locator(`input[value="${chosen.id}"]`) })
-        .click();
+      const selectDoctors = async () => {
+        await page.getByRole('button', { name: /^Clínica/u }).click();
+        const moreDoctors = page.getByRole('button', { name: 'Mais um médico' });
+        for (let count = 2; count < doctors; count++) await moreDoctors.click();
+      };
+      await selectDoctors();
       const summary = page.getByRole('complementary');
-      await expect(summary.getByRole('heading', { name: chosen.name })).toBeVisible();
-      await expect(summary.getByText('Mensalidade do plano', { exact: true })).toBeVisible();
+      await expect(summary.getByRole('heading', { name: 'Clínica' })).toBeVisible();
+      await expect(summary.getByText('Total mensal', { exact: true })).toBeVisible();
       await expect(summary).toContainText(
         new RegExp(`R\\$\\s*${(chosen.priceCents / 100).toFixed(2).replace('.', ',')}`),
       );
       await expect(
-        page.getByText(`${doctors} médicos + até 3 acessos administrativos`),
-      ).toBeVisible();
+        page.getByRole('group', { name: 'Médicos na clínica' }).locator('output'),
+      ).toHaveText(String(doctors));
+      await expect(summary.getByText('Até 3 acessos administrativos')).toBeVisible();
+      await expect(summary.getByText('Pessoas no total').locator('..')).toContainText(
+        `Até ${doctors + 3}`,
+      );
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );
       await page.reload();
       expect(writes).toEqual([]);
-      await page
-        .locator('label')
-        .filter({ has: page.locator(`input[value="${chosen.id}"]`) })
-        .click();
+      await selectDoctors();
       await page.getByRole('button', { name: 'Começar avaliação gratuita' }).evaluate((element) => {
         if (!(element instanceof HTMLButtonElement)) throw new Error('Expected native button');
         element.click();
