@@ -113,9 +113,13 @@ function expectRefused(res: { text: string }, message?: string) {
 /** Abre no consultório o atendimento em curso desta execução (a paciente da marca). */
 async function openAttendance(page: Page) {
   await page.goto('/consultorio');
-  const tab = page.getByRole('button', { name: fx!.patientName, exact: true });
-  if (await tab.isVisible({ timeout: 10_000 }).catch(() => false)) await tab.click();
   const panel = page.locator('[data-slot="attending-panel"]');
+  // O quadro já renderizado (o painel aparece com o 1º atendimento) antes de escolher a aba:
+  // `isVisible` NÃO espera; com várias sessões em atendimento no dia (outras rodadas na mesma
+  // clínica), sem o clique o painel ficava na paciente de outra rodada (HS25-C7).
+  await expect(panel).toBeVisible({ timeout: 60_000 });
+  const tab = page.getByRole('button', { name: fx!.patientName, exact: true });
+  if ((await tab.count()) > 0) await tab.click();
   await expect(panel.getByRole('heading', { name: fx!.patientName })).toBeVisible({ timeout: 60_000 });
   return panel;
 }

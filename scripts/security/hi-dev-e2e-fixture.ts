@@ -1600,10 +1600,19 @@ async function p84State() {
   const [l] = await exec<{ n: number; v: string }>(sql`
     SELECT count(*)::int AS n, coalesce(sum(valor - valor_pago - valor_glosado), 0)::numeric(12,2)::text AS v
       FROM public.lancamentos WHERE clinic_id = ${g.clinic}::uuid AND source_hi_guide_id = ${id}::uuid`);
+  // Só a trilha DESTA guia e dos itens das sessões dela. Era a clínica inteira desde a criação da
+  // guia: na composição de 25/11 (HS25-C7), a fixture criada antes de duas rodadas do #55 na mesma
+  // clínica contou as ações delas também (exatamente o triplo).
   const au = await exec<{ action: string; n: number }>(sql`
     SELECT action, count(*)::int AS n FROM public.audit_events
      WHERE clinic_id = ${g.clinic}::uuid AND created_at >= ${g.created}::timestamptz
-       AND (action LIKE 'health_insurance.extra_item.%' OR action = 'health_insurance.guide.approved') GROUP BY 1`);
+       AND (
+         (action LIKE 'health_insurance.extra_item.%' AND resource_type = 'hi_appointment_extra_item' AND resource_id::text IN (
+           SELECT e.id::text FROM public.hi_appointment_extra_items e
+            WHERE e.clinic_id = ${g.clinic}::uuid AND e.appointment_id IN (SELECT appointment_id FROM public.hi_guide_items WHERE guide_id = ${id}::uuid)))
+         OR ((action = 'health_insurance.guide.approved' OR action = 'health_insurance.extra_item.excluded_on_approval')
+             AND resource_type = 'hi_guide' AND resource_id::text = ${id}))
+     GROUP BY 1`);
   const a = (suffix: string) => au.filter((x) => x.action.endsWith(suffix)).reduce((s, x) => s + x.n, 0);
   const st = { pending_data: 'pd', ready_for_review: 'rr', reviewed: 'rv', approved: 'ap', in_batch: 'ib', exported: 'ex', sent: 'se' } as Record<string, string>;
   const out = {
