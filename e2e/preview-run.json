@@ -1,5 +1,5 @@
 {
-  "note": "Composição descartável #53 → #56 → #55 (#53 dddc650b, #56 da integração c11, #55 0235051a): P7.5 (HS25G), estados da guia (HS25H), P8.4 da conferência (HS25I) e P8.4 pelo consultório oficial do #56 + faixa Convênios de hoje na agenda (HS25J, fixture própria). Relé da fixture com o grupo no id.",
+  "note": "Composição descartável #53 → #56 → #55 (#53 dddc650b, #56 fe892902 via integração c11, #55 35730f46 — o mesmo head do HS25-55E verde): P7.5 (HS25G), estados da guia (HS25H), P8.4 da conferência (HS25I) e P8.4 pelo consultório oficial do #56 + faixa Convênios de hoje na agenda (HS25J, fixture própria). Patches compose-only: consultório, agenda e Financeiro (P10.6).",
   "run": "HS25-C5",
   "groups": [
     [
