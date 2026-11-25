@@ -596,6 +596,7 @@ async function main(): Promise<void> {
           E2E_ABACATEPAY_EXPIRED: String(checkoutScenario(session) === 'expired_trial'),
           E2E_ABACATEPAY_EXPECT_PAID: String(paid),
           E2E_ABACATEPAY_CREATE_OPTIONAL_CHECKOUT: String(action === 'create'),
+          E2E_ABACATEPAY_EXPECT_CHECKOUT_UNAVAILABLE: String(action === 'stage'),
         });
         const result = spawnSync(
           process.execPath,

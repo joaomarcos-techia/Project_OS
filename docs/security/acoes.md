@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 202 actions (0 inline); 69 métodos em 65 handlers; 19 props com referência de action; 575 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
+Contagem: 202 actions (0 inline); 69 métodos em 65 handlers; 19 props com referência de action; 581 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -230,7 +230,7 @@ O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase
 | `src/app/(app)/auth/session-refresh/route.ts:28#GET`                 | NEW                     | supabase-session-refresh                                                        | `src/app/(app)/auth/session-refresh/route.ts:50#supabase.auth.getUser`                                                                                                       |
 | `src/app/(app)/cadastro/retomar/route.ts:6#GET`                      | NEW                     | public-static-recovery-bridge-no-get-consumption-csp-hashes                     | `src/app/(app)/cadastro/retomar/route.ts:7#signupRecoveryBridgeResponse`                                                                                                     |
 | `src/app/(app)/documentos/[id]/pdf/arquivo/route.ts:6#GET`           | REVIEW_REQUIRED         | session-resource-gate                                                           | `src/app/(app)/documentos/[id]/pdf/arquivo/route.ts:6#GET` → `src/app/(app)/_lib/clinical-pdf-route.ts:44#serveClinicalPdf` → `src/lib/auth/page-guard.ts:103#resourceGate`  |
-| `src/app/(app)/logout/route.ts:33#POST`                              | optional-session-logout | optional-session-logout                                                         | `src/app/(app)/logout/route.ts:37#getCurrentUser`                                                                                                                            |
+| `src/app/(app)/logout/route.ts:31#POST`                              | optional-session-logout | optional-session-logout                                                         | `src/app/(app)/logout/route.ts:35#getCurrentUser`                                                                                                                            |
 | `src/app/(app)/prescricoes/[id]/pdf/arquivo/route.ts:6#GET`          | REVIEW_REQUIRED         | session-resource-gate                                                           | `src/app/(app)/prescricoes/[id]/pdf/arquivo/route.ts:6#GET` → `src/app/(app)/_lib/clinical-pdf-route.ts:44#serveClinicalPdf` → `src/lib/auth/page-guard.ts:103#resourceGate` |
 | `src/app/api/billing/cancellation/route.ts:17#POST`                  | NEW                     | session                                                                         | `src/app/api/billing/cancellation/route.ts:17#POST` → `src/lib/auth/action-guard.ts:77#authorizeAction` → `src/lib/auth/tenant-context.ts:366#requireUser`                   |
 | `src/app/api/billing/checkout/route.ts:24#POST`                      | NEW                     | session                                                                         | `src/app/api/billing/checkout/route.ts:24#POST` → `src/lib/auth/action-guard.ts:77#authorizeAction` → `src/lib/auth/tenant-context.ts:366#requireUser`                       |
@@ -407,18 +407,22 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/_env.ts:111`                                      | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
 | `scripts/_env.ts:174`                                      | `USER`                                 | `process.env.USER`                                                          |
 | `scripts/_env.ts:174`                                      | `USERNAME`                             | `process.env.USERNAME`                                                      |
-| `scripts/abacatepay-checkout-operator.ts:76`               | `LOCALAPPDATA`                         | `process.env.LOCALAPPDATA`                                                  |
-| `scripts/abacatepay-checkout-operator.ts:95`               | `<object>`                             | `process.env`                                                               |
-| `scripts/abacatepay-checkout-operator.ts:175`              | `<object>`                             | `process.env`                                                               |
-| `scripts/abacatepay-checkout-operator.ts:183`              | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
-| `scripts/abacatepay-checkout-operator.ts:381`              | `<object>`                             | `process.env`                                                               |
-| `scripts/abacatepay-checkout-operator.ts:426`              | `<object>`                             | `process.env`                                                               |
-| `scripts/abacatepay-checkout-operator.ts:552`              | `<dynamic>`                            | `process.env[key]`                                                          |
-| `scripts/abacatepay-checkout-operator.ts:552`              | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/abacatepay-checkout-operator.ts:78`               | `LOCALAPPDATA`                         | `process.env.LOCALAPPDATA`                                                  |
+| `scripts/abacatepay-checkout-operator.ts:97`               | `<object>`                             | `process.env`                                                               |
+| `scripts/abacatepay-checkout-operator.ts:189`              | `<object>`                             | `process.env`                                                               |
+| `scripts/abacatepay-checkout-operator.ts:197`              | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
+| `scripts/abacatepay-checkout-operator.ts:412`              | `<object>`                             | `process.env`                                                               |
+| `scripts/abacatepay-checkout-operator.ts:457`              | `<object>`                             | `process.env`                                                               |
+| `scripts/abacatepay-checkout-operator.ts:583`              | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/abacatepay-checkout-operator.ts:583`              | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/abacatepay-dev-journal-readonly.mjs:8`            | `QORO_LOCAL_ENV_FILE`                  | `process.env.QORO_LOCAL_ENV_FILE`                                           |
+| `scripts/abacatepay-dev-journal-readonly.mjs:11`           | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
 | `scripts/abacatepay-observe-renewal.ts:54`                 | `LOCALAPPDATA`                         | `process.env.LOCALAPPDATA`                                                  |
 | `scripts/abacatepay-observe-renewal.ts:64`                 | `<object>`                             | `process.env`                                                               |
 | `scripts/abacatepay-observe-renewal.ts:72`                 | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/abacatepay-observe-renewal.ts:73`                 | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
+| `scripts/abacatepay-pix-dev-apply.ts:25`                   | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
+| `scripts/abacatepay-pix-dev-apply.ts:27`                   | `QORO_LOCAL_ENV_FILE`                  | `process.env.QORO_LOCAL_ENV_FILE`                                           |
 | `scripts/abacatepay-readonly-check.ts:17`                  | `ABACATEPAY_API_KEY`                   | `process.env.ABACATEPAY_API_KEY`                                            |
 | `scripts/abacatepay-release-apply.ts:443`                  | `<object>`                             | `process.env`                                                               |
 | `scripts/abacatepay-release-preflight.ts:27`               | `SUPABASE_PROJECT_ENV`                 | `process.env.SUPABASE_PROJECT_ENV`                                          |
@@ -636,6 +640,8 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/abacatepay-operational-worker.ts:8`      | `ABACATEPAY_API_KEY`                   | `process.env.ABACATEPAY_API_KEY`                                            |
 | `scripts/security/abacatepay-operational-worker.ts:11`     | `QORO_OPERATIONAL_PROVIDER_URL`        | `process.env.QORO_OPERATIONAL_PROVIDER_URL`                                 |
 | `scripts/security/abacatepay-operational-worker.ts:13`     | `UPSTASH_REDIS_REST_URL`               | `process.env.UPSTASH_REDIS_REST_URL`                                        |
+| `scripts/security/abacatepay-pix-release-db.ts:14`         | `QORO_PIX_MIGRATION_FOLDER`            | `process.env.QORO_PIX_MIGRATION_FOLDER`                                     |
+| `scripts/security/abacatepay-pix-release-db.ts:15`         | `QORO_PIX_MIGRATION_FOLDER`            | `process.env.QORO_PIX_MIGRATION_FOLDER`                                     |
 | `scripts/security/abacatepay-rate-db.ts:10`                | `<object>`                             | `process.env`                                                               |
 | `scripts/security/abacatepay-rate-db.ts:16`                | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
 | `scripts/security/abacatepay-rate-db.ts:17`                | `QORO_DOCKER_BIN`                      | `process.env.QORO_DOCKER_BIN`                                               |

@@ -36,6 +36,7 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
       E2E_ABACATEPAY_EXPIRED: z.enum(['true', 'false']),
       E2E_ABACATEPAY_EXPECT_PAID: z.enum(['true', 'false']).default('false'),
       E2E_ABACATEPAY_CREATE_OPTIONAL_CHECKOUT: z.enum(['true', 'false']).default('false'),
+      E2E_ABACATEPAY_EXPECT_CHECKOUT_UNAVAILABLE: z.enum(['true', 'false']).default('false'),
     })
     .parse(process.env);
   const origin = new URL(input.E2E_BASE_URL);
@@ -96,6 +97,9 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
       WHERE id=${input.E2E_ABACATEPAY_USER_ID}::uuid AND email_confirmed_at IS NOT NULL`;
     expect(identity?.email).toBe(input.E2E_ABACATEPAY_EMAIL);
     expect(identity?.marker).toBe(input.E2E_ABACATEPAY_RUN_ID);
+    const [existing] = await sql<{ clinic_id: string }[]>`
+      SELECT clinic_id::text FROM public.profiles WHERE id=${input.E2E_ABACATEPAY_USER_ID}::uuid`;
+    const accountPath = existing ? '/dashboard' : '/cadastro/continuar';
     await page.goto(new URL('/login', origin.origin).toString());
     try {
       await page.locator('#email').fill(input.E2E_ABACATEPAY_EMAIL);
@@ -106,7 +110,7 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
     await page.getByRole('button', { name: 'Entrar', exact: true }).click();
     await expect(page).not.toHaveURL(/\/login(?:\?|$)/, { timeout: 90_000 });
     evidence.postLoginPath = new URL(page.url()).pathname;
-    expect(evidence.postLoginPath).toBe('/cadastro/continuar');
+    expect(evidence.postLoginPath).toBe(accountPath);
     stages.push('real_browser_login');
     const logout = await page.evaluate(async () => {
       const response = await fetch('/logout', { method: 'POST' });
@@ -114,16 +118,16 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
     });
     evidence.logoutHttpStatus = logout.status;
     expect(logout).toEqual({ status: 200, path: '/login' });
-    await page.goto(new URL('/cadastro/continuar', origin.origin).toString());
+    await page.goto(new URL(accountPath, origin.origin).toString());
     await expect(page).toHaveURL(/\/login(?:\?|$)/);
     stages.push('global_logout_revokes_onboarding_session');
     await page.locator('#email').fill(input.E2E_ABACATEPAY_EMAIL);
     await page.locator('input[name="password"]').fill(input.E2E_ABACATEPAY_PASSWORD);
     await page.getByRole('button', { name: 'Entrar', exact: true }).click();
-    await expect(page).toHaveURL(/\/cadastro\/continuar(?:\?|$)/, { timeout: 90_000 });
+    await expect(page).toHaveURL(new RegExp(`${accountPath.replaceAll('/', '\\/')}(?:\\?|$)`), {
+      timeout: 90_000,
+    });
     stages.push('fresh_login_after_logout');
-    const [existing] = await sql<{ clinic_id: string }[]>`
-      SELECT clinic_id::text FROM public.profiles WHERE id=${input.E2E_ABACATEPAY_USER_ID}::uuid`;
     if (!existing) {
       await page.goto(new URL('/cadastro/plano', origin.origin).toString());
       evidence.planPath = new URL(page.url()).pathname;
@@ -164,17 +168,21 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
       );
       for (const width of [1440, 390]) {
         await page.setViewportSize({ width, height: 900 });
+        if (width === 390) {
+          await page.getByRole('button', { name: 'Trocar plano: mudar para Consultório' }).click();
+        }
+        await page.getByRole('button', { name: 'Trocar plano: mudar para Clínica' }).click();
+        const summary = page.getByRole('complementary');
         for (const doctors of [2, 3, 4, 5]) {
           const code = entryPlan.parse(`clinica_2026_${doctors}`);
           const offered = initialPlans.plans.find((plan) => plan.code === code);
           expect(offered?.priceCents).toBe(expectedAmount(code));
           if (!offered) throw new Error('Expected initial doctor plan missing');
-          await page
-            .locator('label')
-            .filter({ has: page.locator(`input[value="${offered.id}"]`) })
-            .click();
-          const summary = page.getByRole('complementary');
-          await expect(summary.getByText('Mensalidade do plano', { exact: true })).toBeVisible();
+          if (doctors > 2) await page.getByRole('button', { name: 'Mais um médico' }).click();
+          await expect(page.getByRole('group', { name: 'Médicos na clínica' })).toContainText(
+            String(doctors),
+          );
+          await expect(summary.getByText('Total mensal', { exact: true })).toBeVisible();
           await expect(summary).toContainText(
             new RegExp(`R\\$\\s*${(expectedAmount(code) / 100).toFixed(2).replace('.', ',')}`),
           );
@@ -186,10 +194,17 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
       }
       const chosen = initialPlans.plans.find((plan) => plan.code === input.E2E_ABACATEPAY_PLAN);
       if (!chosen) throw new Error('Chosen initial plan missing');
-      await page
-        .locator('label')
-        .filter({ has: page.locator(`input[value="${chosen.id}"]`) })
-        .click();
+      if (chosen.code === 'consultorio_2026') {
+        await page.getByRole('button', { name: 'Trocar plano: mudar para Consultório' }).click();
+      } else {
+        const targetDoctors = Number(chosen.code.at(-1));
+        for (let doctors = 5; doctors > targetDoctors; doctors--) {
+          await page.getByRole('button', { name: 'Menos um médico' }).click();
+        }
+      }
+      await expect(page.getByRole('complementary')).toContainText(
+        new RegExp(`R\\$\\s*${(expectedAmount(chosen.code) / 100).toFixed(2).replace('.', ',')}`),
+      );
       await page.getByRole('button', { name: 'Começar avaliação gratuita', exact: true }).click();
       await expect(page).toHaveURL(/\/dashboard(?:\?|$)/, { timeout: 90_000 });
       stages.push('one_click_plan_to_trial_without_hosted_checkout');
@@ -259,7 +274,7 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
         });
         return { status: response.status, body: await response.json() };
       });
-      if (process.env.E2E_ABACATEPAY_EXPECT_CHECKOUT_UNAVAILABLE === 'true') {
+      if (input.E2E_ABACATEPAY_EXPECT_CHECKOUT_UNAVAILABLE === 'true') {
         // Dedicated composition Previews stop new obligations. This explicit
         // expectation must match that deployment's reviewed kill switch.
         expect(repeated).toEqual({ status: 503, body: { error: 'unavailable' } });
@@ -304,7 +319,13 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
     }
     stages.push('desktop_mobile_subscription');
     if (input.E2E_ABACATEPAY_EXPIRED === 'false') {
-      await expect(page.getByRole('button', { name: 'Contratar assinatura' })).toBeEnabled();
+      if (input.E2E_ABACATEPAY_EXPECT_CHECKOUT_UNAVAILABLE === 'true') {
+        await expect(page.getByText('Contratação temporariamente indisponível')).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Contratar assinatura' })).toHaveCount(0);
+        stages.push('closed_acquisition_prevents_checkout');
+      } else {
+        await expect(page.getByRole('button', { name: 'Contratar assinatura' })).toBeEnabled();
+      }
       await expect(
         page.getByText('Você pode conhecer o sistema sem cartão ou contratar agora.', {
           exact: false,
@@ -331,8 +352,9 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
       stages.push('active_trial_optional_conversion_and_unpaid_integrations_blocked');
     }
     if (
-      input.E2E_ABACATEPAY_EXPIRED === 'true' ||
-      input.E2E_ABACATEPAY_CREATE_OPTIONAL_CHECKOUT === 'true'
+      (input.E2E_ABACATEPAY_EXPIRED === 'true' ||
+        input.E2E_ABACATEPAY_CREATE_OPTIONAL_CHECKOUT === 'true') &&
+      input.E2E_ABACATEPAY_EXPECT_CHECKOUT_UNAVAILABLE === 'false'
     ) {
       await page.goto(new URL('/configuracoes/assinatura', origin.origin).toString());
       const trialTitle =
