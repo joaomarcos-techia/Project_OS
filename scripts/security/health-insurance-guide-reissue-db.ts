@@ -153,7 +153,8 @@ try {
     operatorGuideNumber: 'OP12345678', password: 'SENHA987', passwordValidUntil: '2026-12-31',
     items: [{ requestItemId: ri!.id as string, quantityAuthorized: 4 }], actorUserId: A.doctorId,
   } as Parameters<typeof req.recordSadtAuthorizationInTx>[1]));
-  const ap1 = await sadtSession(A, p1, ri!.id as string, '2026-11-10');
+  // Fora de 10/11: o `approvedGuide` compartilhado (hi-fixtures) agenda a mesma médica nesse dia.
+  const ap1 = await sadtSession(A, p1, ri!.id as string, '2026-11-05');
 
   // 1. A guia nasce da conclusão; cancelada antes do envio; a recuperação pede a guia nova e NÃO a cria sozinha.
   await complete(A, ap1, p1.patientId);
@@ -268,8 +269,10 @@ try {
   // 10. Consulta: guia cancelada, cobertura corrigida para OUTRA operadora, guia nova com a operadora certa.
   const [proc] = await sql`select id from public.procedures where clinic_id = ${A.clinicId}::uuid limit 1`;
   const pc = await patientWithCard(A, 'consulta');
-  const pc2 = await patientWithCard(A, 'consulta-op2', A.insurerIds[1]!);
-  await sql`update public.hi_memberships set patient_id = ${pc.patientId}::uuid where id = ${pc2.membershipId}::uuid`;
+  // A carteirinha é imutável (regra do banco): o mesmo paciente ganha uma SEGUNDA, da Operadora Dois.
+  const [m2] = await sql`insert into public.hi_memberships (clinic_id, patient_id, insurer_id, card_number_encrypted, card_number_hash, card_last4, created_by)
+    values (${A.clinicId}::uuid, ${pc.patientId}::uuid, ${A.insurerIds[1]!}::uuid, 'AQAAAAAAAAAAAAAAAAAAAAAAAAAAAA==', ${randomUUID().replace(/-/g, '').padEnd(64, '0')}, '6789', ${SYS_ACTOR}::uuid) returning id`;
+  const pc2 = { patientId: pc.patientId, membershipId: m2!.id as string };
   const [ca] = await sql`insert into public.appointments (clinic_id, doctor_id, patient_id, procedure_id, scheduled_at, duration_min, status, valor,
       snapshot_procedure_name, snapshot_procedure_valor, snapshot_procedure_duracao_min, snapshot_doctor_nome, created_via, billing_mode)
     values (${A.clinicId}::uuid, ${A.doctorId}::uuid, ${pc.patientId}::uuid, ${proc!.id}::uuid, '2026-11-13T16:00:00Z', 30, 'agendado', 150,

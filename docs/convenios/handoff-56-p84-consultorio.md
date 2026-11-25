@@ -31,6 +31,20 @@
 
 **Prova integrada:** o patch entra na composição descartável #53 → #56 → #55 (PR #63), onde a CI e o E2E da P8.4 rodam com as duas branches juntas. No #56 sozinho, o arquivo `session-extra-items-ui.tsx` não existe: o patch só se aplica depois do #55 ou na composição.
 
+## Patches adicionais para telas do #56 (25/11)
+
+Os três seguem o mesmo procedimento: gerados contra o `fe892902`, aplicados só na composição descartável (commits
+`compose-only`), provados lá. Nenhum toca a branch do #56.
+
+| Patch | Tarefa | O que muda na tela do #56 | Prova |
+| --- | --- | --- | --- |
+| [`56-consultorio-p84r.patch`](patches/56-consultorio-p84r.patch) | P8.4 (exceção do médico), P5.2 | monta `ConsultorioExtraItems` no painel do atendimento (bloco de itens e resumo do convênio, sem valor) | `e2e/convenios-p84-consultorio-preview.spec.ts` na tripla |
+| [`56-agenda-p33-p52.patch`](patches/56-agenda-p33-p52.patch) | P3.3, P5.2 | monta `<AgendaInsuranceStrip />` antes do calendário em `agenda/page.tsx` (faixa "Convênios de hoje": pendência pré-consulta, carteirinha mascarada, link para Convênios só para quem opera) | `agenda-insurance-strip.test.tsx` e o mesmo spec na tripla |
+| [`56-financeiro-p106.patch`](patches/56-financeiro-p106.patch) | P10.6 | `financeiro/page.tsx`: filtro "Origem" (pacientes e outros × operadoras de convênio), "A receber" dividido por origem (mesma fórmula `valor − valorPago − valorGlosado`), selo "Operadora" na linha; `page.test.tsx` com 2 testes | `page.test.tsx` na tripla; backend no #55 (`getOpenReceivablesByOrigin`, filtro `origem`), harness da ponte 19/19 |
+
+`git apply --check` dos três contra os arquivos do `fe892902`: limpo. O patch do Financeiro preserva o saldo parcial
+que desconta a glosa (`l.valor - l.valorPago - l.valorGlosado`), que o #56 ainda não tem.
+
 ## Quando
 
 - O bloco funciona assim que a 0167 estiver no DEV (GO condicional, `go-0167-dev.md`).
