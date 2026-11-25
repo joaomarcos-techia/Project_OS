@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
   transaction: vi.fn(),
   change: vi.fn(),
+  management: vi.fn(),
   env: {
     NODE_ENV: 'production',
     VERCEL_ENV: 'production',
@@ -21,7 +22,9 @@ vi.mock('@/lib/env', () => ({ env: mocks.env }));
 vi.mock('@/lib/payments/abacatepay/sandbox-commands', () => ({
   createAbacatePayCommands: () => ({ requestPlanChange: mocks.change }),
 }));
-vi.mock('./abacatepay-management', () => ({ getAbacatePayManagementContext: vi.fn() }));
+vi.mock('./abacatepay-management', () => ({
+  getAbacatePayManagementContext: mocks.management,
+}));
 vi.mock('./plan-changes', () => ({ assertTargetPlanCapacity: vi.fn() }));
 vi.mock('./subscriptions', () => ({ recordBillingEvent: vi.fn() }));
 
@@ -60,6 +63,32 @@ beforeEach(() => {
 });
 
 describe('plan-change consumed payment retains its environment (synthetic SQL boundary)', () => {
+  it('rejects a Pix amount change before reserving an intent or calling the provider', async () => {
+    mocks.transaction.mockReset();
+    mocks.transaction.mockImplementationOnce(
+      async (fn: (tx: ManagementDatabase) => Promise<unknown>) => fn(database),
+    );
+    mocks.management.mockResolvedValueOnce({
+      generation_id: subscriptionId,
+      billing_status: 'active',
+      payment_method: 'PIX',
+      period_ended: false,
+      cancel_at_period_end: false,
+      cancellation_requested: false,
+    });
+    mocks.execute.mockResolvedValueOnce([{ ready: true }]);
+    await expect(
+      requestAbacatePayPlanChange(database, {
+        clinicId,
+        requestedBy: subscriptionId,
+        contractId: subscriptionId,
+        targetPlanId: subscriptionId,
+      }),
+    ).rejects.toMatchObject({ code: 'not_eligible' });
+    expect(mocks.change).not.toHaveBeenCalled();
+    expect(mocks.execute).toHaveBeenCalledOnce();
+  });
+
   it.each(['production', 'sandbox'] as const)(
     'reads the paid generation in %s before issuing a command',
     async (environment) => {

@@ -20,6 +20,143 @@ afterEach(() => {
 });
 
 describe('deferred subscription controls', () => {
+  it('records only an assisted Pix request after explicit acknowledgement', async () => {
+    const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => undefined);
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue(Response.json({ state: 'requested', intentId: 'intent' }));
+    vi.stubGlobal('fetch', fetcher);
+    render(
+      <DeferredSubscription
+        {...baseline}
+        paid
+        billingStatus="active"
+        paidPeriodActive
+        managementAvailable
+        contractId="11111111-1111-4111-8111-111111111111"
+        accessUntil="2026-12-24T03:09:00.000Z"
+        planChanges={{
+          amountChangeBlocked: true,
+          pending: null,
+          options: [
+            {
+              id: '22222222-2222-4222-8222-222222222222',
+              name: 'Clínica',
+              code: 'clinica_2026_2',
+              amountMinor: 39700,
+            },
+          ],
+        }}
+        pixReplacement={{ available: true, pending: null }}
+      />,
+    );
+    const button = screen.getByRole('button', { name: 'Solicitar análise da troca' });
+    expect(button.hasAttribute('disabled')).toBe(true);
+    fireEvent.change(screen.getByLabelText('Plano desejado'), {
+      target: { value: '22222222-2222-4222-8222-222222222222' },
+    });
+    expect(button.hasAttribute('disabled')).toBe(true);
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await waitFor(() => expect(reload).toHaveBeenCalledOnce());
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(fetcher).toHaveBeenCalledWith(
+      '/api/billing/pix-replacement-intent',
+      expect.objectContaining({
+        body: JSON.stringify({
+          action: 'request',
+          contractId: '11111111-1111-4111-8111-111111111111',
+          targetPlanId: '22222222-2222-4222-8222-222222222222',
+          acknowledged: true,
+        }),
+      }),
+    );
+    expect(screen.queryByText(/troca concluída/)).toBeNull();
+  });
+
+  it('shows a pending request and cancels only the request', async () => {
+    const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => undefined);
+    const fetcher = vi.fn().mockResolvedValue(Response.json({ state: 'cancelled' }));
+    vi.stubGlobal('fetch', fetcher);
+    render(
+      <DeferredSubscription
+        {...baseline}
+        paid
+        billingStatus="active"
+        paidPeriodActive
+        managementAvailable
+        contractId="11111111-1111-4111-8111-111111111111"
+        planChanges={{
+          amountChangeBlocked: true,
+          pending: null,
+          options: [
+            {
+              id: '22222222-2222-4222-8222-222222222222',
+              name: 'Clínica',
+              code: 'clinica_2026_2',
+              amountMinor: 39700,
+            },
+          ],
+        }}
+        pixReplacement={{
+          available: true,
+          pending: {
+            id: '33333333-3333-4333-8333-333333333333',
+            targetPlanId: '22222222-2222-4222-8222-222222222222',
+            amountMinor: 39700,
+            priorPeriodEnd: '2026-12-24T03:09:00.000Z',
+          },
+        }}
+      />,
+    );
+    expect(screen.getByText('Pedido registrado, sem troca financeira')).toBeTruthy();
+    expect(
+      screen.getByText(/Quando este pedido foi registrado, o período pago informado terminava em/),
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Solicitar análise da troca' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar somente o pedido de troca' }));
+    await waitFor(() => expect(reload).toHaveBeenCalledOnce());
+    expect(fetcher).toHaveBeenCalledWith(
+      '/api/billing/pix-replacement-intent',
+      expect.objectContaining({
+        body: JSON.stringify({
+          action: 'cancel',
+          contractId: '11111111-1111-4111-8111-111111111111',
+          intentId: '33333333-3333-4333-8333-333333333333',
+        }),
+      }),
+    );
+  });
+
+  it('does not offer a new Pix request when cancellation is already in progress', () => {
+    render(
+      <DeferredSubscription
+        {...baseline}
+        paid
+        billingStatus="active"
+        paidPeriodActive
+        cancellationState="requested"
+        managementAvailable
+        contractId="11111111-1111-4111-8111-111111111111"
+        planChanges={{
+          amountChangeBlocked: true,
+          pending: null,
+          options: [
+            {
+              id: '22222222-2222-4222-8222-222222222222',
+              name: 'Clínica',
+              code: 'clinica_2026_2',
+              amountMinor: 39700,
+            },
+          ],
+        }}
+        pixReplacement={{ available: true, pending: null }}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: 'Solicitar análise da troca' })).toBeNull();
+  });
+
   it('explains the fixed Pix authorization without offering an unsupported amount change', () => {
     render(
       <DeferredSubscription
@@ -34,7 +171,7 @@ describe('deferred subscription controls', () => {
     expect(screen.getByText(/O banco não permite alterar o valor desta autorização/)).toBeTruthy();
     expect(screen.queryByRole('combobox')).toBeNull();
   });
-  it('shows Pix upgrade prices and the safe next step without calling change-plan', () => {
+  it('shows Pix upgrade prices without advising cancellation before replacement', () => {
     const fetcher = vi.fn();
     vi.stubGlobal('fetch', fetcher);
     render(
@@ -61,7 +198,13 @@ describe('deferred subscription controls', () => {
       />,
     );
     expect(screen.getByText(/Clínica — 2 médicos.*397,00/)).toBeTruthy();
-    expect(screen.getByText(/Depois desse prazo, escolha o novo plano/)).toBeTruthy();
+    expect(
+      screen.getByText(/Não cancele a renovação apenas para tentar mudar de plano/),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/uma nova autorização Pix exige outra contratação e pagamento/),
+    ).toBeTruthy();
+    expect(screen.queryByText(/primeiro cancele a renovação/)).toBeNull();
     expect(screen.queryByRole('combobox')).toBeNull();
     expect(fetcher).not.toHaveBeenCalled();
   });
@@ -324,14 +467,12 @@ describe('deferred subscription controls', () => {
   });
   it('locks a pending recontract to its original plan and offers the same checkout', async () => {
     const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => undefined);
-    const fetcher = vi
-      .fn()
-      .mockResolvedValue(
-        Response.json({
-          state: 'checkout_pending',
-          checkoutUrl: 'https://app.abacatepay.com/pay/bill_existing',
-        }),
-      );
+    const fetcher = vi.fn().mockResolvedValue(
+      Response.json({
+        state: 'checkout_pending',
+        checkoutUrl: 'https://app.abacatepay.com/pay/bill_existing',
+      }),
+    );
     vi.stubGlobal('fetch', fetcher);
     render(
       <DeferredSubscription

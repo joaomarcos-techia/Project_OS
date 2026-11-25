@@ -28,6 +28,15 @@ interface Props {
     options: { id: string; name: string; code: string; amountMinor: number }[];
     pending: { planId: string; confirmed: boolean; effectiveNotBefore: string } | null;
   } | null;
+  pixReplacement?: {
+    available: true;
+    pending: {
+      id: string;
+      targetPlanId: string;
+      amountMinor: number;
+      priorPeriodEnd: string;
+    } | null;
+  } | null;
 }
 
 export function DeferredSubscription(props: Props) {
@@ -36,6 +45,7 @@ export function DeferredSubscription(props: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [targetPlan, setTargetPlan] = useState('');
+  const [replacementAcknowledged, setReplacementAcknowledged] = useState(false);
   const recontractPlan = props.recontractPendingPlanId ?? targetPlan;
   const cancelled = props.cancellationState === 'confirmed';
   async function schedulePlan() {
@@ -69,6 +79,47 @@ export function DeferredSubscription(props: Props) {
     } catch {
       setMessage(
         'A conexão foi interrompida. Atualize a página antes de tentar novamente; não há cobrança proporcional nesta alteração.',
+      );
+    } finally {
+      busy.current = false;
+      setLoading(false);
+    }
+  }
+  async function changePixReplacementIntent(action: 'request' | 'cancel') {
+    if (busy.current || !props.contractId) return;
+    const pending = props.pixReplacement?.pending;
+    if (action === 'request' && (!targetPlan || !replacementAcknowledged || pending)) return;
+    if (action === 'cancel' && !pending) return;
+    busy.current = true;
+    setLoading(true);
+    setMessage(null);
+    try {
+      const response = await fetch('/api/billing/pix-replacement-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          action === 'request'
+            ? { action, contractId: props.contractId, targetPlanId: targetPlan, acknowledged: true }
+            : { action, contractId: props.contractId, intentId: pending?.id },
+        ),
+      });
+      const body: unknown = await response.json();
+      if (
+        response.ok &&
+        typeof body === 'object' &&
+        body !== null &&
+        'state' in body &&
+        body.state === (action === 'request' ? 'requested' : 'cancelled')
+      ) {
+        window.location.reload();
+        return;
+      }
+      setMessage(
+        'Não foi possível confirmar o pedido. Atualize a página antes de tentar novamente; sua assinatura atual não foi alterada.',
+      );
+    } catch {
+      setMessage(
+        'A conexão foi interrompida. Confira o estado do pedido nesta página antes de repetir; nenhuma troca ou cobrança foi iniciada.',
       );
     } finally {
       busy.current = false;
@@ -325,25 +376,118 @@ export function DeferredSubscription(props: Props) {
       ) : null}
       {message ? <Alert variant="warning">{message}</Alert> : null}
       {props.planChanges?.amountChangeBlocked ? (
-        <Alert variant="info" title="Pagamento por Pix Automático">
-          O banco não permite alterar o valor desta autorização.{' '}
-          {props.checkoutAvailable === false
-            ? 'A troca está temporariamente indisponível. Não cancele a renovação apenas para tentar mudar de plano enquanto novos checkouts estiverem pausados.'
-            : `Para trocar de plano, primeiro cancele a renovação pelo botão acima; seu acesso continua até ${accessUntil ? `${accessUntil} (Brasília)` : 'o fim do período já pago'}. Depois desse prazo, escolha o novo plano nesta página e autorize uma nova assinatura no checkout. Não haverá duas recorrências simultâneas nem mudança de cotas antes do novo pagamento.`}
-          {props.planChanges.options.length ? (
-            <ul className="mt-3 list-disc space-y-1 pl-5">
-              {props.planChanges.options.map((plan) => (
-                <li key={plan.id}>
-                  {plan.name}:{' '}
-                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                    plan.amountMinor / 100,
-                  )}
-                  /mês
-                </li>
-              ))}
-            </ul>
+        <div className="space-y-4">
+          <Alert variant="info" title="Pagamento por Pix Automático">
+            O banco não permite alterar o valor desta autorização.{' '}
+            {props.checkoutAvailable === false
+              ? 'A troca está temporariamente indisponível. Não cancele a renovação apenas para tentar mudar de plano enquanto novos checkouts estiverem pausados.'
+              : 'A troca para outro valor ainda não está disponível. Sua assinatura e seus limites atuais continuam válidos. Não cancele a renovação apenas para tentar mudar de plano; uma nova autorização Pix exige outra contratação e pagamento.'}
+            {props.planChanges.options.length ? (
+              <ul className="mt-3 list-disc space-y-1 pl-5">
+                {props.planChanges.options.map((plan) => (
+                  <li key={plan.id}>
+                    {plan.name}:{' '}
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                      plan.amountMinor / 100,
+                    )}
+                    /mês
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </Alert>
+          {props.pixReplacement?.available &&
+          props.managementAvailable &&
+          props.contractId &&
+          !cancelled &&
+          props.cancellationState !== 'requested' &&
+          props.paidPeriodActive &&
+          props.planChanges.options.length ? (
+            <div className="space-y-3 rounded-lg border border-border bg-surface p-4">
+              <h3 className="font-semibold">Pedido assistido de troca</h3>
+              <p className="text-sm text-fg-muted">
+                Seu plano atual continua em vigor. O período pago atual
+                {accessUntil ? ` vai até ${accessUntil} (Brasília)` : ' permanece preservado'}. Este
+                pedido não cancela o Pix atual, não cria checkout e não cobra o novo valor. A data
+                da próxima cobrança bancária ainda precisa ser confirmada antes de qualquer
+                transição.
+              </p>
+              {props.pixReplacement.pending ? (
+                <>
+                  <Alert variant="info" title="Pedido registrado, sem troca financeira">
+                    Você pediu{' '}
+                    {props.planChanges.options.find(
+                      (plan) => plan.id === props.pixReplacement?.pending?.targetPlanId,
+                    )?.name ?? 'outro plano'}{' '}
+                    por{' '}
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                      props.pixReplacement.pending.amountMinor / 100,
+                    )}
+                    /mês. Quando este pedido foi registrado, o período pago informado terminava em{' '}
+                    {new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo' }).format(
+                      new Date(props.pixReplacement.pending.priorPeriodEnd),
+                    )}
+                    . Essa data não é promessa de nova cobrança ou de troca automática. A equipe
+                    precisa conferir a renovação antes de oferecer uma nova autorização Pix.
+                  </Alert>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    loading={loading}
+                    onClick={() => void changePixReplacementIntent('cancel')}
+                  >
+                    Cancelar somente o pedido de troca
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <label htmlFor="pix-replacement-plan" className="block text-sm font-medium">
+                    Plano desejado
+                  </label>
+                  <select
+                    id="pix-replacement-plan"
+                    value={targetPlan}
+                    onChange={(event) => setTargetPlan(event.target.value)}
+                    disabled={loading}
+                    className="w-full rounded-md border border-border bg-surface p-2 text-fg"
+                  >
+                    <option value="">Selecione um plano</option>
+                    {props.planChanges.options.map((plan) => (
+                      <option key={plan.id} value={plan.id}>
+                        {plan.name} —{' '}
+                        {new Intl.NumberFormat('pt-BR', {
+                          style: 'currency',
+                          currency: 'BRL',
+                        }).format(plan.amountMinor / 100)}
+                        /mês
+                      </option>
+                    ))}
+                  </select>
+                  <label className="flex items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={replacementAcknowledged}
+                      onChange={(event) => setReplacementAcknowledged(event.target.checked)}
+                    />
+                    <span>
+                      Entendi que este pedido não altera nem cancela minha assinatura atual. Uma
+                      nova contratação exigirá minha autorização e cobrará o primeiro mês no
+                      pagamento.
+                    </span>
+                  </label>
+                  <Button
+                    type="button"
+                    loading={loading}
+                    disabled={!targetPlan || !replacementAcknowledged}
+                    onClick={() => void changePixReplacementIntent('request')}
+                  >
+                    Solicitar análise da troca
+                  </Button>
+                </>
+              )}
+            </div>
           ) : null}
-        </Alert>
+        </div>
       ) : props.planChanges ? (
         <div className="space-y-3">
           <h3 className="font-semibold">Plano e médicos adicionais</h3>

@@ -30,6 +30,11 @@ import { reconcileMissingAbacatePayInitialPayment } from './abacatepay-processin
 import { recoverAbacatePayCheckout } from './abacatepay-checkout-recovery';
 import { readInitialReplacementCheckout } from './abacatepay-initial-checkout-replacement';
 import {
+  cancelPixReplacementIntent,
+  getPixReplacementIntentOverview,
+  requestPixReplacementIntent,
+} from './abacatepay-pix-replacement-intent';
+import {
   getAbacatePayPlanChangeOverview,
   getAbacatePayRecontractOptions,
   requestAbacatePayPlanChange,
@@ -56,6 +61,22 @@ export async function requestDeferredSubscriptionPlanChange(input: {
   targetPlanId: string;
 }) {
   return requestAbacatePayPlanChange(dbAdmin, input);
+}
+export async function requestDeferredPixReplacementIntent(input: {
+  clinicId: string;
+  requestedBy: string;
+  contractId: string;
+  targetPlanId: string;
+}) {
+  return requestPixReplacementIntent(dbAdmin, input);
+}
+export async function cancelDeferredPixReplacementIntent(input: {
+  clinicId: string;
+  requestedBy: string;
+  contractId: string;
+  intentId: string;
+}) {
+  return cancelPixReplacementIntent(dbAdmin, input);
 }
 
 const productMapSchema = z.partialRecord(
@@ -369,6 +390,9 @@ export async function getDeferredSubscriptionOverview(clinicId: string) {
         checkoutAvailable: abacatePayCheckoutAllowed(clinicId),
         planChanges: managementAvailable
           ? await getAbacatePayPlanChangeOverview(dbAdmin, clinicId)
+          : null,
+        pixReplacement: managementAvailable
+          ? await getPixReplacementIntentOverview(dbAdmin, clinicId)
           : null,
         recontractOptions: recontract.options,
         recontractPendingPlanId: recontract.pendingPlanId,
