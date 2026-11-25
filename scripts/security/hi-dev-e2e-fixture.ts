@@ -1487,11 +1487,15 @@ async function setupP84() {
     SELECT id::text AS id FROM public.hi_sadt_request_items WHERE request_id = ${r.id}::uuid AND procedure_code = ${P84_CODES.main.code}`);
   // Três sessões de HOJE desta execução, ligadas ao procedimento agendado da solicitação.
   const sessionsOut: Record<string, string> = {};
-  let hour = 10;
+  // Horas UTC do dia: 10h–23h e, se faltar, 3h–9h (00h–06h59 de Brasília, ainda "hoje" na clínica).
+  // Várias rodadas no mesmo dia esgotavam a agenda da médica sintética (25/11: "sem horário livre").
+  const HOURS = [...Array.from({ length: 14 }, (_, i) => 10 + i), ...Array.from({ length: 7 }, (_, i) => 3 + i)];
+  let hi = 0;
   for (const [key, doctor, doctorName] of [['s1', medica, 'Dra. Itens Adicionais E2E'], ['s2', medica, 'Dra. Itens Adicionais E2E'], ['s3', medica2, 'Dra. Outra Itens Adicionais E2E']] as const) {
     const tag = `e2e-hi:p84-${run}-${key}`;
     let [ap] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.appointments WHERE clinic_id = ${c}::uuid AND observacoes = ${tag}`);
-    for (; !ap && hour <= 22; hour++) {
+    for (; !ap && hi < HOURS.length; hi++) {
+      const hour = HOURS[hi]!;
       try {
         [ap] = await exec<{ id: string }>(sql`
           INSERT INTO public.appointments (clinic_id, doctor_id, patient_id, procedure_id, scheduled_at, duration_min, status, valor,
@@ -1541,7 +1545,8 @@ async function setupP84() {
   for (const [key, doctor, doctorName, withCoverage] of [['s4', medica, 'Dra. Itens Adicionais E2E', true], ['s5', medica2, 'Dra. Outra Itens Adicionais E2E', false]] as const) {
     const tag = `e2e-hi:p84-${run}-${key}`;
     let [ap] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.appointments WHERE clinic_id = ${c}::uuid AND observacoes = ${tag}`);
-    for (; !ap && hour <= 23; hour++) {
+    for (; !ap && hi < HOURS.length; hi++) {
+      const hour = HOURS[hi]!;
       try {
         [ap] = await exec<{ id: string }>(sql`
           INSERT INTO public.appointments (clinic_id, doctor_id, patient_id, procedure_id, scheduled_at, duration_min, status, valor,
