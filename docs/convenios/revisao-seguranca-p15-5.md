@@ -61,6 +61,29 @@ Nenhum achado crítico aberto no código revisado.
 
 Nenhum achado crítico aberto no código revisado neste ciclo.
 
+## Revisão de 25/11: superfícies novas (P8.4-r, guia nova após cancelada, P10.6, P12.11, P3.3/P5.2)
+
+Revisão dirigida no código (head `302b6381` do #55 e a composição c11), sem ferramenta externa.
+
+| Superfície | O que foi conferido | Prova | Resultado |
+| --- | --- | --- | --- |
+| Exceção do médico (`recordOwnSessionExtraItemAction`) | regra `ownSession` (só `VIEW_CONVENIOS`) **e** `assertOwnSessionTx` no servidor: a sessão é do próprio usuário, em atendimento ou finalizada; sem valor, sem decisão de faturamento, sem campo clínico; repetir é idempotente (mesmo autor, linha e quantidade) | `extra-item-actions.test.ts`, harness 28/28, E2E do consultório (outra médica, recepção e outra clínica recusadas no servidor) | OK |
+| Leitura pelo consultório (`loadSessionExtraItemsAction`) | sem escrita (fora da auditoria por desenho, na lista do `audit-coverage.test.ts`); sem o escopo amplo, só lê a PRÓPRIA sessão (`doctor_id` = usuário); o resto não devolve nada | `getAppointmentExtraItems`, E2E | OK |
+| Inclusão, exclusão e "aprovar sem" | permissão de faturamento relida no banco (`requireFreshPermission`); travas na ordem da política; aprovar sem os pendentes é atômico (exclui e emite na mesma transação, ou nada) | harness 28/28, `actions-gate.test.ts`, E2E | OK |
+| Item livre na emissão SP/SADT (correção de 25/11) | só fica fora da autorização o código cujas linhas de contrato na guia **todas** dispensam autorização; uma linha que exija volta a bloquear; o que exige continua bloqueando; nada passa a consumir senha a mais | `sp-sadt-assembler.test.ts` (3 casos), reprodução no DEV em transação desfeita | OK: não abre atalho. O contrato é dado da gestão, com a mesma regra que já valia para a sessão agendada |
+| Guia nova depois de cancelada (`reissueGuideAction`) | só guia cancelada antes do envio; enviada ou na operadora é recusada (o caminho é a substituição); trava a cancelada `FOR UPDATE`; chave `…:reissue:<id>` (repetir devolve a mesma); permissão relida; auditada | harness de 14 provas, `guide-reissue-action.test.ts` | OK |
+| P10.6 (Financeiro) | consultas com `withTenant` **e** predicado explícito da clínica; a tela segue atrás de `VIEW_FINANCIAL`; o filtro de origem é lista fechada (valor desconhecido é ignorado); o Caixa continua sem o recebível da operadora | harness da ponte 19/19, `page.test.tsx` | OK |
+| P12.11 (identificação do software) | mostra só os 12 primeiros caracteres do commit do build (`VERCEL_GIT_COMMIT_SHA`), sem ambiente, URL ou segredo; formato conferido (hexadecimal); sem build aparece "sem build" | `software-identity.test.ts`, `print.test.ts` | OK |
+| P3.3/P5.2 (agenda e consultório) | componente de servidor; mesmo escopo das listas de Convênios (`guideScopeFor`: a médica vê só os dela); carteirinha mascarada; sem valor (R$) | `agenda-insurance-strip.test.tsx`, E2E da agenda | OK |
+
+**Observação (sem efeito no acesso):** a visão administrativa `qoro_subscription_period_audit` da 0154 (#55) classifica
+pelo `now()::date` da sessão do banco. O gate (`v_today`) decide pelo dia no fuso da clínica. Das 21h às 24h de
+Brasília, a classificação do alerta administrativo pode adiantar um dia em relação à decisão. A decisão de acesso está
+certa. O harness D24 passou a usar o fuso da clínica (era a falha intermitente de 25/11, 02:48 UTC). Alinhar a visão
+pede migration nova: fica registrado e não foi feito neste ciclo (a 0154 está aplicada no DEV).
+
+Nenhum achado crítico aberto no código revisado neste ciclo.
+
 ## Critérios para fechar a P15.5 depois das decisões S1–S8
 
 A P15.5 só fecha em definitivo depois que as decisões do perfil de segurança ANS (`decisoes-pendentes.md`, B10) mudarem o código. Para cada uma aprovada:
