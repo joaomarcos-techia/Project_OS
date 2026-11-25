@@ -18,6 +18,7 @@ import {
   readReviewedCheckoutMigrations,
   checkoutScenario,
   saveSession,
+  sandboxWebhookName,
   sessionSchema,
   withSessionLock,
   type CheckoutSession,
@@ -61,6 +62,12 @@ afterEach(async () => {
 });
 
 describe('checkout operator environment and immutable preparation', () => {
+  it('accepts only the reviewed Sandbox webhook identities', () => {
+    expect(sandboxWebhookName.parse('[SANDBOX] Qoro trial deferred 20261108')).toBeDefined();
+    expect(sandboxWebhookName.parse('[SANDBOX] Qoro PR64 Pix 20261125')).toBeDefined();
+    expect(() => sandboxWebhookName.parse('[PRODUCTION] Qoro')).toThrow();
+    expect(() => sandboxWebhookName.parse('[SANDBOX] Qoro unknown')).toThrow();
+  });
   it('accepts an unused probe for a fresh run and requires the exact Auth marker on resume', () => {
     expect(() => assertFixtureAuthReadiness(null, 404, null)).not.toThrow();
     expect(() => assertFixtureAuthReadiness(sample, 404, null)).not.toThrow();
@@ -351,6 +358,7 @@ describe('checkout operator environment and immutable preparation', () => {
   it.each([
     ['--preview', 'https://app.qoro.dev'],
     ['--preview', sample.origin, '--session', '../retained'],
+    ['--preview', sample.origin, '--webhook-name', '[PRODUCTION] Qoro'],
   ])('rejects unsafe CLI arguments before reading settings or calling services: %j', (...args) => {
     const result = spawnSync(
       process.execPath,

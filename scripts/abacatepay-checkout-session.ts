@@ -9,6 +9,10 @@ import { OFFER_2026_PLAN_CODES, quoteProposedOffer } from '../src/contexts/billi
 export const DEV_REF = 'pqhkirrszzpwezdaqrai';
 export const BILLING_BRANCH = 'feat/billing-abacatepay-20261107';
 export const COMMERCIAL_INTEGRATION_BRANCH = 'integration/abacatepay-ui-20261125';
+export const sandboxWebhookName = z.enum([
+  '[SANDBOX] Qoro trial deferred 20261108',
+  '[SANDBOX] Qoro PR64 Pix 20261125',
+]);
 const CHECKOUT_BASELINE_MIGRATIONS = 143;
 const CRITICAL_MIGRATION_FIRST_INDEX = 136;
 const CRITICAL_MIGRATION_LAST_INDEX = 142;

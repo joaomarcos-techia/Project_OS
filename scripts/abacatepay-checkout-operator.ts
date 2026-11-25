@@ -28,6 +28,7 @@ import {
   readCheckoutRequiredMigrations,
   readReviewedCheckoutMigrations,
   saveSession,
+  sandboxWebhookName,
   withSessionLock,
   type CheckoutSession,
   type CheckoutSnapshot,
@@ -56,6 +57,7 @@ async function main(): Promise<void> {
       preview: { type: 'string' },
       'vercel-cli': { type: 'string' },
       'settings-file': { type: 'string', default: 'C:/dev/ClinicaOS_V2/.env.local' },
+      'webhook-name': { type: 'string', default: '[SANDBOX] Qoro trial deferred 20261108' },
       session: { type: 'string', default: 'next-checkout-20261110' },
       plan: { type: 'string', default: 'clinica_2026_2' },
       scenario: { type: 'string', default: 'expired_trial' },
@@ -68,6 +70,7 @@ async function main(): Promise<void> {
     assert.equal(scenario, 'early_payment', 'Staging never creates a checkout');
   const origin = previewOrigin.parse(values.preview);
   const plan = entryPlan.parse(values.plan);
+  const webhookName = sandboxWebhookName.parse(values['webhook-name']);
   const slot = z
     .string()
     .regex(/^next-checkout-[a-z0-9-]{1,50}$/)
@@ -279,13 +282,8 @@ async function main(): Promise<void> {
         pagination: z.object({ hasMore: z.literal(false) }),
       })
       .parse(await hooks.json());
-    const [hook] = webhooks.data.filter(
-      (item) => item.name === '[SANDBOX] Qoro trial deferred 20261108',
-    );
-    assert.equal(
-      webhooks.data.filter((item) => item.name === '[SANDBOX] Qoro trial deferred 20261108').length,
-      1,
-    );
+    const [hook] = webhooks.data.filter((item) => item.name === webhookName);
+    assert.equal(webhooks.data.filter((item) => item.name === webhookName).length, 1);
     assert.ok(hook?.devMode && hook.v2 && hook.events.includes('subscription.completed'));
     const target = new URL(hook.endpoint);
     previewOrigin.parse(target.origin);
