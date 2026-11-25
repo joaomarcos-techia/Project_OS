@@ -1,6 +1,24 @@
 # Operação e recuperação AbacatePay
 
-## Candidato não publicado — troca de plano com Pix Automático, 24/11/2026
+## Regra prevalente — pedido de substituição Pix, 25/11/2026
+
+**Não instrua o cliente a cancelar a renovação para iniciar uma troca.** A AbacatePay só muda uma autorização Pix para outro plano se o valor permanecer igual; todos os planos Qoro têm valores diferentes. O cancelamento pela API é imediato e um novo checkout Pix cobra o primeiro período ao autorizar. O Qoro ainda não comprovou uma janela automática sem intervalo de acesso ou cobranças sobrepostas. A seção de 24/11 abaixo é histórica e sua orientação de cancelar primeiro foi revogada.
+
+O PR #53 prepara um pedido assistido, sem efeito financeiro. Após a composição e aplicação autorizada da proposta `docs/decoupling/asaas-to-abacatepay/propostas/pix-replacement-intents.sql`, o titular poderá registrar um plano desejado e cancelar somente o pedido. A tabela não pertence ainda ao journal compartilhado e não foi aplicada em DEV ou Production. Até lá, o botão não aparece e a rota responde indisponível. Nenhum pedido deve ser interpretado como autorização para checkout, cancelamento, crédito ou reembolso.
+
+Quando a tabela estiver disponível, a equipe pode consultar **somente leitura** os pedidos abertos com uma conta administrativa aprovada e escopo do tenant:
+
+```sql
+SELECT id,clinic_id,subscription_id,generation_id,prior_external_subscription_id,
+       prior_period_end,to_plan_id,target_amount_minor,requested_at,state
+FROM billing_gateway.pix_replacement_intents
+WHERE clinic_id = :'clinic_id'::uuid AND state = 'requested'
+ORDER BY requested_at DESC;
+```
+
+Antes de oferecer nova contratação, conferir no provedor a assinatura antiga, próxima cobrança e eventual renovação em processamento; conciliar os pagamentos e confirmar a política comercial aprovada. Se houver resposta ambígua, manter o contrato pago e encaminhar à revisão financeira. Não criar checkout nem cancelar a assinatura automaticamente com base no pedido. Registrar a decisão e o consentimento para **uma nova contratação**, incluindo valor integral imediato e possíveis intervalos ou sobreposição, antes de qualquer operação financeira autorizada. O procedimento financeiro de substituição e o C4 continuam bloqueados até aprovação e homologação próprias.
+
+## Histórico — candidato de troca de plano com Pix Automático, 24/11/2026
 
 O PR #53, commit `8f8cd606082994de725ee54f13d89a122ec64701`, prepara autoatendimento para a assinatura Pix sem alterar a autorização bancária existente. Enquanto o período pago está ativo, a tela mostra os outros planos e explica que o titular deve cancelar **somente a renovação** se quiser trocar. O acesso e as cotas atuais permanecem até o fim do período. Depois desse prazo, e somente se novos checkouts estiverem permitidos para a clínica, o titular escolhe o plano e autoriza uma nova recorrência no checkout da AbacatePay. Um checkout pendente trava a escolha e pode ser retomado. Plano, preço e cotas só mudam na transação que confirma o novo pagamento. A capacidade do plano menor é verificada antes de criar o checkout e novamente ao aplicar o pagamento. Não há pró-rata nem liberação antecipada de direitos.
 
