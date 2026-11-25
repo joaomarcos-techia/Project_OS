@@ -570,7 +570,11 @@ try {
     await invoice('-5 days', '25 days');
     const [{ covering }] = (await sql`select covering_paid_invoices as covering from public.qoro_subscription_period_audit where clinic_id = ${c.clinicId}::uuid`) as unknown as [{ covering: number }];
     assert.equal(covering, 2);
-    await sql`update public.invoices set period_end = current_date - 1 where subscription_id = ${subId}::uuid and status = 'paid'`;
+    // "Ontem" no fuso DA CLÍNICA, como a 0154 decide (v_today): `current_date` do runner é UTC e,
+    // das 21h às 24h de Brasília, "UTC − 1" ainda é o hoje local (falha intermitente de 25/11, 02:48 UTC).
+    await sql`update public.invoices
+      set period_end = (select (now() at time zone coalesce(cl.timezone, 'America/Sao_Paulo'))::date - 1 from public.clinics cl where cl.id = ${c.clinicId}::uuid)
+      where subscription_id = ${subId}::uuid and status = 'paid'`;
     await expect3('duas faturas pagas do mesmo período, já vencidas', 'period_unverified', null);
     // Dados parcialmente migrados: início sem fim (ou o contrário).
     await setSub({ start: '-10 days', end: null });

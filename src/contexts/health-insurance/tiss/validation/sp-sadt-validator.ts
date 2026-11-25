@@ -42,6 +42,11 @@ export interface SpSadtValidationContext {
   authorizationRequired: boolean;
   /** Quantidades autorizadas por código (só quando há autorização registrada). */
   authorizedQuantities?: ReadonlyMap<string, number>;
+  /**
+   * P8.4-r: códigos (`tabela:procedimento`) cujo contrato NÃO exige autorização (item adicional
+   * livre). Fora da autorização, não bloqueiam; dentro dela, a quantidade continua conferida.
+   */
+  authorizationExempt?: ReadonlySet<string>;
 }
 
 /** Código do solicitante quando ele não informou o próprio (planilha oficial, campo 19). */
@@ -657,6 +662,7 @@ export function validateSpSadtGuide(
     for (const [key, used] of quantityByCode) {
       const authorized = ctx.authorizedQuantities.get(key);
       if (authorized === undefined) {
+        if (ctx.authorizationExempt?.has(key)) continue;
         c.add(
           'ITEM_NOT_AUTHORIZED',
           'procedimentos',
