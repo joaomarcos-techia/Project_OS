@@ -1,27 +1,41 @@
 {
-  "note": "Composição descartável #53 → #56 → #55 (heads de 24/11, #55 270dfdad): cancelamento/substituição P7.5 (fixture HS24R) e estados da guia (fixture HS24J, relé da fixture) no Preview da tripla. A P7.5 roda primeiro (contas próprias) para espaçar os logins da gestora.",
-  "run": "HS24-C4",
+  "note": "Composição descartável #53 → #56 → #55 (#53 dddc650b, #56 da integração c11, #55 0235051a): P7.5 (HS25G), estados da guia (HS25H), P8.4 da conferência (HS25I) e P8.4 pelo consultório oficial do #56 + faixa Convênios de hoje na agenda (HS25J, fixture própria). Relé da fixture com o grupo no id.",
+  "run": "HS25-C5",
   "groups": [
     [
       "e2e/convenios-p75-preview.spec.ts"
     ],
     [
       "e2e/convenios-guide-states-preview.spec.ts"
+    ],
+    [
+      "e2e/convenios-p84-preview.spec.ts"
+    ],
+    [
+      "e2e/convenios-p84-consultorio-preview.spec.ts"
     ]
   ],
   "env": {
-    "E2E_HI_ACCOUNTS": "e2e-hi-accounts.json"
+    "E2E_HI_ACCOUNTS": "e2e-hi-accounts.json",
+    "E2E_HI_FIXTURE_CMD": "e2e/preview-fixture-relay.mjs"
   },
   "groupEnv": [
     {
       "E2E_HI_P75_ACCOUNTS": "e2e-hi-p75-accounts.json",
-      "E2E_HI_P75": "e2e-hi-p75-hs24r.json"
+      "E2E_HI_P75": "e2e-hi-p75-hs25g.json"
     },
     {
       "E2E_HI_CFG_ACCOUNTS": "e2e-hi-cfg-accounts.json",
-      "E2E_HI_STATES": "e2e-hi-states-hs24j.json",
-      "E2E_HI_CFG_GUIDE": "e2e-hi-cfg-guide.json",
-      "E2E_HI_FIXTURE_CMD": "e2e/preview-fixture-relay.mjs"
+      "E2E_HI_STATES": "e2e-hi-states-hs25h.json",
+      "E2E_HI_CFG_GUIDE": "e2e-hi-cfg-guide.json"
+    },
+    {
+      "E2E_HI_P84_ACCOUNTS": "e2e-hi-p84-accounts.json",
+      "E2E_HI_P84": "e2e-hi-p84-hs25i.json"
+    },
+    {
+      "E2E_HI_P84_ACCOUNTS": "e2e-hi-p84-accounts.json",
+      "E2E_HI_P84": "e2e-hi-p84-hs25j.json"
     }
   ]
 }
