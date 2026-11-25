@@ -1,6 +1,6 @@
 {
-  "note": "Pedido de E2E no Preview (navegador remoto). Mudar este arquivo dispara convenios-preview-e2e.yml. HS25-55D: head final do #55 (item adicional livre na emissão SP/SADT, P10.6 no backend, harnesses da reemissão e do D24 corrigidos) — P7.5 (HS25K), estados da guia (HS25N) e P8.4 da conferência (HS25M). O HS25-55C (302b6381) caiu no login dos grupos 0 e 2: as senhas das contas foram trocadas por fixtures criadas depois da publicação do pacote (nenhuma escrita aconteceu; estados 13/13 no mesmo run).",
-  "run": "HS25-55D",
+  "note": "Pedido de E2E no Preview (navegador remoto). Mudar este arquivo dispara convenios-preview-e2e.yml. HS25-55E: head final do #55 — P7.5 (HS25Q), estados da guia (HS25R) e P8.4 da conferência (HS25S). HS25-55D (f0a33dc9): estados 13/13; P8.4 1–5 verdes (a guia aprova sem os pendentes com a correção do item livre) e a 6ª estourou o padrão de 30 s com três logins (agora 180 s, como as vizinhas); P7.5 1/5 e a 2ª com o #418 raro do R51 (variante HTML, já registrada; asserção mantida).",
+  "run": "HS25-55E",
   "groups": [
     [
       "e2e/convenios-p75-preview.spec.ts"
@@ -19,16 +19,16 @@
   "groupEnv": [
     {
       "E2E_HI_P75_ACCOUNTS": "e2e-hi-p75-accounts.json",
-      "E2E_HI_P75": "e2e-hi-p75-hs25k.json"
+      "E2E_HI_P75": "e2e-hi-p75-hs25q.json"
     },
     {
       "E2E_HI_CFG_ACCOUNTS": "e2e-hi-cfg-accounts.json",
-      "E2E_HI_STATES": "e2e-hi-states-hs25n.json",
+      "E2E_HI_STATES": "e2e-hi-states-hs25r.json",
       "E2E_HI_CFG_GUIDE": "e2e-hi-cfg-guide.json"
     },
     {
       "E2E_HI_P84_ACCOUNTS": "e2e-hi-p84-accounts.json",
-      "E2E_HI_P84": "e2e-hi-p84-hs25m.json"
+      "E2E_HI_P84": "e2e-hi-p84-hs25s.json"
     }
   ]
 }

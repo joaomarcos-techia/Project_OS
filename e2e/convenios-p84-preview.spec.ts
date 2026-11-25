@@ -214,6 +214,8 @@ test('recepção registra os itens, vê cada estado e liga a autorização do qu
 });
 
 test('servidor: sem saldo e fora da solicitação não liga; repetir o registro não duplica; quantidade inválida', async ({ browser }) => {
+  // Inclui uma leitura pelo relé da fixture (até 200 s); 46 s no HS25-55D.
+  test.setTimeout(180_000);
   const s = await session(browser, 'p84-recepcao');
   await s.page.goto(guidePath());
   expectRefused(await replay(s.page, regularizeAction!, regularizeAction!.body.replaceAll(ids.authorized!, ids.short!)), 'saldo autorizado');
@@ -321,6 +323,9 @@ test('gestora confere e aprova sem os pendentes, com motivo: guia aprovada, pend
 });
 
 test('sem faturamento, outra clínica e médica: o servidor recusa; a médica vê sem controles; outra médica não abre', async ({ browser }) => {
+  // Três logins novos (outra clínica, médica, outra médica) e cinco navegações: o padrão de 30 s
+  // não cobre nem os três logins no Preview (HS25-55D, f0a33dc9: estourou no 3º login).
+  test.setTimeout(180_000);
   const r = await session(browser, 'p84-recepcao');
   await r.page.goto(guidePath());
   expectRefused(await replay(r.page, includeAction!), NO_PERMISSION);

@@ -157,6 +157,8 @@ test('médica registra o item executado na PRÓPRIA sessão, sem valor nem decis
 });
 
 test('servidor: sessão de outra médica, recepção e outra clínica não registram pela exceção do médico', async ({ browser }) => {
+  // Dois logins novos (recepção e outra clínica) e três navegações.
+  test.setTimeout(180_000);
   const s = await session(browser, 'p84-medica');
   await s.page.goto('/consultorio');
   expectRefused(await replay(s.page, recordOwn!, recordOwn!.body.replaceAll(fx!.sessions.s2, fx!.sessions.s3)), NOT_OWN);
@@ -169,6 +171,8 @@ test('servidor: sessão de outra médica, recepção e outra clínica não regis
 });
 
 test('a outra médica vê só a própria sessão, sem o item registrado pela primeira', async ({ browser }) => {
+  // Login novo e a espera do painel do atendimento (até 60 s, como no 1º teste).
+  test.setTimeout(180_000);
   const s = await session(browser, 'p84-medica2');
   const panel = await openAttendance(s.page);
   const block = panel.locator('details').filter({ hasText: 'Itens executados além do agendado' });
@@ -199,6 +203,8 @@ test('agenda: a recepção vê a pendência pré-consulta de hoje e vai resolver
 });
 
 test('agenda: cada médica vê só os próprios convênios de hoje, sem o link de resolver', async ({ browser }) => {
+  // Duas cargas da agenda, cada uma com espera de até 60 s pela faixa.
+  test.setTimeout(180_000);
   const m1 = await session(browser, 'p84-medica');
   await m1.page.goto('/agenda');
   await expect(row(m1.page, fx!.sessions.s4)).toBeVisible({ timeout: 60_000 });
