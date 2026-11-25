@@ -9,6 +9,8 @@
  * fazia o cartão importar de quem o importa (ciclo pego por `arch:check`).
  */
 /** `cash`: "Pagou em dinheiro" — o painel de confirmação só com dinheiro (08/10/2026). */
+import { TrialAccessError } from '@/lib/trial-access/policy';
+
 export type CashPanelMode = 'confirm' | 'cash' | 'cancel' | 'estorno';
 
 export type ActionResult<T = undefined> =
@@ -46,7 +48,9 @@ export function actionErrorLogFields(err: unknown): {
 const MAP: Record<string, { code: string; message: string }> = {
   LancamentoStateError: {
     code: 'state',
-    message: 'Esta ação não é mais possível — a situação do lançamento mudou. Recarregue.',
+    // P-19: a tela recarrega sozinha nesse caso (outra aba ou aparelho registrou antes).
+    message:
+      'A situação deste lançamento mudou, talvez em outra aba ou aparelho. A lista foi atualizada; confira os valores antes de registrar de novo.',
   },
   LancamentoNotFoundError: { code: 'not_found', message: 'Lançamento não encontrado.' },
   IdempotencyInFlightError: {
@@ -76,6 +80,7 @@ function fromAuthError(err: unknown): ActionResult<never> | null {
 }
 
 export function fail(err: unknown): ActionResult<never> {
+  if (err instanceof TrialAccessError) return { ok: false, code: err.code, message: err.message };
   const auth = fromAuthError(err);
   if (auth) return auth;
   const name = err instanceof Error ? err.name : '';

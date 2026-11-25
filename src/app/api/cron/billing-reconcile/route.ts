@@ -16,6 +16,16 @@ import { dbAdmin } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 import { withCron } from '@/lib/http/cron';
 import { metrics } from '@/lib/observability/metrics';
+import { env } from '@/lib/env';
+import {
+  reconcileAbacatePayInbox,
+  reconcileMissingAbacatePayInitialPayment,
+  reconcileAbacatePayRecoveryTick,
+} from '@/contexts/billing/internal/abacatepay-processing';
+import { reconcileAbacatePayManagement } from '@/contexts/billing/internal/abacatepay-management';
+import { reconcileAbacatePayUnknownCheckout } from '@/contexts/billing/internal/abacatepay-checkout-recovery';
+import { reconcileAbacatePayIntegrity } from '@/contexts/billing/internal/abacatepay-integrity';
+import { observeAbacatePayRenewals } from '@/contexts/billing/internal/abacatepay-renewal-watch';
 
 import { asaasProvider, BillingProviderError } from '@/lib/payments/asaas';
 import { removeSubscriptionCharges } from '@/contexts/billing/internal/cancellation-charges';
@@ -59,6 +69,10 @@ const PAID_STATUSES = new Set(['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH']);
 const RECONCILE_SUBSCRIPTION_LIMIT = 50;
 const SCHEDULED_PLAN_CHANGE_LIMIT = 50;
 const PENDING_UPGRADE_LIMIT = 50;
+const ABACATEPAY_INBOX_BATCH_LIMIT = 10;
+// A readback can take 20s: do not begin another batch item after 15s of this
+// shared job. The original first item retains its 35s admission cutoff.
+const ABACATEPAY_BATCH_START_BUDGET_MS = 15_000;
 type ReconciliationAction = 'paid' | 'overdue' | 'refunded';
 type MaterializationResult = {
   materialized: boolean;
@@ -75,6 +89,7 @@ function actionFor(status: string): ReconciliationAction | null {
 export const GET = withCron(
   { job: 'billing-reconcile', route: 'billing-reconcile', errorEvent: 'billing.reconcile.error' },
   async () => {
+    const startedAt = Date.now();
     const [run] = await dbAdmin
       .insert(billingReconciliationRuns)
       .values({})
@@ -533,6 +548,51 @@ export const GET = withCron(
           });
         });
         fixed++;
+      }
+
+      if (env.ABACATEPAY_STORE_ID && env.ABACATEPAY_API_KEY && Date.now() - startedAt < 35_000) {
+        await observeAbacatePayRenewals(dbAdmin);
+        // Separate origin; never route an existing Asaas payment through it.
+        // One event with bounded GETs leaves the current 60s job budget intact.
+        const inbox =
+          Date.now() - startedAt < 35_000 ? await reconcileAbacatePayInbox() : { scanned: 0 };
+        let inboxScanned = inbox.scanned;
+        for (
+          let item = 1;
+          inbox.scanned > 0 &&
+          item < ABACATEPAY_INBOX_BATCH_LIMIT &&
+          Date.now() - startedAt < ABACATEPAY_BATCH_START_BUDGET_MS;
+          item++
+        ) {
+          const next = await reconcileAbacatePayInbox();
+          inboxScanned += next.scanned;
+          if (next.scanned === 0) break;
+        }
+        metrics.emit('billing.abacatepay.inbox_batch', {
+          scanned: inboxScanned,
+          limit: ABACATEPAY_INBOX_BATCH_LIMIT,
+        });
+        if (Date.now() - startedAt >= 35_000)
+          metrics.emit('billing.abacatepay.reconcile_deferred', { reason: 'job_budget' });
+        if (inbox.scanned === 0 && Date.now() - startedAt < 35_000) {
+          // Attach an unknown original checkout before looking for its lost payment event.
+          await reconcileAbacatePayUnknownCheckout(dbAdmin);
+        }
+        if (inbox.scanned === 0 && Date.now() - startedAt < 35_000) {
+          const recovered = await reconcileMissingAbacatePayInitialPayment();
+          found += recovered.applied;
+          fixed += recovered.applied;
+        }
+        if (Date.now() - startedAt < 35_000) {
+          const renewal = await reconcileAbacatePayRecoveryTick(startedAt + 35_000);
+          found += renewal.applied;
+          fixed += renewal.applied;
+        }
+        if (Date.now() - startedAt < 35_000) await reconcileAbacatePayManagement(dbAdmin);
+        if (Date.now() - startedAt < 35_000)
+          await reconcileAbacatePayIntegrity(dbAdmin, { deadlineMs: startedAt + 35_000 });
+      } else if (env.ABACATEPAY_STORE_ID && env.ABACATEPAY_API_KEY) {
+        metrics.emit('billing.abacatepay.reconcile_deferred', { reason: 'job_budget' });
       }
 
       await dbAdmin

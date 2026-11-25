@@ -1,0 +1,112 @@
+{
+ "mode": "post",
+ "at": "2026-11-24T13:53:17.695Z",
+ "code": {
+  "pr55": "5c1b8d092373c35eae28aa185316cb759accd4ab"
+ },
+ "sha": {
+  "0166": "ccf1639b4eccbdd50e5aa5b2f49a0b55d964ff8092dc47c09d77db61487025c6",
+  "0167": "7249f069fc5454e74034e1004f3be7d04606c020d7b16244b4014aafc861f3f0"
+ },
+ "checks": [
+  {
+   "name": "ledger com 168 linhas e última = 0167 (when 1795728173857)",
+   "ok": true,
+   "detail": {
+    "n": 168,
+    "last": "1795728173857"
+   }
+  },
+  {
+   "name": "última linha com o sha256 do arquivo 0167; a anterior é a 0166",
+   "ok": true,
+   "detail": [
+    "7249f069fc54",
+    "ccf1639b4ecc"
+   ]
+  },
+  {
+   "name": "objetos da 0167 presentes (tabela, 4 funções, 4 gatilhos, versão)",
+   "ok": true,
+   "detail": {
+    "has_table": true,
+    "funcs": 4,
+    "triggers": 4,
+    "has_version": true,
+    "has_v166": true
+   }
+  },
+  {
+   "name": "RLS ligada e forçada, 1 política, runtime com UPDATE e sem DELETE, nenhum item",
+   "ok": true,
+   "detail": {
+    "rls": true,
+    "force": true,
+    "del": false,
+    "upd": true,
+    "policies": 1,
+    "items": 0
+   }
+  },
+  {
+   "name": "dados das cinco tabelas referenciadas iguais ao pré-voo (contagem e md5)",
+   "ok": true,
+   "detail": "iguais"
+  }
+ ],
+ "raw": {
+  "led": {
+   "n": 168,
+   "last": "1795728173857"
+  },
+  "tail": [
+   {
+    "hash": "7249f069fc5454e74034e1004f3be7d04606c020d7b16244b4014aafc861f3f0",
+    "at": "1795728173857"
+   },
+   {
+    "hash": "ccf1639b4eccbdd50e5aa5b2f49a0b55d964ff8092dc47c09d77db61487025c6",
+    "at": "1795641773857"
+   }
+  ],
+  "obj": {
+   "has_table": true,
+   "funcs": 4,
+   "triggers": 4,
+   "has_version": true,
+   "has_v166": true
+  },
+  "rls": {
+   "rls": true,
+   "force": true,
+   "del": false,
+   "upd": true,
+   "policies": 1,
+   "items": 0
+  },
+  "long": 0,
+  "strong": [],
+  "data": {
+   "clinics": {
+    "n": 60,
+    "d": "855fb50063dc3b8f746006439bb5a803"
+   },
+   "hi_appointment_coverages": {
+    "n": 102,
+    "d": "08e512a7709678997b00fd59cb91c098"
+   },
+   "hi_procedure_contracts": {
+    "n": 61,
+    "d": "a2596b6db00bf244ebb25fdcf0daae49"
+   },
+   "hi_authorization_items": {
+    "n": 16,
+    "d": "21cdbe849dccee34ac6de88792f0d147"
+   },
+   "hi_guide_items": {
+    "n": 80,
+    "d": "c4866474e2ec4c2bdc2470349d3a13b4"
+   }
+  }
+ }
+}

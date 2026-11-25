@@ -1,0 +1,551 @@
+{
+  "corpus": "tiss-4.03.00-c1",
+  "generatedFrom": [
+    "paniquar/results.json",
+    "tissmanager/results.json",
+    "data/tiss/corpus/4.03.00/c1/XSD_RESULTS.json"
+  ],
+  "knownValidatorBDefects": {
+    "B1": "exige xsi:schemaLocation (sem base no XSD nem no Componente Organizacional 202609)",
+    "B2": "conta 0 guias de Consulta sem numeroGuiaOperadora (opcional no XSD, minOccurs=0)",
+    "B3": "recalcula o hash lendo o arquivo ISO-8859-1 como UTF-8 (acentos viram \"?\"); a ANS manda ISO-8859-1"
+  },
+  "rows": [
+    {
+      "id": "V1a-consulta-pj-codigo-operadora",
+      "sha256": "383c483bd08fb3cefca0c0557f0e02d6a25aaadb23e61bdba23bd88ce2c0870d",
+      "expected": "valid",
+      "internal": "aprova",
+      "xsd": "válido",
+      "A": "aceito",
+      "Awarnings": [],
+      "B": "sem erro além dos defeitos B1–B3",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "V1b-consulta-cnpj-alfanumerico-cnes",
+      "sha256": "feb5495ab697a0edc7264f8fb276b91b0cf12f3a5f55e4fd97b2ea6e7177f44d",
+      "expected": "valid",
+      "internal": "aprova",
+      "xsd": "válido",
+      "A": "aceito",
+      "Awarnings": [],
+      "B": "sem erro além dos defeitos B1–B3",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "V1c-consulta-pf-cpf-sem-nome",
+      "sha256": "ddf6d9a74a5b7da8f56263793c0d56ec88dccd3bc984e6951873d775295b628c",
+      "expected": "valid",
+      "internal": "aprova",
+      "xsd": "válido",
+      "A": "aceito",
+      "Awarnings": [],
+      "B": "sem erro além dos defeitos B1–B3",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "V1d-consulta-tipos-e-regimes",
+      "sha256": "744c6cf276adcd09cc9fc78af3bbc7076dd9c9068a157ce980dbd16f63f635af",
+      "expected": "valid",
+      "internal": "aprova",
+      "xsd": "válido",
+      "A": "aceito",
+      "Awarnings": [],
+      "B": "sem erro além dos defeitos B1–B3",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "V1e-consulta-opcionais-valor-maximo",
+      "sha256": "990150d9fc1cd652ad60aaa2de5c80790dd528d1eed87e796a07496646dafef5",
+      "expected": "valid",
+      "internal": "aprova",
+      "xsd": "válido",
+      "A": "aceito",
+      "Awarnings": [],
+      "B": "sem erro além dos defeitos B1–B3",
+      "Bknown": [
+        "B1",
+        "B3"
+      ]
+    },
+    {
+      "id": "V4-consulta-lote-100-guias",
+      "sha256": "86c5ef053cca62b5833e2dd55e79534b3334862660ab59cfae515ba9840bf0dc",
+      "expected": "valid",
+      "internal": "aprova",
+      "xsd": "válido",
+      "A": "aceito",
+      "Awarnings": [],
+      "B": "sem erro além dos defeitos B1–B3",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "V18-consulta-acentos-latin1",
+      "sha256": "60588ec774e160d1b48b1ece76470b1dea0be871a1f1275f7ac9d2b093dd9d8b",
+      "expected": "valid",
+      "internal": "aprova",
+      "xsd": "válido",
+      "A": "aceito",
+      "Awarnings": [],
+      "B": "sem erro além dos defeitos B1–B3",
+      "Bknown": [
+        "B1",
+        "B2",
+        "B3"
+      ]
+    },
+    {
+      "id": "V2a-sadt-sessoes-autorizacao-equipe",
+      "sha256": "92be359109047a1e3fdc8e8bfb6f636ce4206c2ab38e671d9c6f1e30f9461822",
+      "expected": "valid",
+      "internal": "aprova",
+      "xsd": "válido",
+      "A": "aceito",
+      "Awarnings": [],
+      "B": "sem erro além dos defeitos B1–B3",
+      "Bknown": [
+        "B1",
+        "B3"
+      ]
+    },
+    {
+      "id": "V2b-sadt-sem-autorizacao",
+      "sha256": "2071b13af7d4045b16435d4fb0413204f3c34382a74032a3d77fdb97016ed4c4",
+      "expected": "valid",
+      "internal": "aprova",
+      "xsd": "válido",
+      "A": "aceito",
+      "Awarnings": [],
+      "B": "sem erro além dos defeitos B1–B3",
+      "Bknown": [
+        "B1",
+        "B3"
+      ]
+    },
+    {
+      "id": "V2c-sadt-itens-variados",
+      "sha256": "60d73f595cc33cb52aa194f4b435116e710fcfcade78db52ae5d486613f8693e",
+      "expected": "valid",
+      "internal": "aprova",
+      "xsd": "válido",
+      "A": "aceito",
+      "Awarnings": [],
+      "B": "sem erro além dos defeitos B1–B3",
+      "Bknown": [
+        "B1",
+        "B3"
+      ]
+    },
+    {
+      "id": "V2d-sadt-solicitante-externo",
+      "sha256": "66ff826ba548d41f27a1725ac781187d92be92a5f5689e4206cdd1c76e236bab",
+      "expected": "valid",
+      "internal": "aprova",
+      "xsd": "válido",
+      "A": "aceito",
+      "Awarnings": [],
+      "B": "sem erro além dos defeitos B1–B3",
+      "Bknown": [
+        "B1",
+        "B3"
+      ]
+    },
+    {
+      "id": "V2e-sadt-consulta-tipo-04",
+      "sha256": "c38fcd8832fa0a08f63133eccef56390415d4f3dbc28e36ecf6cb8b0809c37a3",
+      "expected": "valid",
+      "internal": "aprova",
+      "xsd": "válido",
+      "A": "aceito",
+      "Awarnings": [],
+      "B": "sem erro além dos defeitos B1–B3",
+      "Bknown": [
+        "B1",
+        "B3"
+      ]
+    },
+    {
+      "id": "V2f-sadt-lote-100-guias",
+      "sha256": "ac34118e4c3a809cafa4eb554d02aec7c3bc78c3ba2ad890448755f9899f5f72",
+      "expected": "valid",
+      "internal": "aprova",
+      "xsd": "válido",
+      "A": "aceito",
+      "Awarnings": [],
+      "B": "sem erro além dos defeitos B1–B3",
+      "Bknown": [
+        "B1",
+        "B3"
+      ]
+    },
+    {
+      "id": "N06-consulta-registro-ans-5-digitos",
+      "sha256": "1a9bcc38d82504040c8efba19e87756d685eced522fabe69b3fb7a43ead5db4e",
+      "expected": "invalid",
+      "internal": "xsd+rules",
+      "xsd": "inválido",
+      "A": "recusado",
+      "Awarnings": [],
+      "B": "recusado: Validação contra XSD oficial da ANS",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "N07-consulta-carteira-21",
+      "sha256": "dc0b898cdbc1ff402eeec22b9556a5e55807a1d16a1dc0a6b0fe19432d5a201c",
+      "expected": "invalid",
+      "internal": "xsd+rules",
+      "xsd": "inválido",
+      "A": "recusado",
+      "Awarnings": [],
+      "B": "recusado: Validação contra XSD oficial da ANS",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "N14-consulta-carteira-ausente",
+      "sha256": "0aac7ee5f439434b554d633282a179813c24fe98ff9df3ce97f161d14ec0bca1",
+      "expected": "invalid",
+      "internal": "xsd+rules",
+      "xsd": "inválido",
+      "A": "recusado",
+      "Awarnings": [],
+      "B": "recusado: Validação contra XSD oficial da ANS",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "N08-consulta-cbo-fora-do-dominio",
+      "sha256": "427ad649cb18a1ffe91afd48d4066e4abf119e0efd0ec0fa3d1002c46c204c35",
+      "expected": "invalid",
+      "internal": "xsd+rules",
+      "xsd": "inválido",
+      "A": "recusado",
+      "Awarnings": [],
+      "B": "recusado: Validação contra XSD oficial da ANS",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "N09-consulta-conselho-fora-do-dominio",
+      "sha256": "21814f180fde79b0d31ddca215b52bb4223ac453fd1d23c6a9d67f9ba70ae5dc",
+      "expected": "invalid",
+      "internal": "xsd+rules",
+      "xsd": "inválido",
+      "A": "recusado",
+      "Awarnings": [],
+      "B": "recusado: Validação contra XSD oficial da ANS",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "N12-consulta-cnes-8-digitos",
+      "sha256": "52711010ac8ce73805a7dba5aa2d372106267e7eace94f4a87730c7d14ebae34",
+      "expected": "invalid",
+      "internal": "xsd+rules",
+      "xsd": "inválido",
+      "A": "recusado",
+      "Awarnings": [],
+      "B": "recusado: Validação contra XSD oficial da ANS",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "N13-consulta-cnpj-formato",
+      "sha256": "dfda719a439f08af08c22f1aba0893061e4289f4897fc84e2e8be82b8b01d4bb",
+      "expected": "invalid",
+      "internal": "xsd+rules",
+      "xsd": "inválido",
+      "A": "recusado",
+      "Awarnings": [],
+      "B": "recusado: Validação contra XSD oficial da ANS",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "N16a-consulta-valor-3-casas",
+      "sha256": "cc6f2ce2417add15aa47e36b71f7567dec84330f0b0f63de0f1e53f2d71805b3",
+      "expected": "invalid",
+      "internal": "xsd+rules",
+      "xsd": "inválido",
+      "A": "recusado",
+      "Awarnings": [],
+      "B": "recusado: Validação contra XSD oficial da ANS",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "N16b-consulta-valor-negativo",
+      "sha256": "450b3e4768f4e811c982829c25b1dba666a1c5af0d5631ee6761d843053c824a",
+      "expected": "invalid",
+      "internal": "rules",
+      "xsd": "válido",
+      "A": "aceito",
+      "Awarnings": [],
+      "B": "sem erro além dos defeitos B1–B3",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "N10-consulta-tuss-inexistente",
+      "sha256": "3b5b4048a75e8a065fb5a87b67fe7c6563ee669f3589ea133ded1215d47c201c",
+      "expected": "invalid",
+      "internal": "rules",
+      "xsd": "válido",
+      "A": "aceito",
+      "Awarnings": [],
+      "B": "sem erro além dos defeitos B1–B3",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "N11-consulta-tuss-fora-de-vigencia",
+      "sha256": "14bb12ded81ff033d7f30c8fda8acea20039df4ff9dcc7c817d78d333c7a75e6",
+      "expected": "invalid",
+      "internal": "rules",
+      "xsd": "válido",
+      "A": "aceito com atenção",
+      "Awarnings": [
+        "Data no futuro: 2027-01-05."
+      ],
+      "B": "recusado: Datas TISS (formato, futuro e intervalos)",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "N15a-consulta-atendimento-futuro",
+      "sha256": "24261ac70c3d904ae222382677212f1a3bec2a372cf1a3a75eb65b3bf5f866c0",
+      "expected": "invalid",
+      "internal": "rules",
+      "xsd": "válido",
+      "A": "aceito com atenção",
+      "Awarnings": [
+        "Data no futuro: 2026-12-15."
+      ],
+      "B": "recusado: Datas TISS (formato, futuro e intervalos)",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "N15b-sadt-senha-vence-antes-da-autorizacao",
+      "sha256": "399151d0eedb8d3e8799d46e35e7e3b64ff26948728b2a8c3bf3baa5d996d857",
+      "expected": "invalid",
+      "internal": "rules",
+      "xsd": "válido",
+      "A": "aceito",
+      "Awarnings": [],
+      "B": "sem erro além dos defeitos B1–B3",
+      "Bknown": [
+        "B1",
+        "B3"
+      ]
+    },
+    {
+      "id": "N-sadt-terapia-sem-indicacao-clinica",
+      "sha256": "f639edefd2ea9568f39aefdeb50328300eeb2b9367c7f098e66f3b24cadc0b38",
+      "expected": "invalid",
+      "internal": "rules",
+      "xsd": "válido",
+      "A": "aceito",
+      "Awarnings": [],
+      "B": "sem erro além dos defeitos B1–B3",
+      "Bknown": [
+        "B1",
+        "B3"
+      ]
+    },
+    {
+      "id": "N22-consulta-guias-duplicadas",
+      "sha256": "665ae5fe37a9ac2acd821e8eab4164c94ccfee7e6418a37321ed0c35d0ce64df",
+      "expected": "invalid",
+      "internal": "rules",
+      "xsd": "válido",
+      "A": "aceito com atenção",
+      "Awarnings": [
+        "Número de guia G0000001 repetido no mesmo lote (também na guia 1)."
+      ],
+      "B": "recusado: Duplicidade de numeroGuiaPrestador no lote",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "N24-consulta-versao-4-02-00",
+      "sha256": "de1fbdbd5719dcde9d536adcf1c6d1aa8d245767be4274b595445586c897b19a",
+      "expected": "invalid",
+      "internal": "rules",
+      "xsd": "válido",
+      "A": "aviso",
+      "Awarnings": [],
+      "B": "recusado: Vigência da versão TISS",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "N-consulta-operadora-diferente-do-destino",
+      "sha256": "d8fcef923cca6ba009afd70fbfa2c3848bb77aa7f518e7f4fbe4d477e8c3e7f4",
+      "expected": "invalid",
+      "internal": "rules",
+      "xsd": "válido",
+      "A": "aceito",
+      "Awarnings": [],
+      "B": "sem erro além dos defeitos B1–B3",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "N-consulta-cnpj-digito-errado",
+      "sha256": "8c18db139103ea9e618d61a82811f0c390245f45c5c4140985c17c4961e0fc64",
+      "expected": "invalid",
+      "internal": "rules",
+      "xsd": "válido",
+      "A": "aceito",
+      "Awarnings": [],
+      "B": "sem erro além dos defeitos B1–B3",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "N-consulta-cpf-digito-errado",
+      "sha256": "95ee173f206022809b82472d452f7df37bc9caa2eb13f48558bfd7dea83fc3f0",
+      "expected": "invalid",
+      "internal": "rules",
+      "xsd": "válido",
+      "A": "aceito",
+      "Awarnings": [],
+      "B": "recusado: CPF e CNS (dígitos verificadores)",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "N05-consulta-lote-101-guias",
+      "sha256": "1987c6ac6dc68df6012ef5437d5e12afb1236d343d491609ba99ac016ce96ea6",
+      "expected": "invalid",
+      "internal": "xsd+rules",
+      "xsd": "inválido",
+      "A": "recusado",
+      "Awarnings": [],
+      "B": "recusado: Validação contra XSD oficial da ANS",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "N23-lote-tipos-misturados",
+      "sha256": "96cf4f49140cfd147fbe887b1f6a99154a99f19eb1d7997efde9d4873de83e5c",
+      "expected": "invalid",
+      "internal": "xsd",
+      "xsd": "inválido",
+      "A": "recusado",
+      "Awarnings": [],
+      "B": "recusado: Validação contra XSD oficial da ANS",
+      "Bknown": [
+        "B1",
+        "B3"
+      ]
+    },
+    {
+      "id": "M17-consulta-utf8-declarado-iso",
+      "sha256": "52e4265ccdb1aa9f11d7bccd898fc1b7bcf5bc4a6fdcc8a507b115b234bc53b5",
+      "expected": "invalid",
+      "internal": "encoding+hash",
+      "xsd": "válido",
+      "A": "recusado",
+      "Awarnings": [],
+      "B": "sem erro além dos defeitos B1–B3",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "M19-consulta-namespace-incorreto",
+      "sha256": "e039b2fb3269449a39b85c8c5bb6bf45ccd2c7f503022bec563602b1dcbeacb0",
+      "expected": "invalid",
+      "internal": "xsd",
+      "xsd": "inválido",
+      "A": "recusado",
+      "Awarnings": [],
+      "B": "recusado: Namespace do XML; Validação contra XSD oficial da ANS",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "M20-consulta-hash-incorreto",
+      "sha256": "ecd0fb1e9c648c006d8f7d210f74e2e0329c00cb0bf37cbe9767c95acc234116",
+      "expected": "invalid",
+      "internal": "hash",
+      "xsd": "válido",
+      "A": "recusado",
+      "Awarnings": [],
+      "B": "recusado: Hash MD5 do epílogo; Integridade do hash MD5 (recálculo)",
+      "Bknown": [
+        "B1",
+        "B2"
+      ]
+    },
+    {
+      "id": "M21-consulta-truncado",
+      "sha256": "3d44fcf61dc36a813e06957d6dcd16cacd4cff26d1a208f4550cf89f4c966ab4",
+      "expected": "invalid",
+      "internal": "xsd+hash",
+      "xsd": "inválido",
+      "A": "recusado",
+      "Awarnings": [],
+      "B": "sem resultado (tempo esgotado)",
+      "Bknown": []
+    }
+  ]
+}

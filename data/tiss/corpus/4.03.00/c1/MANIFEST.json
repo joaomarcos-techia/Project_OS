@@ -1,0 +1,744 @@
+{
+  "corpus": "tiss-4.03.00-c1",
+  "standard": "TISS",
+  "version": "4.03.00",
+  "today": "2026-11-10",
+  "data": "sintéticos",
+  "scenarios": [
+    {
+      "id": "V1a-consulta-pj-codigo-operadora",
+      "file": "V1a-consulta-pj-codigo-operadora.xml",
+      "sha256": "383c483bd08fb3cefca0c0557f0e02d6a25aaadb23e61bdba23bd88ce2c0870d",
+      "bytes": 2139,
+      "matrix": [
+        "V1",
+        "V3"
+      ],
+      "guideType": "consulta",
+      "title": "Consulta, contratado PJ pelo código na operadora, sem CNES (9999999); lote com 1 guia",
+      "expected": "valid",
+      "rejectedBy": [],
+      "expectedIssues": [],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "V1b-consulta-cnpj-alfanumerico-cnes",
+      "file": "V1b-consulta-cnpj-alfanumerico-cnes.xml",
+      "sha256": "feb5495ab697a0edc7264f8fb276b91b0cf12f3a5f55e4fd97b2ea6e7177f44d",
+      "bytes": 2083,
+      "matrix": [
+        "V1"
+      ],
+      "guideType": "consulta",
+      "title": "Consulta com CNPJ alfanumérico (exemplo oficial da Receita) e CNES informado",
+      "expected": "valid",
+      "rejectedBy": [],
+      "expectedIssues": [],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "V1c-consulta-pf-cpf-sem-nome",
+      "file": "V1c-consulta-pf-cpf-sem-nome.xml",
+      "sha256": "ddf6d9a74a5b7da8f56263793c0d56ec88dccd3bc984e6951873d775295b628c",
+      "bytes": 2010,
+      "matrix": [
+        "V1"
+      ],
+      "guideType": "consulta",
+      "title": "Consulta de pessoa física (CPF), sem o nome do profissional (opcional para PF)",
+      "expected": "valid",
+      "rejectedBy": [],
+      "expectedIssues": [],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "V1d-consulta-tipos-e-regimes",
+      "file": "V1d-consulta-tipos-e-regimes.xml",
+      "sha256": "744c6cf276adcd09cc9fc78af3bbc7076dd9c9068a157ce980dbd16f63f635af",
+      "bytes": 24766,
+      "matrix": [
+        "V1"
+      ],
+      "guideType": "consulta",
+      "title": "Consultas dos tipos 1 a 4 em cada regime de atendimento 01 a 05 (20 guias, valor zero)",
+      "expected": "valid",
+      "rejectedBy": [],
+      "expectedIssues": [],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "V1e-consulta-opcionais-valor-maximo",
+      "file": "V1e-consulta-opcionais-valor-maximo.xml",
+      "sha256": "990150d9fc1cd652ad60aaa2de5c80790dd528d1eed87e796a07496646dafef5",
+      "bytes": 2431,
+      "matrix": [
+        "V1",
+        "V18"
+      ],
+      "guideType": "consulta",
+      "title": "Consulta com todos os opcionais, símbolos escapados (& < >) e o maior valor do XSD",
+      "expected": "valid",
+      "rejectedBy": [],
+      "expectedIssues": [],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "V4-consulta-lote-100-guias",
+      "file": "V4-consulta-lote-100-guias.xml",
+      "sha256": "86c5ef053cca62b5833e2dd55e79534b3334862660ab59cfae515ba9840bf0dc",
+      "bytes": 120246,
+      "matrix": [
+        "V4"
+      ],
+      "guideType": "consulta",
+      "title": "Lote de Consulta com 100 guias (limite do padrão)",
+      "expected": "valid",
+      "rejectedBy": [],
+      "expectedIssues": [],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "V18-consulta-acentos-latin1",
+      "file": "V18-consulta-acentos-latin1.xml",
+      "sha256": "60588ec774e160d1b48b1ece76470b1dea0be871a1f1275f7ac9d2b093dd9d8b",
+      "bytes": 2144,
+      "matrix": [
+        "V18"
+      ],
+      "guideType": "consulta",
+      "title": "Nome com acentos e trema em ISO-8859-1",
+      "expected": "valid",
+      "rejectedBy": [],
+      "expectedIssues": [],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "V2a-sadt-sessoes-autorizacao-equipe",
+      "file": "V2a-sadt-sessoes-autorizacao-equipe.xml",
+      "sha256": "92be359109047a1e3fdc8e8bfb6f636ce4206c2ab38e671d9c6f1e30f9461822",
+      "bytes": 4716,
+      "matrix": [
+        "V2"
+      ],
+      "guideType": "sp_sadt",
+      "title": "SP/SADT com 2 sessões, autorização, senha e equipe",
+      "expected": "valid",
+      "rejectedBy": [],
+      "expectedIssues": [],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "V2b-sadt-sem-autorizacao",
+      "file": "V2b-sadt-sem-autorizacao.xml",
+      "sha256": "2071b13af7d4045b16435d4fb0413204f3c34382a74032a3d77fdb97016ed4c4",
+      "bytes": 4470,
+      "matrix": [
+        "V2"
+      ],
+      "guideType": "sp_sadt",
+      "title": "SP/SADT sem autorização, em contrato que não a exige",
+      "expected": "valid",
+      "rejectedBy": [],
+      "expectedIssues": [],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "V2c-sadt-itens-variados",
+      "file": "V2c-sadt-itens-variados.xml",
+      "sha256": "60d73f595cc33cb52aa194f4b435116e710fcfcade78db52ae5d486613f8693e",
+      "bytes": 5356,
+      "matrix": [
+        "V2"
+      ],
+      "guideType": "sp_sadt",
+      "title": "SP/SADT com quantidade 4, redução (fator 0,70), horários e item de valor zero",
+      "expected": "valid",
+      "rejectedBy": [],
+      "expectedIssues": [],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "V2d-sadt-solicitante-externo",
+      "file": "V2d-sadt-solicitante-externo.xml",
+      "sha256": "66ff826ba548d41f27a1725ac781187d92be92a5f5689e4206cdd1c76e236bab",
+      "bytes": 4660,
+      "matrix": [
+        "V2"
+      ],
+      "guideType": "sp_sadt",
+      "title": "SP/SADT com solicitante externo (código 99999999999999 e CBO 999999)",
+      "expected": "valid",
+      "rejectedBy": [],
+      "expectedIssues": [],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "V2e-sadt-consulta-tipo-04",
+      "file": "V2e-sadt-consulta-tipo-04.xml",
+      "sha256": "c38fcd8832fa0a08f63133eccef56390415d4f3dbc28e36ecf6cb8b0809c37a3",
+      "bytes": 3860,
+      "matrix": [
+        "V2"
+      ],
+      "guideType": "sp_sadt",
+      "title": "Consulta faturada em SP/SADT (tipo de atendimento 04)",
+      "expected": "valid",
+      "rejectedBy": [],
+      "expectedIssues": [],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "V2f-sadt-lote-100-guias",
+      "file": "V2f-sadt-lote-100-guias.xml",
+      "sha256": "ac34118e4c3a809cafa4eb554d02aec7c3bc78c3ba2ad890448755f9899f5f72",
+      "bytes": 377946,
+      "matrix": [
+        "V2",
+        "V4"
+      ],
+      "guideType": "sp_sadt",
+      "title": "Lote de SP/SADT com 100 guias",
+      "expected": "valid",
+      "rejectedBy": [],
+      "expectedIssues": [],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "N06-consulta-registro-ans-5-digitos",
+      "file": "N06-consulta-registro-ans-5-digitos.xml",
+      "sha256": "1a9bcc38d82504040c8efba19e87756d685eced522fabe69b3fb7a43ead5db4e",
+      "bytes": 2137,
+      "matrix": [
+        "V6"
+      ],
+      "guideType": "consulta",
+      "title": "Registro ANS com 5 dígitos (na guia e no destino)",
+      "expected": "invalid",
+      "rejectedBy": [
+        "xsd",
+        "rules"
+      ],
+      "expectedIssues": [
+        "ANS_REGISTRY_FORMAT"
+      ],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "N07-consulta-carteira-21",
+      "file": "N07-consulta-carteira-21.xml",
+      "sha256": "dc0b898cdbc1ff402eeec22b9556a5e55807a1d16a1dc0a6b0fe19432d5a201c",
+      "bytes": 2144,
+      "matrix": [
+        "V7"
+      ],
+      "guideType": "consulta",
+      "title": "Carteirinha com 21 caracteres",
+      "expected": "invalid",
+      "rejectedBy": [
+        "xsd",
+        "rules"
+      ],
+      "expectedIssues": [
+        "CARD_NUMBER"
+      ],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "N14-consulta-carteira-ausente",
+      "file": "N14-consulta-carteira-ausente.xml",
+      "sha256": "0aac7ee5f439434b554d633282a179813c24fe98ff9df3ce97f161d14ec0bca1",
+      "bytes": 2082,
+      "matrix": [
+        "V7",
+        "V14"
+      ],
+      "guideType": "consulta",
+      "title": "Carteirinha vazia: o elemento obrigatório some do XML",
+      "expected": "invalid",
+      "rejectedBy": [
+        "xsd",
+        "rules"
+      ],
+      "expectedIssues": [
+        "CARD_NUMBER"
+      ],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "N08-consulta-cbo-fora-do-dominio",
+      "file": "N08-consulta-cbo-fora-do-dominio.xml",
+      "sha256": "427ad649cb18a1ffe91afd48d4066e4abf119e0efd0ec0fa3d1002c46c204c35",
+      "bytes": 2139,
+      "matrix": [
+        "V8"
+      ],
+      "guideType": "consulta",
+      "title": "CBO 123456, fora da tabela 24",
+      "expected": "invalid",
+      "rejectedBy": [
+        "xsd",
+        "rules"
+      ],
+      "expectedIssues": [
+        "CBO_DOMAIN"
+      ],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "N09-consulta-conselho-fora-do-dominio",
+      "file": "N09-consulta-conselho-fora-do-dominio.xml",
+      "sha256": "21814f180fde79b0d31ddca215b52bb4223ac453fd1d23c6a9d67f9ba70ae5dc",
+      "bytes": 2139,
+      "matrix": [
+        "V9"
+      ],
+      "guideType": "consulta",
+      "title": "Conselho profissional 99, fora da tabela 26",
+      "expected": "invalid",
+      "rejectedBy": [
+        "xsd",
+        "rules"
+      ],
+      "expectedIssues": [
+        "COUNCIL_DOMAIN"
+      ],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "N12-consulta-cnes-8-digitos",
+      "file": "N12-consulta-cnes-8-digitos.xml",
+      "sha256": "52711010ac8ce73805a7dba5aa2d372106267e7eace94f4a87730c7d14ebae34",
+      "bytes": 2140,
+      "matrix": [
+        "V12"
+      ],
+      "guideType": "consulta",
+      "title": "CNES com 8 dígitos",
+      "expected": "invalid",
+      "rejectedBy": [
+        "xsd",
+        "rules"
+      ],
+      "expectedIssues": [
+        "CNES_FORMAT"
+      ],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "N13-consulta-cnpj-formato",
+      "file": "N13-consulta-cnpj-formato.xml",
+      "sha256": "dfda719a439f08af08c22f1aba0893061e4289f4897fc84e2e8be82b8b01d4bb",
+      "bytes": 2110,
+      "matrix": [
+        "V13"
+      ],
+      "guideType": "consulta",
+      "title": "CNPJ fora do formato (3 letras)",
+      "expected": "invalid",
+      "rejectedBy": [
+        "xsd",
+        "rules"
+      ],
+      "expectedIssues": [
+        "CONTRACTOR_CNPJ"
+      ],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "N16a-consulta-valor-3-casas",
+      "file": "N16a-consulta-valor-3-casas.xml",
+      "sha256": "cc6f2ce2417add15aa47e36b71f7567dec84330f0b0f63de0f1e53f2d71805b3",
+      "bytes": 2140,
+      "matrix": [
+        "V16"
+      ],
+      "guideType": "consulta",
+      "title": "Valor com 3 casas decimais",
+      "expected": "invalid",
+      "rejectedBy": [
+        "xsd",
+        "rules"
+      ],
+      "expectedIssues": [
+        "PROCEDURE_VALUE_FORMAT"
+      ],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "N16b-consulta-valor-negativo",
+      "file": "N16b-consulta-valor-negativo.xml",
+      "sha256": "450b3e4768f4e811c982829c25b1dba666a1c5af0d5631ee6761d843053c824a",
+      "bytes": 2138,
+      "matrix": [
+        "V16"
+      ],
+      "guideType": "consulta",
+      "title": "Valor negativo: o XSD (st_decimal10-2) não tem mínimo",
+      "expected": "invalid",
+      "rejectedBy": [
+        "rules"
+      ],
+      "expectedIssues": [
+        "PROCEDURE_VALUE_FORMAT"
+      ],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "N10-consulta-tuss-inexistente",
+      "file": "N10-consulta-tuss-inexistente.xml",
+      "sha256": "3b5b4048a75e8a065fb5a87b67fe7c6563ee669f3589ea133ded1215d47c201c",
+      "bytes": 2139,
+      "matrix": [
+        "V10"
+      ],
+      "guideType": "consulta",
+      "title": "Código TUSS 99999999, inexistente na tabela 22",
+      "expected": "invalid",
+      "rejectedBy": [
+        "rules"
+      ],
+      "expectedIssues": [
+        "PROCEDURE_CODE_UNKNOWN"
+      ],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "N11-consulta-tuss-fora-de-vigencia",
+      "file": "N11-consulta-tuss-fora-de-vigencia.xml",
+      "sha256": "14bb12ded81ff033d7f30c8fda8acea20039df4ff9dcc7c817d78d333c7a75e6",
+      "bytes": 2139,
+      "matrix": [
+        "V11"
+      ],
+      "guideType": "consulta",
+      "title": "TUSS 50000802 (vigente até 31/12/2026) em atendimento de 05/01/2027",
+      "expected": "invalid",
+      "rejectedBy": [
+        "rules"
+      ],
+      "expectedIssues": [
+        "PROCEDURE_CODE_NOT_EFFECTIVE"
+      ],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "N15a-consulta-atendimento-futuro",
+      "file": "N15a-consulta-atendimento-futuro.xml",
+      "sha256": "24261ac70c3d904ae222382677212f1a3bec2a372cf1a3a75eb65b3bf5f866c0",
+      "bytes": 2139,
+      "matrix": [
+        "V15"
+      ],
+      "guideType": "consulta",
+      "title": "Atendimento em data futura",
+      "expected": "invalid",
+      "rejectedBy": [
+        "rules"
+      ],
+      "expectedIssues": [
+        "SERVICE_DATE_IN_FUTURE"
+      ],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "N15b-sadt-senha-vence-antes-da-autorizacao",
+      "file": "N15b-sadt-senha-vence-antes-da-autorizacao.xml",
+      "sha256": "399151d0eedb8d3e8799d46e35e7e3b64ff26948728b2a8c3bf3baa5d996d857",
+      "bytes": 4716,
+      "matrix": [
+        "V15"
+      ],
+      "guideType": "sp_sadt",
+      "title": "Validade da senha anterior à data da autorização",
+      "expected": "invalid",
+      "rejectedBy": [
+        "rules"
+      ],
+      "expectedIssues": [
+        "PASSWORD_VALIDITY_BEFORE_AUTHORIZATION"
+      ],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "N-sadt-terapia-sem-indicacao-clinica",
+      "file": "N-sadt-terapia-sem-indicacao-clinica.xml",
+      "sha256": "f639edefd2ea9568f39aefdeb50328300eeb2b9367c7f098e66f3b24cadc0b38",
+      "bytes": 4627,
+      "matrix": [
+        "V14"
+      ],
+      "guideType": "sp_sadt",
+      "title": "Terapia (tipo 03) sem indicação clínica: pendência do médico",
+      "expected": "invalid",
+      "rejectedBy": [
+        "rules"
+      ],
+      "expectedIssues": [
+        "CLINICAL_INDICATION_REQUIRED"
+      ],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "N22-consulta-guias-duplicadas",
+      "file": "N22-consulta-guias-duplicadas.xml",
+      "sha256": "665ae5fe37a9ac2acd821e8eab4164c94ccfee7e6418a37321ed0c35d0ce64df",
+      "bytes": 3332,
+      "matrix": [
+        "V22"
+      ],
+      "guideType": "consulta",
+      "title": "Duas guias com o mesmo número no lote",
+      "expected": "invalid",
+      "rejectedBy": [
+        "rules"
+      ],
+      "expectedIssues": [
+        "GUIDE_NUMBER_DUPLICATED"
+      ],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "N24-consulta-versao-4-02-00",
+      "file": "N24-consulta-versao-4-02-00.xml",
+      "sha256": "de1fbdbd5719dcde9d536adcf1c6d1aa8d245767be4274b595445586c897b19a",
+      "bytes": 2139,
+      "matrix": [
+        "V24"
+      ],
+      "guideType": "consulta",
+      "title": "Padrao 4.02.00 com estrutura 4.03.00 (o XSD aceita a versão no campo)",
+      "expected": "invalid",
+      "rejectedBy": [
+        "rules"
+      ],
+      "expectedIssues": [
+        "BATCH_VERSION"
+      ],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "N-consulta-operadora-diferente-do-destino",
+      "file": "N-consulta-operadora-diferente-do-destino.xml",
+      "sha256": "d8fcef923cca6ba009afd70fbfa2c3848bb77aa7f518e7f4fbe4d477e8c3e7f4",
+      "bytes": 3332,
+      "matrix": [
+        "V22"
+      ],
+      "guideType": "consulta",
+      "title": "Guia de outra operadora dentro do lote",
+      "expected": "invalid",
+      "rejectedBy": [
+        "rules"
+      ],
+      "expectedIssues": [
+        "GUIDE_OPERATOR_MISMATCH"
+      ],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "N-consulta-cnpj-digito-errado",
+      "file": "N-consulta-cnpj-digito-errado.xml",
+      "sha256": "8c18db139103ea9e618d61a82811f0c390245f45c5c4140985c17c4961e0fc64",
+      "bytes": 2121,
+      "matrix": [
+        "V13"
+      ],
+      "guideType": "consulta",
+      "title": "CNPJ alfanumérico no formato certo, com dígito verificador errado",
+      "expected": "invalid",
+      "rejectedBy": [
+        "rules"
+      ],
+      "expectedIssues": [
+        "CONTRACTOR_CNPJ"
+      ],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "N-consulta-cpf-digito-errado",
+      "file": "N-consulta-cpf-digito-errado.xml",
+      "sha256": "95ee173f206022809b82472d452f7df37bc9caa2eb13f48558bfd7dea83fc3f0",
+      "bytes": 2053,
+      "matrix": [
+        "V13"
+      ],
+      "guideType": "consulta",
+      "title": "CPF no formato certo, com dígito verificador errado",
+      "expected": "invalid",
+      "rejectedBy": [
+        "rules"
+      ],
+      "expectedIssues": [
+        "CONTRACTOR_CPF"
+      ],
+      "origin": "builder",
+      "mutation": null
+    },
+    {
+      "id": "B-consulta-nome-fora-do-latin1",
+      "file": null,
+      "sha256": null,
+      "bytes": null,
+      "matrix": [
+        "V17"
+      ],
+      "guideType": "consulta",
+      "title": "Nome com caractere fora do ISO-8859-1 (Nguyễn): o gerador recusa, nunca troca",
+      "expected": "invalid",
+      "rejectedBy": [
+        "builder",
+        "rules"
+      ],
+      "expectedIssues": [
+        "ENCODING_NOT_LATIN1"
+      ],
+      "origin": "none",
+      "mutation": null
+    },
+    {
+      "id": "N05-consulta-lote-101-guias",
+      "file": "N05-consulta-lote-101-guias.xml",
+      "sha256": "1987c6ac6dc68df6012ef5437d5e12afb1236d343d491609ba99ac016ce96ea6",
+      "bytes": 121439,
+      "matrix": [
+        "V5"
+      ],
+      "guideType": "consulta",
+      "title": "Lote com 101 guias: o gerador recusa; o arquivo vem da montagem sem travas",
+      "expected": "invalid",
+      "rejectedBy": [
+        "builder",
+        "xsd",
+        "rules"
+      ],
+      "expectedIssues": [
+        "BATCH_TOO_LARGE"
+      ],
+      "origin": "unguarded",
+      "mutation": null
+    },
+    {
+      "id": "N23-lote-tipos-misturados",
+      "file": "N23-lote-tipos-misturados.xml",
+      "sha256": "96cf4f49140cfd147fbe887b1f6a99154a99f19eb1d7997efde9d4873de83e5c",
+      "bytes": 4986,
+      "matrix": [
+        "V23"
+      ],
+      "guideType": "misto",
+      "title": "Consulta e SP/SADT no mesmo lote: impossível nos tipos do app; arquivo da montagem sem travas",
+      "expected": "invalid",
+      "rejectedBy": [
+        "xsd"
+      ],
+      "expectedIssues": [],
+      "origin": "unguarded",
+      "mutation": null
+    },
+    {
+      "id": "M17-consulta-utf8-declarado-iso",
+      "file": "M17-consulta-utf8-declarado-iso.xml",
+      "sha256": "52e4265ccdb1aa9f11d7bccd898fc1b7bcf5bc4a6fdcc8a507b115b234bc53b5",
+      "bytes": 2148,
+      "matrix": [
+        "V17"
+      ],
+      "guideType": "consulta",
+      "title": "Texto gravado em UTF-8 com declaração ISO-8859-1 (o XSD não detecta)",
+      "expected": "invalid",
+      "rejectedBy": [
+        "encoding",
+        "hash"
+      ],
+      "expectedIssues": [],
+      "origin": "mutation",
+      "mutation": "mesmo texto do V18 gravado em UTF-8 em vez de ISO-8859-1"
+    },
+    {
+      "id": "M19-consulta-namespace-incorreto",
+      "file": "M19-consulta-namespace-incorreto.xml",
+      "sha256": "e039b2fb3269449a39b85c8c5bb6bf45ccd2c7f503022bec563602b1dcbeacb0",
+      "bytes": 2146,
+      "matrix": [
+        "V19"
+      ],
+      "guideType": "consulta",
+      "title": "Namespace TISS trocado",
+      "expected": "invalid",
+      "rejectedBy": [
+        "xsd"
+      ],
+      "expectedIssues": [],
+      "origin": "mutation",
+      "mutation": "namespace http://www.ans.gov.br/padroes/tiss/schemas trocado por http://www.ans.gov.br/padroes/tiss/schemas/errado"
+    },
+    {
+      "id": "M20-consulta-hash-incorreto",
+      "file": "M20-consulta-hash-incorreto.xml",
+      "sha256": "ecd0fb1e9c648c006d8f7d210f74e2e0329c00cb0bf37cbe9767c95acc234116",
+      "bytes": 2139,
+      "matrix": [
+        "V20"
+      ],
+      "guideType": "consulta",
+      "title": "Hash do epílogo trocado por 32 zeros",
+      "expected": "invalid",
+      "rejectedBy": [
+        "hash"
+      ],
+      "expectedIssues": [],
+      "origin": "mutation",
+      "mutation": "hash do epílogo substituído por 00000000000000000000000000000000"
+    },
+    {
+      "id": "M21-consulta-truncado",
+      "file": "M21-consulta-truncado.xml",
+      "sha256": "3d44fcf61dc36a813e06957d6dcd16cacd4cff26d1a208f4550cf89f4c966ab4",
+      "bytes": 1069,
+      "matrix": [
+        "V21"
+      ],
+      "guideType": "consulta",
+      "title": "Arquivo truncado na metade",
+      "expected": "invalid",
+      "rejectedBy": [
+        "xsd",
+        "hash"
+      ],
+      "expectedIssues": [],
+      "origin": "mutation",
+      "mutation": "primeira metade dos bytes do V1a"
+    }
+  ]
+}

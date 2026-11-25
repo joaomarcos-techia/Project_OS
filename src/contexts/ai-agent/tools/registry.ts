@@ -20,6 +20,7 @@ import { z } from 'zod';
 
 import type { AIToolDeclaration, ToolCall } from '@/lib/ai/provider';
 import type { Tx } from '@/lib/db';
+import { assertOperationalModuleAccessTx } from '@/lib/entitlements';
 import { metrics } from '@/lib/observability/metrics';
 
 export type ToolContext = {
@@ -277,6 +278,8 @@ export async function validateAndExecute(
 
   let raw: unknown;
   try {
+    // Recheck within the mutation transaction; the turn may outlive its paid period.
+    await assertOperationalModuleAccessTx(ctx.tx, ctx.clinicId, 'ai_agents');
     raw = await tool.handler(parsedInput.data, ctx);
   } catch (err) {
     metrics.emit('ai_agent.tool.handler_error', {

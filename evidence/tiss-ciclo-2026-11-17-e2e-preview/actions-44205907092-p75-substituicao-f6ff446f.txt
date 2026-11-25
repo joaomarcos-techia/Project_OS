@@ -1,0 +1,6 @@
+  ✓  1 [chromium] › e2e/convenios-p75-preview.spec.ts:140:1 › gestora: confere, aprova e leva as duas guias à operadora pela tela (lote, XML no XSD, envio, protocolo) (1.7m)
+  ✓  2 [chromium] › e2e/convenios-p75-preview.spec.ts:188:1 › guia A: pedido com motivo e XML; recibo 4 não libera; recibo 1 confirma; substituta conferida e aprovada; original substituída (1.0m)
+  ✓  3 [chromium] › e2e/convenios-p75-preview.spec.ts:232:1 › guia B: recibo 2 recusa; a substituta pela action direta é recusada sem recibo 1; repetir a da A não cria outra (31.4s)
+  ✓  4 [chromium] › e2e/convenios-p75-preview.spec.ts:250:1 › recepção: sem controles de faturamento; registrar recibo pela action direta é recusado (11.1s)
+  ✓  5 [chromium] › e2e/convenios-p75-preview.spec.ts:261:1 › outra clínica: a guia não existe e as actions são recusadas (12.6s)
+  5 passed (3.7m)

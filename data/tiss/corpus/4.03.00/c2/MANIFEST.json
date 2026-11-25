@@ -1,0 +1,141 @@
+{
+  "corpus": "c2",
+  "tissVersion": "4.03.00",
+  "synthetic": true,
+  "scenarios": [
+    {
+      "id": "R01-solicitacao-valida",
+      "file": "R01-solicitacao-valida.xml",
+      "description": "solicitação SP/SADT com 2 procedimentos e indicação clínica escrita pelo profissional",
+      "rejectedBy": [],
+      "sha256": "92708194a44bbb31e0eb0dda4f06c2f2bb8f41f26370582a0d38ac7c3dc33266",
+      "epilogueHash": "addfeb463fa94e6f6fa578468e70577d"
+    },
+    {
+      "id": "R02-solicitacao-sem-indicacao",
+      "file": "R02-solicitacao-sem-indicacao.xml",
+      "description": "solicitação sem indicação clínica (campo opcional; nada é preenchido pelo sistema)",
+      "rejectedBy": [],
+      "sha256": "e6866dbd316d51ffb29a31b82d2eb68b0a775d51ffdd3223c3337fd4d9b0ee82",
+      "epilogueHash": "20c38ae02ef5244e233933913c653783"
+    },
+    {
+      "id": "R03-quantidade-acima",
+      "file": "R03-quantidade-acima.xml",
+      "description": "quantidade 1000 (st_numerico3 vai até 999)",
+      "rejectedBy": [
+        "xsd",
+        "internal"
+      ],
+      "sha256": "eb865a8dd9ae8d01e40fd4ff24fa7102d53523ca6d7aef2b3147f2324ced0b17",
+      "epilogueHash": "3ce4e5c8dca85c47e54495b907eb0b18"
+    },
+    {
+      "id": "R04-data-futura",
+      "file": "R04-data-futura.xml",
+      "description": "data da solicitação no futuro (o XSD aceita; a regra interna recusa)",
+      "rejectedBy": [
+        "internal"
+      ],
+      "sha256": "c07f707d906e72ea2dfe436d0f4c263388e8d089b78c32046c82678c90b42c92",
+      "epilogueHash": "9b4690987236350ea098c5021d1a704b"
+    },
+    {
+      "id": "R05-procedimento-repetido",
+      "file": "R05-procedimento-repetido.xml",
+      "description": "o mesmo procedimento duas vezes (o XSD aceita; a regra interna pede somar)",
+      "rejectedBy": [
+        "internal"
+      ],
+      "sha256": "b6541e9de123b2477be8d97bef4ac7f542b0bd5a7e274b4c7a65b83edf884cd4",
+      "epilogueHash": "28dbc1d05d279d8c5b2fffaf77db642b"
+    },
+    {
+      "id": "R06-carater-invalido",
+      "file": "R06-carater-invalido.xml",
+      "description": "caráter do atendimento 3 (fora do domínio)",
+      "rejectedBy": [
+        "xsd",
+        "internal"
+      ],
+      "sha256": "d5ad7886c337b23a74bb274fc34b4d97d296419d02fba2de983df88bd63c0d20",
+      "epilogueHash": "4712ae4fbff7e3543d793784bb1d17ac"
+    },
+    {
+      "id": "G01-recurso-protocolo",
+      "file": "G01-recurso-protocolo.xml",
+      "description": "recurso do protocolo inteiro (objeto 1)",
+      "rejectedBy": [],
+      "sha256": "3e3deeaae64765cfa386d14f86a43c528d3403bf70933d8b4c4419fb92ace026",
+      "epilogueHash": "23156be91553e13517ec05e7c1a2bc72"
+    },
+    {
+      "id": "G02-recurso-itens",
+      "file": "G02-recurso-itens.xml",
+      "description": "recurso por guia, dois itens, total = soma dos itens",
+      "rejectedBy": [],
+      "sha256": "3488fa78ddea96324c0d771c8817fd390a831ca90f00f289a9ddcba3c3f8733b",
+      "epilogueHash": "3c297b7298aade90f611b2184f2a2a2d"
+    },
+    {
+      "id": "G03-recurso-guia-completa",
+      "file": "G03-recurso-guia-completa.xml",
+      "description": "recurso da guia completa",
+      "rejectedBy": [],
+      "sha256": "4158200e14ac406c78db4fe07dc50ce26ddb60cbcdcc045fb4b63cf8689ab3ca",
+      "epilogueHash": "53ef4e4355b76467f7307681b6696a01"
+    },
+    {
+      "id": "G04-total-divergente",
+      "file": "G04-total-divergente.xml",
+      "description": "total recursado diferente da soma dos itens (o XSD aceita)",
+      "rejectedBy": [
+        "internal"
+      ],
+      "sha256": "b85134f44ac8b1a9c4a97ebd2c51a7a9ef1f03d035e373c8f3c9ffa623c29127",
+      "epilogueHash": "ec8c7dc737a06898a99d51500bed9651"
+    },
+    {
+      "id": "G05-protocolo-nao-numerico",
+      "file": "G05-protocolo-nao-numerico.xml",
+      "description": "protocolo com letras (st_numerico12)",
+      "rejectedBy": [
+        "xsd",
+        "internal"
+      ],
+      "sha256": "4da8424968014b7f4590e2554d3107b5b40e56bbb7a4c41f5c028f30732ec816",
+      "epilogueHash": "a81eb6c9c4871ad836efe272b2ba310a"
+    },
+    {
+      "id": "G06-codigo-glosa-inexistente",
+      "file": "G06-codigo-glosa-inexistente.xml",
+      "description": "código de glosa fora da tabela 38 e do dm_tipoGlosa",
+      "rejectedBy": [
+        "xsd",
+        "internal"
+      ],
+      "sha256": "4e32d948b874392fd045e87c0e69426edbf0d667480372ba845f0fa3636f6ffd",
+      "epilogueHash": "ffd9d7bdc51be2451add843a0b530d46"
+    },
+    {
+      "id": "G07-justificativa-curta",
+      "file": "G07-justificativa-curta.xml",
+      "description": "justificativa com 2 caracteres (o XSD aceita; a regra interna pede o texto de quem recorre)",
+      "rejectedBy": [
+        "internal"
+      ],
+      "sha256": "2465d2b726abad2a4bd8628db769467839452ace35594091e2f66586fa62fc74",
+      "epilogueHash": "be8975da0677e27b49f816d0b61dc84f"
+    },
+    {
+      "id": "G08-forma-trocada",
+      "file": "G08-forma-trocada.xml",
+      "description": "objeto 2 (guia) com recurso de protocolo",
+      "rejectedBy": [
+        "internal"
+      ],
+      "sha256": "62f8d283d6de8cf6d559d4dffee85878b5b6c07bf6b31b89dfa058f1b8b3ca58",
+      "epilogueHash": "16dc9a447e3d093a7611388ae930a01e"
+    }
+  ]
+}

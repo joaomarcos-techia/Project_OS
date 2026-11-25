@@ -1,6 +1,8 @@
 export interface FinanceiroPaginationFilters {
   tipo?: string;
   status?: string;
+  /** P10.6: `paciente` ou `operadora` (recebível de guia de convênio). */
+  origem?: string;
 }
 
 export function parseFinanceiroPage(value: string | undefined): number {
@@ -12,6 +14,7 @@ export function financeiroPageHref(filters: FinanceiroPaginationFilters, page: n
   const params = new URLSearchParams();
   if (filters.tipo) params.set('tipo', filters.tipo);
   if (filters.status) params.set('status', filters.status);
+  if (filters.origem) params.set('origem', filters.origem);
   if (page > 1) params.set('page', String(page));
 
   const query = params.toString();

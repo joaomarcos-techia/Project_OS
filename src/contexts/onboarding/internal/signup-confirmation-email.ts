@@ -20,6 +20,7 @@ import {
   readPendingSignupReference,
 } from './signup-auth-binding';
 import { validateLegacySignupDeliveryCandidate } from './signup-auth-admin';
+import { notifyExistingSignupAccount } from './signup-existing-account-notice';
 import { readSignupDeliveryAttemptState, readSignupReferenceLiveness } from './signup-session';
 import {
   bindPendingSignupCodeUser,
@@ -248,6 +249,15 @@ export async function sendSignupConfirmation(input: {
         });
         if (resolved.kind === 'obfuscated') {
           metrics.emit('signup.confirmation.obfuscated', { stage: 'initial' });
+          // A resposta segue igual; só o dono do endereço recebe a explicação.
+          await notifyExistingSignupAccount({
+            user: existing.user,
+            email: input.email,
+            signupRef: input.signupRef,
+            attemptEpoch: input.attemptEpoch,
+            stage: 'initial',
+            publicOrigin: input.publicOrigin,
+          });
           return { kind: 'obfuscated' };
         }
         if (resolved.kind === 'uncertain') return { kind: 'uncertain' };
@@ -375,6 +385,14 @@ export async function resendSignupConfirmation(input: {
       });
       if (resolved.kind === 'obfuscated') {
         metrics.emit('signup.confirmation.obfuscated', { stage: 'resend' });
+        await notifyExistingSignupAccount({
+          user: existing.user,
+          email: input.email,
+          signupRef: input.signupRef,
+          attemptEpoch: input.attemptEpoch,
+          stage: 'resend',
+          publicOrigin: input.publicOrigin,
+        });
         return { kind: 'obfuscated' };
       }
       if (resolved.kind === 'uncertain') return { kind: 'uncertain' };
@@ -412,6 +430,14 @@ export async function resendSignupConfirmation(input: {
         });
         if (resolved.kind === 'obfuscated') {
           metrics.emit('signup.confirmation.obfuscated', { stage: 'resend' });
+          await notifyExistingSignupAccount({
+            user: raced.user,
+            email: input.email,
+            signupRef: input.signupRef,
+            attemptEpoch: input.attemptEpoch,
+            stage: 'resend',
+            publicOrigin: input.publicOrigin,
+          });
           return { kind: 'obfuscated' };
         }
         if (resolved.kind === 'uncertain') return { kind: 'uncertain' };

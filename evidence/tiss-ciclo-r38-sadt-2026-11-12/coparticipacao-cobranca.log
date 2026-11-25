@@ -1,0 +1,10 @@
+PASS: 1. coparticipação confirmada de R$ 45 (atendimento de R$ 150): o link vai com R$ 45, o teto enviado ao Pagamentos é o confirmado; estado "cobrada" com a referência da cobrança
+PASS: 2. pedido repetido: devolve a cobrança existente, sem nova chamada ao gateway (1 cobrança só)
+PASS: 3. coparticipação calculada mas não confirmada é recusada; coparticipação zero (confirmação: aceita com zero) não gera cobrança; o gateway não foi chamado
+PASS: 4. recebível de R$ 150 num atendimento de convênio é recusado pelo banco; o Pagamentos REAL recusa saldo acima do confirmado antes de qualquer chamada e, sem conta Asaas ativa, não cobra
+PASS: 5. timeout do gateway: a coparticipação continua confirmada, sem cobrança; a nova tentativa cria UMA cobrança
+PASS: 6. pagamento confirmado: "paga" com R$ 45 recebidos; o webhook duplicado é recusado pelo livro; reprocessar (3×) não muda nada
+PASS: 7. estorno integral no livro: a coparticipação fica "estornada" (o histórico de cobrança e pagamento fica)
+PASS: 8. assinatura suspensa (dunning): cobrança recusada; outra clínica não cobra nem sincroniza a coparticipação; o runtime não forja referência de cobrança
+
+OK — 8 provas da cobrança da coparticipação (gateway mockado, nenhuma cobrança real).

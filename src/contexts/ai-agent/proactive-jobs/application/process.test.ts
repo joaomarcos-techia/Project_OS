@@ -11,6 +11,10 @@
  * envio, e as fixtures ficam dentro da janela em `NOW`.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getOperationalModuleAccess } from '@/lib/entitlements';
+vi.mock('@/lib/entitlements', () => ({
+  getOperationalModuleAccess: vi.fn(async () => ({ allowed: true })),
+}));
 
 vi.mock('../infra/repository', () => ({
   claimDue: vi.fn(),
@@ -152,6 +156,7 @@ afterEach(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(getOperationalModuleAccess).mockResolvedValue({ allowed: true });
   vi.useFakeTimers({ now: NOW, toFake: ['Date'] });
   vi.mocked(repo.getClinicTimezone).mockResolvedValue('America/Sao_Paulo');
   vi.mocked(patientApiV1.getProactiveContact).mockResolvedValue(okContact);
@@ -181,6 +186,33 @@ beforeEach(() => {
     offeredAppointmentId: RELEASED,
     offerExpiresAt: OFFER_EXPIRES_AT,
   });
+});
+
+describe('operational subscription gate before proactive side effects', () => {
+  it.each(['reminder', 'dunning', 'deposit_link', 'remainder_link'] as const)(
+    'cancels blocked %s before resolving patient details, template or sending',
+    async (type) => {
+      const payload =
+        type === 'reminder'
+          ? reminderPayload
+          : type === 'dunning'
+            ? dunningPayload
+            : type === 'deposit_link'
+              ? depositPayload
+              : remainderPayload;
+      claim({ id: 'blocked-job', clinicId: U, type, payload, attempts: 1 });
+      vi.mocked(getOperationalModuleAccess).mockResolvedValueOnce({
+        allowed: false,
+        reason: 'payment_required',
+      });
+      const result = await processProactiveBatch(type);
+      expect(result.cancelled).toBe(1);
+      expect(repo.cancel).toHaveBeenCalledWith(U, 'blocked-job', 'lease-1', 'payment_required');
+      expect(patientApiV1.getProactiveContact).not.toHaveBeenCalled();
+      expect(buildProactiveTemplate).not.toHaveBeenCalled();
+      expect(messagingApiV1.sendText).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe('WAIT-001 — oferta da lista de espera', () => {

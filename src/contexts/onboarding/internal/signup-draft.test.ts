@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
     MAGIC_TOKEN_SECRET: 'synthetic-signup-draft-token-secret',
   },
   select: vi.fn(),
+  deferred: vi.fn(),
   transaction: vi.fn(),
   getUser: vi.fn(),
   hashedEmails: [] as string[],
@@ -18,6 +19,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/env', () => ({ env: mocks.env }));
 vi.mock('@/lib/db', () => ({
   dbAdmin: { select: mocks.select, transaction: mocks.transaction },
+}));
+vi.mock(import('@/lib/payments/saas/acquisition'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  deferredSaasSignupEnabled: mocks.deferred,
 }));
 vi.mock('@/lib/auth/supabase-server', () => ({
   createServerClient: async () => ({ auth: { getUser: mocks.getUser } }),
@@ -65,6 +70,7 @@ beforeEach(() => {
   mocks.env.SIGNUP_AUTH_ENABLED = true;
   mocks.env.SIGNUP_IDENTITY_ENABLED = true;
   mocks.env.OFFER_2026_ANNUAL_NEW_SALES_ENABLED = true;
+  mocks.deferred.mockReturnValue(false);
   mocks.hashedEmails.length = 0;
 });
 
@@ -881,16 +887,151 @@ describe('signup plan contract O-4', () => {
     expect(tx.update).not.toHaveBeenCalled();
   });
 
-  it('recusa compra de médico extra pelo cadastro mesmo com plano adicional ativo', async () => {
+  it.each(['clinica_2026_3', 'clinica_2026_4', 'clinica_2026_5'])(
+    'preserva a restrição anterior do cadastro Asaas para %s',
+    async (code) => {
+      const tx = {
+        select: vi.fn().mockReturnValueOnce(selectChain([{ id: planId, code }])),
+        update: vi.fn(),
+      };
+      mocks.transaction.mockImplementationOnce(
+        async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+      );
+
+      await expect(writeSignupPlan(userId, { rowVersion: 7, planId })).resolves.toEqual({
+        ok: false,
+        reason: 'invalid_plan',
+      });
+      expect(tx.update).not.toHaveBeenCalled();
+    },
+  );
+
+  it('lista todos os planos mensais de 1–5 médicos somente na candidata AbacatePay', async () => {
+    mocks.deferred.mockReturnValue(true);
+    mocks.getUser.mockResolvedValue({
+      data: { user: { id: userId, created_at: '2026-10-19T13:45:00.000Z' } },
+      error: null,
+    });
+    const catalog = [
+      ['consultorio_2026', '197.00'],
+      ['clinica_2026_2', '397.00'],
+      ['clinica_2026_3', '544.00'],
+      ['clinica_2026_4', '691.00'],
+      ['clinica_2026_5', '838.00'],
+    ].map(([code, amount], index) => ({
+      id: `plan-${index}`,
+      code,
+      name: code,
+      amount,
+      cycle: 'monthly',
+    }));
+    mocks.select
+      .mockReturnValueOnce(
+        selectChain([{ rowVersion: 7, clinicName: 'Clínica Sintética', selectedPlanId: null }]),
+      )
+      .mockReturnValueOnce(
+        selectChain([
+          ...catalog,
+          { id: 'legacy', code: 'pro', name: 'Pro', amount: '599.00', cycle: 'monthly' },
+          { ...catalog[4], id: 'annual', cycle: 'annual', amount: '8380.00' },
+        ]),
+      );
+    expect(await readSignupPlan(userId)).toMatchObject({
+      ok: true,
+      state: {
+        signupFlow: 'trial_first',
+        trialDays: 14,
+        plans: catalog.map((plan) => ({
+          id: plan.id,
+          code: plan.code,
+          priceCents: Math.round(Number(plan.amount) * 100),
+          cycle: 'monthly',
+        })),
+      },
+    });
+  });
+
+  it.each(['clinica_2026_2', 'clinica_2026_3', 'clinica_2026_4', 'clinica_2026_5'])(
+    'salva %s para a primeira contratação AbacatePay por CAS sem aceitar preço do navegador',
+    async (code) => {
+      mocks.deferred.mockReturnValue(true);
+      const update = updateChain([{ rowVersion: 8, selectedPlanId: planId }]);
+      const tx = {
+        select: vi.fn().mockReturnValue(selectChain([{ id: planId, code }])),
+        update: vi.fn().mockReturnValue(update),
+      };
+      mocks.transaction.mockImplementationOnce(
+        async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+      );
+      expect(await writeSignupPlan(userId, { rowVersion: 7, planId })).toMatchObject({
+        ok: true,
+        selectedPlanId: planId,
+        selectedBillingCycle: 'monthly',
+        rowVersion: 8,
+      });
+      expect(update.set).toHaveBeenCalledWith(
+        expect.objectContaining({ selectedPlanId: planId, selectedBillingCycle: 'monthly' }),
+      );
+      const fields = Object.keys(update.set.mock.calls[0]?.[0] ?? {});
+      expect(fields.sort()).toEqual(['rowVersion', 'selectedBillingCycle', 'selectedPlanId']);
+    },
+  );
+
+  it('recusa anual na candidata mensal AbacatePay mesmo com a flag anual legada ligada', async () => {
+    mocks.deferred.mockReturnValue(true);
+    expect(await writeSignupPlan(userId, { rowVersion: 7, planId, cycle: 'annual' })).toEqual({
+      ok: false,
+      reason: 'invalid_plan',
+    });
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+  it('não oferece nem salva planos legados quando falta catálogo ativo na candidata AbacatePay', async () => {
+    mocks.deferred.mockReturnValue(true);
+    mocks.select
+      .mockReturnValueOnce(
+        selectChain([{ rowVersion: 7, clinicName: 'Clínica Sintética', selectedPlanId: null }]),
+      )
+      .mockReturnValueOnce(
+        selectChain([
+          { id: planId, code: 'solo', name: 'Solo', amount: '149.00', cycle: 'monthly' },
+        ]),
+      );
+    expect(await readSignupPlan(userId)).toMatchObject({
+      ok: true,
+      state: { plans: [], signupFlow: 'trial_first' },
+    });
     const tx = {
-      select: vi.fn().mockReturnValueOnce(selectChain([{ id: planId, code: 'clinica_2026_3' }])),
+      select: vi.fn().mockReturnValue(selectChain([{ id: planId, code: 'solo' }])),
       update: vi.fn(),
     };
     mocks.transaction.mockImplementationOnce(
       async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
     );
-
-    await expect(writeSignupPlan(userId, { rowVersion: 7, planId })).resolves.toEqual({
+    expect(await writeSignupPlan(userId, { rowVersion: 7, planId })).toEqual({
+      ok: false,
+      reason: 'invalid_plan',
+    });
+    expect(tx.update).not.toHaveBeenCalled();
+  });
+  it.each([
+    'clinica_2026_0',
+    'clinica_2026_1',
+    'clinica_2026_2.5',
+    'clinica_2026_6',
+    'equipe_extra',
+  ])('não aceita %s como primeira contratação AbacatePay', async (code) => {
+    mocks.deferred.mockReturnValue(true);
+    const tx = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce(selectChain([{ id: planId, code }]))
+        .mockReturnValueOnce(selectChain([{ id: 'active-offer' }])),
+      update: vi.fn(),
+    };
+    mocks.transaction.mockImplementationOnce(
+      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+    expect(await writeSignupPlan(userId, { rowVersion: 7, planId })).toEqual({
       ok: false,
       reason: 'invalid_plan',
     });

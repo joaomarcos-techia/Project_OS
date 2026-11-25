@@ -1,19 +1,26 @@
 'use client';
 
+import { Plus, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState, useTransition } from 'react';
 
 import {
-  createPrescriptionTemplate,
   deletePrescriptionTemplate,
-  duplicatePrescriptionTemplate,
   updatePrescriptionTemplate,
 } from '@/contexts/clinical/actions-templates';
+import {
+  createTemplateWithTrialLimit,
+  duplicateTemplateWithTrialLimit,
+} from '../_actions/create-limited';
+import { unwrapAction } from '@/contexts/scheduling/action-result';
 import type { PrescriptionTemplateSummary } from '@/contexts/clinical';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { DestructiveAction } from '@/components/ui/destructive-action';
+import { Field } from '@/components/ui/field';
 import { toast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
+import { Segmented } from '@/components/ui/segmented';
 import { Textarea } from '@/components/ui/textarea';
 import { uuidv4 } from '@/lib/ui/uuid';
 
@@ -33,6 +40,13 @@ interface Med {
 
 type Editing = { id: string | null } | null;
 
+type ErrosModelo = { nome?: string; medicamento?: string };
+
+const KIND_OPTIONS = (['simples', 'controle_especial'] as Kind[]).map((value) => ({
+  value,
+  label: KIND_LABEL[value],
+}));
+
 export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSummary[] }) {
   const router = useRouter();
   const [search, setSearch] = useState('');
@@ -42,6 +56,8 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
   const [kind, setKind] = useState<Kind>('simples');
   const [meds, setMeds] = useState<Med[]>([{ nome: '' }]);
   const [observacoes, setObservacoes] = useState('');
+  // UX-019 — erro no campo (padrão do UX-005), não só no toast que some.
+  const [erros, setErros] = useState<ErrosModelo>({});
   const [busy, start] = useTransition();
 
   const filtered = useMemo(() => {
@@ -65,6 +81,7 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
 
   function startNew() {
     setEditing({ id: null });
+    setErros({});
     setNome('');
     setCategoria('');
     setKind('simples');
@@ -74,6 +91,7 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
 
   function startEdit(t: PrescriptionTemplateSummary) {
     setEditing({ id: t.id });
+    setErros({});
     setNome(t.nome);
     setCategoria(t.categoria ?? '');
     setKind(t.kind);
@@ -86,8 +104,16 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
   }
 
   function save() {
-    if (!nome.trim()) return toast.error('Dê um nome ao modelo.');
-    if (cleaned.length === 0) return toast.error('Adicione ao menos um medicamento.');
+    const novos: ErrosModelo = {};
+    if (!nome.trim()) novos.nome = 'Dê um nome ao modelo.';
+    if (cleaned.length === 0) novos.medicamento = 'Adicione ao menos um medicamento.';
+    if (novos.nome || novos.medicamento) {
+      setErros(novos);
+      const alvo = novos.nome ? 'tpl-nome' : 'tpl-med-0-nome';
+      requestAnimationFrame(() => document.getElementById(alvo)?.focus());
+      return;
+    }
+    setErros({});
     const input = {
       nome: nome.trim(),
       categoria: categoria.trim() || undefined,
@@ -98,7 +124,7 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
     start(async () => {
       try {
         if (editing?.id) await updatePrescriptionTemplate(editing.id, input, uuidv4());
-        else await createPrescriptionTemplate(input, uuidv4());
+        else await unwrapAction(createTemplateWithTrialLimit(input, uuidv4()));
         setEditing(null);
         toast.success('Modelo salvo.');
         router.refresh();
@@ -111,7 +137,7 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
   function duplicate(t: PrescriptionTemplateSummary) {
     start(async () => {
       try {
-        await duplicatePrescriptionTemplate(t.id, uuidv4());
+        await unwrapAction(duplicateTemplateWithTrialLimit(t.id, uuidv4()));
         router.refresh();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Erro ao duplicar.');
@@ -119,12 +145,27 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
     });
   }
 
+  function limparErro(campo: keyof ErrosModelo) {
+    setErros((atual) => {
+      if (!atual[campo]) return atual;
+      const { [campo]: _removido, ...resto } = atual;
+      return resto;
+    });
+  }
+
+  const vazioPorBusca = initial.length > 0 && filtered.length === 0;
+
+  // UX-019 — fora da migração do v5: classes do DS antigo (`stack`, `cardblock`,
+  // `listrow`), largura em `style` e campos com o placeholder como único rótulo
+  // (o rótulo sumia ao digitar). Agora: `Field` com rótulo persistente em cada
+  // campo, o mesmo desenho da receita do Consultório e só tokens do DS.
   return (
-    <div className="stack" style={{ maxWidth: 760 }}>
+    <div className="flex max-w-190 flex-col gap-(--sp-4)">
       <div className="flex flex-wrap items-center gap-2">
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          aria-label="Buscar modelo de receita"
           placeholder="Buscar por nome ou categoria"
           className="max-w-xs"
         />
@@ -134,92 +175,148 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
       </div>
 
       {editing ? (
-        <div className="cardblock wrap-pad flex flex-col gap-3">
-          <h4 className="text-sm font-semibold">{editing.id ? 'Editar modelo' : 'Novo modelo'}</h4>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Input
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              placeholder="Nome *"
-              maxLength={120}
-            />
-            <Input
-              value={categoria}
-              onChange={(e) => setCategoria(e.target.value)}
-              placeholder="Categoria (opcional)"
-              maxLength={60}
-            />
+        <Card className="flex flex-col gap-(--sp-4) p-(--card-pad)">
+          <h2 className="text-(length:--fs-h4) font-semibold">
+            {editing.id ? 'Editar modelo' : 'Novo modelo'}
+          </h2>
+          <div className="grid gap-(--sp-3) sm:grid-cols-2">
+            <Field label="Nome do modelo" htmlFor="tpl-nome" error={erros.nome} required>
+              <Input
+                id="tpl-nome"
+                value={nome}
+                invalid={Boolean(erros.nome)}
+                onChange={(e) => {
+                  setNome(e.target.value);
+                  if (e.target.value.trim()) limparErro('nome');
+                }}
+                placeholder="Ex.: Amigdalite adulto"
+                maxLength={120}
+              />
+            </Field>
+            <Field label="Categoria (opcional)" htmlFor="tpl-categoria">
+              <Input
+                id="tpl-categoria"
+                value={categoria}
+                onChange={(e) => setCategoria(e.target.value)}
+                placeholder="Ex.: Antibióticos"
+                maxLength={60}
+              />
+            </Field>
           </div>
 
-          <div className="inline-flex w-fit overflow-hidden rounded-md border border-border">
-            {(['simples', 'controle_especial'] as Kind[]).map((k) => (
-              <button
-                key={k}
-                type="button"
-                onClick={() => setKind(k)}
-                aria-pressed={kind === k}
-                className={`px-3 py-1.5 text-sm ${
-                  kind === k ? 'bg-primary-600 text-white' : 'bg-transparent text-fg'
-                }`}
-              >
-                {KIND_LABEL[k]}
-              </button>
-            ))}
-          </div>
+          <Field label="Tipo de receita" group>
+            <Segmented
+              aria-label="Tipo de receita"
+              options={KIND_OPTIONS}
+              value={kind}
+              onValueChange={setKind}
+            />
+          </Field>
 
-          {meds.map((m, i) => (
-            <div key={i} className="grid grid-cols-2 gap-2 border-b border-border pb-2">
-              <Input
-                value={m.nome}
-                onChange={(e) => updateMed(i, { nome: e.target.value })}
-                placeholder="Medicamento *"
-              />
-              <Input
-                value={m.dosagem ?? ''}
-                onChange={(e) => updateMed(i, { dosagem: e.target.value })}
-                placeholder="Dosagem"
-              />
-              <Input
-                value={m.posologia ?? ''}
-                onChange={(e) => updateMed(i, { posologia: e.target.value })}
-                placeholder="Posologia"
-                className="col-span-2"
-              />
-              <Input
-                value={m.via ?? ''}
-                onChange={(e) => updateMed(i, { via: e.target.value })}
-                placeholder="Via"
-              />
-              <Input
-                value={m.quantidade ?? ''}
-                onChange={(e) => updateMed(i, { quantidade: e.target.value })}
-                placeholder="Quantidade"
-              />
-              {meds.length > 1 ? (
-                <button
-                  type="button"
-                  onClick={() => setMeds((ms) => ms.filter((_, idx) => idx !== i))}
-                  className="col-span-2 text-left text-xs text-danger-600 underline"
+          <Field label="Medicamentos" group error={erros.medicamento}>
+            <div className="flex flex-col gap-(--sp-3)">
+              {meds.map((m, i) => (
+                <div
+                  key={i}
+                  className="grid grid-cols-2 gap-2 border-b border-border pb-(--sp-3) last:border-b-0 last:pb-0"
                 >
-                  remover
-                </button>
-              ) : null}
+                  <Field
+                    label={`Medicamento ${i + 1}`}
+                    htmlFor={`tpl-med-${i}-nome`}
+                    required
+                    className="col-span-2 sm:col-span-1"
+                  >
+                    <Input
+                      id={`tpl-med-${i}-nome`}
+                      value={m.nome}
+                      invalid={i === 0 && Boolean(erros.medicamento)}
+                      onChange={(e) => {
+                        updateMed(i, { nome: e.target.value });
+                        if (e.target.value.trim()) limparErro('medicamento');
+                      }}
+                      placeholder="Ex.: Amoxicilina 500mg"
+                    />
+                  </Field>
+                  <Field
+                    label="Dosagem"
+                    htmlFor={`tpl-med-${i}-dosagem`}
+                    className="col-span-2 sm:col-span-1"
+                  >
+                    <Input
+                      id={`tpl-med-${i}-dosagem`}
+                      aria-label={`Dosagem ${i + 1}`}
+                      value={m.dosagem ?? ''}
+                      onChange={(e) => updateMed(i, { dosagem: e.target.value })}
+                      placeholder="1 cp"
+                    />
+                  </Field>
+                  <Field
+                    label="Posologia"
+                    htmlFor={`tpl-med-${i}-posologia`}
+                    className="col-span-2"
+                  >
+                    <Input
+                      id={`tpl-med-${i}-posologia`}
+                      aria-label={`Posologia ${i + 1}`}
+                      value={m.posologia ?? ''}
+                      onChange={(e) => updateMed(i, { posologia: e.target.value })}
+                      placeholder="8/8h por 7 dias"
+                    />
+                  </Field>
+                  <Field label="Via" htmlFor={`tpl-med-${i}-via`}>
+                    <Input
+                      id={`tpl-med-${i}-via`}
+                      aria-label={`Via ${i + 1}`}
+                      value={m.via ?? ''}
+                      onChange={(e) => updateMed(i, { via: e.target.value })}
+                      placeholder="oral"
+                    />
+                  </Field>
+                  <Field label="Quantidade" htmlFor={`tpl-med-${i}-quantidade`}>
+                    <Input
+                      id={`tpl-med-${i}-quantidade`}
+                      aria-label={`Quantidade ${i + 1}`}
+                      value={m.quantidade ?? ''}
+                      onChange={(e) => updateMed(i, { quantidade: e.target.value })}
+                      placeholder="30"
+                    />
+                  </Field>
+                  {meds.length > 1 ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="col-span-2 justify-self-start text-danger-700"
+                      onClick={() => setMeds((ms) => ms.filter((_, idx) => idx !== i))}
+                    >
+                      <Trash2 aria-hidden="true" className="size-4" />
+                      Remover medicamento {i + 1}
+                    </Button>
+                  ) : null}
+                </div>
+              ))}
             </div>
-          ))}
-          <button
-            type="button"
-            onClick={() => setMeds((ms) => [...ms, { nome: '' }])}
-            className="self-start text-sm font-medium text-primary-600 underline"
-          >
-            + medicamento
-          </button>
+          </Field>
+          <div>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => setMeds((ms) => [...ms, { nome: '' }])}
+            >
+              <Plus aria-hidden="true" className="size-3.5" />
+              Adicionar medicamento
+            </Button>
+          </div>
 
-          <Textarea
-            value={observacoes}
-            onChange={(e) => setObservacoes(e.target.value)}
-            placeholder="Observações (opcional)"
-            rows={2}
-          />
+          <Field label="Observações (opcional)" htmlFor="tpl-observacoes">
+            <Textarea
+              id="tpl-observacoes"
+              value={observacoes}
+              onChange={(e) => setObservacoes(e.target.value)}
+              rows={2}
+            />
+          </Field>
 
           <div className="flex gap-2">
             <Button type="button" size="sm" loading={busy} onClick={save}>
@@ -229,35 +326,55 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
               Cancelar
             </Button>
           </div>
-        </div>
+        </Card>
       ) : null}
 
       {filtered.length === 0 ? (
-        <p className="text-sm text-fg-muted">Nenhum modelo. Clique em “Novo modelo” para criar.</p>
+        <p className="text-(length:--fs-sm) text-fg-muted">
+          {vazioPorBusca
+            ? 'Nenhum modelo encontrado para essa busca.'
+            : 'Nenhum modelo ainda. Use “Novo modelo” para criar o primeiro.'}
+        </p>
       ) : (
-        <div className="cardblock">
-          <div className="listrows">
+        <Card className="p-0">
+          <ul className="divide-y divide-border">
             {filtered.map((t) => (
-              <div key={t.id} className="listrow" data-testid="prescription-template-row">
-                <div className="lr-main">
-                  <div className="flex flex-wrap items-center gap-2">
+              <li
+                key={t.id}
+                data-testid="prescription-template-row"
+                className="flex flex-wrap items-center gap-x-3 gap-y-2 px-(--card-pad) py-(--sp-3)"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span className="font-medium">{t.nome}</span>
                     {t.categoria ? (
-                      <span className="text-xs text-fg-subtle">{t.categoria}</span>
+                      <span className="text-(length:--fs-xs) text-fg-subtle">{t.categoria}</span>
                     ) : null}
-                    <span className="text-xs text-fg-muted">
-                      {KIND_LABEL[t.kind]} · {t.medicamentos.length} medicamento(s)
-                    </span>
                   </div>
+                  <p className="text-(length:--fs-xs) text-fg-muted">
+                    {KIND_LABEL[t.kind]} · {t.medicamentos.length}{' '}
+                    {t.medicamentos.length === 1 ? 'medicamento' : 'medicamentos'}
+                  </p>
                 </div>
-                <div className="lr-end flex gap-2">
-                  <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(t)}>
+                {/* O nome do modelo entra no nome acessível: numa lista, três
+                    botões "Editar" iguais não dizem de qual linha são. O texto
+                    visível abre o nome (WCAG 2.5.3); `aria-label` e não um
+                    `span` oculto, que vira bloco e põe espaço antes dos dois-pontos. */}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    aria-label={`Editar: ${t.nome}`}
+                    onClick={() => startEdit(t)}
+                  >
                     Editar
                   </Button>
                   <Button
                     type="button"
                     size="sm"
                     variant="ghost"
+                    aria-label={`Duplicar: ${t.nome}`}
                     onClick={() => duplicate(t)}
                     disabled={busy}
                   >
@@ -265,7 +382,13 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
                   </Button>
                   <DestructiveAction
                     trigger={
-                      <Button type="button" size="sm" variant="ghost" disabled={busy}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        aria-label={`Excluir: ${t.nome}`}
+                        disabled={busy}
+                      >
                         Excluir
                       </Button>
                     }
@@ -283,10 +406,10 @@ export function TemplatesManager({ initial }: { initial: PrescriptionTemplateSum
                     }
                   />
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
-        </div>
+          </ul>
+        </Card>
       )}
     </div>
   );

@@ -45,6 +45,12 @@ vi.mock('@/contexts/scheduling/queries', () => ({
   listAppointmentCommercialPaymentMethods: vi.fn(),
 }));
 vi.mock('@/contexts/tenancy/queries', () => ({ getClinicTimezone: vi.fn() }));
+// A página lê o usuário por `requirePageUser` (sessão morta vai para /login, OBS-001). Aqui ele
+// delega ao `requireUser` simulado, para os cenários continuarem os mesmos; o redirecionamento
+// tem teste próprio em `src/lib/auth/page-guard.test.ts`.
+vi.mock('@/lib/auth/page-guard', () => ({
+  requirePageUser: async () => (await import('@/lib/auth/tenant-context')).requireUser(),
+}));
 vi.mock('@/lib/auth/tenant-context', () => ({
   requireClinicId: vi.fn(),
   requireUser: vi.fn(),
@@ -65,6 +71,8 @@ const lancamento: LancamentoSummary = {
   descricao: 'Consulta',
   valor: 250,
   valorPago: 250,
+  valorGlosado: 0,
+  sourceHiGuideId: null,
   status: 'pago',
   dueDate: '2026-10-02',
   paidAt: '2026-10-02T10:00:00.000Z',

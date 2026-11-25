@@ -9,6 +9,7 @@ import {
   Drawer,
   DrawerBody,
   DrawerContent,
+  DrawerDescription,
   DrawerHeader,
   DrawerTitle,
   DrawerTrigger,
@@ -53,11 +54,9 @@ export function NewLancamentoDrawer({
       <DrawerContent>
         <DrawerHeader>
           <DrawerTitle>Novo lançamento</DrawerTitle>
+          <DrawerDescription>Conta a receber ou a pagar (origem manual).</DrawerDescription>
         </DrawerHeader>
         <DrawerBody>
-          <p className="mb-4 text-(length:--fs-sm) text-fg-muted">
-            Conta a receber ou a pagar (origem manual).
-          </p>
           <LancamentoForm suppliers={suppliers} methods={methods} />
         </DrawerBody>
       </DrawerContent>

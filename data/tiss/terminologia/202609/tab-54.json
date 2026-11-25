@@ -1,0 +1,45 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "54",
+  "title": "Tabela 54 - Terminologia de tipo de guia",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 5,
+  "terms": [
+    {
+      "code": "1",
+      "term": "Consulta",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "2",
+      "term": "SP/SADT",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3",
+      "term": "Resumo de Internação",
+      "startsOn": "2017-04-10",
+      "endsOn": null,
+      "implantationEndsOn": "2017-07-09"
+    },
+    {
+      "code": "4",
+      "term": "Tratamento Odontológico",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5",
+      "term": "Honorários",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    }
+  ]
+}

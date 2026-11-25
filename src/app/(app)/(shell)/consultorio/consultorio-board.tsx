@@ -1,6 +1,6 @@
 'use client';
 
-import { Calendar, RefreshCw } from 'lucide-react';
+import { Calendar, RefreshCw, Stethoscope } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -23,6 +23,7 @@ import { CheckinStrip } from './checkin-strip';
 import { FinalizedList } from './finalized-list';
 import { waitMinutes } from './priority';
 import { WaitingCard } from './waiting-card';
+import { useHydratedNow } from '@/lib/ui/use-hydrated-now';
 import { uuidv4 } from '@/lib/ui/uuid';
 import styles from './consultorio.module.css';
 
@@ -75,10 +76,12 @@ function ColumnTitle({
 export function ConsultorioBoard({
   isPractitioner,
   initialBoard,
+  timeZone,
 }: {
   clinicId: string;
   isPractitioner: boolean;
   initialBoard: BoardDTO;
+  timeZone: string;
 }) {
   const [board, setBoard] = useState<BoardDTO>(initialBoard);
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(
@@ -89,13 +92,9 @@ export function ConsultorioBoard({
   );
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [now, setNow] = useState(() => Date.now());
-
-  // Relógio: atualiza "tempo aguardando" sem refetch.
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 30_000);
-    return () => clearInterval(t);
-  }, []);
+  // Relógio: atualiza "tempo aguardando" sem refetch. `null` até montar (R51: o
+  // `Date.now()` do servidor e o do navegador diferem e a hidratação acusava erro 418).
+  const now = useHydratedNow(30_000);
 
   const refetch = useCallback(async (): Promise<boolean> => {
     try {
@@ -170,7 +169,7 @@ export function ConsultorioBoard({
   // `waitMinutes` devolve null sem check-in registrado, e aí o cabeçalho fica
   // neutro em vez de anunciar uma espera que ninguém mediu.
   const maiorEsperaMin = board.salaEspera.reduce<number | null>((maior, card) => {
-    const minutos = waitMinutes(card.checkInAt, now);
+    const minutos = now === null ? null : waitMinutes(card.checkInAt, now);
     if (minutos === null) return maior;
     return maior === null || minutos > maior ? minutos : maior;
   }, null);
@@ -184,12 +183,12 @@ export function ConsultorioBoard({
   return (
     <>
       <PageHeader
-        crumbs={[{ label: 'Operação' }, { label: 'Consultório' }]}
+        icon={<Stethoscope aria-hidden="true" />}
         title="Consultório"
-        description="Atenda um turno inteiro sem trocar de tela."
-        meta={`${board.salaEspera.length} na fila · ${board.emAtendimento.length} em atendimento`}
+        headline="Turno de hoje"
+        description={`${board.salaEspera.length} na fila · ${board.emAtendimento.length} em atendimento`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {!isPractitioner && board.doctors.length > 0 ? (
               <Select
                 value={selectedDoctorId ?? ''}
@@ -221,6 +220,7 @@ export function ConsultorioBoard({
 
       <CheckinStrip
         cards={board.aChegar}
+        timeZone={timeZone}
         busyId={busyId}
         onCheckIn={onCheckIn}
         onAbsent={onAbsent}
@@ -268,6 +268,7 @@ export function ConsultorioBoard({
                     key={c.appointmentId}
                     card={c}
                     now={now}
+                    timeZone={timeZone}
                     busy={busyId === c.appointmentId}
                     onCall={onCall}
                   />
@@ -282,7 +283,7 @@ export function ConsultorioBoard({
               {viewingFinalizada ? 'Consulta finalizada' : 'Em atendimento'}
             </ColumnTitle>
             {!viewingFinalizada && board.emAtendimento.length > 1 ? (
-              <div className="flex flex-wrap gap-2">
+              <div className={cn('flex flex-wrap gap-2', styles.attendingTabs)}>
                 {board.emAtendimento.map((c) => (
                   <button
                     key={c.appointmentId}
@@ -308,6 +309,7 @@ export function ConsultorioBoard({
               onComplete={onComplete}
               onClose={() => setSelectedAppt(null)}
               onBoardRefresh={() => void refetch()}
+              timeZone={timeZone}
             />
           </section>
 
@@ -318,6 +320,7 @@ export function ConsultorioBoard({
             </ColumnTitle>
             <FinalizedList
               cards={board.finalizadas}
+              timeZone={timeZone}
               selectedId={selectedAppt}
               onOpen={(id) => setSelectedAppt(id)}
             />

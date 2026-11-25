@@ -48,8 +48,10 @@ function savedLabel(savedAt: number | null, now: number): string {
 export function ProntuarioEditor({
   prontuario,
   canEdit = true,
+  timeZone,
 }: {
   prontuario: ProntuarioDetail;
+  timeZone: string;
   /**
    * AUTHZ-003 — falso quando a sessão não tem `create:prontuario`. O editor
    * era sempre editável e só a action negava, produzindo a combinação que o
@@ -163,7 +165,7 @@ export function ProntuarioEditor({
             ? ` — CRM ${prontuario.signedDoctorCrmUf ?? ''} ${prontuario.signedDoctorCrm}`
             : ''}
           {prontuario.signedAt
-            ? ` · assinado em ${new Date(prontuario.signedAt).toLocaleString('pt-BR')}`
+            ? ` · assinado em ${new Date(prontuario.signedAt).toLocaleString('pt-BR', { timeZone })}`
             : ''}
         </Alert>
       ) : signed ? (

@@ -1,0 +1,6 @@
+PASS: transcrição idêntica antes e depois da 0155: 366 operações (260 aceitas, 106 recusadas pelo mesmo motivo)
+PASS: estado final idêntico: 53 lançamentos, 286 movimentos no livro, diário da ponte por tipo (4 grupos)
+PASS: as recusas são as esperadas: excesso, estorno acima do pago, repagamento após estorno, duplicada, clínica errada, disputa (10 de 16), coparticipação acima do confirmado, Caixa no recebível da operadora
+PASS: única diferença possível documentada: linha do livro gravada com o gatilho desligado e clínica diferente da do lançamento; o pré-voo a detecta (contagem 1 aqui; o DEV precisa dar 0 antes da aplicação)
+
+OK — 4 provas: a 0155 não muda nenhuma decisão nem estado do livro (particular, coparticipação, convênio, trial, paga, suspensa, estorno, duplicada, concorrência, rollback).

@@ -38,6 +38,7 @@ import { requireCachedPermission, requireClinicId, requireUser } from '@/lib/aut
 import { requestContext } from '@/lib/audit/request-context-from-headers';
 import { encryptForTenant, hashForLookup } from '@/lib/crypto';
 import { metrics } from '@/lib/observability/metrics';
+import { assertTrialPaidFeature } from '@/lib/trial-access';
 import {
   BillingCircuitOpenError,
   BillingProviderError,
@@ -325,6 +326,8 @@ export async function connectPaymentAccount(
   const data = ConnectPaymentAccountSchema.parse(input);
   const clinicId = await requireClinicId();
   const ctx = await requestContext();
+
+  await assertTrialPaidFeature(clinicId, 'asaas');
 
   const { accountName, accountEmail } = await validateCredential(data.apiKey);
 

@@ -1,14 +1,21 @@
 import { NextResponse } from 'next/server';
 
-import { readSignupCodeDestination } from '@/contexts/onboarding';
 import { assertSignupReadAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { env } from '@/lib/env';
-
-import { readSignupCookie } from '../../cookie';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+/**
+ * Antiga fonte do endereço da etapa do código, aposentada em novembro/2026.
+ *
+ * Ela devolvia o e-mail (200) só quando o cadastro tinha criado ou reaproveitado
+ * uma conta pendente; para um endereço que já tinha conta, o cadastro é ofuscado
+ * e não há vínculo, então a resposta era 410. A diferença dizia a quem pediu o
+ * cadastro que aquele e-mail estava cadastrado (ADR-062 §6). A tela agora lembra
+ * o endereço na própria aba, e esta rota responde igual para todos, sem ler
+ * cookie de cadastro nem conta.
+ */
 export async function GET(request: Request): Promise<Response> {
   const json = (body: object, status: number) =>
     NextResponse.json(body, {
@@ -21,12 +28,5 @@ export async function GET(request: Request): Promise<Response> {
     return json({ error: 'blocked' }, 403);
   const limit = await assertSignupReadAllowed(getClientIp(request.headers));
   if (!limit.ok) return json({ error: 'rate_limited' }, 429);
-  const token = readSignupCookie(request);
-  if (!token) return json({ error: 'gone' }, 410);
-  try {
-    const email = await readSignupCodeDestination(token);
-    return email ? json({ email }, 200) : json({ error: 'gone' }, 410);
-  } catch {
-    return json({ error: 'unavailable' }, 503);
-  }
+  return json({ error: 'gone' }, 410);
 }

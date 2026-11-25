@@ -1,0 +1,48 @@
+
+Running 12 tests using 1 worker
+
+  ok  1 [chromium] › e2e\convenios-guide-states-preview.spec.ts:372:1 › o Preview usa o projeto DEV (prova assinada antes de qualquer escrita) (979ms)
+títulos da guia: h1:Guia de consulta nº 5 | h4:Situação | h4:Pendências | h4:Dados da consulta | h4:Procedimentos | h4:Histórico
+axe painel-fechado: 0 violações, 6 regras aprovadas, revisão manual: nenhuma
+axe painel-aberto: 0 violações, 16 regras aprovadas, revisão manual: nenhuma
+axe pagina-guia: 1 violações, 20 regras aprovadas, revisão manual: nenhuma
+axe pagina-guia (registro): [["color-contrast",["Element has insufficient color contrast of 4.44 (foreground color: #a4622a, background color: #fff5e0, font size: 8.6pt (11.5px), font weight: normal). Expected contrast ratio of 4.5:1"]]]
+axe painel-celular: 0 violações, 16 regras aprovadas, revisão manual: nenhuma
+  ok  2 [chromium] › e2e\convenios-guide-states-preview.spec.ts:380:1 › acessibilidade do painel Dados da consulta: axe WCAG 2.2 AA, títulos, nomes, teclado, foco e celular (48.6s)
+  ok  3 [chromium] › e2e\convenios-guide-states-preview.spec.ts:464:1 › trial no meio da sessão: o formulário já aberto não contorna o servidor; recarregada, a tela não oferece o ajuste (55.1s)
+  ok  4 [chromium] › e2e\convenios-guide-states-preview.spec.ts:494:1 › clínica suspensa no meio da sessão: recusa legível; recarregada, só consulta (cancelar continua disponível) (42.4s)
+  x   5 [chromium] › e2e\convenios-guide-states-preview.spec.ts:520:1 › sessão expirada com o formulário aberto: nada é salvo e a pessoa é levada a entrar de novo (55.1s)
+  -   6 [chromium] › e2e\convenios-guide-states-preview.spec.ts:553:1 › código fora da terminologia por requisição adulterada: recusa legível, sem detalhe do banco
+  -   7 [chromium] › e2e\convenios-guide-states-preview.spec.ts:593:1 › duplo clique e duas abas (P14.2): um ajuste, uma conferência, UMA emissão; a aba desatualizada lê o conflito e, atualizada, mostra a aprovada
+  -   8 [chromium] › e2e\convenios-guide-states-preview.spec.ts:659:1 › pendência de validação: a carteirinha vencida aparece e a guia não se confere
+  -   9 [chromium] › e2e\convenios-guide-states-preview.spec.ts:676:1 › ação direta sem permissão: a recepção chama a server action do ajuste e o servidor recusa
+  -  10 [chromium] › e2e\convenios-guide-states-preview.spec.ts:695:1 › outra clínica: URL direta dá 404 e a server action com a guia desta clínica é recusada
+  -  11 [chromium] › e2e\convenios-guide-states-preview.spec.ts:712:1 › acesso desativado no meio da sessão: recusa dizendo o motivo; recarregada, a guia não abre
+  -  12 [chromium] › e2e\convenios-guide-states-preview.spec.ts:735:1 › nada mudou com as recusas; controle positivo: com tudo restaurado, o mesmo ajuste salva
+
+
+  1) [chromium] › e2e\convenios-guide-states-preview.spec.ts:520:1 › sessão expirada com o formulário aberto: nada é salvo e a pessoa é levada a entrar de novo 
+
+    Error: expect(received).toMatch(expected)
+
+    Expected pattern: /^(login|Sua sessão terminou\. Entre de novo para continuar\.)$/u
+    Received string:  "aguardando"
+
+    Call Log:
+    - Timeout 45000ms exceeded while waiting on the predicate
+
+      540 |       { timeout: 45_000 },
+      541 |     )
+    > 542 |     .toMatch(new RegExp(`^(login|${SESSION_MSG.replace(/[.]/gu, '\\.')})$`, 'u'));
+          |      ^
+      543 |   console.log(
+      544 |     `sessão expirada: desfecho = ${new URL(s.page.url()).pathname.startsWith('/login') ? 'redirecionada ao login' : 'mensagem no formulário'}`,
+      545 |   );
+        at C:\dev\Qoro_convenios_tiss_20261110\e2e\convenios-guide-states-preview.spec.ts:542:6
+
+    Error Context: test-results\convenios-guide-states-pre-6d18b-a-é-levada-a-entrar-de-novo-chromium\error-context.md
+
+  1 failed
+    [chromium] › e2e\convenios-guide-states-preview.spec.ts:520:1 › sessão expirada com o formulário aberto: nada é salvo e a pessoa é levada a entrar de novo 
+  7 did not run
+  4 passed (3.4m)

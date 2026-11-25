@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Qoro encrypted backup; enable only after approved cutover
+
+[Timer]
+OnCalendar=*-*-* 09:30:00 UTC
+Persistent=true
+RandomizedDelaySec=300
+Unit=qoro-recovery-backup.service
+
+[Install]
+WantedBy=timers.target

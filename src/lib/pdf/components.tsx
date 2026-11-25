@@ -17,11 +17,33 @@ function pad(n: number): string {
   return n < 10 ? `0${n}` : String(n);
 }
 
-/** ISO → dd/mm/aaaa (UTC, determinístico — sem dependência de locale do runtime). */
-export function formatDate(iso: string): string {
+function formatUtcDate(d: Date): string {
+  return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
+}
+
+/**
+ * ISO → dd/mm/aaaa no fuso informado. Montada por partes, sem depender do locale
+ * do runtime. Os documentos clínicos passam o fuso da clínica: emitido às 22h de
+ * Brasília, o documento é daquele dia, não do seguinte em UTC. Sem fuso, ou com
+ * um fuso inválido, mantém o UTC de antes.
+ */
+export function formatDate(iso: string, timeZone = 'UTC'): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
+  if (timeZone === 'UTC') return formatUtcDate(d);
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(d);
+    const part = (type: Intl.DateTimeFormatPartTypes) =>
+      parts.find((p) => p.type === type)?.value ?? '';
+    return `${part('day')}/${part('month')}/${part('year')}`;
+  } catch {
+    return formatUtcDate(d);
+  }
 }
 
 export const styles = StyleSheet.create({

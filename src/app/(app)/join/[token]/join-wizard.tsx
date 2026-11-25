@@ -432,7 +432,7 @@ function StepClinic({
               value={cnpj}
               onChange={(e) => setCnpj(maskCnpj(e.target.value))}
               placeholder="00.000.000/0001-00"
-              inputMode="numeric"
+              autoCapitalize="characters"
             />
           </div>
           <div className="field">

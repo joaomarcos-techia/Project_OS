@@ -1,0 +1,15 @@
+{
+  "devRef": "pqhkirrszzpwezdaqrai",
+  "created": true,
+  "at": "2026-11-12T13:10:48.863Z",
+  "bucket": {
+    "id": "tiss-files",
+    "public": false,
+    "file_size_limit": 31457280,
+    "allowed_mime_types": [
+      "application/octet-stream"
+    ],
+    "created_at": "2026-11-12T13:10:50.156Z"
+  },
+  "configOk": true
+}

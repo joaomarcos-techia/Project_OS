@@ -1,0 +1,78 @@
+{
+ "modo": "antes",
+ "ok": false,
+ "checks": [
+  {
+   "n": 1,
+   "label": "checkout só no Asaas Sandbox",
+   "ok": true,
+   "detail": "host sandbox.asaas.com; checkout a59171…6595; a chave usada nesta conferência enxerga a conta (webhooks 200)"
+  },
+  {
+   "n": 2,
+   "label": "valor exatamente R$ 45,00",
+   "ok": true,
+   "detail": "cobrança 45.00; cobrável 4500 centavos; página cita 45,00=true, 150,00=false; consulta 150.00 (convenio)"
+  },
+  {
+   "n": 3,
+   "label": "clínica e paciente sintéticos",
+   "ok": true,
+   "detail": "clínica e2e-hi-config-mwf3d1lt; paciente \"Paciente Sintético …\""
+  },
+  {
+   "n": 4,
+   "label": "nenhuma credencial live",
+   "ok": true,
+   "detail": "chave de homologação ($aact_hmlg_); checkout hospedado em sandbox.asaas.com"
+  },
+  {
+   "n": 5,
+   "label": "checkout ainda válido",
+   "ok": true,
+   "detail": "geração 2 active; expira 2026-11-14T20:52:46.510Z; página 200"
+  },
+  {
+   "n": 6,
+   "label": "webhook do deployment certo",
+   "ok": true,
+   "detail": "host project-os-git-feat-convenios-ti-2b5ecd-clinic-os-v2-s-projects.vercel.app (alias da branch: sempre o último deploy); /patient/da5f69…3ca5; enabled=true; interrupted=false; bypass=true; eventos 12; token=true"
+  },
+  {
+   "n": 7,
+   "label": "base de URL do ambiente esperado",
+   "ok": true,
+   "detail": "webhook e retornos do checkout na mesma origem da branch: project-os-git-feat-convenios-ti-2b5ecd-clinic-os-v2-s-projects.vercel.app (payment=cancelled, payment=expired, payment=success); no Preview a origem vem da URL da própria branch, não de um APP_BASE_URL de outro deploy"
+  },
+  {
+   "n": 8,
+   "label": "banco de homologação (DEV)",
+   "ok": true,
+   "detail": "consulta feita no projeto pqhkirrszzpwezdaqrai (DEV); o runtime do Preview é provado DEV pela prova assinada do spec"
+  },
+  {
+   "n": 9,
+   "label": "idempotência ativa",
+   "ok": false,
+   "detail": "índices: patient_checkout_generations_one_open_uniq, patient_checkout_generations_provider_checkout_uniq, patient_webhook_events_uniq; outbox UNIQUE=true; cobranças do atendimento=1; gerações de checkout=2"
+  },
+  {
+   "n": 10,
+   "label": "cobrança ligada à guia e à coparticipação",
+   "ok": true,
+   "detail": "coparticipação 38de5a…38ec charged → charge_ref = cobrança: true; guias do atendimento: consulta partially_glossed 15000"
+  },
+  {
+   "n": 11,
+   "label": "reconciliação preparada",
+   "ok": true,
+   "detail": "recebível do atendimento: 45.00 pago 0.00 (pendente); transações: nenhuma"
+  },
+  {
+   "n": 12,
+   "label": "consulta ao provedor",
+   "ok": true,
+   "detail": "GET /payments?checkoutSession → 200; cobranças pagas pelo checkout: nenhuma ainda"
+  }
+ ]
+}

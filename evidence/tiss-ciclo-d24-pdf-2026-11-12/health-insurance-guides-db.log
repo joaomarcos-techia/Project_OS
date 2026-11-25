@@ -1,0 +1,26 @@
+# health-insurance-guides-db.ts — Postgres 17 descartável; árvore de trabalho sobre 6b101e89 (código do ciclo D24, ver README)
+PASS: guia nasce em edição, com o número alocado na mesma transação e o histórico gravado pelo banco (autor = usuário)
+PASS: reprocessamento com a mesma chave de origem: recusado e o número alocado volta (contador intacto)
+PASS: número do prestador nunca se repete na mesma operadora
+PASS: rollback da transação desfaz a guia e devolve o número (sem buraco)
+PASS: 40 guias criadas em paralelo: 40 números distintos e contíguos (2..41)
+PASS: 20 tentativas simultâneas de Consulta para o mesmo atendimento: 1 guia, 19 recusas, contador +1
+PASS: guia: operadora, carteirinha, plano e profissional da mesma clínica; carteirinha e plano da MESMA operadora; carteirinha do mesmo paciente
+PASS: autorização só da mesma operadora, do mesmo tipo de guia (consulta × SP/SADT) e do mesmo paciente
+PASS: item: só do contrato desta operadora, deste tipo e procedimento, vigente, não substituído, com o valor do contrato e o total certo; atendimento do mesmo paciente
+PASS: SP/SADT agrupada: várias sessões e atendimentos na mesma guia, outro procedimento na mesma sessão, fator e quantidade
+PASS: item de autorização só da autorização da guia; trocar a autorização com itens ligados à anterior é recusado
+PASS: sem cobrança dupla: o mesmo procedimento do mesmo atendimento em uma guia viva só; uma Consulta por atendimento; Consulta com um procedimento só
+PASS: RLS: outra clínica não lê, não cria e não altera guias, itens nem histórico; anon sem acesso
+PASS: estado: sem salto para aprovada; pronta só sem pendências; conferência exige quem conferiu e soma dos itens = total; snapshot só da guia conferida
+PASS: aprovada: conteúdo e itens congelados; horários só do banco; lote e envio não são transições do runtime
+PASS: aprovação concorrente com versão (concorrência otimista): 12 tentativas, 1 vence, nenhuma erra o estado
+PASS: reabertura: exige motivo, abre a revisão 2, limpa conferência e aprovação; a revisão 1 fica no snapshot
+PASS: snapshot e histórico append-only (nem o dono altera); histórico só pelo banco, com nomes de campos e nunca valores
+PASS: cancelamento: exige motivo, é final e libera o atendimento para uma guia nova
+PASS: substituição: só de guia exportada/enviada; mesmo paciente e operadora; uma por vez; a substituta em rascunho não segura o atendimento; aprovar a substituta encerra a original na mesma transação
+PASS: arquivo: PDF oficial só de guia aprovada e do snapshot dela; versões em cadeia linear, sem sobrescrita; referência opaca; append-only
+PASS: funções de gatilho da 0147 sem EXECUTE para authenticated e anon
+PASS: retenção: paciente com guia não é excluído (a guia não some com a exclusão do paciente)
+PASS: excluir a clínica remove guias, itens, snapshots, histórico e arquivos dela (mesmo aprovados) e não toca nas outras
+OK: 24 provas da migration 0147 (P1.8) sobre o schema real

@@ -2,12 +2,12 @@
 
 import { useActionState } from 'react';
 
-import { Logo } from '@/components/shared/logo';
+import { LoginFrame, LoginIntro, loginFrame } from '@/components/shared/login-frame';
+import { signupFrame } from '@/components/shared/signup-frame';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Separator } from '@/components/ui/separator';
+import { Label } from '@/components/ui/label';
 
 import { switchAccountAction, verifyMfaAction, type MfaActionState } from './actions';
 
@@ -22,24 +22,19 @@ export default function MfaPage() {
   const busy = pending || switchPending;
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-canvas px-4 py-12">
-      <div className="w-full max-w-sm">
-        <div className="mb-6 flex flex-col items-center gap-2 text-center">
-          <Logo className="h-7 w-auto" />
-          <p className="text-sm text-fg-muted">Verificação em duas etapas.</p>
-        </div>
+    <LoginFrame>
+      <div className={loginFrame.view}>
+        <LoginIntro
+          title="Verificação em duas etapas"
+          lead="Abra o aplicativo autenticador e digite o código de 6 dígitos da Qoro."
+        />
 
-        <Card>
-          <CardContent className="flex flex-col gap-4">
-            <div>
-              <h1 className="text-base font-semibold">Código TOTP</h1>
-              <p className="mt-1 text-sm text-fg-muted">
-                Abra seu app autenticador (Authy / Google Authenticator) e digite o código de 6
-                dígitos.
-              </p>
-            </div>
-            <form action={formAction} className="flex flex-col gap-4">
+        <div className={loginFrame.form}>
+          <form action={formAction} className={loginFrame.form}>
+            <div className={loginFrame.field}>
+              <Label htmlFor="mfa-code">Código de 6 dígitos</Label>
               <Input
+                id="mfa-code"
                 name="code"
                 inputMode="numeric"
                 pattern="\d{6}"
@@ -47,36 +42,28 @@ export default function MfaPage() {
                 required
                 autoFocus
                 disabled={busy}
-                aria-label="Código de 6 dígitos"
-                className="text-center text-lg tracking-[0.4em]"
+                aria-describedby="mfa-code-hint"
+                className={loginFrame.code}
               />
-              {state.error ? <Alert variant="danger">{state.error}</Alert> : null}
-              <Button type="submit" loading={pending} disabled={switchPending} className="w-full">
-                Verificar
-              </Button>
-            </form>
-
-            <Separator />
-            <div className="grid gap-2 text-center">
-              <p className="text-pretty text-(length:--fs-xs) text-fg-subtle">
-                Entrou com a conta errada?
-              </p>
-              <form action={switchFormAction}>
-                <Button
-                  type="submit"
-                  variant="ghost"
-                  loading={switchPending}
-                  disabled={pending}
-                  className="min-h-(--hit-target) w-full"
-                >
-                  Usar outra conta
-                </Button>
-              </form>
-              {switchState.error ? <Alert variant="danger">{switchState.error}</Alert> : null}
+              <span id="mfa-code-hint" className={signupFrame.hint}>
+                O código muda a cada 30 segundos.
+              </span>
             </div>
-          </CardContent>
-        </Card>
+            {state.error ? <Alert variant="danger">{state.error}</Alert> : null}
+            <Button type="submit" loading={pending} disabled={switchPending} className="w-full">
+              Confirmar
+            </Button>
+          </form>
+
+          <form action={switchFormAction} className={signupFrame.note}>
+            Entrou com a conta errada?{' '}
+            <button type="submit" disabled={pending || switchPending} className={loginFrame.link}>
+              Usar outra conta
+            </button>
+          </form>
+          {switchState.error ? <Alert variant="danger">{switchState.error}</Alert> : null}
+        </div>
       </div>
-    </main>
+    </LoginFrame>
   );
 }

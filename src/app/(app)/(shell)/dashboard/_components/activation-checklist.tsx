@@ -20,7 +20,7 @@ import { ChecklistDismiss } from './checklist-dismiss';
  * POR QUE O CABEÇALHO REPETE O CONTRATO DO `PanelCard` EM VEZ DE USÁ-LO
  * ===================================================================
  * Todo bloco do dashboard é um `PanelCard`, e este precisa parecer da mesma
- * família — mesmo `data-slot="panel-header"`, mesmo `<h4>` em `--fs-sm`, mesmo
+ * família — mesmo `data-slot="panel-header"`, mesmo `<h2>` em `--fs-sm`, mesmo
  * ícone em `text-fg-subtle`. O que impede reusar o componente é a mecânica: aqui
  * o cabeçalho INTEIRO é o `<summary>` que abre e fecha o bloco, e o `PanelCard`
  * renderiza o header dentro de uma `<div>` própria, fora do alcance de quem o
@@ -46,10 +46,10 @@ export function ActivationChecklist({
       <details className="group">
         <summary className="flex cursor-pointer list-none flex-col gap-(--sp-3) p-(--card-pad) focus-visible:shadow-(--focus-ring) focus-visible:outline-none [&::-webkit-details-marker]:hidden">
           <div data-slot="panel-header" className="flex items-center justify-between gap-(--sp-3)">
-            <h4 className="flex items-center gap-1.5 text-(length:--fs-sm) font-semibold [&>svg]:size-4 [&>svg]:text-fg-subtle">
+            <h2 className="flex items-center gap-1.5 text-(length:--fs-sm) font-semibold [&>svg]:size-4 [&>svg]:text-fg-subtle">
               <Rocket aria-hidden="true" />
-              Ativação da clínica
-            </h4>
+              Primeiros passos
+            </h2>
             <span className="flex shrink-0 items-center gap-(--sp-2)">
               <Badge tone="blue">
                 {data.done} de {data.total}
@@ -81,7 +81,7 @@ export function ActivationChecklist({
           <span className="text-pretty text-(length:--fs-xs) text-fg-muted">
             {pending ? (
               <>
-                <span className="font-medium text-fg">Próximo:</span> {pending.desc}
+                <span className="font-medium text-fg">Próximo:</span> {pending.label}
               </>
             ) : (
               'Confira os passos de ativação.'
@@ -98,7 +98,6 @@ export function ActivationChecklist({
                   'group/item flex items-center gap-(--sp-3) rounded-(--r-sm) px-(--sp-2) py-(--sp-3)',
                   'transition-colors duration-(--dur-fast) hover:bg-surface-hover',
                   'focus-visible:shadow-(--focus-ring) focus-visible:outline-none',
-                  it.done && 'opacity-60',
                 )}
               >
                 <span

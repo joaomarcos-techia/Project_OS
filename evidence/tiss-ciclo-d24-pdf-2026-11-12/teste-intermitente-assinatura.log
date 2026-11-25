@@ -1,0 +1,25 @@
+# Teste intermitente da assinatura (plan-change-form.test.tsx) — evidências de 12/11/2026
+# Árvore de trabalho sobre 65c35a7e; o arquivo é idêntico na main 5620a098 e no #53 e8309aee (blob 7a273759).
+
+## Suíte completa com cobertura (vitest run --coverage)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ Test Files  1 failed | 620 passed (621)
+      Tests  1 failed | 6894 passed | 3 skipped (6898)
+ FAIL  src/app/(app)/(shell)/configuracoes/assinatura/plan-change-form.test.tsx > explica preço anual, próximo vencimento e cartão antes de agendar
+     → Unable to find role="alert"
+
+Ignored nodes: comments, script, style
+<body
+  data-scroll-locked="1"
+  style="pointer-events: none;"
+>
+
+Duração do arquivo na suíte completa: plan-change-form.test.tsx (22 tests | 1 failed) 16084ms
+
+## O mesmo arquivo isolado
+plan-change-form.test.tsx (22 tests) 3011ms — 22/22 (e 22/22 em 11 execuções: 3 sem carga, 4 com 24 processos ocupados, 4 com cobertura + carga)
+
+## Reprodução determinística do mecanismo (arquivo temporário, apagado depois)
+A: ação simulada resolve em 1,1 s; findByRole com o limite padrão (1 s) -> FALHA: Unable to find role="link" and name "Abrir pagamento proporcional no Asaas"
+B: mesma ação; findByRole com { timeout: 5000 } -> PASSA
+Tests  1 failed | 1 passed (2)

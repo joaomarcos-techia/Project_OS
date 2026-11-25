@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { TrialAccessError } from '@/lib/trial-access/policy';
 
 import { PerfilWhatsappSchema } from '@/contexts/messaging/business-profile-contract';
 import {
@@ -10,6 +11,10 @@ import {
 } from '@/contexts/messaging/errors';
 
 import { fail, failProfileWrite } from './wa-types';
+it('returns the payment prerequisite without leaking an integration exception', () => {
+  const error = new TrialAccessError('whatsapp');
+  expect(fail(error)).toEqual({ ok: false, code: error.code, message: error.message });
+});
 
 describe('failProfileWrite', () => {
   it('não afirma falha definitiva quando o Graph retorna 5xx após aplicar o perfil', () => {

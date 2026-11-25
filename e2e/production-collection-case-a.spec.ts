@@ -213,10 +213,10 @@ test.describe('produção: fila humana de cobrança na Clínica A', () => {
       await expect(manualQueue).toContainText('40 dias em atraso');
       await expect(manualQueue).toContainText('R$ 12,34');
       const card = financialCard(page, description);
-      await card.getByRole('button', { name: 'Confirmar pagamento' }).click();
+      await card.getByRole('button', { name: 'Registrar recebimento' }).click();
       const paymentHttp = await clickServerAction(
         page,
-        card.getByRole('button', { name: /Receber R\$/u }),
+        card.getByRole('button', { name: /Registrar R\$/u }),
       );
       expect(paymentHttp).toBeLessThan(500);
       await expect

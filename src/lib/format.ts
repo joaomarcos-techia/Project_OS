@@ -44,7 +44,17 @@ export function redactCpf(cpf: string | null | undefined): string {
   return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.***-${digits.slice(9)}`;
 }
 
-const QORO_DATE_TIME_ZONE = 'America/Sao_Paulo';
+/**
+ * Fuso das datas e horas exibidas. Explícito de propósito também nos componentes cliente:
+ * sem ele o servidor (UTC na Vercel) e o navegador (Brasília) formatam horas diferentes e a
+ * hidratação falha (R51). Onde a tela já recebe o fuso da própria clínica, prefira aquele.
+ */
+export const QORO_DATE_TIME_ZONE = 'America/Sao_Paulo';
+
+/** Hoje (AAAA-MM-DD) no fuso indicado — o mesmo no servidor e no navegador. */
+export function todayYmdIn(timeZone: string = QORO_DATE_TIME_ZONE, now: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone }).format(now);
+}
 
 const DATE_PT = new Intl.DateTimeFormat('pt-BR', {
   day: '2-digit',

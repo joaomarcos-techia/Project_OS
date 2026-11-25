@@ -1,0 +1,5 @@
+PASS 1: o backup restaura: 10 cobranças, 25 transações e 0 ajustes com o MESMO md5 do pré-voo do DEV; o ledger salvo tem as 160 linhas
+PASS 2: a 0160 aplica numa transação sobre os dados reais (13 comandos): tabela, coluna e enum criados; cobranças, transações e ajustes intocados; nenhuma cobrança marcada como lida
+PASS 3: segunda execução dos comandos idempotentes (IF NOT EXISTS / ON CONFLICT) não falha nem duplica
+PASS 4: a reversão documentada desfaz a tabela, o índice e a coluna sem tocar os dados (o valor do enum fica, inofensivo)
+4/4 provas do ensaio da 0160 passaram (descartável, dados do backup do DEV).

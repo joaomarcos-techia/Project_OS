@@ -12,7 +12,7 @@ describe('production backup recovery contract', () => {
     expect(BACKUP_EXCLUDED_SCHEMAS).toContain('storage');
   });
 
-  it('configures a read-only, SSL-protected backup connection', () => {
+  it('configures a read-only backup with certificate and hostname validation', () => {
     const env = backupConnectionEnv(
       'postgresql://operator:example-password@db.example.com:5432/postgres',
     );
@@ -20,6 +20,13 @@ describe('production backup recovery contract', () => {
     expect(env.PGUSER).toBe('operator');
     expect(env.PGDATABASE).toBe('postgres');
     expect(env.PGOPTIONS).toContain('default_transaction_read_only=on');
-    expect(env.PGSSLMODE).toBe('require');
+    expect(env.PGSSLMODE).toBe('verify-full');
+  });
+
+  it('does not allow a URL option to weaken TLS verification', () => {
+    expect(
+      backupConnectionEnv('postgresql://operator:example@db.example.com/postgres?sslmode=disable')
+        .PGSSLMODE,
+    ).toBe('verify-full');
   });
 });

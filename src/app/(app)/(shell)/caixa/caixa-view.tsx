@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Banknote,
   ArrowDownLeft,
   ArrowUpRight,
   ChevronRight,
@@ -11,7 +12,9 @@ import {
   Wallet,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo, useState, useTransition, type ReactNode } from 'react';
+import { useMemo, useRef, useState, useTransition, type ReactNode } from 'react';
+
+import { todayYmd, useClinicTimeZone } from './clinic-timezone';
 import { useRouter } from 'next/navigation';
 
 import type {
@@ -34,6 +37,13 @@ import { uuidv4 } from '@/lib/ui/uuid';
 
 import { cancelLancamentoAction, confirmPaymentAction, createEstornoAction } from './actions';
 import { outstandingBalance } from './caixa-money';
+import {
+  gravarChavesEmAberto,
+  lerChavesEmAberto,
+  PENDING_KEY_TTL_MS,
+  resumoDoPedido,
+  type PendingKey,
+} from './pending-keys';
 import { CashQueue, type CashPanelMode } from './cash-queue';
 import type { ActionResult } from './caixa-types';
 import { LocalPager, paginateLocally } from './local-pagination';
@@ -43,6 +53,14 @@ export type FailedChargeItem = FailedChargeDTO & { pacienteNome: string | null }
 export type ManualRefundItem = ManualRefundTask & { pacienteNome: string | null };
 
 const QUERY_RESULT_LIMIT = 100;
+
+/**
+ * Sem resposta, ou com o erro genérico do servidor, o registro pode ter sido
+ * gravado: a tela não afirma que falhou. A promessa de "não duplicar" só vale
+ * porque a repetição com os mesmos dados reusa a chave (ver `run`).
+ */
+const RESULTADO_DESCONHECIDO =
+  'Não conseguimos confirmar o resultado deste registro. Você pode tentar de novo com os mesmos dados: se ele já tiver sido feito, não será duplicado.';
 
 export function CaixaView({
   hoje,
@@ -103,41 +121,103 @@ export function CaixaView({
     [excessRefundStatuses],
   );
 
-  const run = (fn: () => Promise<ActionResult<unknown>>) => {
+  /*
+    Chave de idempotência POR OPERAÇÃO (UX-015; regressões de 15/11/2026). A
+    operação é o pedido exato (lançamento, valor, forma, comprovante), e a chave
+    dela vale até o servidor CONFIRMAR o registro:
+
+    - sem resposta (queda de rede, timeout) ou erro inesperado (`error`): o
+      resultado é desconhecido. Repetir os mesmos dados manda a mesma chave, e o
+      servidor devolve o que já gravou (`idempotentMutation`) em vez de gravar
+      de novo;
+    - "em processamento" (`retry`): a primeira tentativa ainda roda no servidor.
+      Trocar a chave aqui abria a porta para um segundo pagamento parcial;
+    - recusa (validação, permissão, sessão, situação do lançamento): a transação
+      é desfeita junto com a reserva da chave, então repetir com ela só refaz a
+      mesma checagem, sem gravar nada a mais.
+
+    Por isso só o sucesso encerra a operação, e o mesmo pedido depois dele é um
+    registro novo, com chave nova. O mapa guarda uma chave por pedido: fechar o
+    painel ou registrar outro lançamento no meio não perde a chave do que ficou
+    sem confirmação.
+
+    P-19 (16/11/2026): o mapa também sobrevive ao recarregamento DA ABA
+    (`pending-keys.ts`, só resumo do pedido + chave, com prazo de 30 min). O
+    pedido inclui a clínica do lançamento, para nenhuma chave atravessar de uma
+    clínica para outra.
+  */
+  const chavesEmAberto = useRef<Map<string, PendingKey> | null>(null);
+
+  const run = (pedido: string, fn: (chave: string) => Promise<ActionResult<unknown>>) => {
     setError(null);
+    // Só no cliente (run nasce de um clique): lê a aba na primeira operação.
+    chavesEmAberto.current ??= lerChavesEmAberto();
+    const emAberto = chavesEmAberto.current;
+    const resumo = resumoDoPedido(pedido);
+    const agora = Date.now();
+    const atual = emAberto.get(resumo);
+    const chave = atual && atual.ate > agora ? atual.chave : uuidv4();
+    emAberto.set(resumo, { chave, ate: agora + PENDING_KEY_TTL_MS });
+    gravarChavesEmAberto(emAberto);
     startTransition(async () => {
-      const result = await fn();
-      if (!result.ok) {
-        setError(result.message);
+      let result: ActionResult<unknown>;
+      try {
+        result = await fn(chave);
+      } catch {
+        setError(RESULTADO_DESCONHECIDO);
         return;
       }
+      if (!result.ok) {
+        // P-19 (ciclo 7): o servidor recusou porque o lançamento mudou, por exemplo registrado em
+        // outra aba ou aparelho. A recusa desfaz a reserva da chave; descartá-la, fechar o painel e
+        // recarregar mostra o estado atual, em vez de deixar o operador repetir sobre valores
+        // velhos. O mesmo caminho atende o futuro conflito de `valorPagoEsperado` no servidor.
+        if (result.code === 'state' || result.code === 'conflict') {
+          emAberto.delete(resumo);
+          gravarChavesEmAberto(emAberto);
+          setPanel(null);
+          router.refresh();
+        }
+        setError(result.code === 'error' ? RESULTADO_DESCONHECIDO : result.message);
+        return;
+      }
+      emAberto.delete(resumo);
+      gravarChavesEmAberto(emAberto);
       setPanel(null);
       router.refresh();
     });
   };
 
-  const onConfirm = (item: CaixaItem, valorPago: number, method: string, comprovante: string) =>
-    run(() =>
-      confirmPaymentAction(
-        {
-          lancamentoId: item.id,
-          paymentMethod: method,
-          valorPago,
-          comprovante: comprovante.trim()
-            ? { type: 'comprovante', fileStoragePath: comprovante.trim() }
-            : null,
-        },
-        uuidv4(),
-      ),
+  const onConfirm = (item: CaixaItem, valorPago: number, method: string, comprovante: string) => {
+    const input = {
+      lancamentoId: item.id,
+      paymentMethod: method,
+      valorPago,
+      // Guarda do #53: a confirmação só vale se o pago no banco ainda for o que a tela mostrou.
+      valorPagoEsperado: item.valorPago,
+      comprovante: comprovante.trim()
+        ? { type: 'comprovante' as const, fileStoragePath: comprovante.trim() }
+        : null,
+    };
+    run(`confirm:${item.clinicId}:${JSON.stringify(input)}`, (chave) =>
+      confirmPaymentAction(input, chave),
     );
+  };
 
   const onCancel = (item: CaixaItem) =>
-    run(() => cancelLancamentoAction({ lancamentoId: item.id }, uuidv4()));
+    run(`cancel:${item.clinicId}:${item.id}`, (chave) =>
+      cancelLancamentoAction({ lancamentoId: item.id }, chave),
+    );
 
   const onEstorno = (
     item: CaixaItem,
     input: Omit<Parameters<typeof createEstornoAction>[0], 'lancamentoId'>,
-  ) => run(() => createEstornoAction({ lancamentoId: item.id, ...input }, uuidv4()));
+  ) => {
+    const pedido = { lancamentoId: item.id, ...input };
+    run(`estorno:${item.clinicId}:${JSON.stringify(pedido)}`, (chave) =>
+      createEstornoAction(pedido, chave),
+    );
+  };
 
   const openPanel = (id: string, mode: CashPanelMode) =>
     setPanel((current) => (current?.id === id && current.mode === mode ? null : { id, mode }));
@@ -160,12 +240,10 @@ export function CaixaView({
   // truque que o resto do financeiro usa.
   // Uma lista só para a coluna "A receber", na ordem em que a fila é trabalhada:
   // pendentes primeiro, parciais logo atrás (já têm parte do dinheiro dentro).
+  const timeZone = useClinicTimeZone();
   const aReceber = [...pendentes, ...parciais];
   const aReceberCount = aReceber.length;
-  // `split('T')[0]` recorta a data do ISO. A guarda anti-truncamento do teste
-  // varre o fonte atras de corte fixo de lista, entao evitamos essa forma aqui
-  // mesmo o corte sendo de data — inclusive em comentario.
-  const hojeYmd = new Date().toISOString().split('T')[0]!;
+  const hojeYmd = todayYmd(timeZone);
   const vencidas = [...pendentes, ...parciais].filter(
     (item) => item.dueDate != null && item.dueDate < hojeYmd,
   ).length;
@@ -193,10 +271,10 @@ export function CaixaView({
   return (
     <>
       <PageHeader
-        crumbs={[{ label: 'Gestão' }, { label: 'Caixa' }]}
+        icon={<Banknote aria-hidden="true" />}
         title="Caixa"
-        description={`Recebimentos e pagamentos de hoje, ${hoje}`}
-        meta={<span className="font-mono tabular-nums">atualizado {atualizadoEm}</span>}
+        headline={`Hoje, ${hoje}`}
+        description={`Recebimentos e pagamentos do dia · atualizado às ${atualizadoEm}`}
         actions={
           <Link href="/financeiro" className={buttonVariants({ variant: 'secondary' })}>
             <Wallet aria-hidden="true" className="size-4 text-fg-subtle" />
@@ -207,7 +285,7 @@ export function CaixaView({
 
       {/* As três métricas saíram do slot de ações do header: ação e indicador não
           são a mesma coisa, e amontoá-las lá fazia número parecer botão. */}
-      <MetricStrip className="qoro-cash-metrics mb-(--sp-4)">
+      <MetricStrip variant="joined" className="mb-(--sp-4)">
         {/* Neutro de propósito: a referência reserva cor para o resultado
             (verde) e para o alerta (as faixas abaixo). Pintar "a receber" de
             âmbar fazia toda cobrança em aberto parecer problema, inclusive as

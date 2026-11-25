@@ -20,5 +20,6 @@ Canonical index — procedimentos operacionais atuais.
 | Aceitação humana do cadastro autônomo | [aceitacao humana cadastro](aceitacao-humana-cadastro.md) |
 | Incidente de provider/segurança | [incident response](incident-response.md) |
 | Backup/restore | [disaster recovery](disaster-recovery.md) |
+| Convênios TISS (faturar, corrigir guia, reprocessar, rollback, incidente) | [runbooks do convênio](../convenios/runbooks-operacionais.md) |
 
 Antes de qualquer mutação externa, identifique ambiente, escopo, backup/rollback e autorização. Saídas históricas não substituem nova execução.

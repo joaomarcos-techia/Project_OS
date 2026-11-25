@@ -60,7 +60,7 @@ afterEach(() => {
 
 describe('ProntuarioEditor — autosave', () => {
   it('oferece o template de Psiquiatria com campos clínicos específicos', () => {
-    render(<ProntuarioEditor prontuario={makeProntuario()} />);
+    render(<ProntuarioEditor timeZone="America/Sao_Paulo" prontuario={makeProntuario()} />);
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Template' }), {
       target: { value: 'psiquiatria' },
@@ -73,7 +73,7 @@ describe('ProntuarioEditor — autosave', () => {
   });
 
   it('NÃO salva antes do debounce; salva 10s após digitar (com conteúdo + rowVersion)', async () => {
-    render(<ProntuarioEditor prontuario={makeProntuario()} />);
+    render(<ProntuarioEditor timeZone="America/Sao_Paulo" prontuario={makeProntuario()} />);
     type('dor de cabeça');
 
     await act(async () => {
@@ -89,7 +89,7 @@ describe('ProntuarioEditor — autosave', () => {
   });
 
   it('"Salvar agora" persiste imediatamente (sem esperar o debounce)', async () => {
-    render(<ProntuarioEditor prontuario={makeProntuario()} />);
+    render(<ProntuarioEditor timeZone="America/Sao_Paulo" prontuario={makeProntuario()} />);
     type('exame normal');
 
     await act(async () => {
@@ -101,7 +101,9 @@ describe('ProntuarioEditor — autosave', () => {
   });
 
   it('flush no UNMOUNT: trocar de paciente salva o que estava pendente', async () => {
-    const { unmount } = render(<ProntuarioEditor prontuario={makeProntuario()} />);
+    const { unmount } = render(
+      <ProntuarioEditor timeZone="America/Sao_Paulo" prontuario={makeProntuario()} />,
+    );
     type('não salvo ainda');
 
     // desmonta ANTES do debounce de 10s (como ao trocar de paciente)
@@ -114,7 +116,9 @@ describe('ProntuarioEditor — autosave', () => {
   });
 
   it('NÃO faz flush no unmount quando não há edição pendente', async () => {
-    const { unmount } = render(<ProntuarioEditor prontuario={makeProntuario()} />);
+    const { unmount } = render(
+      <ProntuarioEditor timeZone="America/Sao_Paulo" prontuario={makeProntuario()} />,
+    );
     await act(async () => {
       unmount();
       await Promise.resolve();
@@ -129,7 +133,7 @@ describe('ProntuarioEditor — autosave', () => {
       () => new Promise<AutosaveResult>((res) => (resolveFirst = res)),
     );
 
-    render(<ProntuarioEditor prontuario={makeProntuario()} />);
+    render(<ProntuarioEditor timeZone="America/Sao_Paulo" prontuario={makeProntuario()} />);
     type('a');
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10_000); // dispara o 1º save (pendente)
@@ -153,8 +157,28 @@ describe('ProntuarioEditor — autosave', () => {
     expect(autosave).toHaveBeenLastCalledWith('pront-1', { queixa_principal: 'ab' }, 2);
   });
 
+  it('mostra a assinatura no fuso da clínica', () => {
+    render(
+      <ProntuarioEditor
+        timeZone="Asia/Tokyo"
+        prontuario={makeProntuario({
+          status: 'assinado',
+          signedAt: '2026-09-14T12:15:00.000Z',
+        })}
+      />,
+    );
+
+    // 12:15Z é 21:15 em Tóquio e 09:15 em São Paulo.
+    expect(screen.getByText(/assinado em 14\/09\/2026, 21:15:00/u)).toBeTruthy();
+  });
+
   it('prontuário assinado: read-only, nunca chama autosave', async () => {
-    render(<ProntuarioEditor prontuario={makeProntuario({ status: 'assinado' })} />);
+    render(
+      <ProntuarioEditor
+        timeZone="America/Sao_Paulo"
+        prontuario={makeProntuario({ status: 'assinado' })}
+      />,
+    );
     // sem textareas editáveis disparando onChange → nenhum save
     await act(async () => {
       await vi.advanceTimersByTimeAsync(15_000);

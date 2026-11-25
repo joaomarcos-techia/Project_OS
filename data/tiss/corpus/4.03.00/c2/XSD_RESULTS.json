@@ -1,0 +1,129 @@
+{
+  "corpus": "c2",
+  "tool": "xmllint-wasm",
+  "toolVersion": "5.3.0",
+  "rootSchema": "tissV4_03_00.xsd",
+  "schemaArchiveSha256": "db8640e1c3b87085892f54f838bfcea9934439ff365798c8428559f88c13d62d",
+  "results": [
+    {
+      "id": "R01-solicitacao-valida",
+      "sha256": "92708194a44bbb31e0eb0dda4f06c2f2bb8f41f26370582a0d38ac7c3dc33266",
+      "xsdValid": true,
+      "expectedXsdValid": true,
+      "asExpected": true,
+      "errors": []
+    },
+    {
+      "id": "R02-solicitacao-sem-indicacao",
+      "sha256": "e6866dbd316d51ffb29a31b82d2eb68b0a775d51ffdd3223c3337fd4d9b0ee82",
+      "xsdValid": true,
+      "expectedXsdValid": true,
+      "asExpected": true,
+      "errors": []
+    },
+    {
+      "id": "R03-quantidade-acima",
+      "sha256": "eb865a8dd9ae8d01e40fd4ff24fa7102d53523ca6d7aef2b3147f2324ced0b17",
+      "xsdValid": false,
+      "expectedXsdValid": false,
+      "asExpected": true,
+      "errors": [
+        "Schemas validity error : Element '{http://www.ans.gov.br/padroes/tiss/schemas}quantidadeSolicitada': [facet 'totalDigits'] The value '1000' has more digits than are allowed ('3')."
+      ]
+    },
+    {
+      "id": "R04-data-futura",
+      "sha256": "c07f707d906e72ea2dfe436d0f4c263388e8d089b78c32046c82678c90b42c92",
+      "xsdValid": true,
+      "expectedXsdValid": true,
+      "asExpected": true,
+      "errors": []
+    },
+    {
+      "id": "R05-procedimento-repetido",
+      "sha256": "b6541e9de123b2477be8d97bef4ac7f542b0bd5a7e274b4c7a65b83edf884cd4",
+      "xsdValid": true,
+      "expectedXsdValid": true,
+      "asExpected": true,
+      "errors": []
+    },
+    {
+      "id": "R06-carater-invalido",
+      "sha256": "d5ad7886c337b23a74bb274fc34b4d97d296419d02fba2de983df88bd63c0d20",
+      "xsdValid": false,
+      "expectedXsdValid": false,
+      "asExpected": true,
+      "errors": [
+        "Schemas validity error : Element '{http://www.ans.gov.br/padroes/tiss/schemas}caraterAtendimento': [facet 'enumeration'] The value '3' is not an element of the set {'1', '2'}."
+      ]
+    },
+    {
+      "id": "G01-recurso-protocolo",
+      "sha256": "3e3deeaae64765cfa386d14f86a43c528d3403bf70933d8b4c4419fb92ace026",
+      "xsdValid": true,
+      "expectedXsdValid": true,
+      "asExpected": true,
+      "errors": []
+    },
+    {
+      "id": "G02-recurso-itens",
+      "sha256": "3488fa78ddea96324c0d771c8817fd390a831ca90f00f289a9ddcba3c3f8733b",
+      "xsdValid": true,
+      "expectedXsdValid": true,
+      "asExpected": true,
+      "errors": []
+    },
+    {
+      "id": "G03-recurso-guia-completa",
+      "sha256": "4158200e14ac406c78db4fe07dc50ce26ddb60cbcdcc045fb4b63cf8689ab3ca",
+      "xsdValid": true,
+      "expectedXsdValid": true,
+      "asExpected": true,
+      "errors": []
+    },
+    {
+      "id": "G04-total-divergente",
+      "sha256": "b85134f44ac8b1a9c4a97ebd2c51a7a9ef1f03d035e373c8f3c9ffa623c29127",
+      "xsdValid": true,
+      "expectedXsdValid": true,
+      "asExpected": true,
+      "errors": []
+    },
+    {
+      "id": "G05-protocolo-nao-numerico",
+      "sha256": "4da8424968014b7f4590e2554d3107b5b40e56bbb7a4c41f5c028f30732ec816",
+      "xsdValid": false,
+      "expectedXsdValid": false,
+      "asExpected": true,
+      "errors": [
+        "Schemas validity error : Element '{http://www.ans.gov.br/padroes/tiss/schemas}numeroProtocolo': 'PROT-1' is not a valid value of the atomic type '{http://www.ans.gov.br/padroes/tiss/schemas}st_numerico12'."
+      ]
+    },
+    {
+      "id": "G06-codigo-glosa-inexistente",
+      "sha256": "4e32d948b874392fd045e87c0e69426edbf0d667480372ba845f0fa3636f6ffd",
+      "xsdValid": false,
+      "expectedXsdValid": false,
+      "asExpected": true,
+      "errors": [
+        "Schemas validity error : Element '{http://www.ans.gov.br/padroes/tiss/schemas}codGlosaGuia': [facet 'enumeration'] The value '9999' is not an element of the set {'1001', '1002', '1003', '1004', '1005', '1006', '1007', '1008', '1009', '1010'"
+      ]
+    },
+    {
+      "id": "G07-justificativa-curta",
+      "sha256": "2465d2b726abad2a4bd8628db769467839452ace35594091e2f66586fa62fc74",
+      "xsdValid": true,
+      "expectedXsdValid": true,
+      "asExpected": true,
+      "errors": []
+    },
+    {
+      "id": "G08-forma-trocada",
+      "sha256": "62f8d283d6de8cf6d559d4dffee85878b5b6c07bf6b31b89dfa058f1b8b3ca58",
+      "xsdValid": true,
+      "expectedXsdValid": true,
+      "asExpected": true,
+      "errors": []
+    }
+  ]
+}

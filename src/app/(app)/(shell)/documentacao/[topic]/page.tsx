@@ -28,8 +28,8 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const topic = findDocTopic((await params).topic);
   return topic
-    ? { title: topic.title + ' | Ajuda Qoro', description: topic.summary }
-    : { title: 'Guia não encontrado | Qoro' };
+    ? { title: `${topic.title} · Ajuda`, description: topic.summary }
+    : { title: 'Guia não encontrado' };
 }
 
 export default async function DocumentacaoTopicPage({

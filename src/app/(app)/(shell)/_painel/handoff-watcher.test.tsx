@@ -6,9 +6,13 @@ const mocks = vi.hoisted(() => ({
   fetchOpenHandoffs: vi.fn(),
   refresh: vi.fn(),
   info: vi.fn(),
+  pathname: '/dashboard',
 }));
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: mocks.refresh }),
+  usePathname: () => mocks.pathname,
+}));
 vi.mock('./handoff-actions', () => ({ fetchOpenHandoffs: mocks.fetchOpenHandoffs }));
 vi.mock('@/components/ui/use-toast', () => ({ toast: { info: mocks.info } }));
 
@@ -234,5 +238,78 @@ describe('HandoffWatcher — contador da sidebar', () => {
     expect(getByTestId('contador').textContent).toBe('1');
     await poll();
     expect(getByTestId('contador').textContent).toBe('0');
+  });
+
+  // Incidente de /conversas (14/11/2026, docs/otimização_ui_final.md): a resposta
+  // chegou a levar 28 s e o intervalo é de 20 s.
+  it('não dispara outra consulta enquanto a anterior não voltou', async () => {
+    let release: (value: ReturnType<typeof ok>) => void = () => undefined;
+    mocks.fetchOpenHandoffs.mockImplementationOnce(
+      () => new Promise<ReturnType<typeof ok>>((resolve) => (release = resolve)),
+    );
+    mocks.fetchOpenHandoffs.mockResolvedValue(ok());
+    render(<HandoffWatcher />);
+    await tick();
+    await poll();
+    await poll();
+    expect(mocks.fetchOpenHandoffs).toHaveBeenCalledTimes(1);
+
+    release(ok());
+    await tick();
+    await poll();
+    expect(mocks.fetchOpenHandoffs).toHaveBeenCalledTimes(2);
+  });
+
+  // UX-016 (docs/otimização_ui_final.md): na própria tela de Conversas a lista e o
+  // contador já mostram a fila; o resumo só cobria o primeiro item no celular.
+  describe('na tela de Conversas', () => {
+    afterEach(() => {
+      mocks.pathname = '/dashboard';
+    });
+
+    it.each(['/conversas', '/conversas/c9'])(
+      'em %s a primeira carga não mostra o resumo',
+      async (rota) => {
+        mocks.pathname = rota;
+        mocks.fetchOpenHandoffs.mockResolvedValue(ok(handoff('c1'), handoff('c2')));
+        const { getByTestId } = render(
+          <>
+            <HandoffWatcher />
+            <Contador />
+          </>,
+        );
+        await tick();
+
+        expect(mocks.info).not.toHaveBeenCalled();
+        // O contador do menu continua refletindo a fila.
+        expect(getByTestId('contador').textContent).toBe('2');
+      },
+    );
+
+    it('um pedido NOVO continua avisando, mesmo em Conversas', async () => {
+      mocks.pathname = '/conversas';
+      mocks.fetchOpenHandoffs.mockResolvedValueOnce(ok(handoff('c1')));
+      mocks.fetchOpenHandoffs.mockResolvedValue(ok(handoff('c1'), handoff('c2')));
+      render(<HandoffWatcher />);
+      await tick();
+      await poll();
+
+      expect(mocks.info).toHaveBeenCalledTimes(1);
+      expect(mocks.info.mock.calls[0]?.[0]).toBe('Paciente pediu atendimento');
+    });
+
+    it('fora de Conversas o resumo da primeira carga continua', async () => {
+      mocks.pathname = '/conversasfalsas';
+      mocks.fetchOpenHandoffs.mockResolvedValue(ok(handoff('c1')));
+      render(<HandoffWatcher />);
+      await tick();
+
+      expect(mocks.info).toHaveBeenCalledWith(
+        'Uma conversa aguarda atendimento',
+        'Abrir Conversas IA.',
+        5_000,
+        '/conversas',
+      );
+    });
   });
 });

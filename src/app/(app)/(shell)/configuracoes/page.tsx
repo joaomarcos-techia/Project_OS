@@ -1,10 +1,15 @@
-import { requireUser } from '@/lib/auth/tenant-context';
+import type { Metadata } from 'next';
+import { Settings } from 'lucide-react';
+
+import { requirePageUser } from '@/lib/auth/page-guard';
 import { PageHeader } from '@/components/ui/page-header';
 
 import { SettingsGroupSection } from './settings-category';
 import { loadChannelStatuses, loadGestaoStatuses, loadSettingsMetas } from './settings-data';
 import { visibleSettingsNavigation } from './settings-navigation';
 import styles from './settings.module.css';
+
+export const metadata: Metadata = { title: 'Configurações' };
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +26,7 @@ export const dynamic = 'force-dynamic';
  * continua em cada rota de destino.
  */
 export default async function ConfiguracoesPage() {
-  const user = await requireUser();
+  const user = await requirePageUser();
   const groups = visibleSettingsNavigation(
     user.permissions,
     user.isSuperAdmin && user.aal === 'aal2',
@@ -42,9 +47,10 @@ export default async function ConfiguracoesPage() {
   return (
     <>
       <PageHeader
-        crumbs={[{ label: 'Administração' }, { label: 'Configurações' }]}
+        icon={<Settings aria-hidden="true" />}
         title="Configurações"
-        description="Clínica, operação, integrações, conformidade e conta"
+        headline={user.clinicName?.trim() || 'Configurações'}
+        description="Dados da clínica, horários, integrações e conta"
       />
       <div className={styles.groupStack ?? ''}>
         {groups.map((group) => (

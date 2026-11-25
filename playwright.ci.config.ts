@@ -54,11 +54,31 @@ function runtimeEnv(): Record<string, string> {
   }
 }
 
+// These are Cloudflare's public test fixtures, never inherited deployment keys.
+// The worker must see the same pair as the isolated app to exercise both tests.
+const fixtureEnv = runtimeEnv();
+if (
+  fixtureEnv.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== '1x00000000000000000000AA' ||
+  fixtureEnv.TURNSTILE_SECRET_KEY !== '1x0000000000000000000000000000000AA'
+) {
+  throw new Error(
+    'Rebuild the isolated security app with the official public Turnstile test pair.',
+  );
+}
+process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = fixtureEnv.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+process.env.TURNSTILE_SECRET_KEY = fixtureEnv.TURNSTILE_SECRET_KEY;
+process.env.E2E_ABACATEPAY_PLAN_UI = '1';
+process.env.E2E_BASE_URL = baseURL;
+
 export default defineConfig({
   testDir: './e2e',
   // Só o que dispensa credencial. Acrescentar um spec aqui é uma decisão
   // explícita: ele passa a poder quebrar o merge de todo mundo.
-  testMatch: ['public-surface.spec.ts'],
+  testMatch: [
+    'public-surface.spec.ts',
+    'abacatepay-plan-ui.spec.ts',
+    'billing-cancellation-ui.spec.ts',
+  ],
   fullyParallel: false,
   workers: 1,
   forbidOnly: Boolean(process.env.CI),
@@ -77,7 +97,7 @@ export default defineConfig({
   webServer: {
     command: `node ${path.join(process.cwd(), 'node_modules/next/dist/bin/next')} start -p ${PORT} -H 127.0.0.1`,
     cwd: APP_DIR,
-    env: runtimeEnv(),
+    env: fixtureEnv,
     url: `${baseURL}/login`,
     // `false` sempre: reaproveitar um servidor pendurado de outra execução
     // testaria um build velho e daria verde por engano.

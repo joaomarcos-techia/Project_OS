@@ -1,0 +1,86 @@
+[
+ {
+  "t": "2026-11-16T07:23:56.642Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 0
+ },
+ {
+  "t": "2026-11-16T07:23:58.824Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 0
+ },
+ {
+  "t": "2026-11-16T07:24:01.006Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 0
+ },
+ {
+  "t": "2026-11-16T07:24:03.190Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 0
+ },
+ {
+  "t": "2026-11-16T07:24:05.371Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 0
+ },
+ {
+  "t": "2026-11-16T07:24:07.551Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 8
+ },
+ {
+  "t": "2026-11-16T07:24:09.730Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 9
+ },
+ {
+  "t": "2026-11-16T07:24:11.911Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 10
+ },
+ {
+  "t": "2026-11-16T07:24:14.088Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 16
+ },
+ {
+  "t": "2026-11-16T07:24:16.271Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 0
+ },
+ {
+  "t": "2026-11-16T07:24:18.450Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 0
+ },
+ {
+  "t": "2026-11-16T07:24:20.627Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 0
+ }
+]

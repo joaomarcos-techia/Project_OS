@@ -16,6 +16,7 @@
 import { eq, sql } from 'drizzle-orm';
 
 import type { Tx } from '@/lib/db';
+import { metrics } from '@/lib/observability/metrics';
 import { PoisonPillError } from '@/lib/outbox/errors';
 import { publishEvent } from '@/lib/outbox/publish';
 import { registerHandler } from '@/lib/outbox/registry';
@@ -74,6 +75,21 @@ async function faturarAtendimento(ctx: {
     );
   }
 
+  // Convênios (0148; P10.1): atendimento de convênio NÃO gera recebível do
+  // paciente pelo valor cheio nem snapshot de repasse na conclusão. A operadora é
+  // cobrada pela guia (recebível ligado à guia, P10.2); o paciente só paga a
+  // coparticipação CONFIRMADA (handler de `health_insurance.copay.confirmed`); o
+  // repasse segue a política de convênio (D16, sem antecipação; P10.4). O banco
+  // tem a mesma regra (gatilho em `lancamentos`): um caminho esquecido falha em vez
+  // de cobrar. Evento sem `billingMode` é anterior à 0148 e, portanto, particular.
+  if (payload.billingMode === 'convenio') {
+    metrics.emit('insurance.patient_charge_blocked', {
+      path: 'appointment_completed',
+      clinicId,
+    });
+    return;
+  }
+
   // Falha de negócio: valor inválido/zerado → pendência (sem lançamento, sem retry).
   if (!(payload.valor > 0)) {
     const motivo = 'Atendimento concluído com valor inválido ou zerado.';
@@ -117,9 +133,17 @@ async function faturarAtendimento(ctx: {
   // do Payments.
   const creditos = await listAvailableCredits(tx, clinicId, payload.appointmentId);
   const valorBruto = round2(payload.valor);
+  // R54: só o que ainda está na conta. Um estorno parcial (feito no Asaas ou confirmado
+  // pelo Qoro) antes do atendimento já saiu do crédito em `unallocatedReversedAmount`;
+  // alocar o valor cheio daria baixa de dinheiro que voltou ao paciente.
   const { allocations, total: creditoAplicado } = allocateCreditsTo(
     valorBruto,
-    creditos.map((c) => ({ id: c.id, amount: Number(c.amount) })),
+    creditos
+      .map((c) => ({
+        id: c.id,
+        amount: round2(Number(c.amount) - Number(c.unallocatedReversedAmount ?? 0)),
+      }))
+      .filter((c) => c.amount > 0),
   );
   const status = statusAoCriar(valorBruto, creditoAplicado);
 

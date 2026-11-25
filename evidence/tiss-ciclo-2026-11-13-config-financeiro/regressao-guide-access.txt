@@ -1,0 +1,2 @@
+health-insurance-batches-db.log:OK — 16/16 provas da P1.9 (0150), do pipeline P9.2 e da P12.7 em Postgres descartável, XSD oficial pelo motor do app (xmllint-wasm 5.3.0).
+health-insurance-guide-issuance-db.log:OK: 7 provas da emissão com snapshot cifrado sobre o schema real

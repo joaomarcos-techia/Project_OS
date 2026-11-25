@@ -14,16 +14,12 @@ afterEach(() => {
 });
 
 describe('ForgotPasswordForm', () => {
-  it('expõe o disclosure nativo e anuncia a resposta genérica de envio', async () => {
+  it('anuncia a resposta genérica de envio e permite voltar ao login', async () => {
     mocks.forgotPasswordAction.mockResolvedValue({ error: null, sent: true });
-    render(<ForgotPasswordForm />);
+    const onBack = vi.fn();
+    render(<ForgotPasswordForm onBack={onBack} />);
 
-    const summary = screen.getByText('Esqueci a senha');
-    const details = summary.closest('details');
-    expect(details?.open).toBe(false);
-    fireEvent.click(summary);
-    expect(details?.open).toBe(true);
-
+    expect(screen.getByRole('heading', { level: 1, name: 'Redefinir a senha' })).toBeTruthy();
     const email = screen.getByLabelText('E-mail');
     fireEvent.change(email, { target: { value: 'pessoa@example.test' } });
     fireEvent.submit(email.closest('form') as HTMLFormElement);
@@ -32,6 +28,9 @@ describe('ForgotPasswordForm', () => {
       expect(screen.getByRole('alert').textContent).toContain('Se houver uma conta');
     });
     expect(mocks.forgotPasswordAction).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar para o login' }));
+    expect(onBack).toHaveBeenCalledTimes(1);
   });
 
   it('mantém o campo disponível quando a action devolve erro de sintaxe', async () => {
@@ -39,7 +38,7 @@ describe('ForgotPasswordForm', () => {
       error: 'Informe um e-mail válido.',
       sent: false,
     });
-    render(<ForgotPasswordForm />);
+    render(<ForgotPasswordForm onBack={vi.fn()} />);
 
     const email = screen.getByLabelText('E-mail');
     fireEvent.submit(email.closest('form') as HTMLFormElement);

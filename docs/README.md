@@ -51,6 +51,7 @@ Esta pasta descreve o código presente neste repositório. O nome técnico é **
 | Processo de mudança | [Guia de decisão](engineering/decision-guide.md) e [Definition of Done](engineering/definition-of-done.md) |
 | Decisões arquiteturais vigentes | [Decisões](adr/README.md) |
 | Limitações e validações externas | [Limitações conhecidas](roadmap/known-limitations.md) |
+| Frente futura após a migração financeira — ainda a discutir | [Convênios, lotes, CID e documentos pelo agente](roadmap/convenios-lotes-cid-futuro.md) |
 | Procedimentos operacionais | [Runbooks](runbooks/README.md) |
 
 ## Estados documentais

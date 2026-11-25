@@ -37,6 +37,9 @@ async function expectStat(page: Page, label: string, value: number): Promise<voi
 }
 
 function statCard(page: Page, label: string) {
+  // App v5: "Consultas hoje" é um cartão com medidor (região "Operação do turno"),
+  // não mais um indicador solto. O total e "N finalizadas" continuam dentro dele.
+  if (label === 'Consultas hoje') return page.getByRole('region', { name: 'Operação do turno' });
   return page
     .locator('[data-slot="stat-card"]')
     .filter({ has: page.getByText(label, { exact: true }) });
@@ -239,7 +242,7 @@ test.describe('produção: Dashboard não-zero sintético na Clínica A', () => 
 
       const upcomingPanel = page.getByText('Próximos na agenda', { exact: true }).locator('../..');
       await expect(upcomingPanel.getByRole('listitem')).toHaveCount(fixture.after.proximos);
-      await expect(upcomingPanel.getByText('Walk-in', { exact: true })).toHaveCount(
+      await expect(upcomingPanel.getByText('Paciente sem cadastro', { exact: true })).toHaveCount(
         fixture.after.upcoming_walkins,
       );
       const statusLabels: Record<string, string> = {

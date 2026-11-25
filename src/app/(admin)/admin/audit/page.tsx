@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { Search } from 'lucide-react';
 
 import { Badge, type badgeVariants } from '@/components/ui/badge';
@@ -28,6 +29,8 @@ import { guardAdminAccess } from '../_lib/guard';
 import { formatDateTime } from '../_lib/format';
 import { auditRepository } from '../_lib/repositories/audit.repo';
 import { clinicRepository } from '../_lib/repositories/clinics.repo';
+
+export const metadata: Metadata = { title: 'Auditoria da plataforma' };
 
 export const dynamic = 'force-dynamic';
 

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import {
   Clock,
@@ -29,6 +30,8 @@ import { jobsHealthRepository } from '../_lib/repositories/jobs-health.repo';
 import { retentionRepository } from '../_lib/repositories/retention.repo';
 import { AnnouncementForm, DeactivateAnnouncementButton } from './announcement-form';
 import { FlagToggle } from './operation-controls';
+
+export const metadata: Metadata = { title: 'Configurações da plataforma' };
 
 export const dynamic = 'force-dynamic';
 
@@ -140,8 +143,10 @@ function HealthDot({ tone = 'gray' }: { tone?: 'green' | 'red' | 'amber' | 'gray
           : tone === 'red'
             ? 'bg-danger-500'
             : tone === 'amber'
-              ? 'bg-warning-500'
-              : 'bg-neutral-400',
+              ? // P-26 (ciclo 8): `warning-500` media 2,26:1 contra o cartão claro; o 600 é
+                // tema-aware (#8a5300 / #f2c063) e passa de 3:1 nos dois temas.
+                'bg-warning-600'
+              : 'bg-border-strong',
       )}
     />
   );

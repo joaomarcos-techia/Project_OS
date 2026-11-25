@@ -37,10 +37,7 @@ function SettingsCard({
       )}
     >
       <div className={styles.identity ?? ''}>
-        {/* Ícone SOLTO, sem ladrilho: a referência não emoldura nenhum dos nove.
-            O quadradinho cinza dobrava o peso visual de um glifo que só serve
-            para reconhecer a linha de relance. */}
-        <Icon aria-hidden="true" className="size-4.5 shrink-0 text-fg-subtle" />
+        <Icon aria-hidden="true" className="size-4.5 shrink-0" />
       </div>
       <div className={styles.copy ?? ''}>
         <h3 className="mt-1 text-(length:--fs-subsection) font-semibold">
@@ -55,15 +52,19 @@ function SettingsCard({
         </h3>
         <p className="text-pretty text-(length:--fs-body-sm) text-fg-muted">{item.description}</p>
       </div>
-      {status ? (
-        <Badge tone={status.tone} dot>
-          {status.label}
-        </Badge>
+      {status || meta ? (
+        <div className={styles.aside ?? ''}>
+          {status ? (
+            <Badge tone={status.tone} dot>
+              {status.label}
+            </Badge>
+          ) : null}
+          {/* O número em mono, à direita, antes do chevron: é o que transforma a
+              lista em inventário. "Procedimentos" diz que a tela existe; "38 ativos
+              · 4 inativos" diz se vale abrir. */}
+          {meta ? <span className={styles.meta ?? ''}>{meta}</span> : null}
+        </div>
       ) : null}
-      {/* O número em mono, à direita, antes do chevron: é o que transforma a
-          lista em inventário. "Procedimentos" diz que a tela existe; "38 ativos
-          · 4 inativos" diz se vale abrir. */}
-      {meta ? <span className={styles.meta ?? ''}>{meta}</span> : null}
       {/* Sem CTA textual. A linha INTEIRA é o link (o `after:inset-0` acima), e
           o chevron já diz isso. Nove linhas com nove verbos diferentes
           ("Configurar", "Abrir", "Conectar", "Gerenciar", "Acompanhar") faziam

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 
+import { PublicBlock, PublicHeading, signupFrame } from '@/components/shared/signup-frame';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -11,11 +12,15 @@ import { Label } from '@/components/ui/label';
 import { SIGNUP_INPUT_LIMITS } from '@/contexts/onboarding/signup-input-limits';
 import { SIGNUP_PASSWORD_RULES, signupPasswordMessage } from '@/lib/auth/signup-password';
 import { suggestEmailDomain } from '@/lib/auth/email-domain-suggestion';
+import { cn } from '@/lib/ui/cn';
+
+import styles from './cadastro.module.css';
 
 type Props = {
   rowVersion: number;
   saved: boolean;
   initialEmail?: string | undefined;
+  pilotIdentity?: { ownerName: string; clinicName: string; email: string } | undefined;
   /**
    * O e-mail vai junto porque a tela de espera precisa dele para reenviar, e
    * NINGUÉM mais tem: o servidor guarda só o HMAC. Passá-lo em memória, entre
@@ -47,6 +52,7 @@ export function SignupIdentity({
   rowVersion,
   saved,
   initialEmail,
+  pilotIdentity,
   onCredentialsPrepared,
   onCredentialsCleared,
   onEmailPending,
@@ -57,7 +63,7 @@ export function SignupIdentity({
   const [accepted, setAccepted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [emailAddress, setEmailAddress] = useState(initialEmail ?? '');
+  const [emailAddress, setEmailAddress] = useState(pilotIdentity?.email ?? initialEmail ?? '');
   const [acknowledgedEmail, setAcknowledgedEmail] = useState<string | null>(null);
   const suggestion = suggestEmailDomain(emailAddress);
   const formRef = useRef<HTMLFormElement>(null);
@@ -219,161 +225,163 @@ export function SignupIdentity({
   }
 
   return (
-    <section
-      aria-labelledby="signup-identity-title"
-      className="mt-8 rounded-(--r-2xl) bg-surface-raised p-5 shadow-[0_0_0_1px_oklch(0_0_0/0.06),0_8px_28px_oklch(0_0_0/0.07)] sm:p-7"
-    >
-      <p className="font-mono text-xs font-semibold uppercase tracking-[0.12em] text-primary">
-        Etapa 2 · dados e conta
-      </p>
-      <h2
+    <section aria-labelledby="signup-identity-title" className={styles.stack}>
+      <PublicHeading
         id="signup-identity-title"
-        className="mt-3 text-balance font-display text-2xl font-semibold"
-      >
-        Seus dados e o nome da clínica
-      </h2>
-      <form method="post" ref={formRef} onSubmit={submit} noValidate className="mt-5">
-        <p className="mb-5 text-pretty text-sm leading-relaxed text-fg-muted">
-          {editing
+        title="Seus dados e o nome da clínica"
+        lead={
+          editing
             ? 'Defina sua senha uma única vez. Depois, confirme seu e-mail com o código recebido, sem sair desta jornada.'
-            : 'Seu nome, clínica e respostas estão salvos. Confira o e-mail e informe a senha para este endereço. Se você corrigiu o endereço, a senha será definida para a conta corrigida.'}
-        </p>
-        <fieldset disabled={saving} className="space-y-4">
-          {editing ? (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="signup-owner">Seu nome</Label>
-                <Input
-                  id="signup-owner"
-                  name="ownerName"
-                  autoComplete="name"
-                  required
-                  maxLength={SIGNUP_INPUT_LIMITS.personName}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="signup-clinic">Nome da clínica</Label>
-                <Input
-                  id="signup-clinic"
-                  name="clinicName"
-                  autoComplete="organization"
-                  required
-                  maxLength={SIGNUP_INPUT_LIMITS.clinicName}
-                />
-              </div>
-            </>
-          ) : null}
-          <div className="space-y-2">
-            <Label htmlFor="signup-email">E-mail</Label>
-            <Input
-              id="signup-email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
-              maxLength={SIGNUP_INPUT_LIMITS.email}
-              value={emailAddress}
-              onChange={(event) => {
-                setEmailAddress(event.target.value);
-                setAcknowledgedEmail(null);
-              }}
-            />
-            {suggestion && acknowledgedEmail !== emailAddress.trim().toLowerCase() ? (
-              <Alert variant="warning">
-                <p>
-                  Você quis dizer <strong className="break-all">{suggestion}</strong>?
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      setEmailAddress(suggestion);
-                      setAcknowledgedEmail(null);
-                    }}
-                  >
-                    Usar endereço sugerido
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setAcknowledgedEmail(emailAddress.trim().toLowerCase())}
-                  >
-                    Manter como digitei
-                  </Button>
+            : 'Seu nome, clínica e respostas estão salvos. Confira o e-mail e informe a senha para este endereço. Se você corrigiu o endereço, a senha será definida para a conta corrigida.'
+        }
+      />
+      <PublicBlock>
+        <form method="post" ref={formRef} onSubmit={submit} noValidate className={styles.form}>
+          <fieldset disabled={saving} className={cn(signupFrame.fields, signupFrame.fieldsTwo)}>
+            {editing ? (
+              <>
+                <div className={signupFrame.field}>
+                  <Label htmlFor="signup-owner">Seu nome</Label>
+                  <Input
+                    id="signup-owner"
+                    name="ownerName"
+                    defaultValue={pilotIdentity?.ownerName}
+                    readOnly={Boolean(pilotIdentity)}
+                    autoComplete="name"
+                    required
+                    maxLength={SIGNUP_INPUT_LIMITS.personName}
+                  />
                 </div>
-              </Alert>
+                <div className={signupFrame.field}>
+                  <Label htmlFor="signup-clinic">Nome da clínica</Label>
+                  <Input
+                    id="signup-clinic"
+                    name="clinicName"
+                    defaultValue={pilotIdentity?.clinicName}
+                    readOnly={Boolean(pilotIdentity)}
+                    autoComplete="organization"
+                    required
+                    maxLength={SIGNUP_INPUT_LIMITS.clinicName}
+                  />
+                </div>
+              </>
             ) : null}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="signup-password">Crie sua senha</Label>
-            <Input
-              id="signup-password"
-              name="password"
-              type="password"
-              autoComplete="new-password"
-              required
-              minLength={8}
-              maxLength={72}
-              aria-describedby="signup-password-rules"
-            />
-            <p id="signup-password-rules" className="text-xs leading-relaxed text-fg-muted">
-              {SIGNUP_PASSWORD_RULES}
-            </p>
-          </div>
-          {editing ? (
-            <div className="flex min-h-10 items-start gap-3 pt-2">
-              <Checkbox
-                id="signup-accepted"
-                checked={accepted}
-                onCheckedChange={(value) => setAccepted(value === true)}
-                disabled={saving}
-                className="mt-0.5"
+            <div className={signupFrame.field}>
+              <Label htmlFor="signup-email">E-mail</Label>
+              <Input
+                id="signup-email"
+                name="email"
+                readOnly={Boolean(pilotIdentity)}
+                type="email"
+                autoComplete="email"
+                required
+                maxLength={SIGNUP_INPUT_LIMITS.email}
+                value={emailAddress}
+                onChange={(event) => {
+                  setEmailAddress(event.target.value);
+                  setAcknowledgedEmail(null);
+                }}
               />
-              <Label htmlFor="signup-accepted" className="text-pretty text-sm leading-relaxed">
-                Li e aceito os{' '}
-                <a
-                  href="https://qoro.dev/termos-de-uso"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline"
-                >
-                  Termos de Uso
-                </a>{' '}
-                e a{' '}
-                <a
-                  href="https://qoro.dev/politica-de-privacidade"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline"
-                >
-                  Política de Privacidade
-                </a>
-                .
-              </Label>
+              {suggestion && acknowledgedEmail !== emailAddress.trim().toLowerCase() ? (
+                <Alert variant="warning">
+                  <p>
+                    Você quis dizer <strong className="break-all">{suggestion}</strong>?
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        setEmailAddress(suggestion);
+                        setAcknowledgedEmail(null);
+                      }}
+                    >
+                      Usar endereço sugerido
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setAcknowledgedEmail(emailAddress.trim().toLowerCase())}
+                    >
+                      Manter como digitei
+                    </Button>
+                  </div>
+                </Alert>
+              ) : null}
             </div>
-          ) : null}
-        </fieldset>
-        <div aria-live="polite" className="mt-5">
-          {message ? <Alert variant="warning">{message}</Alert> : null}
-        </div>
-        <Button type="submit" loading={saving} className="mt-5 active:scale-[0.96]">
-          Enviar confirmação por e-mail
-        </Button>
-        {!editing ? (
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={saving}
-            onClick={() => setEditing(true)}
-            className="mt-3"
-          >
-            Alterar nome ou clínica
-          </Button>
-        ) : null}
-      </form>
+            <div className={signupFrame.field}>
+              <Label htmlFor="signup-password">Crie sua senha</Label>
+              <Input
+                id="signup-password"
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                required
+                minLength={8}
+                maxLength={72}
+                aria-describedby="signup-password-rules"
+              />
+              <p id="signup-password-rules" className={signupFrame.hint}>
+                {SIGNUP_PASSWORD_RULES}
+              </p>
+            </div>
+            {editing ? (
+              <div className={cn(signupFrame.check, signupFrame.fieldFull)}>
+                <Checkbox
+                  id="signup-accepted"
+                  checked={accepted}
+                  onCheckedChange={(value) => setAccepted(value === true)}
+                  disabled={saving}
+                  className="mt-0.5"
+                />
+                <Label htmlFor="signup-accepted" className="text-pretty font-normal">
+                  Li e aceito os{' '}
+                  <a
+                    href="https://qoro.dev/termos-de-uso"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    Termos de Uso
+                  </a>{' '}
+                  e a{' '}
+                  <a
+                    href="https://qoro.dev/politica-de-privacidade"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                  >
+                    Política de Privacidade
+                  </a>
+                  .
+                </Label>
+              </div>
+            ) : null}
+          </fieldset>
+          <div className={styles.closing}>
+            <div aria-live="polite" className={styles.live}>
+              {message ? <Alert variant="warning">{message}</Alert> : null}
+            </div>
+            <div className={cn(signupFrame.actions, signupFrame.actionsEnd)}>
+              {!editing ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={saving}
+                  onClick={() => setEditing(true)}
+                >
+                  Alterar nome ou clínica
+                </Button>
+              ) : null}
+              <Button type="submit" loading={saving}>
+                Enviar confirmação por e-mail
+              </Button>
+            </div>
+          </div>
+        </form>
+      </PublicBlock>
     </section>
   );
 }

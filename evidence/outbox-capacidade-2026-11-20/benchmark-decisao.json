@@ -1,0 +1,1055 @@
+{
+ "modo": "full",
+ "at": "2026-11-20T18:29:12.560Z",
+ "node": "v22.23.4",
+ "rodadas": [
+  {
+   "cenario": "sustentado_50_por_min",
+   "estrategia": "atual-50",
+   "orcamentoReservaMs": null,
+   "descarteEmBloco": false,
+   "lote": 50,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.3,
+   "regime": {
+    "minutosDeEntrada": 15,
+    "entradaNoCronPorMin": 170,
+    "saidaMediaPorTick": 50,
+    "filaDepoisDeCadaTick": [
+     104,
+     212,
+     320,
+     424,
+     532,
+     638,
+     744,
+     851,
+     956,
+     1064,
+     1168,
+     1276,
+     1382,
+     1488,
+     1596
+    ],
+    "tendenciaPorMinuto": 106.4,
+    "sustentado": false
+   },
+   "vagasAdiadasPeloPrazo": 0,
+   "descartadosEmBloco": 0,
+   "conclusoes": 750,
+   "clinicas": 3,
+   "eventosProduzidos": 3000,
+   "backlogMaximo": 1638,
+   "minutosAteDrenar": 51,
+   "minutosExtrasDepoisDoPico": 36,
+   "atrasoMin": {
+    "p50": 17,
+    "p95": 31,
+    "p99": 33,
+    "max": 33
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 300,
+    "p95": 31,
+    "max": 33
+   },
+   "tick": {
+    "n": 51,
+    "piorMs": 1817.9,
+    "p95Ms": 1559.6,
+    "maxConexoesAtivas": 6,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=300",
+    "scheduling.appointment.checked_in:skipped=750",
+    "scheduling.appointment.completed:processed=750",
+    "scheduling.appointment.insurance_completed:processed=450",
+    "scheduling.appointment.started:processed=750"
+   ],
+   "integridade": {
+    "concluidos": 750,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 91
+  },
+  {
+   "cenario": "sustentado_50_por_min",
+   "estrategia": "lote-150",
+   "orcamentoReservaMs": null,
+   "descarteEmBloco": false,
+   "lote": 150,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.3,
+   "regime": {
+    "minutosDeEntrada": 15,
+    "entradaNoCronPorMin": 170,
+    "saidaMediaPorTick": 150,
+    "filaDepoisDeCadaTick": [
+     20,
+     36,
+     54,
+     72,
+     88,
+     108,
+     124,
+     142,
+     160,
+     180,
+     196,
+     216,
+     232,
+     250,
+     268
+    ],
+    "tendenciaPorMinuto": 18,
+    "sustentado": false
+   },
+   "vagasAdiadasPeloPrazo": 0,
+   "descartadosEmBloco": 0,
+   "conclusoes": 750,
+   "clinicas": 3,
+   "eventosProduzidos": 3000,
+   "backlogMaximo": 400,
+   "minutosAteDrenar": 17,
+   "minutosExtrasDepoisDoPico": 2,
+   "atrasoMin": {
+    "p50": 2,
+    "p95": 3,
+    "p99": 3,
+    "max": 3
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 300,
+    "p95": 3,
+    "max": 3
+   },
+   "tick": {
+    "n": 17,
+    "piorMs": 3411.1,
+    "p95Ms": 3411.1,
+    "maxConexoesAtivas": 6,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=300",
+    "scheduling.appointment.checked_in:skipped=750",
+    "scheduling.appointment.completed:processed=750",
+    "scheduling.appointment.insurance_completed:processed=450",
+    "scheduling.appointment.started:processed=750"
+   ],
+   "integridade": {
+    "concluidos": 750,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 83
+  },
+  {
+   "cenario": "sustentado_50_por_min",
+   "estrategia": "lote-200",
+   "orcamentoReservaMs": null,
+   "descarteEmBloco": false,
+   "lote": 200,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.3,
+   "regime": {
+    "minutosDeEntrada": 15,
+    "entradaNoCronPorMin": 170,
+    "saidaMediaPorTick": 170,
+    "filaDepoisDeCadaTick": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "tendenciaPorMinuto": 0,
+    "sustentado": true
+   },
+   "vagasAdiadasPeloPrazo": 0,
+   "descartadosEmBloco": 0,
+   "conclusoes": 750,
+   "clinicas": 3,
+   "eventosProduzidos": 3000,
+   "backlogMaximo": 150,
+   "minutosAteDrenar": 15,
+   "minutosExtrasDepoisDoPico": 0,
+   "atrasoMin": {
+    "p50": 1,
+    "p95": 1,
+    "p99": 1,
+    "max": 1
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 300,
+    "p95": 1,
+    "max": 1
+   },
+   "tick": {
+    "n": 15,
+    "piorMs": 3770.9,
+    "p95Ms": 3770.9,
+    "maxConexoesAtivas": 6,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=300",
+    "scheduling.appointment.checked_in:skipped=750",
+    "scheduling.appointment.completed:processed=750",
+    "scheduling.appointment.insurance_completed:processed=450",
+    "scheduling.appointment.started:processed=750"
+   ],
+   "integridade": {
+    "concluidos": 750,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 83
+  },
+  {
+   "cenario": "sustentado_50_por_min",
+   "estrategia": "lote-150+orcamento+descarte",
+   "orcamentoReservaMs": 30000,
+   "descarteEmBloco": true,
+   "lote": 150,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.3,
+   "regime": {
+    "minutosDeEntrada": 15,
+    "entradaNoCronPorMin": 170,
+    "saidaMediaPorTick": 170,
+    "filaDepoisDeCadaTick": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "tendenciaPorMinuto": 0,
+    "sustentado": true
+   },
+   "vagasAdiadasPeloPrazo": 0,
+   "descartadosEmBloco": 750,
+   "conclusoes": 750,
+   "clinicas": 3,
+   "eventosProduzidos": 3000,
+   "backlogMaximo": 150,
+   "minutosAteDrenar": 15,
+   "minutosExtrasDepoisDoPico": 0,
+   "atrasoMin": {
+    "p50": 1,
+    "p95": 1,
+    "p99": 1,
+    "max": 1
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 300,
+    "p95": 1,
+    "max": 1
+   },
+   "tick": {
+    "n": 15,
+    "piorMs": 3182.3,
+    "p95Ms": 3182.3,
+    "maxConexoesAtivas": 6,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=300",
+    "scheduling.appointment.checked_in:skipped=750",
+    "scheduling.appointment.completed:processed=750",
+    "scheduling.appointment.insurance_completed:processed=450",
+    "scheduling.appointment.started:processed=750"
+   ],
+   "integridade": {
+    "concluidos": 750,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 70
+  },
+  {
+   "cenario": "sustentado_50_por_min",
+   "estrategia": "lote-200+orcamento+descarte",
+   "orcamentoReservaMs": 30000,
+   "descarteEmBloco": true,
+   "lote": 200,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.3,
+   "regime": {
+    "minutosDeEntrada": 15,
+    "entradaNoCronPorMin": 170,
+    "saidaMediaPorTick": 170,
+    "filaDepoisDeCadaTick": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "tendenciaPorMinuto": 0,
+    "sustentado": true
+   },
+   "vagasAdiadasPeloPrazo": 0,
+   "descartadosEmBloco": 750,
+   "conclusoes": 750,
+   "clinicas": 3,
+   "eventosProduzidos": 3000,
+   "backlogMaximo": 150,
+   "minutosAteDrenar": 15,
+   "minutosExtrasDepoisDoPico": 0,
+   "atrasoMin": {
+    "p50": 1,
+    "p95": 1,
+    "p99": 1,
+    "max": 1
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 300,
+    "p95": 1,
+    "max": 1
+   },
+   "tick": {
+    "n": 15,
+    "piorMs": 3245.3,
+    "p95Ms": 3245.3,
+    "maxConexoesAtivas": 6,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=300",
+    "scheduling.appointment.checked_in:skipped=750",
+    "scheduling.appointment.completed:processed=750",
+    "scheduling.appointment.insurance_completed:processed=450",
+    "scheduling.appointment.started:processed=750"
+   ],
+   "integridade": {
+    "concluidos": 750,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 71
+  },
+  {
+   "cenario": "sustentado_100_por_min",
+   "estrategia": "lote-200",
+   "orcamentoReservaMs": null,
+   "descarteEmBloco": false,
+   "lote": 200,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.3,
+   "regime": {
+    "minutosDeEntrada": 10,
+    "entradaNoCronPorMin": 340,
+    "saidaMediaPorTick": 200,
+    "filaDepoisDeCadaTick": [
+     124,
+     248,
+     376,
+     500,
+     622,
+     748,
+     872,
+     1000,
+     1123,
+     1245
+    ],
+    "tendenciaPorMinuto": 124.3,
+    "sustentado": false
+   },
+   "vagasAdiadasPeloPrazo": 0,
+   "descartadosEmBloco": 0,
+   "conclusoes": 1000,
+   "clinicas": 3,
+   "eventosProduzidos": 4000,
+   "backlogMaximo": 1423,
+   "minutosAteDrenar": 17,
+   "minutosExtrasDepoisDoPico": 7,
+   "atrasoMin": {
+    "p50": 4,
+    "p95": 7,
+    "p99": 7,
+    "max": 8
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 400,
+    "p95": 7,
+    "max": 8
+   },
+   "tick": {
+    "n": 17,
+    "piorMs": 3911.6,
+    "p95Ms": 3911.6,
+    "maxConexoesAtivas": 6,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=400",
+    "scheduling.appointment.checked_in:skipped=1000",
+    "scheduling.appointment.completed:processed=1000",
+    "scheduling.appointment.insurance_completed:processed=600",
+    "scheduling.appointment.started:processed=1000"
+   ],
+   "integridade": {
+    "concluidos": 1000,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 102
+  },
+  {
+   "cenario": "sustentado_100_por_min",
+   "estrategia": "lote-150+orcamento+descarte",
+   "orcamentoReservaMs": 30000,
+   "descarteEmBloco": true,
+   "lote": 150,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.3,
+   "regime": {
+    "minutosDeEntrada": 10,
+    "entradaNoCronPorMin": 340,
+    "saidaMediaPorTick": 250,
+    "filaDepoisDeCadaTick": [
+     78,
+     152,
+     230,
+     308,
+     382,
+     460,
+     538,
+     612,
+     690,
+     768
+    ],
+    "tendenciaPorMinuto": 77,
+    "sustentado": false
+   },
+   "vagasAdiadasPeloPrazo": 0,
+   "descartadosEmBloco": 1000,
+   "conclusoes": 1000,
+   "clinicas": 3,
+   "eventosProduzidos": 4000,
+   "backlogMaximo": 990,
+   "minutosAteDrenar": 16,
+   "minutosExtrasDepoisDoPico": 6,
+   "atrasoMin": {
+    "p50": 2,
+    "p95": 6,
+    "p99": 6,
+    "max": 6
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 400,
+    "p95": 6,
+    "max": 6
+   },
+   "tick": {
+    "n": 16,
+    "piorMs": 4073.2,
+    "p95Ms": 4073.2,
+    "maxConexoesAtivas": 7,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=400",
+    "scheduling.appointment.checked_in:skipped=1000",
+    "scheduling.appointment.completed:processed=1000",
+    "scheduling.appointment.insurance_completed:processed=600",
+    "scheduling.appointment.started:processed=1000"
+   ],
+   "integridade": {
+    "concluidos": 1000,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 90
+  },
+  {
+   "cenario": "sustentado_100_por_min",
+   "estrategia": "lote-200+orcamento+descarte",
+   "orcamentoReservaMs": 30000,
+   "descarteEmBloco": true,
+   "lote": 200,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.3,
+   "regime": {
+    "minutosDeEntrada": 10,
+    "entradaNoCronPorMin": 340,
+    "saidaMediaPorTick": 300,
+    "filaDepoisDeCadaTick": [
+     40,
+     72,
+     104,
+     138,
+     172,
+     204,
+     240,
+     278,
+     312,
+     344
+    ],
+    "tendenciaPorMinuto": 35,
+    "sustentado": false
+   },
+   "vagasAdiadasPeloPrazo": 0,
+   "descartadosEmBloco": 1000,
+   "conclusoes": 1000,
+   "clinicas": 3,
+   "eventosProduzidos": 4000,
+   "backlogMaximo": 612,
+   "minutosAteDrenar": 12,
+   "minutosExtrasDepoisDoPico": 2,
+   "atrasoMin": {
+    "p50": 1,
+    "p95": 3,
+    "p99": 3,
+    "max": 3
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 400,
+    "p95": 3,
+    "max": 3
+   },
+   "tick": {
+    "n": 12,
+    "piorMs": 3839.6,
+    "p95Ms": 3839.6,
+    "maxConexoesAtivas": 6,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=400",
+    "scheduling.appointment.checked_in:skipped=1000",
+    "scheduling.appointment.completed:processed=1000",
+    "scheduling.appointment.insurance_completed:processed=600",
+    "scheduling.appointment.started:processed=1000"
+   ],
+   "integridade": {
+    "concluidos": 1000,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 83
+  },
+  {
+   "cenario": "pico_com_lentos",
+   "estrategia": "lote-200",
+   "orcamentoReservaMs": null,
+   "descarteEmBloco": false,
+   "lote": 200,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.3,
+   "regime": {
+    "minutosDeEntrada": 3,
+    "entradaNoCronPorMin": 190,
+    "saidaMediaPorTick": 190,
+    "filaDepoisDeCadaTick": [
+     0,
+     0,
+     0
+    ],
+    "tendenciaPorMinuto": 0,
+    "sustentado": true
+   },
+   "vagasAdiadasPeloPrazo": 0,
+   "descartadosEmBloco": 0,
+   "conclusoes": 150,
+   "clinicas": 3,
+   "eventosProduzidos": 660,
+   "backlogMaximo": 170,
+   "minutosAteDrenar": 3,
+   "minutosExtrasDepoisDoPico": 0,
+   "atrasoMin": {
+    "p50": 1,
+    "p95": 1,
+    "p99": 1,
+    "max": 1
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 60,
+    "p95": 1,
+    "max": 1
+   },
+   "tick": {
+    "n": 3,
+    "piorMs": 9359.1,
+    "p95Ms": 9359.1,
+    "maxConexoesAtivas": 5,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "benchmark.consumer.slow:processed=60",
+    "financial.lancamento.created:processed=60",
+    "scheduling.appointment.checked_in:skipped=150",
+    "scheduling.appointment.completed:processed=150",
+    "scheduling.appointment.insurance_completed:processed=90",
+    "scheduling.appointment.started:processed=150"
+   ],
+   "integridade": {
+    "concluidos": 150,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 34
+  },
+  {
+   "cenario": "pico_com_lentos",
+   "estrategia": "lote-200+orcamento+descarte",
+   "orcamentoReservaMs": 30000,
+   "descarteEmBloco": true,
+   "lote": 200,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.3,
+   "regime": {
+    "minutosDeEntrada": 3,
+    "entradaNoCronPorMin": 190,
+    "saidaMediaPorTick": 190,
+    "filaDepoisDeCadaTick": [
+     0,
+     0,
+     0
+    ],
+    "tendenciaPorMinuto": 0,
+    "sustentado": true
+   },
+   "vagasAdiadasPeloPrazo": 0,
+   "descartadosEmBloco": 150,
+   "conclusoes": 150,
+   "clinicas": 3,
+   "eventosProduzidos": 660,
+   "backlogMaximo": 170,
+   "minutosAteDrenar": 3,
+   "minutosExtrasDepoisDoPico": 0,
+   "atrasoMin": {
+    "p50": 1,
+    "p95": 1,
+    "p99": 1,
+    "max": 1
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 60,
+    "p95": 1,
+    "max": 1
+   },
+   "tick": {
+    "n": 3,
+    "piorMs": 8814.9,
+    "p95Ms": 8814.9,
+    "maxConexoesAtivas": 6,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "benchmark.consumer.slow:processed=60",
+    "financial.lancamento.created:processed=60",
+    "scheduling.appointment.checked_in:skipped=150",
+    "scheduling.appointment.completed:processed=150",
+    "scheduling.appointment.insurance_completed:processed=90",
+    "scheduling.appointment.started:processed=150"
+   ],
+   "integridade": {
+    "concluidos": 150,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 32
+  },
+  {
+   "cenario": "pico",
+   "estrategia": "lote-200",
+   "orcamentoReservaMs": null,
+   "descarteEmBloco": false,
+   "lote": 200,
+   "paralelismo": 5,
+   "latenciaIdaMs": 5,
+   "idaEVoltaMedidaMs": 10.4,
+   "regime": {
+    "minutosDeEntrada": 3,
+    "entradaNoCronPorMin": 170,
+    "saidaMediaPorTick": 170,
+    "filaDepoisDeCadaTick": [
+     0,
+     0,
+     0
+    ],
+    "tendenciaPorMinuto": 0,
+    "sustentado": true
+   },
+   "vagasAdiadasPeloPrazo": 0,
+   "descartadosEmBloco": 0,
+   "conclusoes": 150,
+   "clinicas": 3,
+   "eventosProduzidos": 600,
+   "backlogMaximo": 150,
+   "minutosAteDrenar": 3,
+   "minutosExtrasDepoisDoPico": 0,
+   "atrasoMin": {
+    "p50": 1,
+    "p95": 1,
+    "p99": 1,
+    "max": 1
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 60,
+    "p95": 1,
+    "max": 1
+   },
+   "tick": {
+    "n": 3,
+    "piorMs": 14452.7,
+    "p95Ms": 14452.7,
+    "maxConexoesAtivas": 6,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=60",
+    "scheduling.appointment.checked_in:skipped=150",
+    "scheduling.appointment.completed:processed=150",
+    "scheduling.appointment.insurance_completed:processed=90",
+    "scheduling.appointment.started:processed=150"
+   ],
+   "integridade": {
+    "concluidos": 150,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 48
+  },
+  {
+   "cenario": "pico",
+   "estrategia": "lote-200+orcamento+descarte",
+   "orcamentoReservaMs": 30000,
+   "descarteEmBloco": true,
+   "lote": 200,
+   "paralelismo": 5,
+   "latenciaIdaMs": 5,
+   "idaEVoltaMedidaMs": 10.4,
+   "regime": {
+    "minutosDeEntrada": 3,
+    "entradaNoCronPorMin": 170,
+    "saidaMediaPorTick": 170,
+    "filaDepoisDeCadaTick": [
+     0,
+     0,
+     0
+    ],
+    "tendenciaPorMinuto": 0,
+    "sustentado": true
+   },
+   "vagasAdiadasPeloPrazo": 0,
+   "descartadosEmBloco": 150,
+   "conclusoes": 150,
+   "clinicas": 3,
+   "eventosProduzidos": 600,
+   "backlogMaximo": 150,
+   "minutosAteDrenar": 3,
+   "minutosExtrasDepoisDoPico": 0,
+   "atrasoMin": {
+    "p50": 1,
+    "p95": 1,
+    "p99": 1,
+    "max": 1
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 60,
+    "p95": 1,
+    "max": 1
+   },
+   "tick": {
+    "n": 3,
+    "piorMs": 11940.4,
+    "p95Ms": 11940.4,
+    "maxConexoesAtivas": 6,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": null,
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "financial.lancamento.created:processed=60",
+    "scheduling.appointment.checked_in:skipped=150",
+    "scheduling.appointment.completed:processed=150",
+    "scheduling.appointment.insurance_completed:processed=90",
+    "scheduling.appointment.started:processed=150"
+   ],
+   "integridade": {
+    "concluidos": 150,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 41
+  },
+  {
+   "cenario": "falha_e_recuperacao",
+   "estrategia": "lote-200+orcamento+descarte",
+   "orcamentoReservaMs": 30000,
+   "descarteEmBloco": true,
+   "lote": 200,
+   "paralelismo": 5,
+   "latenciaIdaMs": 1,
+   "idaEVoltaMedidaMs": 2.3,
+   "regime": {
+    "minutosDeEntrada": 2,
+    "entradaNoCronPorMin": 51,
+    "saidaMediaPorTick": 51,
+    "filaDepoisDeCadaTick": [
+     0,
+     15
+    ],
+    "tendenciaPorMinuto": 0,
+    "sustentado": false
+   },
+   "vagasAdiadasPeloPrazo": 0,
+   "descartadosEmBloco": 20,
+   "conclusoes": 20,
+   "clinicas": 2,
+   "eventosProduzidos": 114,
+   "backlogMaximo": 47,
+   "minutosAteDrenar": 10,
+   "minutosExtrasDepoisDoPico": 8,
+   "atrasoMin": {
+    "p50": 1,
+    "p95": 9,
+    "p99": 9,
+    "max": 9
+   },
+   "recebivelParticularAtrasoMin": {
+    "n": 8,
+    "p95": 1,
+    "max": 1
+   },
+   "tick": {
+    "n": 10,
+    "piorMs": 2067.6,
+    "p95Ms": 2067.6,
+    "maxConexoesAtivas": 6,
+    "maxLocksEsperando": 0
+   },
+   "retentativas": {
+    "flakyProcessados": 30,
+    "maxTentativas": 2
+   },
+   "falhasNaoVeneno": 0,
+   "porStatus": [
+    "benchmark.consumer.flaky:processed=30",
+    "benchmark.consumer.poison:failed=4",
+    "financial.lancamento.created:processed=8",
+    "scheduling.appointment.checked_in:skipped=20",
+    "scheduling.appointment.completed:processed=20",
+    "scheduling.appointment.insurance_completed:processed=12",
+    "scheduling.appointment.started:processed=20"
+   ],
+   "integridade": {
+    "concluidos": 20,
+    "recebiveis_duplicados": 0,
+    "particular_sem_recebivel": 0,
+    "convenio_com_recebivel_cheio": 0,
+    "convenio_sem_guia": 0,
+    "guias_duplicadas": 0,
+    "prontuarios_duplicados": 0,
+    "recebivel_clinica_errada": 0,
+    "guia_clinica_errada": 0,
+    "presos_em_processing": 0,
+    "pendentes_no_fim": 0
+   },
+   "duracaoRodadaS": 17
+  },
+  {
+   "cenario": "pane_de_consumidor",
+   "rodadas": [
+    {
+     "estrategia": "atual-50",
+     "lote": 50,
+     "eventosLentos": 60,
+     "msPorEvento": 6000,
+     "tickMs": 60463.6,
+     "tratados": 50,
+     "adiadas": 0,
+     "ficaramNaFila": 10,
+     "excede60s": true
+    },
+    {
+     "estrategia": "lote-200",
+     "lote": 200,
+     "eventosLentos": 60,
+     "msPorEvento": 6000,
+     "tickMs": 73271,
+     "tratados": 60,
+     "adiadas": 0,
+     "ficaramNaFila": 0,
+     "excede60s": true
+    },
+    {
+     "estrategia": "lote-200+orcamento+descarte",
+     "lote": 200,
+     "eventosLentos": 60,
+     "msPorEvento": 6000,
+     "tickMs": 30455.8,
+     "tratados": 25,
+     "adiadas": 175,
+     "ficaramNaFila": 35,
+     "excede60s": false
+    }
+   ]
+  }
+ ]
+}

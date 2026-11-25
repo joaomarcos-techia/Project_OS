@@ -1,0 +1,33 @@
+﻿{
+  "observedAt": "2026-11-09T23:06:07.783Z",
+  "scope": "local_support_followup",
+  "baseline": "ffd4c635acd5c90d253ad3594fcabf46d4a82f3f",
+  "supportSource": "Guilherme; response forwarded by founder; ticket not supplied",
+  "localUnitTests": 35,
+  "postgresChecks": 51,
+  "migrations": 142,
+  "networkCalls": 0,
+  "fixtureHttpCalls": 177,
+  "productionWrites": 0,
+  "providerMutations": 0,
+  "newCheckouts": 0,
+  "paidFixturePreserved": true,
+  "remoteRenewal": "NOT RUN",
+  "remoteRefundDispute": "NOT RUN",
+  "checkoutDeletion": "NOT RUN",
+  "productionDecision": "NO-GO",
+  "files": [
+    {
+      "path": "src/contexts/billing/internal/abacatepay-processing.ts",
+      "sha256": "aa9c599e8d6b58e7ced189c356f60a7356023033c5fe401153babcfeb2b652b4"
+    },
+    {
+      "path": "src/lib/payments/abacatepay/webhook.test.ts",
+      "sha256": "1c1c2a88a244e26cea112b56479190ecf69721a78c6b2dd8d5d42dbfeb129c32"
+    },
+    {
+      "path": "scripts/security/abacatepay-renewal-db.ts",
+      "sha256": "bd3ac80e57ca215f532201130b4477f457f7aeee1fb2c189838519ff07b334f9"
+    }
+  ]
+}

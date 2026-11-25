@@ -38,12 +38,14 @@ import {
   getWaitingQueueEntries,
   listAppointments,
 } from '@/contexts/scheduling/queries';
+import { SCHEDULING_EVENTS } from '@/contexts/scheduling';
 import { canCompleteClinically } from '@/contexts/scheduling/internal/clinical-completion';
 import type { AppointmentStatusDTO } from '@/contexts/scheduling/types';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { getCurrentUser, requireUser } from '@/lib/auth/tenant-context';
 
+import { processOutboxSoon } from '../convenios/_lib/outbox-now';
 import {
   DAY_FETCH_CAP,
   EMPTY_BOARD,
@@ -133,12 +135,10 @@ export async function getBoard(input: { doctorId?: string | null } = {}): Promis
   const now = new Date();
   const pick = (statuses: AppointmentStatusDTO[]) =>
     pickByStatus(scoped, statuses).map((a) =>
-      buildCard(
-        a,
-        a.patientId ? cardMap.get(a.patientId) : undefined,
-        checkInTimes[a.id] ?? null,
+      buildCard(a, a.patientId ? cardMap.get(a.patientId) : undefined, checkInTimes[a.id] ?? null, {
         now,
-      ),
+        timeZone: tz,
+      }),
     );
   const waiting = pickByStatus(scoped, ['chegou'])
     .slice()
@@ -153,7 +153,7 @@ export async function getBoard(input: { doctorId?: string | null } = {}): Promis
         appointment,
         appointment.patientId ? cardMap.get(appointment.patientId) : undefined,
         checkInTimes[appointment.id] ?? null,
-        now,
+        { now, timeZone: tz },
         queue
           ? {
               position: queue.position,
@@ -216,9 +216,9 @@ export async function loadAtendimento(
     return ok({
       appointmentId,
       patientId: appt.patientId,
-      pacienteNome: card?.nome ?? (appt.patientId ? 'Paciente' : 'Walk-in'),
+      pacienteNome: card?.nome ?? (appt.patientId ? 'Paciente' : 'Paciente sem cadastro'),
       alergias: card?.alergias ?? [],
-      idade: ageFromBirthdate(card?.dataNascimento ?? null),
+      idade: ageFromBirthdate(card?.dataNascimento ?? null, await clinicTimezoneCached(clinicId)),
       sexo: card?.sexo ?? null,
       motivo: motivoOf(appt),
       status: appt.status,
@@ -286,6 +286,12 @@ export async function completeConsulta(
 ): Promise<ActionResult> {
   try {
     await completeAppointment(appointmentId, idempotencyKey);
+    // Convênio: a guia nasce do evento `insurance_completed` (mesma chave de origem da
+    // transição). Processa logo depois da resposta; o cron é a reserva (e o Preview não
+    // tem cron). Atendimento particular não publica esse evento: nada é processado.
+    processOutboxSoon('appointment_completed', [
+      { eventType: SCHEDULING_EVENTS.INSURANCE_COMPLETED, idempotencyKeys: [`${idempotencyKey}:atendido:convenio`] },
+    ]);
     return ok(undefined);
   } catch (err) {
     return fail(err);

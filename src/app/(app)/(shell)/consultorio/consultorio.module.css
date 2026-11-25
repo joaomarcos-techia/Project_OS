@@ -16,13 +16,18 @@
   flex: 1;
   overflow-y: auto;
 }
+/* Enquanto o painel carrega, o título ou as abas viram o último filho e esticavam. */
+.board > section > .columnTitle,
+.board > section > .attendingTabs {
+  flex: none;
+}
 .board > section {
   display: flex;
   min-width: 0;
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: var(--r-lg);
+  border-radius: var(--card-radius);
   background: var(--surface);
 }
 .columnTitle {

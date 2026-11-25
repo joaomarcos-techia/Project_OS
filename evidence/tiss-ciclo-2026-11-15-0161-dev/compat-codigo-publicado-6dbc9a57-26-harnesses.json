@@ -1,0 +1,184 @@
+[
+ {
+  "file": "health-insurance-clinic-db.ts",
+  "exit": 0,
+  "passes": 29,
+  "seconds": 28,
+  "last": "OK: 29 provas das migrations 0144–0146 (P1.4, P1.5, P1.7, P7.1) sobre o schema real"
+ },
+ {
+  "file": "health-insurance-guides-db.ts",
+  "exit": 0,
+  "passes": 24,
+  "seconds": 35,
+  "last": "OK: 24 provas da migration 0147 (P1.8) sobre o schema real"
+ },
+ {
+  "file": "health-insurance-guide-service-db.ts",
+  "exit": 0,
+  "passes": 9,
+  "seconds": 75,
+  "last": "OK: 9 provas do serviço de geração da Guia de Consulta sobre o schema real"
+ },
+ {
+  "file": "health-insurance-coverage-db.ts",
+  "exit": 0,
+  "passes": 13,
+  "seconds": 103,
+  "last": "{\"ts\":\"2026-11-15T11:15:25.322Z\",\"kind\":\"metric\",\"event\":\"outbox.retry\",\"clinicId\":\"a0c5949b-5d9f-48c9-b536-ab99d06f4289\",\"eventType\":\"health_insurance.copay.confirmed\",\"attempts\":2,\"errorCode\":\"unknown\",\"errorMessage\":\"Error: Failed query: insert into \\\"lancamentos\\\" (\\\"id\\\", \\\"clinic_id\\\", \\\"unit_"
+ },
+ {
+  "file": "health-insurance-guide-issuance-db.ts",
+  "exit": 0,
+  "passes": 7,
+  "seconds": 33,
+  "last": "OK: 7 provas da emissão com snapshot cifrado sobre o schema real"
+ },
+ {
+  "file": "health-insurance-billing-reconcile-db.ts",
+  "exit": 0,
+  "passes": 19,
+  "seconds": 76,
+  "last": "OK — 19/19 provas da P7.4 (0149) em Postgres descartável."
+ },
+ {
+  "file": "health-insurance-batches-db.ts",
+  "exit": 0,
+  "passes": 16,
+  "seconds": 128,
+  "last": "OK — 16/16 provas da P1.9 (0150), do pipeline P9.2 e da P12.7 em Postgres descartável, XSD oficial pelo motor do app (xmllint-wasm 5.3.0)."
+ },
+ {
+  "file": "health-insurance-glosses-payments-db.ts",
+  "exit": 0,
+  "passes": 16,
+  "seconds": 111,
+  "last": "OK — 16/16 provas da 0152 (glosas, recursos, pagamentos e conta da guia) em Postgres descartável."
+ },
+ {
+  "file": "health-insurance-ledger-bridge-db.ts",
+  "exit": 0,
+  "passes": 18,
+  "seconds": 103,
+  "last": ""
+ },
+ {
+  "file": "health-insurance-ui-data-db.ts",
+  "exit": 0,
+  "passes": 6,
+  "seconds": 91,
+  "last": ""
+ },
+ {
+  "file": "health-insurance-appeal-xml-db.ts",
+  "exit": 0,
+  "passes": 6,
+  "seconds": 98,
+  "last": ""
+ },
+ {
+  "file": "health-insurance-statement-import-db.ts",
+  "exit": 0,
+  "passes": 9,
+  "seconds": 107,
+  "last": ""
+ },
+ {
+  "file": "health-insurance-premium-gate-db.ts",
+  "exit": 0,
+  "passes": 11,
+  "seconds": 67,
+  "last": ""
+ },
+ {
+  "file": "hi-r38-ledger-equivalence-db.ts",
+  "exit": 0,
+  "passes": 4,
+  "seconds": 133,
+  "last": "OK — 4 provas: a 0155 não muda nenhuma decisão nem estado do livro (particular, coparticipação, convênio, trial, paga, suspensa, estorno, duplicada, concorrência, rollback)."
+ },
+ {
+  "file": "health-insurance-payout-db.ts",
+  "exit": 0,
+  "passes": 12,
+  "seconds": 112,
+  "last": "OK — 12 provas do repasse profissional de convênio (P10.4)."
+ },
+ {
+  "file": "health-insurance-copay-charge-db.ts",
+  "exit": 0,
+  "passes": 13,
+  "seconds": 86,
+  "last": "OK — 13 provas da cobrança da coparticipação (gateway mockado, nenhuma cobrança real)."
+ },
+ {
+  "file": "health-insurance-sadt-db.ts",
+  "exit": 0,
+  "passes": 11,
+  "seconds": 150,
+  "last": "OK — 11 provas: solicitação SP/SADT persistida e SP/SADT automática ponta a ponta (até o XML validado no XSD)."
+ },
+ {
+  "file": "health-insurance-config-db.ts",
+  "exit": 0,
+  "passes": 14,
+  "seconds": 33,
+  "last": ""
+ },
+ {
+  "file": "health-insurance-batch-export-async-db.ts",
+  "exit": 0,
+  "passes": 11,
+  "seconds": 129,
+  "last": "{\"ts\":\"2026-11-15T11:38:35.423Z\",\"kind\":\"metric\",\"event\":\"outbox.retry\",\"clinicId\":\"ad39d5b3-11cf-4c0c-b13b-a24ebc8aeab9\",\"eventType\":\"health_insurance.batch.export_requested\",\"attempts\":1,\"errorCode\":\"unknown\",\"errorMessage\":\"Error: armazenamento indisponível (simulado)\\nError: armazenamento indisp"
+ },
+ {
+  "file": "health-insurance-credentials-db.ts",
+  "exit": 0,
+  "passes": 7,
+  "seconds": 44,
+  "last": "OK — 7 provas do credenciamento por plano e vigência."
+ },
+ {
+  "file": "payments-external-refund-db.ts",
+  "exit": 0,
+  "passes": 14,
+  "seconds": 129,
+  "last": "{\"ts\":\"2026-11-15T11:41:47.184Z\",\"kind\":\"metric\",\"event\":\"outbox.retry\",\"clinicId\":\"2fdc6f92-84ee-44e8-badb-e11723b49fe0\",\"eventType\":\"payments.patient_refund.external_recognized\",\"attempts\":2,\"errorCode\":\"unknown\",\"errorMessage\":\"Error: Failed query: insert into \\\"payment_transactions\\\" (\\\"id\\\", \\\""
+ },
+ {
+  "file": "health-insurance-modality-change-db.ts",
+  "exit": 0,
+  "passes": 9,
+  "seconds": 51,
+  "last": ""
+ },
+ {
+  "file": "health-insurance-contract-import-db.ts",
+  "exit": 0,
+  "passes": 9,
+  "seconds": 37,
+  "last": ""
+ },
+ {
+  "file": "health-insurance-insurer-credentials-db.ts",
+  "exit": 0,
+  "passes": 5,
+  "seconds": 35,
+  "last": ""
+ },
+ {
+  "file": "health-insurance-tenant-isolation-db.ts",
+  "exit": 0,
+  "passes": 5,
+  "seconds": 28,
+  "last": "OK 5/5"
+ },
+ {
+  "file": "health-insurance-concurrency-db.ts",
+  "exit": 0,
+  "passes": 5,
+  "seconds": 36,
+  "last": "OK 5/5"
+ }
+]

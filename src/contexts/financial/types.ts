@@ -23,6 +23,10 @@ export interface LancamentoSummary {
   descricao: string;
   valor: number;
   valorPago: number;
+  /** Baixa sem caixa por glosa definitiva da operadora (0153); 0 fora do convênio. */
+  valorGlosado: number;
+  /** Guia de convênio de origem (0153): recebível da operadora, mantido pelo Convênios. */
+  sourceHiGuideId: string | null;
   status: LancamentoStatus;
   dueDate: string | null; // 'YYYY-MM-DD'
   paidAt: string | null; // ISO
@@ -204,6 +208,7 @@ export const ConfirmPaymentSchema = z.object({
   lancamentoId: uuid,
   paymentMethod: z.string().min(1).max(40),
   valorPago: money,
+  valorPagoEsperado: z.number().finite().nonnegative().max(99_999_999.99),
   comprovante: z
     .object({
       type: z.enum(['comprovante', 'nota_fiscal', 'outro']),

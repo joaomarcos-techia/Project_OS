@@ -1,0 +1,129 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "81",
+  "title": "Tabela 81 - Terminologia de Tipo do documento",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 17,
+  "terms": [
+    {
+      "code": "1",
+      "term": "Comprovante de elegibilidade",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "2",
+      "term": "Laudo do profissional de saúde",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "3",
+      "term": "Pedido do profissional de saúde",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "4",
+      "term": "Relatório do profissional de saúde",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "5",
+      "term": "Prescrição do profissional de saúde",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "6",
+      "term": "Comprovante de comparecimento (assinatura)",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "7",
+      "term": "Embalagem/rótulo de materiais e/ou medicamentos",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "8",
+      "term": "Comprovante de entrega de medicamentos",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "9",
+      "term": "Notas fiscais",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "10",
+      "term": "Boletim anestésico",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "11",
+      "term": "Selos hemoterápicos",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "12",
+      "term": "Exames de imagem",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "13",
+      "term": "Exames de análises clínicas",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "14",
+      "term": "Termo de consentimento",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "15",
+      "term": "Guia de cobrança de taxa",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "16",
+      "term": "Autorização prévia",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "17",
+      "term": "Relatório de Auditoria",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    }
+  ]
+}

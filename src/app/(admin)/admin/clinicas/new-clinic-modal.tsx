@@ -17,6 +17,7 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -52,6 +53,7 @@ export function NewClinicModal({ plans }: { plans: PlanOption[] }) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Nova clínica · convite</DialogTitle>
+          <DialogDescription>Convite para o gestor criar a conta da clínica.</DialogDescription>
         </DialogHeader>
         <DialogBody>
           <InviteFlow

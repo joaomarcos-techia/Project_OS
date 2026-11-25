@@ -1,9 +1,17 @@
+import type { Metadata } from 'next';
+import {
+  PublicBlock,
+  PublicHeading,
+  PublicPage,
+  SignupStage,
+  signupFrame,
+} from '@/components/shared/signup-frame';
 import { buttonVariants } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Logo } from '@/components/shared/logo';
 import { env } from '@/lib/env';
 
 import { SignupQuestions } from './signup-questions';
+
+export const metadata: Metadata = { title: 'Criar conta' };
 
 export const dynamic = 'force-dynamic';
 
@@ -30,13 +38,9 @@ export default function CadastroPage() {
   const open = env.SIGNUP_ENABLED && env.SIGNUP_IDENTITY_ENABLED;
 
   return (
-    <main data-qoro-tokens="qorov2" className="min-h-screen bg-surface text-fg antialiased">
-      <header className="mx-auto flex w-full max-w-[1120px] items-center justify-between px-5 py-6 sm:px-8">
-        <Logo className="h-auto w-[78px]" />
-        <span className="font-mono text-xs font-medium text-fg-subtle">Cadastro seguro</span>
-      </header>
+    <PublicPage>
       {open ? <SignupQuestions identityEnabled={env.SIGNUP_IDENTITY_ENABLED} /> : <SignupClosed />}
-    </main>
+    </PublicPage>
   );
 }
 
@@ -47,24 +51,23 @@ export default function CadastroPage() {
  */
 function SignupClosed() {
   return (
-    <div className="mx-auto flex w-full max-w-[520px] px-5 pb-16 pt-6 sm:px-8">
-      <Card className="w-full">
-        <CardContent>
-          <h1 className="text-balance font-display text-2xl font-semibold">
-            Cadastro indisponível no momento
-          </h1>
-          <p className="mt-3 text-sm leading-relaxed text-fg-muted">
-            A criação de novas contas está temporariamente fechada. Nenhum dado foi registrado nesta
-            visita.
-          </p>
-          <p className="mt-2 text-sm leading-relaxed text-fg-muted">
-            Se a sua clínica já usa a Qoro, o acesso continua normal pelo login.
-          </p>
-          <a href="/login" className={`${buttonVariants({ variant: 'primary' })} mt-6`}>
-            Ir para o login
-          </a>
-        </CardContent>
-      </Card>
-    </div>
+    <SignupStage>
+      <PublicHeading title="Cadastro indisponível no momento" />
+      <PublicBlock narrow>
+        <p className={signupFrame.text}>
+          A criação de novas contas está temporariamente fechada. Nenhum dado foi registrado nesta
+          visita.
+        </p>
+        <p className={signupFrame.text}>
+          Se a sua clínica já usa a Qoro, o acesso continua normal pelo login.
+        </p>
+        <a
+          href="/login"
+          className={buttonVariants({ variant: 'primary', className: signupFrame.buttonFull })}
+        >
+          Ir para o login
+        </a>
+      </PublicBlock>
+    </SignupStage>
   );
 }

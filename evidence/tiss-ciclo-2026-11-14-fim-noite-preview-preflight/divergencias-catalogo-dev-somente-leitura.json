@@ -1,0 +1,42 @@
+{
+ "0051": {
+  "column": {
+   "data_type": "uuid",
+   "udt_name": "uuid",
+   "is_nullable": "YES",
+   "column_default": null
+  },
+  "fk": "FOREIGN KEY (sent_by_user_id) REFERENCES profiles(id) ON DELETE RESTRICT",
+  "permissions": [
+   "manage:conversations",
+   "view:conversations"
+  ],
+  "rolePermissions": [
+   "attendant:manage:conversations",
+   "attendant:view:conversations",
+   "doctor:view:conversations",
+   "gestor:manage:conversations",
+   "gestor:view:conversations",
+   "owner:manage:conversations",
+   "owner:view:conversations"
+  ],
+  "schemaVersion": 1
+ },
+ "0093": {
+  "column": {
+   "data_type": "ARRAY",
+   "udt_name": "_text",
+   "is_nullable": "NO",
+   "column_default": "ARRAY[]::text[]"
+  }
+ },
+ "0124": {
+  "column": {
+   "data_type": "boolean",
+   "udt_name": "bool",
+   "is_nullable": "NO",
+   "column_default": "false"
+  },
+  "schemaVersion": 1
+ }
+}

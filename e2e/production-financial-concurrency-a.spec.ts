@@ -153,12 +153,12 @@ test.describe('produção: concorrência financeira na Clínica A', () => {
       await expect(financialItem).toBeVisible({ timeout: 30_000 });
       await expect(attendantItem).toBeVisible({ timeout: 30_000 });
       await Promise.all([
-        financialItem.getByRole('button', { name: 'Confirmar pagamento' }).click(),
-        attendantItem.getByRole('button', { name: 'Confirmar pagamento' }).click(),
+        financialItem.getByRole('button', { name: 'Registrar recebimento' }).click(),
+        attendantItem.getByRole('button', { name: 'Registrar recebimento' }).click(),
       ]);
 
-      const financialSubmit = financialItem.getByRole('button', { name: /Receber R\$/u });
-      const attendantSubmit = attendantItem.getByRole('button', { name: /Receber R\$/u });
+      const financialSubmit = financialItem.getByRole('button', { name: /Registrar R\$/u });
+      const attendantSubmit = attendantItem.getByRole('button', { name: /Registrar R\$/u });
       await expect(financialSubmit).toBeEnabled();
       await expect(attendantSubmit).toBeEnabled();
 

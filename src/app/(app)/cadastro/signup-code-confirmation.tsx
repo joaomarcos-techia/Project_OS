@@ -1,13 +1,21 @@
 'use client';
 
-import { MailCheck } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
+import { PublicBlock, PublicHeading, signupFrame } from '@/components/shared/signup-frame';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { SignupEmailDelivery } from '@/contexts/onboarding/signup-email-feedback';
+import { cn } from '@/lib/ui/cn';
+
+import styles from './cadastro.module.css';
+import {
+  forgetSignupDestination,
+  recallSignupDestination,
+  rememberSignupDestination,
+} from './signup-destination-memory';
 
 type Props = {
   rowVersion: number;
@@ -18,7 +26,6 @@ type Props = {
   onReconcile: (reason: 'conflict' | 'uncertain') => Promise<void>;
   onGone: () => void;
 };
-const DESTINATION_TIMEOUT_MS = 10_000;
 
 export function SignupCodeConfirmation({
   rowVersion,
@@ -41,49 +48,25 @@ export function SignupCodeConfirmation({
   const inFlight = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // O endereço vem de quem acabou de digitá-lo, ou da memória desta aba. Nunca
+  // do servidor: a resposta dele mudava quando o e-mail já tinha conta.
   useEffect(() => {
-    if (email) return;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => {
-      controller.abort();
-      setDestinationLoading(false);
-      setMessage(
-        'A consulta do endereço demorou mais que o esperado. Informe o e-mail usado no cadastro para continuar; os demais dados foram preservados.',
-      );
-    }, DESTINATION_TIMEOUT_MS);
-    void fetch('/api/signup/sessions/destination', { cache: 'no-store', signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error('destination_unavailable');
-        const body: unknown = await response.json();
-        if (
-          typeof body !== 'object' ||
-          body === null ||
-          !('email' in body) ||
-          typeof body.email !== 'string'
-        ) {
-          throw new Error('destination_invalid');
-        }
-        if (!controller.signal.aborted) {
-          setDestination(body.email);
-          setAddress(body.email);
-          setDestinationLoading(false);
-          clearTimeout(timeout);
-        }
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setDestinationLoading(false);
-          clearTimeout(timeout);
-          setMessage(
-            'Não conseguimos recuperar o endereço agora. Informe o mesmo e-mail usado no cadastro; os demais dados não precisam ser repetidos.',
-          );
-        }
-      });
-    return () => {
-      clearTimeout(timeout);
-      controller.abort();
-    };
+    if (email) {
+      rememberSignupDestination(email);
+      return;
+    }
+    const remembered = recallSignupDestination();
+    if (remembered) {
+      setDestination(remembered);
+      setAddress(remembered);
+    }
+    setDestinationLoading(false);
   }, [email]);
+
+  const leave = () => {
+    forgetSignupDestination();
+    onGone();
+  };
 
   async function request(action: 'confirm' | 'resend') {
     if (inFlight.current || destinationLoading) return;
@@ -127,6 +110,7 @@ export function SignupCodeConfirmation({
         ) {
           setSuccess(true);
           setMessage('E-mail confirmado. Continuando seu cadastro…');
+          forgetSignupDestination();
           window.location.assign(result.next);
           return;
         }
@@ -149,7 +133,7 @@ export function SignupCodeConfirmation({
         return;
       }
       if (response.status === 410) {
-        onGone();
+        leave();
         return;
       }
       const error = 'error' in result ? result.error : null;
@@ -213,7 +197,7 @@ export function SignupCodeConfirmation({
         body.rowVersion > rowVersion
       ) {
         onEmailCorrected(body.rowVersion, correctedEmail.trim());
-      } else if (response.status === 410) onGone();
+      } else if (response.status === 410) leave();
       else if (response.status === 409 || response.status === 503)
         await onReconcile(response.status === 409 ? 'conflict' : 'uncertain');
       else if (response.status === 429)
@@ -232,172 +216,170 @@ export function SignupCodeConfirmation({
     <section
       aria-labelledby="signup-code-title"
       data-slot="signup-code-confirmation"
-      className="mt-8 rounded-(--r-2xl) bg-surface-raised p-6 text-center shadow-[0_0_0_1px_oklch(0_0_0/0.06),0_8px_28px_oklch(0_0_0/0.07)] sm:p-8"
+      className={styles.stack}
     >
-      <MailCheck aria-hidden="true" className="mx-auto size-8 text-primary" />
-      <p className="mt-5 font-mono text-xs font-semibold uppercase tracking-[0.12em] text-primary">
-        Etapa 3 · confirmação
-      </p>
-      <h2 id="signup-code-title" className="mt-3 text-balance font-display text-2xl font-semibold">
-        Confirme seu e-mail aqui
-      </h2>
-      <p className="mx-auto mt-3 max-w-[46ch] text-pretty text-sm leading-relaxed text-fg-muted">
-        {destination ? (
+      <PublicHeading
+        id="signup-code-title"
+        title="Confirme seu e-mail aqui"
+        lead={
           <>
-            Confira a mensagem enviada para{' '}
-            <strong className="break-all font-medium text-fg">{destination}</strong>.
+            {destination ? (
+              <>
+                Se houver uma etapa de confirmação para{' '}
+                <strong className="break-all font-medium text-fg">{destination}</strong>, você
+                receberá as instruções.
+              </>
+            ) : destinationLoading ? (
+              'Recuperando o e-mail do seu cadastro…'
+            ) : (
+              'Informe o e-mail que você usou no cadastro para continuar com o código recebido.'
+            )}{' '}
+            Se já tem conta, entre para continuar. O código vale por 10 minutos. Você pode colar os
+            8 números de uma vez.
           </>
-        ) : destinationLoading ? (
-          'Recuperando o e-mail do seu cadastro…'
-        ) : (
-          'Informe o e-mail que você usou no cadastro para continuar com o código recebido.'
-        )}{' '}
-        O código vale por 10 minutos. Você pode colar os 8 números de uma vez.
-      </p>
-      {deliveryStatus === 'failed' ? (
-        <div className="mt-5 text-left">
-          <Alert variant="warning" title="Não conseguimos entregar o código">
-            O serviço de e-mail não concluiu a entrega. Confira o endereço acima e corrija-o se
-            necessário. Se estiver correto, tente um reenvio ou fale com o suporte. Não é preciso
-            repetir seu nome, clínica ou respostas.
-          </Alert>
-        </div>
-      ) : deliveryStatus === 'delayed' ? (
-        <div className="mt-5 text-left">
-          <Alert variant="warning" title="A entrega está demorando">
-            O servidor de e-mail está adiando a entrega. Aguarde e confira Spam e Promoções. Se o
-            código expirar, solicite outro.
-          </Alert>
-        </div>
-      ) : null}
-      <form onSubmit={submit} className="mx-auto mt-6 max-w-sm space-y-4">
-        {!destination && !destinationLoading ? (
-          <div className="space-y-2 text-left">
-            <Label htmlFor="signup-code-email">E-mail usado no cadastro</Label>
-            <Input
-              id="signup-code-email"
-              type="email"
-              autoComplete="email"
-              value={address}
-              onChange={(event) => setAddress(event.target.value)}
-              required
-              maxLength={160}
-              disabled={busy !== null}
-            />
-          </div>
-        ) : null}
-        <div className="space-y-2">
-          <Label htmlFor="signup-email-code">Código de confirmação</Label>
-          <Input
-            ref={inputRef}
-            id="signup-email-code"
-            name="verificationCode"
-            type="text"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            pattern="[0-9]{8}"
-            maxLength={8}
-            value={code}
-            disabled={busy !== null}
-            required
-            onChange={(event) => setCode(event.target.value.replace(/[^0-9]/gu, '').slice(0, 8))}
-            onPaste={(event) => {
-              event.preventDefault();
-              setCode(
-                event.clipboardData
-                  .getData('text')
-                  .replace(/[^0-9]/gu, '')
-                  .slice(0, 8),
-              );
-            }}
-            className="h-14 text-center font-mono text-2xl tracking-[0.35em] tabular-nums"
-          />
-        </div>
-        <Button
-          type="submit"
-          loading={busy === 'confirm'}
-          disabled={busy !== null || destinationLoading || editingEmail}
-          className="w-full"
-        >
-          Confirmar e-mail
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          loading={busy === 'resend'}
-          disabled={busy !== null || destinationLoading}
-          onClick={() => void request('resend')}
-        >
-          Reenviar código
-        </Button>
-      </form>
-      {onEmailCorrected && !destinationLoading ? (
-        editingEmail ? (
-          <form
-            onSubmit={(event) => void correctEmail(event)}
-            className="mx-auto mt-5 max-w-sm space-y-3 text-left"
-          >
-            <p className="text-sm text-fg-muted">
-              Seu nome, clínica e respostas serão mantidos. O código anterior será invalidado. Para
-              o endereço corrigido, você informará a senha novamente; nenhuma conta existente terá o
-              e-mail alterado.
-            </p>
-            <Label htmlFor="signup-corrected-email">Novo e-mail</Label>
-            <Input
-              id="signup-corrected-email"
-              type="email"
-              autoComplete="email"
-              required
-              maxLength={160}
-              value={correctedEmail}
-              onChange={(event) => setCorrectedEmail(event.target.value)}
-              disabled={busy !== null}
-            />
-            <div className="flex flex-wrap gap-2">
-              <Button type="submit" loading={busy === 'correct'} disabled={busy !== null}>
-                Salvar endereço corrigido
-              </Button>
+        }
+      />
+      <PublicBlock narrow>
+        <div className={styles.closing}>
+          {deliveryStatus === 'failed' ? (
+            <Alert variant="warning" title="Não conseguimos entregar o código">
+              O serviço de e-mail não concluiu a entrega. Confira o endereço acima e corrija-o se
+              necessário. Se estiver correto, tente um reenvio ou fale com o suporte. Não é preciso
+              repetir seu nome, clínica ou respostas.
+            </Alert>
+          ) : deliveryStatus === 'delayed' ? (
+            <Alert variant="warning" title="A entrega está demorando">
+              O servidor de e-mail está adiando a entrega. Aguarde e confira Spam e Promoções. Se o
+              código expirar, solicite outro.
+            </Alert>
+          ) : null}
+          <form onSubmit={submit} className={styles.form}>
+            {!destination && !destinationLoading ? (
+              <div className={signupFrame.field}>
+                <Label htmlFor="signup-code-email">E-mail usado no cadastro</Label>
+                <Input
+                  id="signup-code-email"
+                  type="email"
+                  autoComplete="email"
+                  value={address}
+                  onChange={(event) => setAddress(event.target.value)}
+                  required
+                  maxLength={160}
+                  disabled={busy !== null}
+                />
+              </div>
+            ) : null}
+            <div className={signupFrame.field}>
+              <Label htmlFor="signup-email-code">Código de confirmação</Label>
+              <Input
+                ref={inputRef}
+                id="signup-email-code"
+                name="verificationCode"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]{8}"
+                maxLength={8}
+                value={code}
+                disabled={busy !== null}
+                required
+                onChange={(event) =>
+                  setCode(event.target.value.replace(/[^0-9]/gu, '').slice(0, 8))
+                }
+                onPaste={(event) => {
+                  event.preventDefault();
+                  setCode(
+                    event.clipboardData
+                      .getData('text')
+                      .replace(/[^0-9]/gu, '')
+                      .slice(0, 8),
+                  );
+                }}
+                className={cn('text-center tabular-nums', styles.codeInput)}
+              />
+            </div>
+            <Button
+              type="submit"
+              loading={busy === 'confirm'}
+              disabled={busy !== null || destinationLoading || editingEmail}
+              className={signupFrame.buttonFull}
+            >
+              Confirmar e-mail
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              loading={busy === 'resend'}
+              disabled={busy !== null || destinationLoading}
+              onClick={() => void request('resend')}
+            >
+              Reenviar código
+            </Button>
+          </form>
+          {onEmailCorrected && !destinationLoading ? (
+            editingEmail ? (
+              <form onSubmit={(event) => void correctEmail(event)} className={styles.form}>
+                <p className={signupFrame.note}>
+                  Seu nome, clínica e respostas serão mantidos. O código anterior será invalidado.
+                  Para o endereço corrigido, você informará a senha novamente; nenhuma conta
+                  existente terá o e-mail alterado.
+                </p>
+                <div className={signupFrame.field}>
+                  <Label htmlFor="signup-corrected-email">Novo e-mail</Label>
+                  <Input
+                    id="signup-corrected-email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    maxLength={160}
+                    value={correctedEmail}
+                    onChange={(event) => setCorrectedEmail(event.target.value)}
+                    disabled={busy !== null}
+                  />
+                </div>
+                <div className={signupFrame.actions}>
+                  <Button type="submit" loading={busy === 'correct'} disabled={busy !== null}>
+                    Salvar endereço corrigido
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={busy !== null}
+                    onClick={() => setEditingEmail(false)}
+                  >
+                    Voltar ao código
+                  </Button>
+                </div>
+              </form>
+            ) : (
               <Button
                 type="button"
                 variant="ghost"
                 disabled={busy !== null}
-                onClick={() => setEditingEmail(false)}
+                onClick={() => {
+                  setCorrectedEmail(address);
+                  setEditingEmail(true);
+                }}
               >
-                Voltar ao código
+                Corrigir endereço de e-mail
               </Button>
-            </div>
-          </form>
-        ) : (
-          <Button
-            type="button"
-            variant="ghost"
-            className="mt-2"
-            disabled={busy !== null}
-            onClick={() => {
-              setCorrectedEmail(address);
-              setEditingEmail(true);
-            }}
-          >
-            Corrigir endereço de e-mail
-          </Button>
-        )
-      ) : null}
-      <div aria-live="polite" className="mt-5 text-left">
-        {message ? <Alert variant={success ? 'success' : 'warning'}>{message}</Alert> : null}
-      </div>
-      <p className="mt-5 text-xs leading-relaxed text-fg-muted">
-        Não encontrou a mensagem? Confira Spam e Promoções. Seu cadastro continua salvo com
-        segurança. Não compartilhe o código ou sua senha com outras pessoas.
-      </p>
-      <p className="mt-3 text-xs leading-relaxed text-fg-muted">
-        Começou em outro navegador ou aparelho?{' '}
-        <a
-          href="/cadastro/retomar"
-          className="font-medium text-primary underline underline-offset-4"
-        >
-          Retomar cadastro com segurança
-        </a>
-      </p>
+            )
+          ) : null}
+          <div aria-live="polite" className={styles.live}>
+            {message ? <Alert variant={success ? 'success' : 'warning'}>{message}</Alert> : null}
+          </div>
+        </div>
+        <p className={signupFrame.fine}>
+          Não encontrou a mensagem? Confira Spam e Promoções. Seu cadastro continua salvo com
+          segurança. Não compartilhe o código ou sua senha com outras pessoas.
+        </p>
+        <p className={signupFrame.fine}>
+          Começou em outro navegador ou aparelho?{' '}
+          <a href="/cadastro/retomar" className={signupFrame.inlineLink}>
+            Retomar cadastro com segurança
+          </a>
+        </p>
+      </PublicBlock>
     </section>
   );
 }

@@ -20,7 +20,7 @@ export const OFFER_2026_PLAN_CODES = [
   'clinica_2026_5',
 ] as const;
 
-/** A compra de assentos extras pertence à assinatura existente, não ao cadastro inicial. */
+/** Aquisição Asaas publicada: conservada. A candidata AbacatePay usa o catálogo completo acima. */
 export const OFFER_2026_ENTRY_PLAN_CODES = ['consultorio_2026', 'clinica_2026_2'] as const;
 
 export type Offer2026PlanCode = (typeof OFFER_2026_PLAN_CODES)[number];

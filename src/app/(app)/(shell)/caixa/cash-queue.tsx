@@ -1,5 +1,6 @@
 'use client';
 
+import { Banknote } from 'lucide-react';
 import { Fragment, useState } from 'react';
 
 import type {
@@ -34,10 +35,12 @@ import {
   cashActionLabel,
   ConfirmPaymentPanel,
   RefundPaymentPanel,
+  registerActionLabel,
   type RefundInput,
 } from './cash-action-panels';
 import { outstandingBalance } from './caixa-money';
 import { CashItemCard } from './cash-item-card';
+import { cashItemDetail, cashItemTitle } from './cash-item-identity';
 import { LocalPager, paginateLocally } from './local-pagination';
 
 type Tone = NonNullable<Parameters<typeof badgeVariants>[0]>['tone'];
@@ -157,21 +160,15 @@ export function CashQueue({
   if (fixedMode) {
     return (
       <section
-        className="qoro-cash-queue flex min-w-0 flex-col overflow-hidden rounded-(--r-lg) border border-border bg-surface"
+        className="qoro-cash-queue flex min-w-0 flex-col overflow-hidden rounded-(--card-radius) border border-border bg-surface"
         aria-label={QUEUE_LABEL[fixedMode]}
       >
-        <div className="flex min-h-11 flex-none items-center gap-2 border-b border-border px-3.5">
-          <h2 className="text-(length:--fs-subsection) font-semibold text-fg">
+        <div className="qoro-section-header flex-none">
+          <h2 className="flex items-center gap-2">
             {QUEUE_LABEL[fixedMode]}
+            <span className="qoro-count">{items.length}</span>
           </h2>
-          <span className="font-mono text-(length:--fs-sm) font-semibold tabular-nums text-fg-subtle">
-            {items.length}
-          </span>
-          {headerTotal ? (
-            <span className="ml-auto font-mono text-(length:--fs-sm) font-semibold tabular-nums text-fg">
-              {headerTotal}
-            </span>
-          ) : null}
+          {headerTotal ? <strong className="tabular-nums">{headerTotal}</strong> : null}
         </div>
 
         <div className="min-h-0 flex-1">
@@ -361,10 +358,11 @@ function ItemRows({
   const refundablePayments = paymentTransactions.filter(
     (transaction) => transaction.kind === 'payment' && transaction.refundableAmount > 0,
   );
-  const subject = item.tipo === 'pagar' ? item.descricao : (item.pacienteNome ?? 'Walk-in');
-  const detail =
-    item.tipo === 'pagar' ? 'Conta a pagar' : (item.snapshotProcedureName ?? item.descricao);
-  const actionLabel = item.tipo === 'pagar' ? 'Pagar' : 'Receber';
+  // UX-015: sem paciente, o título é a descrição; a ausência vai para o apoio.
+  const subject = cashItemTitle(item);
+  const detail = cashItemDetail(item);
+  // UX-015: o clique abre a conferência e registra; não cobra ninguém.
+  const actionLabel = registerActionLabel(item);
   const panelId = panelMode ? `cash-panel-${item.id}-${panelMode}` : undefined;
 
   return (
@@ -423,7 +421,7 @@ function ItemRows({
                   size="sm"
                   variant="primary"
                   className="min-h-(--hit-target)"
-                  aria-label={`${actionLabel} ${subject}`}
+                  aria-label={`${actionLabel}: ${subject}`}
                   aria-expanded={panelMode === 'confirm'}
                   aria-controls={panelMode === 'confirm' ? panelId : undefined}
                   onClick={() => onOpenPanel('confirm')}
@@ -443,6 +441,7 @@ function ItemRows({
                     onClick={() => onOpenPanel('cash')}
                     disabled={pending}
                   >
+                    <Banknote aria-hidden="true" className="size-4" />
                     {cashActionLabel(item)}
                   </Button>
                 ) : null}

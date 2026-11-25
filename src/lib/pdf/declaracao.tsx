@@ -21,7 +21,7 @@ export async function renderDeclaracaoPDF(
           <Text>{data.periodo}</Text>
         </View>
       ) : null}
-      <Text style={styles.dateLine}>Data: {formatDate(data.issuedAt)}</Text>
+      <Text style={styles.dateLine}>Data: {formatDate(data.issuedAt, data.timeZone)}</Text>
     </DocShell>,
   );
 }

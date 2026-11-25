@@ -25,6 +25,7 @@ import type { RequestContext } from '@/lib/audit/types';
 import { dbAdmin } from '@/lib/db';
 import type { Tx } from '@/lib/db';
 import { maskPhone } from '@/lib/format';
+import { assertTrialPaidFeatureTx } from '@/lib/trial-access';
 
 import type { MessagingProviderName } from './provider';
 
@@ -56,6 +57,7 @@ export async function upsertTenantConnection(
   input: UpsertTenantConnectionInput,
 ): Promise<{ id: string }> {
   return dbAdmin.transaction(async (tx: Tx) => {
+    await assertTrialPaidFeatureTx(tx, input.clinicId, 'whatsapp');
     const existing = await tx.execute<{ id: string }>(sql`
       SELECT id FROM clinic_whatsapp_numbers
       WHERE clinic_id = ${input.clinicId} AND meta_phone_id = ${input.metaPhoneId}

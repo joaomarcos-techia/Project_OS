@@ -1,0 +1,10 @@
+{
+ "quando": "2026-11-13 (depois do pagamento por cartão no Sandbox)",
+ "rota": "POST /api/webhooks/asaas/patient/<ref da clínica> no Preview da branch (deploy de 164a2af0+)",
+ "antes": { "recebivel_pago": "45.00", "recebivel": "pago", "pagamentos_no_livro": 1, "coparticipacao": "paid", "eventos_de_webhook": 2 },
+ "token_errado": { "http": 401 },
+ "mesmo_evento_reenviado": { "http": 200, "outcome": "ignored" },
+ "evento_novo_do_mesmo_pagamento": { "http": 200, "outcome": "already_paid" },
+ "depois": { "recebivel_pago": "45.00", "recebivel": "pago", "pagamentos_no_livro": 1, "coparticipacao": "paid", "eventos_de_webhook": 3 },
+ "conclusao": "Reentrega (mesmo evento) é deduplicada; outra entrega do mesmo pagamento não gera segunda baixa nem segunda transação; token de outra origem é recusado. O pagamento real já tinha chegado em DOIS webhooks do Asaas (PAYMENT_CONFIRMED e CHECKOUT_PAID) com uma baixa só."
+}

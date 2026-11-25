@@ -115,3 +115,65 @@ seleção e revisão humana do mínimo necessário. Upload de evidências não f
   `atendido`. Replay processou zero, manteve um ajuste e duas transações; nenhum evento alheio foi
   tocado. O cleanup autorizado revalidou o estado, removeu 16 linhas sintéticas em uma transação,
   preservou o audit do webhook, não chamou o provider e terminou com zero resíduo da fixture D62.
+
+## Adendo R54 (2026-11-14) — estorno feito direto no Asaas
+
+**Contexto.** Até aqui o webhook de estorno só confirmava devoluções que o próprio Qoro tinha
+pedido (D50/D77: a intenção é persistida antes e o read-back a confirma). Uma devolução feita pela
+clínica no painel do Asaas, sem intenção, deixava a baixa inteira no livro (risco R54 do plano TISS).
+
+**Fonte da verdade.** Os estornos `DONE` de `GET /payments/{id}/refunds`, lidos com a chave da
+própria clínica, e o `GET /payments/{id}` para status, valor e chargeback. O corpo do webhook só
+acorda a leitura (eventos `PAYMENT_REFUNDED`, `PAYMENT_PARTIALLY_REFUNDED`,
+`PAYMENT_REFUND_IN_PROGRESS`, `PAYMENT_REFUND_DENIED`, ou qualquer evento cujo pagamento já esteja
+`REFUNDED`/`REFUND_REQUESTED`/`REFUND_IN_PROGRESS`). Nada é reconhecido por valor e data, nem porque
+alguém afirmou ter devolvido. Estorno `PENDING`/`CANCELLED` não conta.
+
+**Atribuição.** Do total `DONE` sai o que as intenções **confirmadas** do Qoro explicam; o resto é
+externo. A intenção captura o baseline antes e só confirma dinheiro novo, então um estorno externo
+anterior nunca é contado de novo. Vai para **revisão humana** (pendência, sem compensação): intenção
+ainda aberta (atribuição ambígua), disputa aberta, valor do pagamento diferente do da cobrança e
+devolução acima do valor. Chargeback perdido continua sendo do caminho do risco (seções 1–2): o
+"devolvido" que o Asaas mostra é a própria perda, e o estorno externo não faz nada.
+
+**Idempotência.** O item de estorno do Asaas pode vir sem id. A chave é o **patamar acumulado**
+devolvido por fora do Qoro: `patient_external_refunds (clinic_id, patient_charge_id, external_total)`
+é UNIQUE e a cobrança fica travada durante o reconhecimento. Reentrega, varredura e instâncias
+concorrentes caem no mesmo patamar. Um estorno parcial novo cria o patamar seguinte só com a
+diferença. Uma leitura mais antiga que a já reconhecida não muda nada (métrica
+`payments.external_refund.stale_reading`). O aviso de revisão tem payload determinístico, então o
+mesmo fato entregue de novo responde 200 e não abre um segundo aviso.
+
+**Livro.** O Payments grava a evidência (só status, valor e data dos estornos lidos; só inclusão para
+o runtime), marca a cobrança `refunded` quando a devolução cobre o valor, publica
+`payments.patient_refund.external_recognized` e audita com ator de sistema. O Financial aplica a
+mesma compensação da perda (seção 2): `patient_credit_adjustments(kind=external_refund)`,
+`payment_transactions(kind=refund)` ligada à baixa original, `valor_pago` reduzido e a pendência
+"Estorno feito direto no Asaas: baixa compensada e saldo reaberto para revisão humana. Não cobrar
+novamente sem decisão." A conclusão do atendimento passa a alocar só o que ficou no crédito
+(`amount − unallocated_reversed_amount`). Antes desta correção, um estorno parcial ocorrido antes do
+atendimento seria baixado como se o dinheiro ainda estivesse na conta.
+
+**Repasse.** O repasse particular com qualquer reversão fica suspenso (`cancelled`) até nova revisão
+humana, com o valor anterior na auditoria. Repasse já aprovado (`reviewed`) volta a suspenso, a
+versão aprovada fica intacta e a nova revisão mostra a referência recalculada sobre o recebido. A
+diferença é o valor a compensar. O Qoro não registra o pagamento do repasse particular nem move
+dinheiro. O repasse de convênio é calculado sobre o dinheiro da operadora (`hi_payout_position`), sem
+a coparticipação, e não muda.
+
+**Coparticipação.** A função `hi_copay_sync_charge` (0158) põe a coparticipação em "estornada"
+quando a soma dos estornos do recebível cobre o recebido. Estorno parcial mantém "paga" e deixa o
+recebível parcial.
+
+**Recuperação sem webhook.** A varredura do `financial-reconcile` lê as cobranças pagas a cada 6 h
+(até 30 dias) ou 3 dias (de 30 a 180 dias), com cursor `patient_charges.refund_checked_at`. É uma
+leitura administrativa só de identificadores; todo o resto roda por clínica, sob RLS.
+
+**Fora do alcance.** Não houve homologação no Asaas Sandbox de um estorno externo real: a única
+fixture paga é a coparticipação de R$ 45 homologada, que não foi estornada. Nenhum estorno é pedido
+pelo Qoro ao Asaas por este caminho.
+
+**Evidência.** `src/contexts/payments/internal/external-refund.test.ts` (regra);
+`scripts/security/payments-external-refund-db.ts` (14 provas: rota real, livro, worker, falha
+transacional, retry, varredura, concorrência, RLS, repasse); `health-insurance-copay-charge-db.ts`
+§10 (coparticipação).

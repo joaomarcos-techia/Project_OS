@@ -11,11 +11,18 @@ const mocks = vi.hoisted(() => ({
   listPaymentMethods: vi.fn(),
   getCashFlowToday: vi.fn(),
   getAvailablePatientCreditSummary: vi.fn(),
+  getOpenReceivablesByOrigin: vi.fn(),
   listPatientCards: vi.fn(),
   redirect: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
+// A página lê o usuário por `requirePageUser` (sessão morta vai para /login, OBS-001). Aqui ele
+// delega ao `requireUser` simulado, para os cenários continuarem os mesmos; o redirecionamento
+// tem teste próprio em `src/lib/auth/page-guard.test.ts`.
+vi.mock('@/lib/auth/page-guard', () => ({
+  requirePageUser: async () => (await import('@/lib/auth/tenant-context')).requireUser(),
+}));
 vi.mock('@/lib/auth/tenant-context', () => ({
   requireUser: mocks.requireUser,
   requireClinicId: mocks.requireClinicId,
@@ -27,6 +34,7 @@ vi.mock('@/contexts/financial/queries', () => ({
   listPaymentMethods: mocks.listPaymentMethods,
   getCashFlowToday: mocks.getCashFlowToday,
   getAvailablePatientCreditSummary: mocks.getAvailablePatientCreditSummary,
+  getOpenReceivablesByOrigin: mocks.getOpenReceivablesByOrigin,
 }));
 vi.mock('@/contexts/patient/queries', () => ({ listPatientCards: mocks.listPatientCards }));
 vi.mock('./new-lancamento-drawer', () => ({ NewLancamentoDrawer: () => null }));
@@ -57,6 +65,10 @@ beforeEach(() => {
     },
   });
   mocks.getAvailablePatientCreditSummary.mockResolvedValue({ amount: 10, count: 1 });
+  mocks.getOpenReceivablesByOrigin.mockResolvedValue({
+    paciente: { valor: 0, qtd: 0 },
+    operadora: { valor: 0, qtd: 0 },
+  });
 });
 
 afterEach(cleanup);
@@ -85,5 +97,75 @@ describe('FinanceiroPage', () => {
 
     expect(screen.queryByRole('region', { name: 'Créditos antecipados e excedentes' })).toBeNull();
     expect(mocks.getAvailablePatientCreditSummary).not.toHaveBeenCalled();
+  });
+  it('P10.6: separa paciente × operadora — filtro de origem, aberto por origem e selo na linha', async () => {
+    mocks.requireUser.mockResolvedValue({
+      clinicId: 'clinic-a',
+      permissions: [PERMISSIONS.VIEW_FINANCIAL],
+    });
+    const base = {
+      tipo: 'receber',
+      status: 'pendente',
+      valorPago: 0,
+      valorGlosado: 0,
+      patientId: null,
+      supplierId: null,
+      snapshotProcedureName: null,
+      dueDate: null,
+      createdAt: '2026-11-20T12:00:00.000Z',
+    };
+    mocks.listLancamentosPage.mockResolvedValue({
+      items: [
+        { ...base, id: 'l-op', descricao: 'Guia de convênio', valor: 150, valorGlosado: 30, sourceHiGuideId: 'g-1' },
+        { ...base, id: 'l-pac', descricao: 'Particular', valor: 200, sourceHiGuideId: null },
+      ],
+      total: 2,
+      pageSize: 50,
+    });
+    mocks.getCashFlowToday.mockResolvedValue({
+      receber: 320,
+      pagar: 0,
+      recebidoHoje: 0,
+      pagoHoje: 0,
+      saldoHoje: 0,
+      contagens: { receber: 2, receberVencidos: 0, pagar: 0, recebimentos: 0, pagamentos: 0 },
+    });
+    mocks.getOpenReceivablesByOrigin.mockResolvedValue({
+      paciente: { valor: 200, qtd: 1 },
+      operadora: { valor: 120, qtd: 1 },
+    });
+
+    const { container } = render(
+      await FinanceiroPage({ searchParams: Promise.resolve({ tipo: 'receber', origem: 'operadora' }) }),
+    );
+
+    expect(mocks.listLancamentosPage).toHaveBeenCalledWith('clinic-a', {
+      tipo: 'receber',
+      origem: 'operadora',
+      page: 1,
+    });
+    const split = container.querySelector('[data-receivable-split]');
+    expect(split?.textContent?.replace(/\s+/gu, ' ')).toMatch(
+      /Pacientes R\$\s200,00 · Operadoras R\$\s120,00/u,
+    );
+    expect(container.querySelectorAll('[data-origin="operadora"]')).toHaveLength(1);
+    const origem = screen.getByRole('combobox', { name: 'Filtrar por origem' }) as HTMLSelectElement;
+    expect(origem.value).toBe('operadora');
+    // A troca de tipo preserva a origem filtrada.
+    expect(screen.getByRole('link', { name: 'A pagar' }).getAttribute('href')).toBe('/financeiro?tipo=pagar&origem=operadora');
+  });
+
+  it('P10.6: origem desconhecida é ignorada e, sem recebível de operadora, a divisão não aparece', async () => {
+    mocks.requireUser.mockResolvedValue({
+      clinicId: 'clinic-a',
+      permissions: [PERMISSIONS.VIEW_FINANCIAL],
+    });
+
+    const { container } = render(
+      await FinanceiroPage({ searchParams: Promise.resolve({ origem: 'tudo' }) }),
+    );
+
+    expect(mocks.listLancamentosPage).toHaveBeenCalledWith('clinic-a', { page: 1 });
+    expect(container.querySelector('[data-receivable-split]')).toBeNull();
   });
 });

@@ -2,7 +2,7 @@
 
 import { MoreHorizontal } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 
 import { ALL_PERMISSIONS, type Permission } from '@/lib/auth/permissions';
 import { Button } from '@/components/ui/button';
@@ -66,6 +66,11 @@ const PERMISSION_LABELS: Partial<Record<Permission, string>> = {
   'view:consultorio': 'Ver consultório',
   'view:conversations': 'Ver conversas IA',
   'manage:conversations': 'Gerenciar conversas IA',
+  'view:convenios': 'Ver convênios',
+  'manage:convenios': 'Configurar convênios',
+  'operate:convenios': 'Operar convênios (recepção)',
+  'view:faturamento_convenio': 'Ver faturamento de convênios',
+  'manage:faturamento_convenio': 'Faturar convênios',
 };
 
 export interface MemberRowActionsProps {
@@ -102,6 +107,8 @@ export function MemberRowActions({
   const router = useRouter();
   const [pending, start] = useTransition();
 
+  // Os diálogos abrem por item de menu, que some ao fechar o menu: o foco volta ao botão "Ações".
+  const menuTrigger = useRef<HTMLButtonElement>(null);
   const [roleOpen, setRoleOpen] = useState(false);
   const [nextRole, setNextRole] = useState(role);
   const [permissionsOpen, setPermissionsOpen] = useState(false);
@@ -213,7 +220,7 @@ export function MemberRowActions({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" icon aria-label={`Ações de ${nome}`}>
+          <Button ref={menuTrigger} variant="ghost" size="sm" icon aria-label={`Ações de ${nome}`}>
             <MoreHorizontal className="size-4" />
           </Button>
         </DropdownMenuTrigger>
@@ -251,7 +258,7 @@ export function MemberRowActions({
 
       {/* Trocar função */}
       <Dialog open={roleOpen} onOpenChange={setRoleOpen}>
-        <DialogContent>
+        <DialogContent returnFocusRef={menuTrigger}>
           <DialogHeader>
             <div className="min-w-0">
               <DialogTitle>Trocar função de {nome}</DialogTitle>
@@ -287,7 +294,7 @@ export function MemberRowActions({
 
       {/* Overrides granulares — recurso dos planos Clínica e Pro. */}
       <Dialog open={permissionsOpen} onOpenChange={setPermissionsOpen}>
-        <DialogContent>
+        <DialogContent returnFocusRef={menuTrigger}>
           <DialogHeader>
             <div className="min-w-0">
               <DialogTitle>Permissões de {nome}</DialogTitle>
@@ -338,6 +345,7 @@ export function MemberRowActions({
       {/* Desativar — com o caminho de bloqueio ADR-032 §4 */}
       {blocked ? (
         <ConfirmDialog
+          returnFocusRef={menuTrigger}
           open={deactivateOpen}
           onOpenChange={(o) => {
             setDeactivateOpen(o);
@@ -355,6 +363,7 @@ export function MemberRowActions({
         />
       ) : (
         <ConfirmDialog
+          returnFocusRef={menuTrigger}
           open={deactivateOpen}
           onOpenChange={setDeactivateOpen}
           tone="danger"

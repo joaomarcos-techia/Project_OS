@@ -1,0 +1,9 @@
+{
+  "observedAt": "2026-11-08T20:06:20.672Z",
+  "status": "PASS",
+  "checks": 45,
+  "environment": "synthetic_loopback_postgres",
+  "migrations": ["0136_trial_resource_limits", "0137_trial_service_role_privileges"],
+  "remoteWrites": 0,
+  "providerCalls": 0
+}

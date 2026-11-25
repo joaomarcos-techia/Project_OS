@@ -1,0 +1,13 @@
+
+Running 5 tests using 1 worker
+
+  ok 1 [chromium] › e2e\hydration-r51-preview.spec.ts:99:1 › o Preview usa o projeto DEV (prova assinada antes de qualquer escrita) (1.5s)
+  ok 2 [chromium] › e2e\hydration-r51-preview.spec.ts:104:1 › recepção põe um paciente na sala de espera (encaixe de convênio) (23.7s)
+R51 médica: []
+  ok 3 [chromium] › e2e\hydration-r51-preview.spec.ts:125:1 › médica: consultório com paciente esperando, relógio adiantado e outro fuso — sem #418 (desktop e celular) (50.5s)
+R51 gestora: []
+  ok 4 [chromium] › e2e\hydration-r51-preview.spec.ts:133:1 › gestora: convênio e financeiro, relógio adiantado e outro fuso — sem #418 (desktop e celular) (2.4m)
+R51 recepção: []
+  ok 5 [chromium] › e2e\hydration-r51-preview.spec.ts:145:1 › recepção: painel, agenda, caixa e conciliação, relógio adiantado e outro fuso — sem #418 (desktop e celular) (1.1m)
+
+  5 passed (4.8m)

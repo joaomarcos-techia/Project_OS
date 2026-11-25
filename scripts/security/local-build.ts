@@ -18,6 +18,19 @@ await rm(path.join(target, '.next'), { recursive: true, force: true });
 const copied = [
   'src',
   'scripts/security',
+  // Dependencies of the operator regression tests copied with src/security.
+  // Explicit files only: never copy the whole scripts directory or .env files.
+  'scripts/abacatepay-preflight-transport.ts',
+  'scripts/abacatepay-preflight-catalog.sql',
+  'scripts/abacatepay-release-validation.ts',
+  'scripts/abacatepay-release-apply.ts',
+  'scripts/gate-b-containment.ts',
+  'scripts/abacatepay-checkout-session.ts',
+  'scripts/recovery-scheduled-backup.ts',
+  'scripts/recovery-backup-alert.ts',
+  // Núcleo da carga TUSS (só módulos do Node): o harness de desempenho da P14.4, em
+  // scripts/security, o importa, e a checagem de tipos do build o precisa na cópia.
+  'scripts/tiss/terminology/load-core.ts',
   'package.json',
   'tsconfig.json',
   'next.config.ts',
@@ -39,6 +52,40 @@ for (const entry of copied) {
   await rm(path.join(target, entry), { recursive: true, force: true });
   await cp(path.join(root, entry), path.join(target, entry), { recursive: true });
 }
+// Presentation-only fixture, generated ONLY in the isolated copy. The public
+// signup prefix retains its real middleware; HTTP doubles do not prove Auth/DB.
+const planUiFixture = path.join(target, 'src/app/(app)/cadastro/qoro-billing-harness/page.tsx');
+await mkdir(path.dirname(planUiFixture), { recursive: true });
+await writeFile(
+  planUiFixture,
+  `import { PublicPage, SignupStage, PublicHeading } from '@/components/shared/signup-frame';
+import { PlanSelectionForm } from '../plano/plan-selection-form';
+import { DeferredSubscription } from '@/app/(app)/(shell)/configuracoes/assinatura/deferred-subscription';
+import { PlanChangeForm } from '@/app/(app)/(shell)/configuracoes/assinatura/plan-change-form';
+export default async function Harness({searchParams}:{searchParams:Promise<{billingState?:string}>}) {
+  const {billingState}=await searchParams;
+  if(billingState==='asaas-paid')return <PublicPage><PlanChangeForm
+    current={{planId:'plan_synthetic',planName:'Clínica legada sintética',planCode:'clinica',priceAmount:'397.00',billingCycle:'monthly',billingStatus:'active',periodEnd:'2027-01-15T00:00:00Z',trialEndsAt:null}}
+    plans={[]} activeUsers={1} activeDoctors={1} activeStaff={0} pending={null}
+  /></PublicPage>;
+  if(billingState?.startsWith('abacate-'))return <PublicPage><DeferredSubscription
+    planName="Clínica sintética" amountMinor={39700} trialEndsAt="2026-11-08T12:00:00Z"
+    trialActive={false} paid billingStatus="active" paidPeriodActive
+    managementAvailable={billingState!=='abacate-unavailable'}
+    contractId="11111111-1111-4111-8111-111111111111" accessUntil="2027-01-15T00:00:00Z"
+    cancellationState={billingState==='abacate-cancelled'?'confirmed':'none'}
+  /></PublicPage>;
+  if(billingState==='processing'||billingState==='paused')return <PublicPage><DeferredSubscription
+    planName="Clínica sintética" amountMinor={39700} trialEndsAt="2026-11-08T12:00:00Z"
+    trialActive={false} paid={false} billingStatus="trial" paidPeriodActive={false}
+    activationPending={billingState==='processing'} checkoutAvailable={billingState!=='paused'}
+  /></PublicPage>;
+  return <PublicPage><SignupStage step={3} trialFirst>
+    <PublicHeading title="Escolha seu plano" lead="Harness sintético de apresentação" />
+    <PlanSelectionForm />
+  </SignupStage></PublicPage>;
+}`,
+);
 // Copia o config de lint; os plugins são resolvidos pelo pacote eslint-config-next.
 const lintConfig = path.join(target, 'eslint.config.mjs');
 try {
@@ -89,8 +136,13 @@ Object.assign(childEnv, {
   SUPABASE_SECRET_KEY: 'security_bundle_canary_supabase_secret',
   GEMINI_API_KEY: 'security_bundle_canary_gemini_secret',
   ASAAS_API_KEY: 'security_bundle_canary_asaas_secret',
+  ABACATEPAY_API_KEY: 'security_bundle_canary_abacatepay_secret',
   CRYPTO_SECRET_BACKEND: 'env',
   APP_BASE_URL: 'http://localhost:3217',
+  // Public dummy pair, exclusively in this isolated build with synthetic backends.
+  // https://developers.cloudflare.com/turnstile/troubleshooting/testing/
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: '1x00000000000000000000AA',
+  TURNSTILE_SECRET_KEY: '1x0000000000000000000000000000000AA',
 });
 // Somente fixtures públicas/sintéticas; útil para reproduzir next start sem dotenv.
 await writeFile(path.join(output, 'runtime-env.json'), JSON.stringify(childEnv, null, 2));

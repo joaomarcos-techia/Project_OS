@@ -17,11 +17,18 @@ import { isValidCnpj } from './cnpj';
 export const DOCUMENT_INVALID_MESSAGE =
   'CPF ou CNPJ inválido. Informe os 11 dígitos do CPF ou os 14 do CNPJ.';
 
-/** Só dígitos. `null` quando não sobra nada — ausência é diferente de inválido. */
+/**
+ * Sem pontuação nem espaços, letras em maiúsculas. `null` quando não sobra nada
+ * — ausência é diferente de inválido.
+ *
+ * Letras NÃO são descartadas: antes, um CNPJ alfanumérico com 3 letras perdia as
+ * letras e virava 11 dígitos, que podiam passar como CPF e seguir para o
+ * gateway como o documento de outra pessoa (R16 do plano de convênios).
+ */
 export function normalizeDocument(input: string | null | undefined): string | null {
   if (typeof input !== 'string') return null;
-  const digits = input.replace(/\D/gu, '');
-  return digits.length > 0 ? digits : null;
+  const clean = input.replace(/[^0-9A-Za-z]/gu, '').toUpperCase();
+  return clean.length > 0 ? clean : null;
 }
 
 /**
@@ -32,7 +39,7 @@ export function normalizeDocument(input: string | null | undefined): string | nu
  */
 export function isValidCpf(input: string | null | undefined): boolean {
   const cpf = normalizeDocument(input);
-  if (!cpf || cpf.length !== 11) return false;
+  if (!cpf || !/^\d{11}$/u.test(cpf)) return false;
   if (/^(\d)\1{10}$/u.test(cpf)) return false;
 
   const digitAt = (index: number): number => Number(cpf[index]);
@@ -49,12 +56,20 @@ export function isValidCpf(input: string | null | undefined): boolean {
   return true;
 }
 
-/** Aceita CPF (11) ou CNPJ (14). Qualquer outro comprimento é inválido. */
+/**
+ * Aceita CPF (11 dígitos) ou CNPJ NUMÉRICO (14 dígitos). Qualquer outro formato
+ * é inválido.
+ *
+ * O CNPJ alfanumérico é válido no cadastro (`./cnpj`), mas ainda não aqui: este
+ * documento vai para o gateway de cobrança (Asaas, AbacatePay), e nenhum dos
+ * dois documenta aceitar letras no campo. Liberar só com evidência no sandbox
+ * de cada gateway (R16).
+ */
 export function isValidDocument(input: string | null | undefined): boolean {
-  const digits = normalizeDocument(input);
-  if (!digits) return false;
-  if (digits.length === 11) return isValidCpf(digits);
-  if (digits.length === 14) return isValidCnpj(digits);
+  const doc = normalizeDocument(input);
+  if (!doc) return false;
+  if (/^\d{11}$/u.test(doc)) return isValidCpf(doc);
+  if (/^\d{14}$/u.test(doc)) return isValidCnpj(doc);
   return false;
 }
 

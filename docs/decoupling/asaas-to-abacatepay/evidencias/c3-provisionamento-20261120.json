@@ -1,0 +1,420 @@
+{
+  "recordedAt": "2026-11-20T18:06:47.377Z",
+  "status": "CONTROLLED_PROOFS_PASS_FINAL_HEAD_CI_REQUIRED",
+  "qualificationSha": "3210d14193264ee6b2cecec928f5b4db1234a937",
+  "applicationTree": "91beee0c622cc59af5e136a1a2d0357786cf3205",
+  "migrationTree": "65fbff1698b6d82fd2d5ad26a08f003b02a71e23",
+  "admission": {
+    "run": 44788412349,
+    "financial": {
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "authorization refuses existing Auth email without adopting or duplicating it",
+          "status": "PASS"
+        },
+        {
+          "name": "authorization refuses existing clinic name without adopting or duplicating it",
+          "status": "PASS"
+        },
+        {
+          "name": "authorization refuses pending conventional invite without adopting or duplicating it",
+          "status": "PASS"
+        },
+        {
+          "name": "twelve concurrent authorizations persist one invitation",
+          "status": "PASS"
+        },
+        {
+          "name": "repeat authorization does not generate another invitation",
+          "status": "PASS"
+        },
+        {
+          "name": "lost response rotates only the unclaimed link without a second reservation",
+          "status": "PASS"
+        },
+        {
+          "name": "another beneficiary cannot enter the single pilot cohort",
+          "status": "PASS"
+        },
+        {
+          "name": "reissuing never invalidates the link of an account already in progress",
+          "status": "PASS"
+        },
+        {
+          "name": "wrong email cannot claim the approved reservation",
+          "status": "PASS"
+        },
+        {
+          "name": "unconfirmed email cannot provision a tenant",
+          "status": "PASS"
+        },
+        {
+          "name": "missing trusted password binding cannot provision",
+          "status": "PASS"
+        },
+        {
+          "name": "unknown invitation is denied without changes",
+          "status": "PASS"
+        },
+        {
+          "name": "expiry rejects provisioning",
+          "status": "PASS"
+        },
+        {
+          "name": "tampered selected plan is refused before tenant creation",
+          "status": "PASS"
+        },
+        {
+          "name": "actual SQL identity predicate rejects a foreign address",
+          "status": "PASS"
+        },
+        {
+          "name": "failure after tenant creation rolls back the entire reservation",
+          "status": "PASS"
+        },
+        {
+          "name": "twelve concurrent retries create one owner, clinic, trial and binding",
+          "status": "PASS"
+        },
+        {
+          "name": "one complete unpaid Consultorio contract and no external checkout",
+          "status": "PASS"
+        },
+        {
+          "name": "completed invite cannot bootstrap a second beneficiary",
+          "status": "PASS"
+        },
+        {
+          "name": "unconfirmed payment cannot grant paid entitlements",
+          "status": "PASS"
+        },
+        {
+          "name": "confirmed synthetic payment releases trial with one invoice under concurrent replay",
+          "status": "PASS"
+        },
+        {
+          "name": "private grant and gateway tables remain denied to anonymous",
+          "status": "PASS"
+        }
+      ],
+      "networkCalls": 0,
+      "scope": "owned loopback PostgreSQL with synthetic Auth rows and synthetic financial evidence; no external payment or login proof",
+      "productionWrites": 0
+    },
+    "shared": {
+      "status": "PASS",
+      "checks": [
+        {
+          "name": "authorization refuses existing Auth email without adopting or duplicating it",
+          "status": "PASS"
+        },
+        {
+          "name": "authorization refuses existing clinic name without adopting or duplicating it",
+          "status": "PASS"
+        },
+        {
+          "name": "authorization refuses pending conventional invite without adopting or duplicating it",
+          "status": "PASS"
+        },
+        {
+          "name": "twelve concurrent authorizations persist one invitation",
+          "status": "PASS"
+        },
+        {
+          "name": "repeat authorization does not generate another invitation",
+          "status": "PASS"
+        },
+        {
+          "name": "lost response rotates only the unclaimed link without a second reservation",
+          "status": "PASS"
+        },
+        {
+          "name": "another beneficiary cannot enter the single pilot cohort",
+          "status": "PASS"
+        },
+        {
+          "name": "reissuing never invalidates the link of an account already in progress",
+          "status": "PASS"
+        },
+        {
+          "name": "wrong email cannot claim the approved reservation",
+          "status": "PASS"
+        },
+        {
+          "name": "unconfirmed email cannot provision a tenant",
+          "status": "PASS"
+        },
+        {
+          "name": "missing trusted password binding cannot provision",
+          "status": "PASS"
+        },
+        {
+          "name": "unknown invitation is denied without changes",
+          "status": "PASS"
+        },
+        {
+          "name": "expiry rejects provisioning",
+          "status": "PASS"
+        },
+        {
+          "name": "tampered selected plan is refused before tenant creation",
+          "status": "PASS"
+        },
+        {
+          "name": "actual SQL identity predicate rejects a foreign address",
+          "status": "PASS"
+        },
+        {
+          "name": "failure after tenant creation rolls back the entire reservation",
+          "status": "PASS"
+        },
+        {
+          "name": "twelve concurrent retries create one owner, clinic, trial and binding",
+          "status": "PASS"
+        },
+        {
+          "name": "one complete unpaid Consultorio contract and no external checkout",
+          "status": "PASS"
+        },
+        {
+          "name": "completed invite cannot bootstrap a second beneficiary",
+          "status": "PASS"
+        },
+        {
+          "name": "unconfirmed payment cannot grant paid entitlements",
+          "status": "PASS"
+        },
+        {
+          "name": "confirmed synthetic payment releases trial with one invoice under concurrent replay",
+          "status": "PASS"
+        },
+        {
+          "name": "private grant and gateway tables remain denied to anonymous",
+          "status": "PASS"
+        }
+      ],
+      "networkCalls": 0,
+      "scope": "owned loopback PostgreSQL with synthetic Auth rows and synthetic financial evidence; no external payment or login proof",
+      "productionWrites": 0
+    }
+  },
+  "browser": {
+    "run": 44788412349,
+    "result": {
+      "status": "PASS",
+      "phase": "complete",
+      "browserErrors": 0,
+      "legacyPasswordCleared": false,
+      "localAuthVersion": "v2.197.0",
+      "http": [
+        {
+          "method": "POST",
+          "path": "/api/signup/pilot",
+          "status": 201
+        },
+        {
+          "method": "POST",
+          "path": "/api/signup/pilot",
+          "status": 201
+        },
+        {
+          "method": "POST",
+          "path": "/api/signup/pilot",
+          "status": 201
+        },
+        {
+          "method": "POST",
+          "path": "/api/signup/pilot",
+          "status": 201
+        },
+        {
+          "method": "POST",
+          "path": "/api/signup/sessions/answers",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "path": "/api/signup/sessions/identity",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "path": "/api/signup/sessions/auth",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "path": "/api/signup/sessions/verify",
+          "status": 422
+        },
+        {
+          "method": "POST",
+          "path": "/api/signup/sessions/verify",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "path": "/api/signup/plan",
+          "status": 200
+        },
+        {
+          "method": "PUT",
+          "path": "/api/signup/plan",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "path": "/api/signup/pilot/provision",
+          "status": 200
+        }
+      ],
+      "scope": "real local GoTrue password, OTP, browser cookies and tenant provisioning; memory-only mail stub; no external financial operation",
+      "productionWrites": 0,
+      "passedTests": 2,
+      "failedTests": 0,
+      "failures": []
+    }
+  },
+  "exactComposedBuild": {
+    "run": 44787566735,
+    "result": {
+      "status": "PASS",
+      "sha": "2992d9232a394dc1792774aa8bf23a554c039423",
+      "startedAt": "2026-11-20T17:59:05.456Z",
+      "finishedAt": "2026-11-20T18:02:41.843Z",
+      "exitCode": 0,
+      "scope": "Exact current financial source exported by git archive plus frozen 160-entry SQL composition; not a build of the historical C2 TAR",
+      "sourceFiles": 1680,
+      "sourceManifestSha256": "62ba05ab77913f4198ea2e0ebd7fdbafb7705ef2d90ab174d3a5eb145a0a7e09",
+      "memoryBefore": {
+        "freeBytes": 7120588800,
+        "totalBytes": 8317935616,
+        "buildHeapMiB": 4096
+      },
+      "sqlCount": 160,
+      "lastMigration": "0159_saas_period_snapshot",
+      "build": "next build",
+      "transformedApplicationSources": false,
+      "syntheticEnvironmentOnly": true,
+      "productionWrites": 0,
+      "deploys": 0
+    },
+    "sameApplicationAndBuildInputs": true,
+    "comparedInputs": [
+      "src",
+      "drizzle",
+      "package.json",
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml",
+      "next.config.ts",
+      "scripts/abacatepay-saas-release.ts",
+      "scripts/gate-b-composed-build.ts"
+    ]
+  },
+  "financialRegression": {
+    "run": 44787566735,
+    "sourceSha": "2992d9232a394dc1792774aa8bf23a554c039423",
+    "results": [
+      {
+        "file": "abacatepay-renewal-db.json",
+        "status": "PASS",
+        "checks": 131
+      },
+      {
+        "file": "abacatepay-pilot-http.json",
+        "status": "PASS",
+        "checks": 10
+      },
+      {
+        "file": "signup-free-trial-db.json",
+        "status": "PASS",
+        "checks": 51
+      },
+      {
+        "file": "trial-resource-limits.json",
+        "status": "PASS",
+        "checks": 45
+      },
+      {
+        "file": "abacatepay-checkout-recovery-db.json",
+        "status": "PASS",
+        "checks": 29
+      },
+      {
+        "file": "renewal-schema-transition160.json",
+        "status": "PASS",
+        "checks": 131
+      },
+      {
+        "file": "trial-schema160.json",
+        "status": "PASS",
+        "checks": 52
+      },
+      {
+        "file": "cancellation-candidate-160.json",
+        "status": "PASS",
+        "checks": 10
+      }
+    ]
+  },
+  "preview": {
+    "sha": "3210d14193264ee6b2cecec928f5b4db1234a937",
+    "id": "dpl_FV1izwKAuveDKo71a8QW2e9GCFtC",
+    "url": "https://project-3mojmds6u-clinic-os-v2-s-projects.vercel.app",
+    "target": "preview",
+    "state": "READY",
+    "checkedAt": "2026-11-20T18:03:38.724Z",
+    "protectionAuthentication": true,
+    "boundaries": [
+      {
+        "method": "GET",
+        "path": "/cadastro/piloto",
+        "status": 404
+      },
+      {
+        "method": "POST",
+        "path": "/api/signup/pilot",
+        "status": 503
+      },
+      {
+        "method": "GET",
+        "path": "/api/signup/plan",
+        "status": 401
+      },
+      {
+        "method": "GET",
+        "path": "/admin/billing/operacao",
+        "status": 307
+      }
+    ]
+  },
+  "historicalProductionRead": {
+    "observedAt": "2026-11-19T23:48:04.514Z",
+    "runtimeSha": "25d01b17e9ee950c5760124445e4d1b2d9c0291e",
+    "migrations": 160,
+    "asaasContracts": 5,
+    "abacatepaySubscriptions": 0,
+    "pilotEntitiesAbsentAtRead": true,
+    "publicAcquisitionClosed": true,
+    "freshPreflightRequiredBeforeAnyAuthorizedWindow": true
+  },
+  "limitations": [
+    "No external email delivery or HIBP provider availability proof; mail is memory-only and password exposure response is a valid synthetic fixture.",
+    "Legacy password clearing was not reproduced on isolated GoTrue v2.197.0; no Production Auth mutation or reproduction was attempted.",
+    "Hosted Preview checks disabled admission boundaries only; the enabled complete journey ran against real disposable Next, GoTrue, PostgreSQL and Redis on Actions.",
+    "No new provider payment, natural renewal or live closure evidence. Existing paid Sandbox fixtures were not mutated.",
+    "R1-R4 and R51 remain PARTIAL; B1-B remains deferred, accepted previously and NOT VERIFIED.",
+    "Final documentation HEAD must have its own successful CI and external checks, linked in PR53 after push."
+  ],
+  "productionWrites": 0,
+  "providerMutations": 0,
+  "realEmailsSent": 0,
+  "migrationsAppliedToSharedDatabases": 0,
+  "authorization": {
+    "correctiveDeploy": false,
+    "realPilot": false,
+    "publicAcquisition": false,
+    "merge": false
+  }
+}

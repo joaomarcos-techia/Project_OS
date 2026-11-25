@@ -20,6 +20,12 @@ import {
   listSchedulableResources,
   type RecurrenceSeriesSummary,
 } from '@/contexts/scheduling/queries';
+import {
+  getSchedulingInsuranceOptions,
+  listAgendaInsuranceStates,
+  type AgendaInsuranceState,
+  type SchedulingInsuranceOptions,
+} from '@/contexts/health-insurance/config-queries';
 import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import type { DepositStatus } from '@/components/ui/status-badge';
 import {
@@ -82,6 +88,10 @@ export interface AgendaAppt {
   filaDesde: string | null;
   /** Chamada para atendimento (ISO). Null enquanto não foi chamado. */
   atendimentoDesde: string | null;
+  /** Paciente do atendimento (null no encaixe sem cadastro): a troca para convênio usa as carteirinhas dele. */
+  patientId: string | null;
+  /** P4.3: forma de atendimento e cobertura (operadora, situação). Particular quando não há convênio. */
+  convenio: AgendaInsuranceState | null;
 }
 export interface ProcedureOption {
   id: string;
@@ -110,6 +120,17 @@ export interface AgendaData {
   selfDoctorId: string | null;
   canEditAgenda: boolean;
   canManageAvailability: boolean;
+  /**
+   * UX-007 — com o catálogo vazio, quem pode cadastrar procedimentos recebe o
+   * atalho; quem não pode, a orientação de pedir a quem administra. Opcional:
+   * ausente = sem permissão.
+   */
+  canManageProcedures?: boolean;
+  /**
+   * UX-006 — cadastro rápido de paciente dentro do novo agendamento. Espelha a
+   * permissão que o domínio exige (`create:patient`); o servidor confere de novo.
+   */
+  canCreatePatient?: boolean;
   appointments: AgendaAppt[];
   /** UX-003 — séries recorrentes presentes na faixa exibida. */
   recurrenceSeries: RecurrenceSeriesSummary[];
@@ -127,6 +148,11 @@ export interface AgendaData {
   tz: string;
   view: AgendaView;
   ymd: string;
+  /**
+   * ADR-072 (P4.4): opções da forma de atendimento "Convênio". Ausente/nulo = a clínica
+   * não usa convênio (ou o módulo não existe no ambiente) e o formulário fica como era.
+   */
+  insurance?: SchedulingInsuranceOptions | null;
 }
 
 const DEFAULT_TZ = 'America/Sao_Paulo';
@@ -281,12 +307,23 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
   const doctorNameOf = new Map(doctors.map((doctor) => [doctor.id, doctor.nome]));
   const filaDe = new Map(fila.map((f) => [f.appointmentId, f]));
 
+  // Convênio nunca derruba a agenda: falha na leitura = sem o selo nem a troca de modalidade.
+  const insuranceStates: Record<string, AgendaInsuranceState> = await listAgendaInsuranceStates(
+    clinicId,
+    appts.map((a) => a.id),
+  ).catch((error: unknown) => {
+    console.warn(
+      '[agenda] modalidade de convênio indisponível',
+      error instanceof Error ? error.name : 'erro',
+    );
+    return {};
+  });
   const appointments: AgendaAppt[] = appts.map((a) => ({
     id: a.id,
     doctorId: a.doctorId,
     horario: a.scheduledAt,
     pacienteNome: a.patientId ? (nameOf.get(a.patientId) ?? 'Paciente') : 'Encaixe',
-    pacienteIdade: ageFromBirthdate(a.patientId ? (birthOf.get(a.patientId) ?? null) : null),
+    pacienteIdade: ageFromBirthdate(a.patientId ? (birthOf.get(a.patientId) ?? null) : null, tz),
     medicoNome: doctorNameOf.get(a.doctorId) ?? a.snapshotDoctorNome,
     procedimento: a.snapshotProcedureName,
     duracaoMin: a.durationMin,
@@ -301,7 +338,20 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
     criadoEm: a.createdAt,
     filaDesde: filaDe.get(a.id)?.queuedAt ?? null,
     atendimentoDesde: filaDe.get(a.id)?.startedAt ?? null,
+    patientId: a.patientId ?? null,
+    convenio: insuranceStates[a.id]?.mode === 'convenio' ? insuranceStates[a.id]! : null,
   }));
+
+  // Convênio nunca derruba a agenda: falha na leitura = formulário sem a opção.
+  const insurance = user.permissions.includes(PERMISSIONS.EDIT_AGENDA)
+    ? await getSchedulingInsuranceOptions(clinicId).catch((error: unknown) => {
+        console.warn(
+          '[agenda] opções de convênio indisponíveis',
+          error instanceof Error ? error.name : 'erro',
+        );
+        return null;
+      })
+    : null;
 
   const deliveryFailures = buildAgendaDeliveryFailures({
     failures,
@@ -319,6 +369,8 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
     selfDoctorId: isPractitioner ? user.userId : null,
     canEditAgenda: user.permissions.includes(PERMISSIONS.EDIT_AGENDA),
     canManageAvailability: user.permissions.includes(PERMISSIONS.MANAGE_AVAILABILITY),
+    canManageProcedures: user.permissions.includes(PERMISSIONS.MANAGE_PROCEDURES),
+    canCreatePatient: user.permissions.includes(PERMISSIONS.CREATE_PATIENT),
     appointments,
     recurrenceSeries,
     procedures,
@@ -329,5 +381,6 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
     tz,
     view: query.view,
     ymd,
+    insurance,
   };
 }

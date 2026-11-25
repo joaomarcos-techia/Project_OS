@@ -1,0 +1,54 @@
+{
+  "observedAt": "2026-11-10T10:39:32.686Z",
+  "scope": "operator_preparation_only_no_new_financial_transaction",
+  "preflight": {
+    "status": "PASS",
+    "stage": "preflight",
+    "observedAt": "2026-11-10T10:33:25.913Z",
+    "sha": "a27be74240bf72bdef088b9017fbb9d6b4f94fbd",
+    "preview": "https://project-j0bzr7os9-clinic-os-v2-s-projects.vercel.app",
+    "plan": "clinica_2026_2",
+    "amountMinor": 39700,
+    "signedDevRuntime": true,
+    "devAuthAdminReadiness": true,
+    "sandboxProducts": 2,
+    "webhookTargetSameRelease": true,
+    "invalidWebhookHttp": 401,
+    "databaseHistoryCount": 143,
+    "newAuthUsers": 0,
+    "newCheckouts": 0,
+    "payments": 0,
+    "productionWrites": 0
+  },
+  "preparedRunId": "a9e58df5-a2c0-403f-b967-c698f70c0ccb",
+  "preparedPhase": "prepared",
+  "sameRunReopened": true,
+  "credentials": "DPAPI_CurrentUser_roundtrip_and_private_ACL_verified",
+  "windowsAclCanary": {
+    "status": "PASS",
+    "checks": 2,
+    "scope": "new_directory_then_repeated_private_acl_no_elevation",
+    "credentialsOrAccountsCreated": 0
+  },
+  "cliGuards": {
+    "status": "PASS",
+    "checks": 2,
+    "scope": "actual_CLI_refuses_Production_and_unsafe_slot_before_preflight",
+    "externalCalls": 0
+  },
+  "focusedTests": {
+    "pass": 143,
+    "newOperatorTests": 32,
+    "overlappingDoNotSum": true
+  },
+  "newPayment": "NOT RUN",
+  "newOperatorCreateAndPaidVerify": "NOT RUN",
+  "productionChanges": 0,
+  "retainedPaidFixtureMutations": 0,
+  "sourceHashes": {
+    "scripts/abacatepay-checkout-operator.ts": "a3463f9ab3e505546dbc4c6cec60642aaadd362f21825ff880e45bd519d0c440",
+    "scripts/abacatepay-checkout-session.ts": "95967b6684cd27b734132226983bc512d58175b130f6ecf341b631d2edcad57c",
+    "src/lib/payments/saas/checkout-operator-session.test.ts": "b3115f74c29441b18cdab7cde05a1c0def60df440602658a5dbc182865ed0ded",
+    "e2e/abacatepay-trial-preview.spec.ts": "cdc1b2fde1db1e63d18f853f74dd9a519a5bf1a1dc6ad18c1d163e2906caa30b"
+  }
+}

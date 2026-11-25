@@ -120,6 +120,32 @@ afterEach(() => {
 });
 
 describe('cadastro — quatro perguntas impessoais', () => {
+  it('synchronizes the private fragment removal without reusing Next internal history state', async () => {
+    const path = window.location.pathname + window.location.search;
+    window.history.replaceState({ __NA: true }, '', path + '#invite=' + 'a'.repeat(64));
+    const replace = vi.spyOn(window.history, 'replaceState');
+    const navigate = vi.spyOn(window.location, 'replace').mockImplementation(() => undefined);
+    fetchMock.mockResolvedValueOnce(
+      json(201, {
+        session: EMPTY_SESSION,
+        identity: {
+          ownerName: 'Synthetic owner',
+          clinicName: 'Synthetic clinic',
+          email: 'owner@example.test',
+        },
+        resumed: false,
+      }),
+    );
+    try {
+      render(<SignupQuestions identityEnabled pilot />);
+      await waitFor(() => expect(navigate).toHaveBeenCalledWith(path));
+      expect(replace).toHaveBeenCalledWith(null, '', path);
+      expect(window.location.hash).toBe('');
+      expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['/api/signup/pilot']);
+    } finally {
+      window.history.replaceState(null, '', path);
+    }
+  });
   it('abre uma única sessão no StrictMode e não renderiza campos de PII', async () => {
     fetchMock
       .mockResolvedValueOnce(json(410, { error: 'gone' }))
@@ -141,6 +167,16 @@ describe('cadastro — quatro perguntas impessoais', () => {
     expect(
       document.querySelector('input[type="password"], input[type="email"], textarea'),
     ).toBeNull();
+  });
+
+  it('mostra a abertura do convite na etapa 1, sem outro título principal', async () => {
+    fetchMock
+      .mockResolvedValueOnce(json(410, { error: 'gone' }))
+      .mockResolvedValueOnce(json(201, { session: EMPTY_SESSION }));
+    render(<SignupQuestions intro="Abertura do convite sintético." />);
+    await screen.findByRole('heading', { name: 'Quantos médicos atendem na clínica?' });
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.getByText('Abertura do convite sintético.')).toBeTruthy();
   });
 
   it('retoma respostas persistidas por GET /me sem criar outra sessão', async () => {

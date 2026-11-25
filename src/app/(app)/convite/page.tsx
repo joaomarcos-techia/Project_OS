@@ -1,9 +1,12 @@
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 import { createServerClient } from '@/lib/auth/supabase-server';
 import { readAuthoritativeProfile } from '@/lib/auth/tenant-context';
 
 import { ConviteForm, type InviteMeta } from './convite-form';
+
+export const metadata: Metadata = { title: 'Convite' };
 
 export const dynamic = 'force-dynamic';
 

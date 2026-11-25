@@ -86,6 +86,9 @@ importers:
       react-dom:
         specifier: 19.2.6
         version: 19.2.6(react@19.2.6)
+      react-useanimations:
+        specifier: 3.1.1
+        version: 3.1.1(react@19.2.6)
       safe-stable-stringify:
         specifier: 2.5.0
         version: 2.5.0
@@ -95,6 +98,9 @@ importers:
       tailwind-merge:
         specifier: 3.6.0
         version: 3.6.0
+      xmllint-wasm:
+        specifier: 5.3.0
+        version: 5.3.0(@types/node@22.19.19)
       zod:
         specifier: ^4.6.6
         version: 4.6.6
@@ -4416,6 +4422,11 @@ packages:
       '@types/react':
         optional: true
 
+  react-useanimations@3.1.1:
+    resolution: {integrity: sha512-hq5ItlbkHk1ztmAxFvWTMX9ZTpPdT9ZTvRpvoakrdsvDNRtUl6Yf5IUPGxP+bxVidgKXUeDhBioQE8g/8jsYMQ==}
+    peerDependencies:
+      react: '>=18'
+
   react@19.2.6:
     resolution: {integrity: sha512-sfWGGfavi0xr8Pg0sVsyHMAOziVYKgPLNrS7ig+ivMNb3wbCBw3KxtflsGBAwD3gYQlE/AEZsTLgToRrSCjb0Q==}
     engines: {node: '>=0.10.0'}
@@ -5079,6 +5090,12 @@ packages:
         optional: true
       utf-8-validate:
         optional: true
+
+  xmllint-wasm@5.3.0:
+    resolution: {integrity: sha512-sEgRXdf2t13eYCFCURmCE6h2hwleEOIS9VL/jOh9JJJnez2YXIooi2Ghm05/JZEPXyPawN8sMASPVZlmh8Sd6A==}
+    engines: {node: '>=16'}
+    peerDependencies:
+      '@types/node': '>=16'
 
   y18n@4.0.3:
     resolution: {integrity: sha512-JKhqTOwSrqNA1NY5lSztJ1GrBiUodLMmIZuLiDaMRJ+itFd+ABVE8XBjOvIWL+rSqNDC74LCSFmlb/U4UZ4hJQ==}
@@ -9336,6 +9353,10 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.15
 
+  react-useanimations@3.1.1(react@19.2.6):
+    dependencies:
+      react: 19.2.6
+
   react@19.2.6: {}
 
   readable-stream@3.6.2:
@@ -10184,6 +10205,10 @@ snapshots:
       strip-ansi: 7.2.0
 
   ws@8.21.0: {}
+
+  xmllint-wasm@5.3.0(@types/node@22.19.19):
+    dependencies:
+      '@types/node': 22.19.19
 
   y18n@4.0.3: {}
 
