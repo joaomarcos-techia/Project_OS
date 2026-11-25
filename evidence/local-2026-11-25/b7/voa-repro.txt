@@ -1,0 +1,3 @@
+arquivo: V2c-sadt-itens-variados.xml sha256 60d73f595cc33cb52aa194f4b435116e710fcfcade78db52ae5d486613f8693e
+item 2: 3 x 33.33 x 0.70 = 69.9930 -> 69.99; valorTotal no XML 69.99
+REPRODUZIDO na tiss 0.5.0: item.valor_divergente em /ans:mensagemTISS/ans:prestadorParaOperadora/ans:loteGuias/ans:guiasTISS/ans:guiaSP-SADT/ans:procedimentosExecutados/ans:procedimentoExecutado[2]/ans:valorTotal

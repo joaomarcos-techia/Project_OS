@@ -114,3 +114,28 @@ issue no repositório da Voa. Não abri a issue.
 - **Issue:** texto pronto acima; **não publicada** (comunicação pública em nome do Qoro; a autorização foi para
   preparar e reproduzir).
 - **B7 VALIDATION: PARTIAL** até o aceite da troca do critério da P13.5 (ou a licença comercial do programa Windows).
+
+## Política técnica adotada (25/11/2026, noite — autorizada pelo fundador)
+
+**Decisão:** a camada C da P13.5 passa a ser a **validação composta**, no lugar do programa para Windows:
+
+| Camada | O quê | Independência |
+| --- | --- | --- |
+| A | XSD oficial 4.03.00 com libxml2 (xmllint-wasm) | motor principal |
+| B | XSD oficial com .NET `System.Xml.Schema` | motor independente |
+| C | hash do epílogo e regras com a Voa `tiss` 0.5.0 (sha256 fixado, offline) | implementação independente (o XSD dela é libxml2, **não** um terceiro motor) |
+| D | regras próprias do Qoro (TUSS, vigência, CPF/CNPJ, datas, destino) | — |
+
+**Execução local de 25/11 (sem GitHub Actions; `evidence/local-2026-11-25/b7/`):** A 38/38 no c1 e 14/14 no c2;
+B 38/38; C `--check` igual ao resultado gravado (XSD 38/38, hash 37/37) e a reprodução do falso positivo do fator
+confirmada; D coberta pela suíte TISS local (524 testes, 3 SKIPs históricos). Nenhum XML do Qoro foi alterado para
+agradar a Voa.
+
+**Cobertura residual:** sem terceiro motor XSD independente; o falso positivo da Voa (fator de redução/acréscimo) é
+exceção registrada até a correção a montante; 10 regras do Qoro que a Voa não tem continuam só na camada D.
+
+**Exigência externa de ferramenta específica:** a ANS não exige nem publica validador (Componente Organizacional
+202609, item 142). Contrato de operadora pode exigir — pergunta acrescentada ao pacote B5. Se alguma exigir, a
+ressalva volta para aquela operadora.
+
+**B7: PASS (política composta)**, com as ressalvas acima. Issue da Voa: pronta, não publicada.
