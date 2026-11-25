@@ -129,6 +129,27 @@ Situação comum a todas:
 - **Dependências:** nenhuma.
 - **Autorização necessária:** sua (quem consulta e como).
 
+## Matriz de prontidão técnica (25/11/2026)
+
+Nenhum item está ligado para usuário real, e nenhum está "aprovado" só porque o código foi testado. A coluna
+"Pronto" descreve o que existe no código. As políticas preparadas estão em
+`src/lib/auth/security-profile/tiss-policies.ts`, com 9 testes em `tiss-policies.test.ts`.
+
+| Item | Pronto | Prova | Falta (técnico) | Risco se ligar hoje | Decisão humana |
+| --- | --- | --- | --- | --- | --- |
+| S1 alcance | direção: perfil por clínica com Convênios ligado; isolamento por clínica e invalidação de sessão ao trocar de clínica já existem | testes de tenant e de sessão da base | escolher o perfil no login e na sessão a partir de `hi_clinic_settings.enabled`; regra do suporte da plataforma; E2E com uma clínica de cada lado | alcance errado se a ANS entender que vale para a plataforma inteira | S9, depois a sua |
+| S2 inatividade 10 min | decisão no servidor (`sessionActivityDecision`, `isUserActivityRequest`): só interação renova, bloqueio aos 10 min, aviso aos 9 | 2 testes | ligar no middleware ou na sessão; **rascunho do prontuário no servidor** antes de ligar; aviso no shell (#56); E2E de bloqueio e recuperação | **perda de texto do prontuário em edição** (por isso o rascunho vem antes) | a sua, depois dos E2E |
+| S3 símbolo na senha | `tissPasswordProblems` (nunca afrouxa a regra atual) | 1 teste | ligar nos 5 fluxos (cadastro, convite, redefinição, recuperação, troca logada); E2E dos 5 | algum fluxo esquecido impedir a troca de senha | a sua (S1 antes) |
+| S4 90 dias + histórico de 10 | prazo com carência na ativação (`passwordAgeDecision`), verificador scrypt com sal e pepper, detecção de reuso | 6 testes | migration aditiva da tabela de histórico (só `service_role`), revogação das sessões na troca, E2E de senha vencida | equipe trancada sem a carência | a sua: migration no DEV e ligação |
+| S5 auditoria 180 dias | no módulo, leituras de carteirinha, guia, lote e arquivo já são auditadas com finalidade e confirmadas antes do erro | harnesses do módulo | imutabilidade **global** (sem UPDATE/DELETE pelo app), retenção de 180 dias, tentativas de login de 90 para 180 dias, verificação periódica; harness tentando editar e apagar | muda o runbook de retenção da base inteira | a sua (global); o descarte depende da B6 |
+| S6 documento do usuário | e-mail único; exclusão por `deleted_at` (quem operou não some) | — | estratégia de documento (CPF ou conselho + UF) **só depois da S9**; CPF obrigatório **não** autorizado | coletar CPF sem base na LGPD | S9, depois a sua |
+| S7 fornecedor e versão | **feito** (P12.11): fornecedor, software e versão do build nas telas de Convênios e nos PDFs | `software-identity.test.ts`, `print.test.ts`, E2E | — | — | já aprovada |
+| S8 último acesso, memorização, queda do Upstash | proposta: na queda do Upstash, contar falhas por `email_hash` em `login_attempts` (15 min, teto 5); se os dois falharem, fechar o login, sem bloquear a recuperação | — | avaliação de **carga** do fallback antes de qualquer código; aviso de último acesso; memorização depende da S9 (req. 43) | login aberto a força bruta se o Upstash cair (hoje) | a sua (R42 e R69); S9 para o R43 |
+
+**Ordem técnica possível sem nenhuma decisão:** testes sintéticos e simulação de ativação por clínica em DEV,
+nunca para usuário real; a migration aditiva do histórico de senha (S4), só preparada; a avaliação de carga do
+fallback (S8); o rascunho do prontuário no servidor (pré-requisito da S2). Nenhum desses liga o perfil.
+
 ## Depois das decisões
 
 Cada aprovação liga a política correspondente e ganha seu E2E (N.9). A P15.5 fecha só com os critérios da seção "Critérios para fechar a P15.5" de `revisao-seguranca-p15-5.md` cumpridos sobre o SHA final.
