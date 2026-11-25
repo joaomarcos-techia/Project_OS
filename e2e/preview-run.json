@@ -1,6 +1,6 @@
 {
-  "note": "Pedido de E2E no Preview (navegador remoto). Mudar este arquivo dispara convenios-preview-e2e.yml. HS25-55A: head final do #55 com a P8.4-r e a guia nova depois de cancelada — cancelamento/substituição P7.5 (fixture HS25B), estados da guia (HS25A) e P8.4 da conferência (HS25C), cada grupo num runner.",
-  "run": "HS25-55A",
+  "note": "Pedido de E2E no Preview (navegador remoto). Mudar este arquivo dispara convenios-preview-e2e.yml. HS25-55B: head do #55 com a P8.4-r, a guia nova depois de cancelada e a P12.11 — P7.5 (HS25E), estados da guia (HS25D) e P8.4 da conferência (HS25F); relé com o grupo no id (corrige a colisão do HS25-55A).",
+  "run": "HS25-55B",
   "groups": [
     [
       "e2e/convenios-p75-preview.spec.ts"
@@ -19,16 +19,16 @@
   "groupEnv": [
     {
       "E2E_HI_P75_ACCOUNTS": "e2e-hi-p75-accounts.json",
-      "E2E_HI_P75": "e2e-hi-p75-hs25b.json"
+      "E2E_HI_P75": "e2e-hi-p75-hs25e.json"
     },
     {
       "E2E_HI_CFG_ACCOUNTS": "e2e-hi-cfg-accounts.json",
-      "E2E_HI_STATES": "e2e-hi-states-hs25a.json",
+      "E2E_HI_STATES": "e2e-hi-states-hs25d.json",
       "E2E_HI_CFG_GUIDE": "e2e-hi-cfg-guide.json"
     },
     {
       "E2E_HI_P84_ACCOUNTS": "e2e-hi-p84-accounts.json",
-      "E2E_HI_P84": "e2e-hi-p84-hs25c.json"
+      "E2E_HI_P84": "e2e-hi-p84-hs25f.json"
     }
   ]
 }

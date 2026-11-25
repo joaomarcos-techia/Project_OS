@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
+import { softwareIdentityLine } from '@/lib/software-identity';
 import { getConveniosCommercialDenial, isInsuranceSchemaInstalled, type GuideView } from '@/contexts/health-insurance/queries';
 import {
   allows,
@@ -142,6 +143,10 @@ export function ConveniosHeader({
       />
       <CommercialNotice denial={commercial} />
       <ConveniosTabs />
+      {/* P12.11: fornecedor, software e versão do build (R36/S7), em toda tela do módulo. */}
+      <p data-software-identity className="mt-(--sp-1) text-(length:--fs-2xs) text-fg-subtle">
+        {softwareIdentityLine()}
+      </p>
     </>
   );
 }

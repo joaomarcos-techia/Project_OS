@@ -30,6 +30,7 @@ import {
   requireUser,
 } from '@/lib/auth/tenant-context';
 import { withTenant } from '@/lib/db/tenant';
+import { softwareIdentity } from '@/lib/software-identity';
 import { premiumAccessErrorFrom, premiumDenialMessage } from '@/lib/premium-access';
 import { ConveniosModuleDisabledError, assertConveniosOperableTx } from './internal/module-guard';
 import {
@@ -1194,8 +1195,11 @@ export async function checkSadtRequestAction(
   });
 }
 
-/** Versão do build no rodapé dos documentos (rastreabilidade do software, req. 36). */
-const BUILD = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) ?? null;
+/** Fornecedor, software e versão do build no rodapé dos documentos (P12.11, req. 36). */
+const SOFTWARE = (() => {
+  const id = softwareIdentity();
+  return { vendor: id.vendor, name: id.name, version: id.version };
+})();
 
 /**
  * Documento oficial do pedido de autorização SP/SADT (P6.2): carteirinha pela via auditada
@@ -1238,7 +1242,7 @@ async function generateSadtRequestDocument(
     {
       store: supabaseTissObjectStore(),
       validateXsd: loadXmllintValidator(),
-      software: { name: 'Qoro', version: BUILD },
+      software: SOFTWARE,
     },
     {
       clinicId: ctx.clinicId,

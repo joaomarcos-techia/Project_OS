@@ -22,6 +22,13 @@ import { renderGuidePdf } from '../tiss/print/render';
 import { consultaPrintView, spSadtCobrancaPrintView } from '../tiss/print/values';
 
 import { readGuideContentAudited } from './guide-access';
+import { softwareIdentity } from '@/lib/software-identity';
+
+/** P12.11: sem a identificação passada pela rota, a do build (nunca um nome sem versão inventado). */
+const defaultSoftware = () => {
+  const id = softwareIdentity();
+  return { vendor: id.vendor, name: id.name, version: id.version };
+};
 
 export interface IssuedGuidePdf {
   pdf: Buffer;
@@ -38,7 +45,7 @@ export async function renderIssuedGuidePdf(args: {
   guideId: string;
   /** Tela ou rota que pediu (auditoria). */
   surface: string;
-  software?: { name: string; version: string | null };
+  software?: { name: string; version: string | null; vendor?: string };
 }): Promise<IssuedGuidePdf> {
   const read = await readGuideContentAudited({
     clinicId: args.clinicId,
@@ -57,7 +64,7 @@ export async function renderIssuedGuidePdf(args: {
     guideNumber: read.number,
     revision: read.revision,
     snapshotSha256: read.contentSha256,
-    software: args.software ?? { name: 'Qoro', version: null },
+    software: args.software ?? defaultSoftware(),
   });
   return {
     pdf,
@@ -80,7 +87,7 @@ export async function renderIssuedGuideAttendanceCopyPdf(args: {
   guideId: string;
   surface: string;
   card?: AttendanceCopyOptions['card'];
-  software?: { name: string; version: string | null };
+  software?: { name: string; version: string | null; vendor?: string };
 }): Promise<IssuedGuidePdf> {
   const read = await readGuideContentAudited({
     clinicId: args.clinicId,
@@ -98,7 +105,7 @@ export async function renderIssuedGuideAttendanceCopyPdf(args: {
     guideNumber: read.number,
     revision: read.revision,
     snapshotSha256: read.contentSha256,
-    software: args.software ?? { name: 'Qoro', version: null },
+    software: args.software ?? defaultSoftware(),
     copy: 'attendance',
   });
   return {
