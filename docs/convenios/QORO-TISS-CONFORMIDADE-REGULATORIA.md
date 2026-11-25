@@ -101,7 +101,9 @@ conformidade integral. Mudanças deste ciclo:
 | 56/79 (arquivo fora do banco) | interpretação | interpretação sustentada (seção 12) | `TISS_DOWNLOAD_HEADERS` (`private, no-store`), `tiss-file-access.ts` |
 
 Valem em produção **só depois do merge do #55**. A retenção de 186 dias também cobre uma obrigação da **plataforma
-inteira** hoje descumprida em produção (seção 9, Marco Civil). Por isso recomendo levá-la antes, num PR próprio.
+inteira** (seção 9, Marco Civil). Ela tem prazo: a purga mensal de produção roda em **01/12/2026 às 05h UTC**. O patch
+mínimo para o #53, que publica produção, está em `docs/convenios/patches/hotfix-marco-civil-login-attempts-186.patch`
+e foi comentado no PR #53.
 
 ## 4. Matriz S1–S9 (alcance e decisões do perfil de segurança)
 
@@ -238,7 +240,7 @@ anonimização de documento vencido não existe e só deve existir depois disso.
 | --- | --- | --- | --- |
 | Bloquear após no máximo 5 tentativas, por qualquer meio | EXP | TISS req. 69 | **feito:** fallback no banco com o Upstash fora, e fecha se o banco cair |
 | Log de acessos e tentativas por ≥ 180 dias | EXP | TISS req. 84 | **feito:** 186 dias |
-| **Registros de acesso por 6 meses (toda a plataforma)** | **EXP** | **Marco Civil, art. 15** (provedor PJ com fins econômicos) | **lacuna em produção hoje:** `login_attempts` é apagado aos 90 dias. A correção (186 dias) está no #55. Recomendo um PR próprio antes do #55; os registros já apagados não voltam |
+| **Registros de acesso por 6 meses (toda a plataforma)** | **EXP** | **Marco Civil, art. 15** (provedor PJ com fins econômicos) | **risco com data:** o código em produção (`cf712ab4`) apaga `login_attempts` aos 90 dias pelo cron mensal (`0 5 1 * *`). Leitura de produção em 25/11 (`READ ONLY`, só agregados): a linha mais antiga é de 10/08/2026, então nada foi apagado ainda, e o `auth.audit_log_entries` do Supabase está vazio (não há outro registro). **Em 01/12/2026 a purga apagaria registros com menos de 6 meses.** Patch mínimo para o #53 (comentado no PR #53); o #55 traz a mesma correção |
 | Senha de 8+ caracteres com os 4 tipos | EXP | req. 67 | hoje faltam os símbolos; política pronta (S3) |
 | Troca em ≤ 90 dias e sem repetir as 10 últimas | EXP | req. 81 e 82 (prazo vencido) | pronto em parte (S4) |
 | Inatividade de ≤ 10 minutos | EXP | req. 83 (prazo vencido) | pronto em parte (S2), depende do rascunho do prontuário |
@@ -398,7 +400,7 @@ usando as 17 perguntas de `pacote-homologacao-operadora-b5.md`.
 
 | Risco | Probabilidade | Impacto | Mitigação |
 | --- | --- | --- | --- |
-| Registros de acesso aos 90 dias (Marco Civil, art. 15) | **existe hoje em produção** | sanção pelo descumprimento do art. 15 (o §4º lista os critérios de dosimetria); prova faltando num incidente | 186 dias no #55; levar antes, num PR próprio |
+| Registros de acesso apagados aos 90 dias (Marco Civil, art. 15) | **certa em 01/12/2026** sem o patch | sanção pelo descumprimento do art. 15 (o §4º lista os critérios de dosimetria); prova faltando num incidente | patch de uma linha + teste para o #53 antes de 01/12; 186 dias no #55 |
 | A ANS entender o alcance como a plataforma inteira | média | ligar os requisitos de usuário para todos | modo `platform` pronto |
 | Leitura literal do 43 ou do 77 | baixa a média | ajuste na tela de login ou verificador adicional | perguntas residuais prontas; nenhuma mudança que enfraqueça a segurança |
 | Prazo de documento de cobrança contratual maior que 5 anos | média | guarda a mais | nada é descartado automaticamente |

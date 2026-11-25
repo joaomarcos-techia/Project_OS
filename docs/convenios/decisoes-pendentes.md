@@ -184,8 +184,10 @@ Ficha detalhada, com requisito, situação, risco, opções, recomendação, imp
 O dossiê `QORO-TISS-CONFORMIDADE-REGULATORIA.md` substitui a espera por assessoria nos pontos que a documentação oficial
 resolve. Decisões que restam, reduzidas ao mínimo:
 
-1. **Marco Civil (plataforma inteira, já em produção):** `login_attempts` apagado aos 90 dias descumpre o art. 15
-   (6 meses). A correção (186 dias) está no #55; **recomendo levá-la antes num PR próprio** (uma linha + teste).
+1. **Marco Civil (plataforma inteira, prazo 01/12/2026 05h UTC):** o código em produção apaga `login_attempts` aos 90
+   dias pelo cron mensal; a linha mais antiga é de 10/08/2026, então a purga de 01/12 apagaria registros com menos de
+   6 meses (art. 15). Patch de uma linha + teste para o #53 em `patches/hotfix-marco-civil-login-attempts-186.patch`,
+   comentado no PR #53. Publicar antes de 01/12 é decisão sua e do dono do #53.
 2. **B6:** OK para eliminar a carteirinha sem guia de paciente anonimizado; aceitar 5 anos do exercício seguinte para
    documentos de cobrança (com a ressalva do contrato de cada operadora).
 3. **B7:** aceitar a política composta (libxml2 + .NET + Voa + Qoro) no lugar do programa Windows, ou aprovar a
