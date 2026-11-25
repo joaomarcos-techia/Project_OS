@@ -19,6 +19,8 @@ import {
 import { AgendaPageActions } from './agenda-page-actions';
 import { getAgendaData } from './data';
 import { DeliveryFailureStrip } from './delivery-failure-strip';
+// P3.3/P5.2 (24/11): convênios de hoje com as pendências pré-consulta (bloco do TISS, só leitura).
+import { AgendaInsuranceStrip } from '../convenios/_lib/agenda-insurance-strip';
 import { isAgendaView } from './range';
 
 export const metadata: Metadata = { title: 'Agenda' };
@@ -77,6 +79,8 @@ export default async function AgendaPage({
           tz={data.tz}
           canCopyLink={data.canEditAgenda}
         />
+        {/* P3.3/P5.2: some para quem não vê Convênios ou sem convênio no dia. */}
+        <AgendaInsuranceStrip />
         <AgendaCalendar data={data} />
       </div>
     </>
