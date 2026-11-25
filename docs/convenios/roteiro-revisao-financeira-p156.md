@@ -70,3 +70,31 @@ São os únicos derivados das regras, e não lidos diretamente da jornada.
 | Ajustes | cada ajuste vira tarefa; a P15.6 fica aberta até o novo aceite |
 
 A P15.8 (liberação) só pode ser pedida depois da P15.6.
+
+## 6. Pré-auditoria técnica automática (25/11/2026, noite)
+
+O harness `scripts/security/health-insurance-financial-preaudit-db.ts` executa os 12 casos com os valores da seção 2,
+pelo código real, em Postgres descartável (cadeia do DEV), com o gateway da coparticipação simulado. O dossiê (cenário,
+valor inicial, operação, esperado, observado, diferença, evidência, SHA e resultado) sai no log e no resumo do job
+"Convênios — provas sintéticas de banco (legado)".
+
+**Resultado no `022063b0` (run 45705495819): 13/13 PASS** (F1–F12 e o isolamento de apoio), sem diferença em nenhum
+valor:
+
+| # | Observado (igual ao esperado) |
+| --- | --- |
+| F1 | guia de R$ 150,00; lote em análise com protocolo |
+| F2 | nenhum recebível antes do envio; depois, 1 recebível de R$ 150,00, sem paciente, método convênio, pendente |
+| F3 | glosa R$ 30,00; durante o recurso nada baixa; revertido R$ 20,00; definitiva R$ 10,00; glosado no livro R$ 10,00 |
+| F4 | pago depois do estorno R$ 0,00; movimentos pagamento, estorno, pagamento; líquido R$ 100,00; demonstrativo repetido recusado (duplicate) |
+| F5 | aberto R$ 40,00 no livro e na conta da guia; status parcial |
+| F6 | elegível R$ 40,00; autorizado e repassado R$ 40,00; devido R$ 0,00; R$ 0,01 acima recusado |
+| F7 | confirmada R$ 45,00; recebível do paciente R$ 45,00; cobrança e teto do gateway R$ 45,00 |
+| F8 | operadora R$ 40,00 (1); paciente R$ 45,00 (1); soma R$ 85,00 = "A receber" R$ 85,00 |
+| F9 | o Caixa mostra a coparticipação e não mostra o recebível da operadora |
+| F10 | relatório: faturado R$ 150,00, recebido R$ 100,00, glosado R$ 10,00, aberto R$ 40,00; CSV sem nome de paciente |
+| F11 | entradas R$ 200,00 − estornos R$ 100,00 = R$ 100,00; glosa nunca como saída; divergência da ponte vazia |
+| F12 | glosa, recurso, pagamento, estorno, repasse e coparticipação com autor e data |
+
+**Isto é a pré-auditoria, não o aceite.** A P15.6 fecha só com a sua aprovação. A sessão pode ser curta: ler esta
+tabela e, se quiser ver com os próprios olhos, abrir no Preview os casos que escolher pela jornada da seção 1.

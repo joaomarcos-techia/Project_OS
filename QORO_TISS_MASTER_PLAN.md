@@ -39,9 +39,9 @@
 
 | Campo | Valor |
 | --- | --- |
-| Data da última atualização | 25/11/2026, tarde (ciclo final de integração: guarda da importação histórica, validação independente Voa, pacotes S9/B6/B5/P15.6, reavaliação das 24 abertas, leitura final do R61-B; ver o checkpoint de 25/11, tarde) |
+| Data da última atualização | 25/11/2026, noite (missão de conformidade: dossiê regulatório, R69, R84 e Marco Civil, catálogo B6, alcance S1, pré-auditoria P15.6, pesquisa B5/B7; ver o checkpoint de 25/11, noite) |
 | Fase atual | **P1 concluída**; P9 (lotes, XMLs, recurso) e P12 (armazenamento) validadas; ponte financeira (P1.10/P10.2/P10.3) pronta como candidata 0153; interface (P7.7/P9.9) implementada e testada; P9.5, P8.7/P6.2, P10.4 e P10.5 pendentes |
-| Tarefa em andamento | **25/11 (tarde):** à espera da consolidação #53 → #56 para o rebase final do #55 (TISS por último). Baseline: #55 `e020d0cf` com E2E verde e composição `2e8480f6` toda verde; #55 agora em `1b2543be` (guarda da importação histórica, regressões verdes). Patches do #56 não incorporados. R54 com o suporte do Asaas |
+| Tarefa em andamento | **25/11 (noite):** missão de conformidade concluída no #55 (`022063b0` + docs); à espera da consolidação #53 → #56 (agora no #64, `92363ef1`) para o rebase final; **CI bloqueada pela cobrança do GitHub Actions**; patch do Marco Civil para o #53 com prazo em 01/12/2026 05h UTC |
 | Última tarefa concluída | **P15.1** (20/11): ajuda do TISS na central de documentação existente (5 tópicos, categoria Financeiro, testes 18/18), além de runbooks, domínio e known-limitations. Mesmo ciclo: P9.4 no teto "Testado" (envio pelo conector com recibo conferido, 7/7), destino do conector só público (P15.5), benchmark do outbox (25 rodadas no runner) |
 | Progresso | **93 de 117 tarefas concluídas (79,5%)** (25/11: **P3.3, P5.2, P8.4, P10.6, P12.11 e P12.15 entraram**; matriz no checkpoint de 25/11) (20/11: **P15.1 entrou**; P9.4 no teto "Testado", não contada; 19/11, madrugada: **P6.5, P12.5 e P14.4 entraram** — P6.5 e P12.5 no alcance sem operadora, P14.4 com um desvio registrado; 18/11, 2º ciclo: **P9.10 e P5.1 entraram**; P4.7 e P15.5 PARCIAIS; achado da P4.7 corrigido; ver o checkpoint de 18/11, 2º ciclo) (P8.6 entrou em 15/11, noite, 2ª rodada: XML SP/SADT do fluxo real validado no XSD oficial no job sintético; ver a linha da P8.6): P0.1–P0.9, P1.1–P1.10, P4.5, P6.2, P7.1, P7.2, P7.3, P7.4, P7.6, P7.7, P8.1, P8.2, P8.3, P8.5, P8.6, P8.7, P9.1, P9.2, P9.3, P9.5, P9.6, P9.7, P10.1, P10.2, P10.3, P10.4, P10.5, P12.7, P12.14, P13.1, P13.2, P13.3, P13.4, P13.7, P14.1, P15.7, P2.1, P2.3, P2.4, P2.6, P3.1, P4.1, P4.4, P9.8, P9.9, P2.2, P4.3, P2.7, P5.3, P12.1, P3.2, P14.2, P4.6, P6.1, P6.4, P7.5, P1.12, P6.3, P6.6, P12.2, P0.10, P1.14, P4.2, P12.4, P9.10, P5.1, P6.5, P12.5, P14.4, P15.1. P10.5 **homologada no alcance do Asaas Sandbox** (13/11). P4.3, P2.7, P3.2 e P4.6 **validadas no Preview DEV**. R54 provado em banco descartável com o Asaas simulado; **homologação de estorno no Sandbox não executada** (procedimento em docs/convenios/homologacao-r54-sandbox.md). P6.5 e P12.5 contadas no teto "Testado" (sem operadora); a homologação de cada operadora segue em L.2 (B5). Nada em produção; nenhuma homologação com operadora real. |
 | CI oficial (GitHub Actions) | **Liberada em 14/11** (GitHub Pro; o job voltou a iniciar). `0d2aa4f3` reexecutado: **CI e ADR advisory verdes** (run 43591045113, 15 min 28 s, 25 passos). SHA final do ciclo: ver o registro M de 14/11 (noite). Até `1b09267e` verde; `e6e91139`…`a77e0aea` não iniciaram por cobrança (não reexecutados: a CI do HEAD cobre a mesma árvore e mais) **Fim da noite de 14/11:** CI 43672065842 verde no `4078a474`, com o passo novo da P12.1 em Postgres temporário (5/5); também verdes `2d3c79e6` (43667255805) e `e552a692` (43669520460). **15/11 (manhã):** CI 43711988363 verde no `2273f96d` e CI 43714907677 verde no `c5fce3fa` (todos os passos, inclusive isolamento entre clínicas e de todas as tabelas de Convênios em Postgres temporário, build e E2E público). **15/11 (tarde):** verde em `6de3c14e` (43745643994) e `a87fbded` (43746993053); vermelha em `0206d7d1` (inventário desatualizado, corrigido) |
@@ -121,6 +121,46 @@
 | Progresso | **68 de 117 (58,1%)** |
 | Coordenação | UI: janela de testes pesados aceita e usada (23:33–00:10); terminologia de guias decidida pela UI e aplicada; títulos de página nas 13 telas; divisão de arquivos (handoff-ui.md §8). #53: release congela a cauda TISS do `4d0ed1d5` |
 | Próximo passo exato | ver "Próxima ação exata" acima |
+
+### Checkpoint de 25/11/2026 (noite) — missão de conformidade e pesquisa regulatória
+
+| Item | Estado |
+| --- | --- |
+| Contagem | **93 de 117**, sem mudança: nenhuma das 24 abertas cumpriu o critério completo; várias passaram de BLOCKED a PASS TÉCNICO ou PARTIAL (matriz abaixo) |
+| Direção do fundador | não há assessoria jurídica ou regulatória contratada: pesquisa nas fontes oficiais, medida conservadora e pergunta exata no lugar de "contratar advogado" |
+| Dossiê | `docs/convenios/QORO-TISS-CONFORMIDADE-REGULATORIA.md` (20 seções; categorias EXP/INT/BP/PROD/CONTR/HOM; norma, dispositivo, URL e certeza por conclusão) |
+| Versões conferidas | Segurança e Privacidade 202511 (zip com o mesmo sha256 `09af1423…`), TUSS 202609 (o arquivo publicado tem o sha256 do manifesto `7f3d7a97…`), Organizacional 202609 lido, Comunicação 04.03.00. Requisitos 81–87 com limite de implantação em **30/06/2026, vencido** |
+| Heads | #55 `d7c5b13f` → `f6bc8939` (docs) → `b114d8a7`; #53 `1175b22c`; #56 `fe892902`; **#64 `92363ef1`** (composição comercial: contém os heads do #53 e do #56; o #55 sobre ela tem os mesmos conflitos que a c11 resolveu); composição c11 preservada no `2e8480f6` |
+| Controles novos | R69: fallback do limite de login no banco, fecha se o banco cair; R84 e Marco Civil, art. 15: `login_attempts` guardado por 186 dias; B6: catálogo de retenção (16 categorias), simulação sem escrita, trava de descarte com termo, inventário TISS por paciente; S1: resolvedor de alcance (dado TISS, não só módulo), desligado; B7: reprodução da Voa no CI |
+| Achado de plataforma | código em produção (`cf712ab4`) apaga `login_attempts` aos 90 dias pelo cron mensal; linha mais antiga em produção é de 10/08/2026 (leitura READ ONLY de 25/11, `evidence/tiss-marco-civil-2026-11-25`); **a purga de 01/12/2026 05h UTC apagaria registros com menos de 6 meses** (Marco Civil, art. 15). Patch para o #53 em `docs/convenios/patches/hotfix-marco-civil-login-attempts-186.patch` (aplica limpo), comentado no PR #53 |
+| CI do `d7c5b13f` | vermelha no Arch DB check: `dbAdmin` fora da allowlist no fallback novo; corrigido no `b114d8a7` (a consulta foi para `login-audit.ts`, já permitido). Voa verde (45703000550). Legado e sintéticas: ver "Provas" |
+| Provas | no `022063b0`: **legado verde** (45705495819), com a **pré-auditoria P15.6 em 13/13** (F1–F12 com os valores exatos do roteiro + isolamento) e a **B6 em 5/5** (inventário, simulação sem escrita, trava, isolamento, recusa da exclusão física 23503); sintéticas verdes (45705495901); Voa verde no `d7c5b13f` (45703000550), com a reprodução do falso positivo. No `d7c5b13f` os dois harnesses novos acharam dois defeitos, corrigidos no `022063b0`: o inventário passava a lista de guias como parâmetros soltos ("malformed array literal", defeito real do código novo) e o F1 lia uma coluna inexistente (defeito do harness). CI: ver a linha seguinte |
+| CI do `022063b0` | run 45705505727. **Tentativa 1:** verdes typecheck, lint, madge, arch DB check, migrations, observabilidade, registro de handlers, **suíte com cobertura**, inventário de segurança, isolamento de duas clínicas e de todas as tabelas do Convênios; o **Build foi interrompido** às 21h45 (anotação: tempo máximo do job). **Tentativa 2:** não iniciou: "recent account payments have failed or your spending limit needs to be increased" (**cobrança do GitHub Actions bloqueada**). Build, segredos do bundle e E2E público **NOT RUN** neste SHA; o último CI verde completo é o `04572f4a` (45636000853). Reexecutar quando a cobrança for regularizada |
+| Production TISS | **NO-GO** |
+
+#### Reavaliação das 24 abertas (25/11, noite)
+
+| ID | Critério | Trabalho deste ciclo | Estado | Dependência real |
+| --- | --- | --- | --- | --- |
+| P1.13 | interruptor na plataforma | — | BLOCKED | dono do console da plataforma |
+| P2.5 | homologação externa | pesquisa de operadoras: nenhuma com homologação aberta; Petrobras 4.01.00 e Caixa 4.02.00 não servem | BLOCKED | B5 (credenciamento e clínica piloto) |
+| P4.7 | importação histórica | diretriz do fundador: opção (b); guarda já provada | PARTIAL | implementar (b): migration aditiva 0168, DEV, E2E |
+| P9.4 | envio real | — | BLOCKED | B5 |
+| P11.1 / P11.2 | agente | — | BLOCKED | frente do agente |
+| P12.3 | LGPD: retenção (B6) | pesquisa completa; catálogo, simulação, trava, inventário; respostas às 5 perguntas | **PASS TÉCNICO** | aceite do prazo interpretado dos documentos de cobrança |
+| P12.6 | alerta disparando | passos e permissões do Sentry documentados | BLOCKED | acesso ao Sentry (papel com permissão de alertas) |
+| P12.8 | perfil S1–S9 | S9 pesquisada; S1 resolvido e testado | PARTIAL | pontos residuais 1 e 5 (só a ANS); ligar |
+| P12.9 | S1–S4 | S1 pronto; S3/S4 com política pronta | PARTIAL | S2 (rascunho do prontuário), S4 (migration do histórico) |
+| P12.10 | S5 | R84 atendido (186 dias) | PARTIAL | imutabilidade contra o dono do banco e DETACH < 180 d (com o #59) |
+| P12.12 | S8 | R69 atendido (≤ 5 sem Upstash; recuperação com limite próprio); R43 interpretado | PARTIAL | R42 (aviso de último acesso) depois do shell do #56 |
+| P12.13 | exclusão com guia | política fundamentada; inventário e trava | **PASS TÉCNICO** | OK para eliminar a carteirinha sem guia de anonimizado |
+| P13.5 | validador C | política composta A+B+C+D com equivalência e limites documentados | PARTIAL | troca formal do critério (ou licença do programa Windows) |
+| P13.6 | divergências | classificação da camada Voa; reprodução no CI | BLOCKED | B5 |
+| P14.3 / P14.5 / P15.2 | jornadas e regressão final | — | PARTIAL | P11; rebase final |
+| P15.3 / P15.4 | homologação Consulta e SP/SADT | — | BLOCKED | B5 |
+| P15.5 | revisão de segurança | R69 e R84 fechados | PARTIAL | S2–S6 e R42 |
+| P15.6 | revisão financeira | pré-auditoria automática dos 12 casos (dossiê no resumo do job) | PASS TÉCNICO (ver Provas) | aceite humano do fundador |
+| P15.8 / P15.9 | liberação | — | BLOCKED | anteriores |
 
 ### Checkpoint de 25/11/2026 (tarde) — ciclo final de integração e fechamento
 

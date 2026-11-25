@@ -439,7 +439,8 @@ exatos:
 
 Ele usa o código real, em Postgres descartável, pela cadeia do DEV. Imprime o dossiê (cenário, valor inicial, operação,
 esperado, observado, diferença, evidência, SHA e resultado) no log e no resumo do job "Convênios — provas sintéticas de
-banco (legado)". **O resultado e o SHA estão no checkpoint do plano mestre de 25/11 (noite).**
+banco (legado)". **Resultado: 13/13 PASS no `022063b0` (run 45705495819), sem diferença em nenhum valor**
+(tabela em `roteiro-revisao-financeira-p156.md`, seção 6).
 
 **P15.6 HUMAN ACCEPTANCE: PENDING.** O critério pede a sua aprovação. A sessão fica curta: conferir o dossiê e abrir o
 Preview só nos casos que quiser ver com os próprios olhos.
