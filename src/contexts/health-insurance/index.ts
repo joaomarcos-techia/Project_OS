@@ -47,3 +47,5 @@ export {
   recordHistoricalCoveragesTx,
   resolveHistoricalCoverageLinesTx,
 } from './historical-coverage';
+// S1/S3 — rastro TISS da clínica para o perfil de segurança (só existência).
+export { readClinicTissFootprint } from './security-footprint';

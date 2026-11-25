@@ -203,6 +203,20 @@ try {
   await rejectsWith(() => fx.asUser(B, (tx) => port.recordHistoricalCoveragesTx(tx, [{ clinicId: A.clinicId, appointmentId: apOther, insurerId: opUm, planId: null, importBatchId: batch2, createdBy: B.doctorId }])), /row-level security|42501|policy|fora da clínica/iu);
   pass('isolamento: a sessão da clínica B não lê nem grava referência histórica da A (RLS; o atendimento da A nem fica visível para a guarda)');
 
+  // ── S1/S3: rastro TISS da clínica (perfil de segurança) ──────────
+  const { readClinicTissFootprint } = await import('../../src/contexts/health-insurance/security-footprint');
+  const bare = randomUUID();
+  await sql`insert into public.clinics (id, slug, nome, status) values (${bare}::uuid, ${`fp-${bare.slice(0, 12)}`}, 'Clínica Sem TISS', 'active')`;
+  assert.deepEqual(await readClinicTissFootprint(bare), { moduleEnabled: false, hasTissData: false });
+  const fpB = await readClinicTissFootprint(B.clinicId);
+  assert.equal(fpB.moduleEnabled, true);
+  await sql`insert into public.hi_memberships (clinic_id, patient_id, insurer_id, card_number_encrypted, card_number_hash, card_last4, created_by)
+    values (${B.clinicId}::uuid, ${await patientOf(B, 'fp')}::uuid, ${B.insurerId}::uuid, 'AQAAAAAAAAAAAAAAAAAAAAAAAAAAAA==', ${randomUUID().replace(/-/g, '').padEnd(64, '0')}, '1234', ${SYS_ACTOR}::uuid)`;
+  assert.deepEqual(await readClinicTissFootprint(B.clinicId), { moduleEnabled: true, hasTissData: true });
+  await sql`update public.hi_clinic_settings set enabled = false where clinic_id = ${B.clinicId}::uuid`;
+  assert.deepEqual(await readClinicTissFootprint(B.clinicId), { moduleEnabled: false, hasTissData: true });
+  pass('rastro TISS (S1/S3): clínica sem nada fica fora; com carteirinha entra; desligar o módulo NÃO tira do alcance enquanto o dado existe');
+
   // ── 7. Reversão da candidata ──────────────────────────────────────
   await sql.unsafe(rollbackBody);
   const [{ t }] = (await sql`select to_regclass('public.hi_historical_coverages')::text as t`) as unknown as [{ t: string | null }];
@@ -211,8 +225,8 @@ try {
   pass('reversão da 0169: remove a tabela e as funções; atendimentos, lotes e operadoras ficam');
 
   void SYS_ACTOR;
-  console.log(`\n${passed}/7 provas da importação histórica com convênio (P4.7-b) passaram.`);
-  assert.equal(passed, 7);
+  console.log(`\n${passed}/8 provas da importação histórica com convênio (P4.7-b) passaram.`);
+  assert.equal(passed, 8);
 } finally {
   await cluster.stop();
 }

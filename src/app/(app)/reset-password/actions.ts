@@ -1,5 +1,7 @@
 'use server';
 
+import { readTissFootprintLazy } from '@/app/(app)/_lib/tiss-footprint';
+import { tissPasswordPolicyError } from '@/lib/auth/security-profile/password-policy';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
@@ -88,6 +90,15 @@ export async function resetPasswordAction(
     logger.warn('reset_password.grant_stale', { kind: grant.kind });
     return { error: INVALID_GRANT };
   }
+
+  // S3 (requisito 67 da ANS): com perfil, vale a regra TISS da clínica; sem perfil (pré-clínica), só no modo
+  // plataforma. Antes de consumir o link: a pessoa só precisa escolher outra senha.
+  const tissPasswordError = await tissPasswordPolicyError(
+    parsed.data.password,
+    grant.kind === 'profile' ? (profile?.clinicId ?? null) : null,
+    readTissFootprintLazy,
+  );
+  if (tissPasswordError) return { error: tissPasswordError };
 
   const limit = await assertPasswordResetCompletionAllowed(
     getClientIp(await headers()),

@@ -4,8 +4,10 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
+import { readTissFootprintLazy } from '@/app/(app)/_lib/tiss-footprint';
 import { markInviteAccepted } from '@/contexts/identity/internal/members';
 import { assertInviteAcceptAllowed, getClientIp } from '@/lib/auth/rate-limit';
+import { tissPasswordPolicyError } from '@/lib/auth/security-profile/password-policy';
 import { createServerClient } from '@/lib/auth/supabase-server';
 import { readAuthoritativeProfile } from '@/lib/auth/tenant-context';
 import { logger } from '@/lib/observability/logger';
@@ -69,6 +71,13 @@ export async function acceptInviteAction(
   if (!profile || !profile.ativo || profile.deletedAt || profile.inviteAcceptedAt) {
     return { error: 'Convite inválido ou já aceito. Peça um novo ao administrador da clínica.' };
   }
+  // S3 (requisito 67 da ANS): a regra do perfil TISS da clínica do convite soma à deste formulário.
+  const tissPasswordError = await tissPasswordPolicyError(
+    parsed.data.password,
+    profile.clinicId ?? null,
+    readTissFootprintLazy,
+  );
+  if (tissPasswordError) return { error: tissPasswordError };
 
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
   if (error) {
