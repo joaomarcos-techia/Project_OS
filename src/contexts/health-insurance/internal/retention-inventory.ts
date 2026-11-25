@@ -80,9 +80,9 @@ export async function readPatientTissInventoryTx(
         SELECT f.id, f.kind, f.guide_id, f.batch_id, f.appeal_id, f.content_sha256, f.size_bytes, f.created_at
           FROM public.hi_files f
          WHERE f.clinic_id = ${clinicId}::uuid AND (
-               f.guide_id = ANY(${guideIds}::uuid[])
-            OR f.batch_id IN (SELECT bg.batch_id FROM public.hi_batch_guides bg WHERE bg.clinic_id = ${clinicId}::uuid AND bg.guide_id = ANY(${guideIds}::uuid[]))
-            OR f.appeal_id IN (SELECT ap.id FROM public.hi_gloss_appeals ap WHERE ap.clinic_id = ${clinicId}::uuid AND ap.guide_id = ANY(${guideIds}::uuid[])))
+               f.guide_id = ANY(ARRAY[${guideIds}]::uuid[])
+            OR f.batch_id IN (SELECT bg.batch_id FROM public.hi_batch_guides bg WHERE bg.clinic_id = ${clinicId}::uuid AND bg.guide_id = ANY(ARRAY[${guideIds}]::uuid[]))
+            OR f.appeal_id IN (SELECT ap.id FROM public.hi_gloss_appeals ap WHERE ap.clinic_id = ${clinicId}::uuid AND ap.guide_id = ANY(ARRAY[${guideIds}]::uuid[])))
          ORDER BY f.created_at`)) as unknown as Array<Record<string, unknown>>)
     : [];
 

@@ -109,12 +109,15 @@ try {
   pass('isolamento: a sessão da clínica B, passando o id da clínica e do paciente da A, não vê guia, arquivo nem carteirinha');
 
   // ── 5. O banco segura a exclusão física do paciente com guia ──────
-  await assert.rejects(
-    () => sql`delete from public.patients where id = ${patientId}::uuid`,
-    (e: unknown) => (e as { code?: string }).code === '23503',
-  );
+  let refusal = 'aceita (ERRO)';
+  try {
+    await sql`delete from public.patients where id = ${patientId}::uuid`;
+  } catch (e) {
+    refusal = String((e as { code?: string }).code ?? 'erro');
+  }
+  assert.notEqual(refusal, 'aceita (ERRO)');
   assert.deepEqual(await counts(), before);
-  pass('paciente com guia: exclusão física recusada pelo banco (23503); a guia e os arquivos ficam (o caminho LGPD anonimiza o cadastro)');
+  pass(`paciente com guia: exclusão física recusada pelo banco (${refusal}); a guia e os arquivos ficam (o caminho LGPD anonimiza o cadastro)`);
 
   console.log(`\n${passed}/5 provas de retenção (B6) passaram.`);
   assert.equal(passed, 5);

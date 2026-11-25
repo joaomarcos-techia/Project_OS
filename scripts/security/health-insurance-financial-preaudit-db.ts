@@ -190,8 +190,8 @@ try {
   const g = L.guides[0]!;
   await safe('F1', async () => {
     const acc = (await account(A, g))!;
-    const [b] = await sql`select status, protocol from public.hi_batches where id = ${L.batchId}::uuid`;
-    const ok = acc.billedCents === CONSULTA && b!.protocol !== null && ['under_review', 'sent', 'protocolled'].includes(String(b!.status));
+    const [b] = await sql`select status, protocol_number as protocol from public.hi_batches where id = ${L.batchId}::uuid`;
+    const ok = acc.billedCents === CONSULTA && b!.protocol !== null && String(b!.status) === 'under_review';
     caso({ id: 'F1', cenario: 'faturado: guia emitida e enviada no lote', inicial: `consulta contratada ${brl(CONSULTA)}`,
       operacao: 'emitir a guia (XSD 4.03.00), formar o lote, exportar, enviar, registrar o protocolo',
       esperado: `guia de ${brl(CONSULTA)}; lote enviado com protocolo`,
