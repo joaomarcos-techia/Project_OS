@@ -113,15 +113,21 @@ export async function setConveniosModuleTx(
   input: SetConveniosModuleInput & { actorUserId: string; requestContext: RequestContext },
 ): Promise<SetConveniosModuleResult> {
   const d = SetInput.parse(input);
-  const [clinic] = (await tx.execute(sql`SELECT id FROM public.clinics WHERE id = ${d.clinicId}::uuid FOR UPDATE`)) as unknown as unknown[];
+  const [clinic] = (await tx.execute(
+    sql`SELECT id FROM public.clinics WHERE id = ${d.clinicId}::uuid FOR UPDATE`,
+  )) as unknown as unknown[];
   if (!clinic) throw new ConveniosPlatformError('Clínica não encontrada.', 'not_found');
   const [current] = (await tx.execute(sql`
-    SELECT enabled FROM public.hi_clinic_settings WHERE clinic_id = ${d.clinicId}::uuid FOR UPDATE`)) as unknown as Array<{ enabled: boolean }>;
+    SELECT enabled FROM public.hi_clinic_settings WHERE clinic_id = ${d.clinicId}::uuid FOR UPDATE`)) as unknown as Array<{
+    enabled: boolean;
+  }>;
   const before = Boolean(current?.enabled);
   if (before === d.enabled) return { clinicId: d.clinicId, enabled: before, changed: false };
   if (d.enabled) {
     const [denial] = (await tx.execute(sql`
-      SELECT public.qoro_premium_denial_for(${d.clinicId}::uuid, 'health_insurance') AS reason`)) as unknown as Array<{ reason: string | null }>;
+      SELECT public.qoro_premium_denial_for(${d.clinicId}::uuid, 'health_insurance') AS reason`)) as unknown as Array<{
+      reason: string | null;
+    }>;
     if (denial?.reason) {
       throw new ConveniosPlatformError(
         'A assinatura desta clínica não inclui Convênios agora (avaliação, assinatura parada ou cancelada).',
@@ -133,13 +139,17 @@ export async function setConveniosModuleTx(
       VALUES (${d.clinicId}::uuid, true, now(), ${input.actorUserId}::uuid)
       ON CONFLICT (clinic_id) DO UPDATE SET enabled = true, enabled_at = now(), enabled_by = EXCLUDED.enabled_by`);
   } else {
-    await tx.execute(sql`UPDATE public.hi_clinic_settings SET enabled = false WHERE clinic_id = ${d.clinicId}::uuid`);
+    await tx.execute(
+      sql`UPDATE public.hi_clinic_settings SET enabled = false WHERE clinic_id = ${d.clinicId}::uuid`,
+    );
   }
   // Trilha da própria clínica (o dono e a gestão veem quem ligou ou desligou, quando e por quê).
   await logAudit(tx, {
     clinicId: d.clinicId,
     userId: input.actorUserId,
-    action: d.enabled ? 'health_insurance.module.enabled_by_platform' : 'health_insurance.module.disabled_by_platform',
+    action: d.enabled
+      ? 'health_insurance.module.enabled_by_platform'
+      : 'health_insurance.module.disabled_by_platform',
     resourceType: 'hi_clinic_settings',
     resourceId: d.clinicId,
     before: { enabled: before },
@@ -160,10 +170,17 @@ export async function setConveniosModuleForClinic(
 ): Promise<SetConveniosModuleResult> {
   await requireSuperAdmin();
   const parsed = SetInput.safeParse(input);
-  if (!parsed.success) throw new ConveniosPlatformError(parsed.error.issues[0]?.message ?? 'Dados inválidos.', 'invalid');
+  if (!parsed.success)
+    throw new ConveniosPlatformError(
+      parsed.error.issues[0]?.message ?? 'Dados inválidos.',
+      'invalid',
+    );
   const d = parsed.data;
   if (d.enabled && !(await isConveniosAvailableOnPlatform())) {
-    throw new ConveniosPlatformError('Convênios ainda não está disponível comercialmente na plataforma.', 'unavailable');
+    throw new ConveniosPlatformError(
+      'Convênios ainda não está disponível comercialmente na plataforma.',
+      'unavailable',
+    );
   }
   const user = await requireUser();
   return superAdminAction(
@@ -177,6 +194,51 @@ export async function setConveniosModuleForClinic(
   );
 }
 
+/** Estado de UMA clínica (detalhe no console). `null` = clínica inexistente. */
+export async function readConveniosModuleStateTx(
+  tx: Tx,
+  clinicId: string,
+): Promise<ConveniosModuleState | null> {
+  const id = z.string().uuid().parse(clinicId);
+  const [r] = (await tx.execute(sql`
+    SELECT c.id::text AS id, c.nome, c.status::text AS status,
+           s.clinic_id IS NOT NULL AS installed, coalesce(s.enabled, false) AS enabled,
+           s.enabled_at::text AS enabled_at,
+           public.qoro_premium_denial_for(c.id, 'health_insurance') AS denial
+      FROM public.clinics c
+      LEFT JOIN public.hi_clinic_settings s ON s.clinic_id = c.id
+     WHERE c.id = ${id}::uuid`)) as unknown as Array<Record<string, unknown>>;
+  if (!r) return null;
+  return {
+    clinicId: String(r.id),
+    clinicName: String(r.nome ?? ''),
+    clinicStatus: String(r.status ?? ''),
+    installed: Boolean(r.installed),
+    enabled: Boolean(r.enabled),
+    enabledAt: r.enabled_at ? String(r.enabled_at) : null,
+    commercialDenial: r.denial ? String(r.denial) : null,
+  };
+}
+
+/** P1.13 — detalhe da clínica no console (super admin com AAL2; a leitura fica em `super_admin_actions`). */
+export async function readConveniosModuleState(
+  clinicId: string,
+  requestContext: RequestContext,
+): Promise<{ available: boolean; clinic: ConveniosModuleState | null }> {
+  await requireSuperAdmin();
+  const available = await isConveniosAvailableOnPlatform();
+  const clinic = await superAdminAction(
+    {
+      action: 'health_insurance.module.state_read',
+      targetClinicId: clinicId,
+      payload: { clinicId },
+      requestContext,
+    },
+    (tx) => readConveniosModuleStateTx(tx, clinicId),
+  );
+  return { available, clinic };
+}
+
 /** Lista para o console (super admin com AAL2; a leitura também fica em `super_admin_actions`). */
 export async function listConveniosModuleStates(
   input: z.input<typeof ListInput>,
@@ -185,7 +247,12 @@ export async function listConveniosModuleStates(
   await requireSuperAdmin();
   const available = await isConveniosAvailableOnPlatform();
   const clinics = await superAdminAction(
-    { action: 'health_insurance.module.states_read', targetClinicId: null, payload: ListInput.parse(input), requestContext },
+    {
+      action: 'health_insurance.module.states_read',
+      targetClinicId: null,
+      payload: ListInput.parse(input),
+      requestContext,
+    },
     (tx) => listConveniosModuleStatesTx(tx, input),
   );
   return { available, clinics };

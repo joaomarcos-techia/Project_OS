@@ -14,6 +14,16 @@ export {
   type TissTermRow,
   type TissTerminologyVersionRow,
 } from './schema';
+// P1.13 — interruptor por clínica e disponibilidade comercial no console da plataforma (super admin com AAL2).
+export {
+  ConveniosPlatformError,
+  listConveniosModuleStates,
+  readConveniosModuleState,
+  setConveniosModuleForClinic,
+  type ConveniosModuleState,
+  type ConveniosPlatformErrorCode,
+  type SetConveniosModuleResult,
+} from './platform';
 // P6.6/P12.6 — manutenção de Convênios no fim do cron financial-reconcile (vencimento das
 // autorizações a cada execução; resumo diário de alertas só com contagens).
 export { runInsuranceMaintenance, type InsuranceMaintenanceSummary } from './maintenance';
