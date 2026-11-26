@@ -1,0 +1,95 @@
+diff --git a/src/app/(app)/(shell)/layout.tsx b/src/app/(app)/(shell)/layout.tsx
+index 9a80dec9..c56d1bd1 100644
+--- a/src/app/(app)/(shell)/layout.tsx
++++ b/src/app/(app)/(shell)/layout.tsx
+@@ -12,11 +12,14 @@ import { PainelShell } from '@/components/painel/painel-shell';
+ import { getShellIdentity } from '@/components/painel/shell-identity';
+ import { AnnouncementPopup } from '@/components/shared/announcement-popup';
+ import { getCurrentUser } from '@/lib/auth/tenant-context';
++import { InactivityGuardSlot } from '@/app/(app)/_lib/inactivity-guard-slot';
++import { redirectToLogin } from '@/app/(app)/_lib/session-lock-redirect';
+ import { getImpersonationView } from '@/lib/impersonation';
+ import { PERMISSIONS } from '@/lib/auth/permissions';
+ import { getActiveAnnouncement } from '@/lib/platform-announcements';
+ import { loadTrialAccessForRequest } from './_painel/trial-access-request';
+ import { TrialAccessNotice } from './_painel/trial-access-notice';
++import { LastAccessNotice } from '@/app/(app)/_lib/last-access-notice';
+ 
+ import { HandoffWatcher } from './_painel/handoff-watcher';
+ import { TOUR_STEPS } from '@/contexts/onboarding';
+@@ -47,7 +50,8 @@ export default async function ShellLayout({ children }: { children: ReactNode })
+   // NUNCA renderize para um usuário não-autenticado, mesmo que uma request fure o
+   // middleware (ex.: cookie `_healed` forjado / V4) — fail-closed no layout.
+   if (!user) {
+-    redirect('/login');
++    // S2: sessão bloqueada por inatividade vai para o login com o aviso próprio.
++    return redirectToLogin();
+   }
+ 
+   // C15: super_admin só fica no app tenant DURANTE um impersonate. Sem sessão
+@@ -114,6 +118,8 @@ export default async function ShellLayout({ children }: { children: ReactNode })
+           para quem tem clínica: super_admin sem impersonate nem chega aqui, e
+           `onboarding_progress` é por (clínica, pessoa). */}
+       {onboarding ? <ProductTour initial={onboarding} steps={TOUR_STEPS} /> : null}
++      {/* S2 (requisito 83 da ANS): guarda de inatividade, só no perfil TISS. */}
++      <InactivityGuardSlot />
+       <PainelShell
+         userName={id.userName}
+         userRole={id.userRole}
+@@ -125,6 +131,8 @@ export default async function ShellLayout({ children }: { children: ReactNode })
+           : {})}
+       >
+         <TrialAccessNotice snapshot={trialAccess} />
++        {/* R42 (requisito 42 da ANS): último acesso, só no perfil TISS (componente do #55). */}
++        <LastAccessNotice />
+         {children}
+       </PainelShell>
+     </>
+diff --git a/src/app/(app)/(shell)/pacientes/[id]/prontuarios/[pid]/prontuario-editor.tsx b/src/app/(app)/(shell)/pacientes/[id]/prontuarios/[pid]/prontuario-editor.tsx
+index 63e18fcb..d6b87ef4 100644
+--- a/src/app/(app)/(shell)/pacientes/[id]/prontuarios/[pid]/prontuario-editor.tsx
++++ b/src/app/(app)/(shell)/pacientes/[id]/prontuarios/[pid]/prontuario-editor.tsx
+@@ -14,6 +14,8 @@ import { Select } from '@/components/ui/select';
+ import { Textarea } from '@/components/ui/textarea';
+ import { cn } from '@/lib/ui/cn';
+ 
++import { registerPendingWork } from '@/app/(app)/_lib/pending-work';
++
+ import { autosaveProntuario } from '../actions';
+ 
+ const AUTOSAVE_MS = 10_000;
+@@ -127,6 +129,19 @@ export function ProntuarioEditor({
+     };
+   }, [content, persist, signed]);
+ 
++  // S2 (requisito 83): antes do bloqueio por inatividade o guarda pede para salvar o que falta. Espera um save em
++  // andamento terminar, salva o pendente e responde se ficou tudo no servidor (nada vai para o navegador).
++  useEffect(() => {
++    if (signed) return;
++    return registerPendingWork(async () => {
++      for (let i = 0; i < 50 && savingRef.current; i += 1) {
++        await new Promise((resolve) => setTimeout(resolve, 100));
++      }
++      if (dirtyRef.current) await persist();
++      return !dirtyRef.current && !savingRef.current;
++    });
++  }, [persist, signed]);
++
+   // Flush no unmount: ao TROCAR de paciente (ou fechar), o cleanup do debounce
+   // cancelaria o autosave pendente e perderia o texto. Aqui salvamos as edições
+   // pendentes (fire-and-forget) com o conteúdo/rowVersion mais recentes (refs).
+diff --git a/src/app/(app)/login/page.tsx b/src/app/(app)/login/page.tsx
+index ac85cb5a..4dac3724 100644
+--- a/src/app/(app)/login/page.tsx
++++ b/src/app/(app)/login/page.tsx
+@@ -33,6 +33,10 @@ const REASONS: Record<string, string> = {
+   disabled: 'Seu acesso foi desativado. Contate o administrador.',
+   no_profile: 'Profile não encontrado. Contate o administrador.',
+   password_updated: 'Senha atualizada. Entre novamente com sua nova senha.',
++  inactivity:
++    'Sua sessão foi bloqueada depois de 10 minutos sem atividade (perfil de segurança de Convênios). Entre novamente: o rascunho do prontuário ficou salvo.',
++  inactivity_unsaved:
++    'Sua sessão foi bloqueada depois de 10 minutos sem atividade. Não foi possível confirmar o salvamento das últimas alterações (falha de conexão): confira o rascunho depois de entrar.',
+ };
+ 
+ function LoginScreen() {

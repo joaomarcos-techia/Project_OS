@@ -151,8 +151,15 @@ try {
   assert.ok(!page2.some((r) => page1.some((p) => p.clinicId === r.clinicId)));
   pass('lista paginada: limite respeitado e continuação pelo id, sem repetir clínica');
 
-  console.log(`\n${passed}/6 provas do interruptor de Convênios pela plataforma (P1.13).`);
-  assert.equal(passed, 6);
+  // 7. Estado de UMA clínica (detalhe do console): o mesmo que a lista mostra; inexistente = null.
+  const one = await dbAdmin.transaction((tx) => platform.readConveniosModuleStateTx(tx, bare));
+  const inList = (await list({ limit: 200 })).find((r) => r.clinicId === bare);
+  assert.deepEqual(one, inList);
+  assert.equal(await dbAdmin.transaction((tx) => platform.readConveniosModuleStateTx(tx, randomUUID())), null);
+  pass('detalhe de uma clínica (tela do console): mesmo estado da lista; clínica inexistente devolve null');
+
+  console.log(`\n${passed}/7 provas do interruptor de Convênios pela plataforma (P1.13).`);
+  assert.equal(passed, 7);
 } finally {
   await cluster.stop();
 }

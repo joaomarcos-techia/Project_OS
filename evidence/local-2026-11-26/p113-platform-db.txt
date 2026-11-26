@@ -1,0 +1,12 @@
+PASS 1: nada ligado por padrão: clínica nova aparece "não instalada, desligada"; a lista só leva id, nome, situação, estado do módulo e o motivo comercial
+{"ts":"2026-11-26T23:02:07.429Z","kind":"metric","event":"audit.written","action":"health_insurance.module.disabled_by_platform","resourceType":"hi_clinic_settings"}
+PASS 2: desligar A pela plataforma: trilha da própria clínica com autor e motivo; B continua ligada; com A desligada a classe A é recusada
+{"ts":"2026-11-26T23:02:07.565Z","kind":"metric","event":"audit.written","action":"health_insurance.module.enabled_by_platform","resourceType":"hi_clinic_settings"}
+PASS 3: ligar A de novo volta a operar (autor gravado); repetir o pedido é idempotente, sem trilha nova
+PASS 4: clínica em avaliação: ligar é recusado pelo serviço (D24) e pelo banco no caminho direto; nada muda, nenhuma trilha
+{"ts":"2026-11-26T23:02:08.100Z","kind":"metric","event":"audit.written","action":"health_insurance.module.enabled_by_platform","resourceType":"hi_clinic_settings"}
+PASS 5: clínica que nunca configurou Convênios: a linha nasce ligada com autor e data; clínica inexistente é recusada
+PASS 6: lista paginada: limite respeitado e continuação pelo id, sem repetir clínica
+PASS 7: detalhe de uma clínica (tela do console): mesmo estado da lista; clínica inexistente devolve null
+
+7/7 provas do interruptor de Convênios pela plataforma (P1.13).
