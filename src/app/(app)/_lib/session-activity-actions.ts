@@ -50,17 +50,21 @@ export async function registerSessionActivityAction(): Promise<SessionActivityRe
  * `/login?reason=inactivity`. Action (POST com a proteção de origem do Next), não GET: um link de fora não desloga.
  */
 export async function lockSessionAction(): Promise<{ ok: true } | { ok: false; error: string }> {
-  const store = await cookies();
-  // O registro de atividade sai em qualquer caso (não abre nada; só tira o que esta sessão gravou).
-  store.delete(SESSION_ACTIVITY_COOKIE);
+  // Sem sessão não há o que encerrar: negativa explícita ANTES de qualquer escrita de cookie (nenhuma action "dá
+  // certo" sem sessão, e uma action que muda cookie devolve a página re-renderizada em vez do próprio resultado).
+  let supabase: Awaited<ReturnType<typeof createServerClient>>;
   try {
-    const supabase = await createServerClient({ cookieWrites: 'required' });
-    // Sem sessão não há o que encerrar: negativa explícita (nenhuma action "dá certo" sem sessão).
+    supabase = await createServerClient({ cookieWrites: 'required' });
     const { data } = await supabase.auth.getClaims();
     if (!data?.claims) return { ok: false, error: 'Nenhuma sessão para encerrar.' };
-    await supabase.auth.signOut({ scope: 'local' });
   } catch {
     return { ok: false, error: 'Nenhuma sessão para encerrar.' };
+  }
+  (await cookies()).delete(SESSION_ACTIVITY_COOKIE);
+  try {
+    await supabase.auth.signOut({ scope: 'local' });
+  } catch {
+    return { ok: false, error: 'Não foi possível encerrar a sessão agora.' };
   }
   metrics.emit('auth.session.locked', { reason: 'client_idle' });
   return { ok: true };
