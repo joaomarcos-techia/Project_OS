@@ -190,7 +190,9 @@ describe('ProntuarioEditor — autosave', () => {
 describe('S2 / requisito 83: salvar antes do bloqueio por inatividade', () => {
   it('2/7. o guarda pede o flush: o pendente vai ao servidor como rascunho e o editor responde "salvo"', async () => {
     const { flushPendingWork, pendingWorkCount } = await import('@/app/(app)/_lib/pending-work');
-    const { unmount } = render(<ProntuarioEditor prontuario={makeProntuario()} />);
+    const { unmount } = render(
+      <ProntuarioEditor timeZone="America/Sao_Paulo" prontuario={makeProntuario()} />,
+    );
     expect(pendingWorkCount()).toBe(1);
     type('conduta registrada antes de sair');
     let saved = false;
@@ -210,7 +212,7 @@ describe('S2 / requisito 83: salvar antes do bloqueio por inatividade', () => {
   it('10. falha de rede no flush: responde "não salvo" e o texto continua no editor', async () => {
     const { flushPendingWork } = await import('@/app/(app)/_lib/pending-work');
     autosave.mockResolvedValueOnce({ ok: false, kind: 'error' } as AutosaveResult);
-    render(<ProntuarioEditor prontuario={makeProntuario()} />);
+    render(<ProntuarioEditor timeZone="America/Sao_Paulo" prontuario={makeProntuario()} />);
     type('texto que não pode sumir');
     let saved = true;
     await act(async () => {
@@ -222,7 +224,12 @@ describe('S2 / requisito 83: salvar antes do bloqueio por inatividade', () => {
 
   it('prontuário assinado não registra trabalho pendente', async () => {
     const { pendingWorkCount } = await import('@/app/(app)/_lib/pending-work');
-    render(<ProntuarioEditor prontuario={makeProntuario({ status: 'assinado' })} />);
+    render(
+      <ProntuarioEditor
+        timeZone="America/Sao_Paulo"
+        prontuario={makeProntuario({ status: 'assinado' })}
+      />,
+    );
     expect(pendingWorkCount()).toBe(0);
   });
 });
