@@ -22,7 +22,10 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
   page,
   context,
 }) => {
-  test.setTimeout(360_000);
+  // The paid Preview branch includes two authenticated logins, several remote
+  // pages and the Pix request/cancel cycle. Per-operation waits below remain
+  // bounded independently so a slow API response is reported at its source.
+  test.setTimeout(480_000);
   const input = z
     .object({
       E2E_ABACATEPAY_FIXTURE: z.literal('ALLOW_DEV_ONLY'),
@@ -58,6 +61,7 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
   await installVercelBypassForOrigin(context, origin.origin);
   const stages: string[] = [];
   const browserErrorClasses: string[] = [];
+  const browserErrorRoutes: { path: string; category: string }[] = [];
   page.on('pageerror', (error) => {
     const category = /hydration|React error #418/i.test(error.message)
       ? 'hydration_mismatch'
@@ -65,6 +69,7 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
         ? 'stream_parent_missing'
         : 'other_unhandled_browser_error';
     if (!browserErrorClasses.includes(category)) browserErrorClasses.push(category);
+    browserErrorRoutes.push({ path: new URL(page.url()).pathname, category });
   });
   const evidence: {
     runId: string;
@@ -74,6 +79,7 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
     retention: string;
     scope: string;
     browserErrorClasses: string[];
+    browserErrorRoutes: { path: string; category: string }[];
     postLoginPath?: string;
     logoutHttpStatus?: number;
     planPath?: string;
@@ -90,6 +96,7 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
     retention: 'retained_until_financial_reconciliation; never delete on test timeout',
     scope: 'Auth confirmed administratively; no proof of signup email delivery or external payment',
     browserErrorClasses,
+    browserErrorRoutes,
   };
   try {
     await sql`SET statement_timeout='20s'`;
@@ -318,21 +325,39 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
         if (!targetPlanId) throw new Error('Pix replacement target unavailable');
         await page.locator('#pix-replacement-plan').selectOption(targetPlanId);
         await page.getByRole('checkbox', { name: /Entendi que este pedido/ }).check();
+        const requestedResponse = page.waitForResponse(
+          (response) =>
+            response.url().endsWith('/api/billing/pix-replacement-intent') &&
+            response.request().method() === 'POST',
+          { timeout: 60_000 },
+        );
         await page.getByRole('button', { name: 'Solicitar análise da troca' }).click();
-        await expect(page.getByText('Pedido registrado, sem troca financeira')).toBeVisible();
+        expect((await requestedResponse).status()).toBe(200);
+        await expect(page.getByText('Pedido registrado, sem troca financeira')).toBeVisible({
+          timeout: 15_000,
+        });
         const [requested] = await sql<
           { id: string; state: string; to_plan_id: string; count: number }[]
         >`SELECT id::text,state,to_plan_id::text,
-          (SELECT count(*)::int FROM billing_gateway.pix_replacement_intents WHERE subscription_id=${contract.subscription_id}::uuid) count
+          (SELECT count(*)::int FROM billing_gateway.pix_replacement_intents WHERE subscription_id=${contract.subscription_id}::uuid AND state='requested') count
           FROM billing_gateway.pix_replacement_intents
           WHERE subscription_id=${contract.subscription_id}::uuid AND state='requested'`;
         expect(requested).toMatchObject({ state: 'requested', to_plan_id: targetPlanId, count: 1 });
         if (!requested) throw new Error('Pix replacement request not persisted');
+        const cancelledResponse = page.waitForResponse(
+          (response) =>
+            response.url().endsWith('/api/billing/pix-replacement-intent') &&
+            response.request().method() === 'POST',
+          { timeout: 60_000 },
+        );
         await page.getByRole('button', { name: 'Cancelar somente o pedido de troca' }).click();
-        await expect(
-          page.getByRole('heading', { name: 'Pedido assistido de troca' }),
-        ).toBeVisible();
-        await expect(page.getByText('Pedido registrado, sem troca financeira')).toHaveCount(0);
+        expect((await cancelledResponse).status()).toBe(200);
+        await expect(page.getByRole('heading', { name: 'Pedido assistido de troca' })).toBeVisible({
+          timeout: 15_000,
+        });
+        await expect(page.getByText('Pedido registrado, sem troca financeira')).toHaveCount(0, {
+          timeout: 15_000,
+        });
         const [after] = await sql<
           { state: string; invoice_count: number; checkout_count: number; billing_status: string }[]
         >`SELECT i.state,s.billing_status,

@@ -1,6 +1,8 @@
 // @vitest-environment happy-dom
-import type { ComponentProps } from 'react';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, type ComponentProps } from 'react';
+import { hydrateRoot } from 'react-dom/client';
+import { renderToString } from 'react-dom/server';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const { navigation, toggleTheme, linkStatus } = vi.hoisted(() => ({
@@ -40,6 +42,37 @@ function renderShell() {
 }
 
 describe('shell tenant das referências HTML', () => {
+  it('hidrata o shell da assinatura sem reconstruir o conteúdo principal', async () => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    navigation.pathname = '/configuracoes/assinatura';
+    const shell = (
+      <PainelShell
+        userName="Maria da Silva"
+        userRole="Gestor"
+        settingsHref="/configuracoes/assinatura"
+      >
+        <section aria-label="Assinatura e avaliação">Plano ativo</section>
+      </PainelShell>
+    );
+    const container = document.createElement('div');
+    container.innerHTML = renderToString(shell);
+    document.body.appendChild(container);
+    const originalMain = container.querySelector('#qoro-main');
+    const recoverable: string[] = [];
+    let root: ReturnType<typeof hydrateRoot> | undefined;
+    try {
+      await act(async () => {
+        root = hydrateRoot(container, shell, {
+          onRecoverableError: (error) => recoverable.push(String(error)),
+        });
+      });
+      expect(recoverable).toEqual([]);
+      expect(container.querySelector('#qoro-main')).toBe(originalMain);
+    } finally {
+      await act(async () => root?.unmount());
+      container.remove();
+    }
+  });
   it.each(['/documentação/agenda', '/documenta%C3%A7%C3%A3o/agenda'])(
     'mantém Ajuda ativa e aponta ao endereço novo: %s',
     (pathname) => {

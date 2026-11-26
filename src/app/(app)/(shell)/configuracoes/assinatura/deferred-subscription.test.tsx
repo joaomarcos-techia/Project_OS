@@ -1,4 +1,7 @@
 // @vitest-environment happy-dom
+import { act } from 'react';
+import { hydrateRoot } from 'react-dom/client';
+import { renderToString } from 'react-dom/server';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -20,6 +23,56 @@ afterEach(() => {
 });
 
 describe('deferred subscription controls', () => {
+  it('hydrates a paid Pix request from the server markup without replacing the subscription', async () => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    const props = {
+      ...baseline,
+      paid: true,
+      billingStatus: 'active' as const,
+      paidPeriodActive: true,
+      managementAvailable: true,
+      contractId: '11111111-1111-4111-8111-111111111111',
+      accessUntil: '2026-12-24T03:09:00.000Z',
+      planChanges: {
+        amountChangeBlocked: true,
+        pending: null,
+        options: [
+          {
+            id: '22222222-2222-4222-8222-222222222222',
+            name: 'Clínica',
+            code: 'clinica_2026_2',
+            amountMinor: 39700,
+          },
+        ],
+      },
+      pixReplacement: {
+        available: true as const,
+        pending: {
+          id: '33333333-3333-4333-8333-333333333333',
+          targetPlanId: '22222222-2222-4222-8222-222222222222',
+          amountMinor: 39700,
+          priorPeriodEnd: '2026-12-24T03:09:00.000Z',
+        },
+      },
+    };
+    const container = document.createElement('div');
+    container.innerHTML = renderToString(<DeferredSubscription {...props} />);
+    document.body.appendChild(container);
+    const recoverable: string[] = [];
+    let root: ReturnType<typeof hydrateRoot> | undefined;
+    try {
+      await act(async () => {
+        root = hydrateRoot(container, <DeferredSubscription {...props} />, {
+          onRecoverableError: (error) => recoverable.push(String(error)),
+        });
+      });
+      expect(recoverable).toEqual([]);
+      expect(container.textContent).toContain('Pedido registrado, sem troca financeira');
+    } finally {
+      await act(async () => root?.unmount());
+      container.remove();
+    }
+  });
   it('records only an assisted Pix request after explicit acknowledgement', async () => {
     const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => undefined);
     const fetcher = vi
