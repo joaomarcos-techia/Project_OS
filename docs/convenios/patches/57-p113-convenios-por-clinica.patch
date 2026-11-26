@@ -1,0 +1,514 @@
+From 45e41742998727c7a2f0763703fdd072a672fa7f Mon Sep 17 00:00:00 2001
+From: joaomarcos-techia <joaogestor.ia@gmail.com>
+Date: Thu, 26 Nov 2026 20:08:41 -0300
+Subject: [PATCH] =?UTF-8?q?feat(convenios):=20P1.13=20=E2=80=94=20interrup?=
+ =?UTF-8?q?tor=20de=20Conv=C3=AAnios=20por=20cl=C3=ADnica=20no=20console?=
+ =?UTF-8?q?=20da=20plataforma=20(motivo=20+=20TOTP=20a=20cada=20mudan?=
+ =?UTF-8?q?=C3=A7a)?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Detalhe da clínica em /admin: estado (desligado por padrão), disponibilidade comercial e contrato; ligar e
+desligar pedem motivo e o código do autenticador (step-up igual ao impersonate) e passam pelo serviço do
+Convênios (super admin AAL2, contrato com Convênios no serviço e no gatilho, super_admin_actions + trilha da
+clínica, idempotente). Leitura de uma clínica registrada em super_admin_actions. O #57 não toca esses arquivos.
+
+Testes: action 6, formulário 3, página e arch read-only verdes; banco 7/7 (prova nova do detalhe).
+Patch do #56 para S2 + R42 (shell, login, editor) em docs/convenios/patches/56-s2-r42-shell-login-editor.patch.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../admin/actions/convenios-module.test.ts    | 116 ++++++++++++++++++
+ .../(admin)/admin/actions/convenios-module.ts |  78 ++++++++++++
+ .../[id]/convenios-module-form.test.tsx       |  60 +++++++++
+ .../clinicas/[id]/convenios-module-form.tsx   | 112 +++++++++++++++++
+ .../[id]/convenios-module-section.tsx         |  37 ++++++
+ .../(admin)/admin/clinicas/[id]/page.test.tsx |   5 +
+ src/app/(admin)/admin/clinicas/[id]/page.tsx  |   9 ++
+ 7 files changed, 417 insertions(+)
+ create mode 100644 src/app/(admin)/admin/actions/convenios-module.test.ts
+ create mode 100644 src/app/(admin)/admin/actions/convenios-module.ts
+ create mode 100644 src/app/(admin)/admin/clinicas/[id]/convenios-module-form.test.tsx
+ create mode 100644 src/app/(admin)/admin/clinicas/[id]/convenios-module-form.tsx
+ create mode 100644 src/app/(admin)/admin/clinicas/[id]/convenios-module-section.tsx
+
+diff --git a/src/app/(admin)/admin/actions/convenios-module.test.ts b/src/app/(admin)/admin/actions/convenios-module.test.ts
+new file mode 100644
+index 00000000..6f9638af
+--- /dev/null
++++ b/src/app/(admin)/admin/actions/convenios-module.test.ts
+@@ -0,0 +1,116 @@
++import { beforeEach, describe, expect, it, vi } from 'vitest';
++
++const m = vi.hoisted(() => ({
++  guard: vi.fn(),
++  listFactors: vi.fn(),
++  verify: vi.fn(),
++  set: vi.fn(),
++  revalidate: vi.fn(),
++}));
++
++vi.mock('../_lib/guard', () => ({ guardAdminAccess: m.guard }));
++vi.mock('@/lib/auth/mfa', () => ({ listFactors: m.listFactors, challengeAndVerify: m.verify }));
++vi.mock('@/lib/auth/supabase-server', () => ({ createServerClient: async () => ({}) }));
++vi.mock('next/headers', () => ({ headers: async () => new Headers() }));
++vi.mock('next/cache', () => ({ revalidatePath: m.revalidate }));
++vi.mock('@/lib/audit/request-context', () => ({ buildRequestContext: () => ({ ip: null }) }));
++vi.mock('@/contexts/health-insurance', () => {
++  class ConveniosPlatformError extends Error {
++    constructor(
++      message: string,
++      readonly code: string,
++    ) {
++      super(message);
++    }
++  }
++  return { ConveniosPlatformError, setConveniosModuleForClinic: m.set };
++});
++
++import { ConveniosPlatformError } from '@/contexts/health-insurance';
++
++import { setConveniosModuleAction } from './convenios-module';
++
++const CLINIC = '11111111-1111-4111-8111-111111111111';
++const form = (o: Partial<Record<'clinicId' | 'enabled' | 'reason' | 'code', string>> = {}) => {
++  const f = new FormData();
++  f.set('clinicId', o.clinicId ?? CLINIC);
++  f.set('enabled', o.enabled ?? 'true');
++  f.set('reason', o.reason ?? 'contrato de Convênios assinado em 26/11');
++  f.set('code', o.code ?? '123456');
++  return f;
++};
++
++beforeEach(() => {
++  vi.clearAllMocks();
++  m.guard.mockResolvedValue(undefined);
++  m.listFactors.mockResolvedValue([{ id: 'f1', status: 'verified' }]);
++  m.verify.mockResolvedValue(undefined);
++  m.set.mockResolvedValue({ clinicId: CLINIC, enabled: true, changed: true });
++});
++
++describe('setConveniosModuleAction (P1.13)', () => {
++  it('sem super admin AAL2: o guard barra antes de tudo (nada é lido nem gravado)', async () => {
++    m.guard.mockRejectedValue(new Error('NEXT_NOT_FOUND'));
++    await expect(setConveniosModuleAction({ error: null }, form())).rejects.toThrow(
++      'NEXT_NOT_FOUND',
++    );
++    expect(m.listFactors).not.toHaveBeenCalled();
++    expect(m.set).not.toHaveBeenCalled();
++  });
++
++  it('motivo obrigatório e código de 6 dígitos', async () => {
++    expect((await setConveniosModuleAction({ error: null }, form({ reason: 'ok' }))).error).toMatch(
++      /motivo/u,
++    );
++    expect((await setConveniosModuleAction({ error: null }, form({ code: '12' }))).error).toMatch(
++      /6 dígitos/u,
++    );
++    expect(m.set).not.toHaveBeenCalled();
++  });
++
++  it('MFA a cada mudança: sem TOTP configurado ou com código errado, nada é gravado', async () => {
++    m.listFactors.mockResolvedValueOnce([]);
++    expect((await setConveniosModuleAction({ error: null }, form())).error).toMatch(/TOTP/u);
++    m.verify.mockRejectedValueOnce(new Error('Código inválido.'));
++    expect((await setConveniosModuleAction({ error: null }, form())).error).toBe(
++      'Código inválido.',
++    );
++    expect(m.set).not.toHaveBeenCalled();
++  });
++
++  it('liga com motivo, revalida a página e informa o resultado', async () => {
++    const out = await setConveniosModuleAction({ error: null }, form());
++    expect(out).toEqual({ error: null, done: 'enabled' });
++    expect(m.set).toHaveBeenCalledWith(
++      { clinicId: CLINIC, enabled: true, reason: 'contrato de Convênios assinado em 26/11' },
++      { ip: null },
++    );
++    expect(m.revalidate).toHaveBeenCalledWith(`/admin/clinicas/${CLINIC}`);
++  });
++
++  it('desliga; pedir o estado atual não grava nada ("unchanged")', async () => {
++    m.set.mockResolvedValueOnce({ clinicId: CLINIC, enabled: false, changed: true });
++    expect(await setConveniosModuleAction({ error: null }, form({ enabled: 'false' }))).toEqual({
++      error: null,
++      done: 'disabled',
++    });
++    m.set.mockResolvedValueOnce({ clinicId: CLINIC, enabled: false, changed: false });
++    expect((await setConveniosModuleAction({ error: null }, form({ enabled: 'false' }))).done).toBe(
++      'unchanged',
++    );
++  });
++
++  it('contrato sem Convênios ou indisponível na plataforma: a mensagem do serviço, sem detalhe interno', async () => {
++    m.set.mockRejectedValueOnce(
++      new ConveniosPlatformError(
++        'A assinatura desta clínica não inclui Convênios agora.',
++        'commercial',
++      ),
++    );
++    expect((await setConveniosModuleAction({ error: null }, form())).error).toMatch(/assinatura/u);
++    m.set.mockRejectedValueOnce(new Error('falha interna'));
++    await expect(setConveniosModuleAction({ error: null }, form())).rejects.toThrow(
++      'falha interna',
++    );
++  });
++});
+diff --git a/src/app/(admin)/admin/actions/convenios-module.ts b/src/app/(admin)/admin/actions/convenios-module.ts
+new file mode 100644
+index 00000000..8b7a7227
+--- /dev/null
++++ b/src/app/(admin)/admin/actions/convenios-module.ts
+@@ -0,0 +1,78 @@
++'use server';
++
++/**
++ * P1.13 — interruptor de Convênios por clínica no console da plataforma.
++ *
++ * Configuração de PLATAFORMA (não é mutação de dado clínico): mesmo padrão do impersonate e das platform flags.
++ * `guardAdminAccess` (404 se não for super admin com AAL2) → TOTP verificado de novo a CADA mudança (step-up,
++ * como o impersonate) → serviço do Convênios (`setConveniosModuleForClinic`): disponibilidade comercial
++ * (`convenios.available`) para ligar, assinatura que inclui Convênios (no serviço e no gatilho do banco), motivo
++ * obrigatório, registro em `super_admin_actions` e na trilha da PRÓPRIA clínica, idempotente.
++ */
++import { headers } from 'next/headers';
++import { revalidatePath } from 'next/cache';
++import { z } from 'zod';
++
++import { ConveniosPlatformError, setConveniosModuleForClinic } from '@/contexts/health-insurance';
++import { buildRequestContext } from '@/lib/audit/request-context';
++import { challengeAndVerify, listFactors } from '@/lib/auth/mfa';
++import { createServerClient } from '@/lib/auth/supabase-server';
++
++import { guardAdminAccess } from '../_lib/guard';
++
++export type ConveniosModuleFormState = {
++  error: string | null;
++  done?: 'enabled' | 'disabled' | 'unchanged';
++};
++
++const Input = z.object({
++  clinicId: z.string().uuid(),
++  enabled: z.enum(['true', 'false']),
++  reason: z.string().trim().min(5, 'Informe o motivo (5 caracteres ou mais).').max(300),
++  code: z.string().regex(/^\d{6}$/, 'O código do autenticador tem 6 dígitos.'),
++});
++
++export async function setConveniosModuleAction(
++  _prev: ConveniosModuleFormState,
++  formData: FormData,
++): Promise<ConveniosModuleFormState> {
++  await guardAdminAccess();
++  const parsed = Input.safeParse({
++    clinicId: formData.get('clinicId'),
++    enabled: formData.get('enabled'),
++    reason: formData.get('reason') ?? '',
++    code: String(formData.get('code') ?? '').trim(),
++  });
++  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Dados inválidos.' };
++  const d = parsed.data;
++
++  const supabase = await createServerClient({ cookieWrites: 'required' });
++  let factors;
++  try {
++    factors = await listFactors(supabase);
++  } catch {
++    return { error: 'Não foi possível verificar o MFA. Tente novamente.' };
++  }
++  const verified = factors.find((f) => f.status === 'verified');
++  if (!verified) return { error: 'Nenhum autenticador (TOTP) configurado nesta conta.' };
++  try {
++    await challengeAndVerify(supabase, verified.id, d.code);
++  } catch (e) {
++    return { error: e instanceof Error ? e.message : 'Código inválido.' };
++  }
++
++  try {
++    const result = await setConveniosModuleForClinic(
++      { clinicId: d.clinicId, enabled: d.enabled === 'true', reason: d.reason },
++      buildRequestContext(await headers()),
++    );
++    revalidatePath(`/admin/clinicas/${d.clinicId}`);
++    return {
++      error: null,
++      done: !result.changed ? 'unchanged' : result.enabled ? 'enabled' : 'disabled',
++    };
++  } catch (e) {
++    if (e instanceof ConveniosPlatformError) return { error: e.message };
++    throw e;
++  }
++}
+diff --git a/src/app/(admin)/admin/clinicas/[id]/convenios-module-form.test.tsx b/src/app/(admin)/admin/clinicas/[id]/convenios-module-form.test.tsx
+new file mode 100644
+index 00000000..cae63df3
+--- /dev/null
++++ b/src/app/(admin)/admin/clinicas/[id]/convenios-module-form.test.tsx
+@@ -0,0 +1,60 @@
++// @vitest-environment happy-dom
++import { cleanup, fireEvent, render, screen } from '@testing-library/react';
++import { afterEach, describe, expect, it, vi } from 'vitest';
++
++vi.mock('../../actions/convenios-module', () => ({ setConveniosModuleAction: vi.fn() }));
++
++import { ConveniosModuleForm } from './convenios-module-form';
++
++const CLINIC = '11111111-1111-4111-8111-111111111111';
++const view = (o: Partial<Parameters<typeof ConveniosModuleForm>[0]['view']> = {}) => ({
++  available: true,
++  enabled: false,
++  enabledAt: null,
++  commercialDenial: null,
++  ...o,
++});
++
++afterEach(cleanup);
++
++describe('ConveniosModuleForm (P1.13)', () => {
++  it('desligado por padrão; ligar pede motivo e o código do autenticador', () => {
++    render(<ConveniosModuleForm clinicId={CLINIC} view={view()} />);
++    expect(screen.getByText('Desligado')).toBeTruthy();
++    fireEvent.click(screen.getByRole('button', { name: 'Ligar Convênios' }));
++    expect(screen.getByRole('textbox', { name: /Motivo/u })).toBeTruthy();
++    expect(screen.getByLabelText('Código do autenticador (TOTP)')).toBeTruthy();
++    expect((document.querySelector('input[name="enabled"]') as HTMLInputElement).value).toBe(
++      'true',
++    );
++  });
++
++  it('sem disponibilidade comercial ou sem contrato com Convênios: não deixa ligar', () => {
++    const { unmount } = render(
++      <ConveniosModuleForm clinicId={CLINIC} view={view({ available: false })} />,
++    );
++    expect(
++      (screen.getByRole('button', { name: 'Ligar Convênios' }) as HTMLButtonElement).disabled,
++    ).toBe(true);
++    unmount();
++    render(<ConveniosModuleForm clinicId={CLINIC} view={view({ commercialDenial: 'trial' })} />);
++    expect(
++      (screen.getByRole('button', { name: 'Ligar Convênios' }) as HTMLButtonElement).disabled,
++    ).toBe(true);
++  });
++
++  it('ligado: oferece desligar (sempre permitido, também com motivo e TOTP)', () => {
++    render(
++      <ConveniosModuleForm
++        clinicId={CLINIC}
++        view={view({ enabled: true, commercialDenial: 'subscription_canceled' })}
++      />,
++    );
++    const b = screen.getByRole('button', { name: 'Desligar Convênios' }) as HTMLButtonElement;
++    expect(b.disabled).toBe(false);
++    fireEvent.click(b);
++    expect((document.querySelector('input[name="enabled"]') as HTMLInputElement).value).toBe(
++      'false',
++    );
++  });
++});
+diff --git a/src/app/(admin)/admin/clinicas/[id]/convenios-module-form.tsx b/src/app/(admin)/admin/clinicas/[id]/convenios-module-form.tsx
+new file mode 100644
+index 00000000..06b511dd
+--- /dev/null
++++ b/src/app/(admin)/admin/clinicas/[id]/convenios-module-form.tsx
+@@ -0,0 +1,112 @@
++'use client';
++
++import { useActionState, useState } from 'react';
++
++import { Badge } from '@/components/ui/badge';
++import { buttonVariants } from '@/components/ui/button';
++
++import {
++  setConveniosModuleAction,
++  type ConveniosModuleFormState,
++} from '../../actions/convenios-module';
++
++const INITIAL: ConveniosModuleFormState = { error: null };
++
++export interface ConveniosModuleView {
++  available: boolean;
++  enabled: boolean;
++  enabledAt: string | null;
++  commercialDenial: string | null;
++}
++
++/**
++ * P1.13 — Convênios por clínica: desligado por padrão; ligar exige a disponibilidade comercial da plataforma e
++ * assinatura que inclua Convênios; toda mudança pede motivo e o código do autenticador (TOTP).
++ */
++export function ConveniosModuleForm({
++  clinicId,
++  view,
++}: {
++  clinicId: string;
++  view: ConveniosModuleView;
++}) {
++  const [open, setOpen] = useState(false);
++  const [state, formAction, pending] = useActionState(setConveniosModuleAction, INITIAL);
++  const enabled =
++    state.done === 'enabled' ? true : state.done === 'disabled' ? false : view.enabled;
++  const target = !enabled;
++  const blockedToEnable = target && (!view.available || view.commercialDenial !== null);
++
++  return (
++    <div data-convenios-module className="flex flex-col gap-2">
++      <div className="flex flex-wrap items-center gap-2">
++        <span className="text-sm font-medium">Convênios (TISS)</span>
++        <Badge tone={enabled ? 'green' : 'gray'}>{enabled ? 'Ligado' : 'Desligado'}</Badge>
++        {!view.available ? (
++          <span className="text-xs text-fg-subtle">
++            indisponível comercialmente na plataforma (`convenios.available` desligado)
++          </span>
++        ) : view.commercialDenial ? (
++          <span className="text-xs text-fg-subtle">
++            a assinatura desta clínica não inclui Convênios agora
++          </span>
++        ) : null}
++      </div>
++      {!open ? (
++        <button
++          type="button"
++          disabled={blockedToEnable}
++          onClick={() => setOpen(true)}
++          className={buttonVariants({ variant: target ? 'primary' : 'secondary', size: 'sm' })}
++        >
++          {target ? 'Ligar Convênios' : 'Desligar Convênios'}
++        </button>
++      ) : (
++        <form action={formAction} className="flex flex-col gap-2">
++          <input type="hidden" name="clinicId" value={clinicId} />
++          <input type="hidden" name="enabled" value={String(target)} />
++          <label className="text-sm">
++            Motivo (fica na trilha da plataforma e na da clínica)
++            <textarea
++              name="reason"
++              required
++              minLength={5}
++              maxLength={300}
++              className="input mt-1 w-full"
++              rows={2}
++            />
++          </label>
++          <input
++            name="code"
++            inputMode="numeric"
++            autoComplete="one-time-code"
++            maxLength={6}
++            placeholder="Código do autenticador"
++            aria-label="Código do autenticador (TOTP)"
++            className="input w-44"
++          />
++          <div className="flex gap-2">
++            <button
++              type="submit"
++              disabled={pending}
++              className={buttonVariants({ variant: 'primary', size: 'sm' })}
++            >
++              {pending ? 'Verificando…' : target ? 'Confirmar e ligar' : 'Confirmar e desligar'}
++            </button>
++            <button
++              type="button"
++              onClick={() => setOpen(false)}
++              className={buttonVariants({ variant: 'ghost', size: 'sm' })}
++            >
++              Cancelar
++            </button>
++          </div>
++        </form>
++      )}
++      {state.error ? <span className="text-sm text-danger-600">{state.error}</span> : null}
++      {state.done === 'unchanged' ? (
++        <span className="text-sm text-fg-subtle">Já estava assim: nada foi gravado.</span>
++      ) : null}
++    </div>
++  );
++}
+diff --git a/src/app/(admin)/admin/clinicas/[id]/convenios-module-section.tsx b/src/app/(admin)/admin/clinicas/[id]/convenios-module-section.tsx
+new file mode 100644
+index 00000000..a4b5573b
+--- /dev/null
++++ b/src/app/(admin)/admin/clinicas/[id]/convenios-module-section.tsx
+@@ -0,0 +1,37 @@
++import { headers } from 'next/headers';
++
++import { readConveniosModuleState } from '@/contexts/health-insurance';
++import { buildRequestContext } from '@/lib/audit/request-context';
++
++import { ConveniosModuleForm } from './convenios-module-form';
++
++/**
++ * P1.13 — estado de Convênios da clínica no detalhe do console. A leitura passa pelo serviço do Convênios (super
++ * admin com AAL2, registrada em `super_admin_actions`). Falha de leitura não derruba a página.
++ */
++export async function ConveniosModuleSection({ clinicId }: { clinicId: string }) {
++  let state: Awaited<ReturnType<typeof readConveniosModuleState>> | null = null;
++  try {
++    state = await readConveniosModuleState(clinicId, buildRequestContext(await headers()));
++  } catch {
++    state = null;
++  }
++  if (!state?.clinic) {
++    return (
++      <p className="text-sm text-fg-subtle" data-convenios-module-unavailable>
++        Não foi possível ler o estado de Convênios desta clínica agora.
++      </p>
++    );
++  }
++  return (
++    <ConveniosModuleForm
++      clinicId={clinicId}
++      view={{
++        available: state.available,
++        enabled: state.clinic.enabled,
++        enabledAt: state.clinic.enabledAt,
++        commercialDenial: state.clinic.commercialDenial,
++      }}
++    />
++  );
++}
+diff --git a/src/app/(admin)/admin/clinicas/[id]/page.test.tsx b/src/app/(admin)/admin/clinicas/[id]/page.test.tsx
+index 6c208bbc..cb193fde 100644
+--- a/src/app/(admin)/admin/clinicas/[id]/page.test.tsx
++++ b/src/app/(admin)/admin/clinicas/[id]/page.test.tsx
+@@ -28,6 +28,11 @@ vi.mock('./impersonate-form', () => ({
+     </button>
+   ),
+ }));
++vi.mock('./convenios-module-section', () => ({
++  ConveniosModuleSection: ({ clinicId }: { clinicId: string }) => (
++    <div data-convenios-module-section={clinicId} />
++  ),
++}));
+ vi.mock('./export-form', () => ({
+   ExportAuditForm: ({ clinicId }: { clinicId: string }) => (
+     <form aria-label="Exportar auditoria" data-clinic-id={clinicId} />
+diff --git a/src/app/(admin)/admin/clinicas/[id]/page.tsx b/src/app/(admin)/admin/clinicas/[id]/page.tsx
+index db86bf12..fcdbc06f 100644
+--- a/src/app/(admin)/admin/clinicas/[id]/page.tsx
++++ b/src/app/(admin)/admin/clinicas/[id]/page.tsx
+@@ -20,6 +20,7 @@ import {
+   formatUSD,
+ } from '../../_lib/format';
+ import { clinicRepository } from '../../_lib/repositories/clinics.repo';
++import { ConveniosModuleSection } from './convenios-module-section';
+ import { ExportAuditForm } from './export-form';
+ import { ImpersonateForm } from './impersonate-form';
+ 
+@@ -219,6 +220,14 @@ export default async function ClinicDetailPage({ params }: { params: Promise<{ i
+           </div>
+         </div>
+ 
++        {/* P1.13 — Convênios por clínica (desligado por padrão; motivo + TOTP a cada mudança). */}
++        <div
++          className="surface-card"
++          style={{ marginBottom: 'var(--sp-4)', padding: 'var(--sp-4)' }}
++        >
++          <ConveniosModuleSection clinicId={c.general.id} />
++        </div>
++
+         {c.billing.overdue > 0 ? (
+           <div className="ph-alert">
+             <span className="ph-al-ico">
+-- 
+2.56.0.windows.4
+

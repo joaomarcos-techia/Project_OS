@@ -826,3 +826,17 @@ clínica em avaliação recusada; desligar sempre possível). Sem isso a P1.13 f
 - **Quando aparece:** só com lote exportado, operadora homologada e credencial ativa da clínica. Em produção a lista de homologadas é vazia (há teste), então o botão não aparece para ninguém.
 - **Situação do envio:** aparece no campo "Envio" (`data-testid="batch-send-job"`).
 - **Pedido para o #56:** se o card "Situação" mudar de estrutura, preservar esse campo e a ordem (botão do webservice antes de "Marcar como enviado").
+
+## 16. 26/11: P1.13 entregue no #55 e patch para o #57
+
+- A tela de Convênios por clínica foi implementada **no #55** (detalhe da clínica em `/admin/clinicas/[id]`):
+  `actions/convenios-module.ts` (guard de super admin AAL2 + TOTP a cada mudança + motivo), `convenios-module-form.tsx`,
+  `convenios-module-section.tsx` e a seção na `page.tsx`. O serviço é o `platform.ts` do Convênios, agora exportado
+  pelo `index.ts` (`readConveniosModuleState`, `setConveniosModuleForClinic`, `ConveniosPlatformError`).
+- `docs/convenios/patches/57-p113-convenios-por-clinica.patch` (7 arquivos de `src/app/(admin)`) **aplica sem conflito
+  no #57 `93a79601`** (`git apply --check` num índice temporário). Ele só compila com o contexto do Convênios, então o
+  caminho natural é o #55 entrar depois do #64 e o #57 rebasear sobre ele; o #57 não precisa carregar o patch.
+- Testes: action 6, formulário 3, página e `admin-read-only` verdes; banco `health-insurance-platform-db.ts` 7/7.
+  E2E autenticado (super admin com MFA) pendente: exige Preview.
+- S2 no console: no modo `TISS_SECURITY_PROFILE_SCOPE=platform`, o layout de `/admin` precisa do mesmo
+  `InactivityGuardSlot` do shell (fora desse modo, super admin sem clínica está fora do alcance).
