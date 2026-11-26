@@ -11,6 +11,8 @@ import { PainelShell } from '@/components/painel/painel-shell';
 import { getShellIdentity } from '@/components/painel/shell-identity';
 import { AnnouncementPopup } from '@/components/shared/announcement-popup';
 import { getCurrentUser } from '@/lib/auth/tenant-context';
+import { InactivityGuardSlot } from '@/app/(app)/_lib/inactivity-guard-slot';
+import { redirectToLogin } from '@/app/(app)/_lib/session-lock-redirect';
 import { getImpersonationView } from '@/lib/impersonation';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { getActiveAnnouncement } from '@/lib/platform-announcements';
@@ -44,7 +46,8 @@ export default async function ShellLayout({ children }: { children: ReactNode })
   // NUNCA renderize para um usuário não-autenticado, mesmo que uma request fure o
   // middleware (ex.: cookie `_healed` forjado / V4) — fail-closed no layout.
   if (!user) {
-    redirect('/login');
+    // S2: sessão bloqueada por inatividade vai para o login com o aviso próprio.
+    return redirectToLogin();
   }
 
   // C15: super_admin só fica no app tenant DURANTE um impersonate. Sem sessão
@@ -101,6 +104,8 @@ export default async function ShellLayout({ children }: { children: ReactNode })
           para quem tem clínica: super_admin sem impersonate nem chega aqui, e
           `onboarding_progress` é por (clínica, pessoa). */}
       {onboarding ? <ProductTour initial={onboarding} steps={TOUR_STEPS} /> : null}
+      {/* S2 (requisito 83 da ANS): guarda de inatividade, só no perfil TISS. */}
+      <InactivityGuardSlot />
       <PainelShell
         userName={id.userName}
         userRole={id.userRole}

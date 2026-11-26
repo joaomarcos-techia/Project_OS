@@ -10,7 +10,7 @@
  */
 import { PgDialect } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const dialect = new PgDialect();
 
@@ -37,6 +37,15 @@ vi.mock('@/lib/auth/supabase-server', () => ({
   createServerClient: async () => ({ auth: { getClaims } }),
 }));
 vi.mock('@/lib/impersonation', () => ({ resolveImpersonation }));
+
+/** S2: o jarro de cookies da requisição (só o cookie de atividade importa aqui). */
+const jar = vi.hoisted(() => ({ values: new Map<string, string>() }));
+vi.mock('next/headers', () => ({
+  cookies: async () => ({
+    get: (name: string) =>
+      jar.values.has(name) ? { name, value: jar.values.get(name)! } : undefined,
+  }),
+}));
 
 /**
  * Mock do query builder do Drizzle. Discrimina a query pelo SHAPE do `select()`:
@@ -579,5 +588,121 @@ describe('identidade validada carrega a prova (validatedAt)', () => {
     expect(user.name).toBe('Ana Silva');
     expect(user.claimsVersion).toBe(3);
     expect(Date.parse(user.validatedAt)).not.toBeNaN();
+  });
+});
+
+describe('S2 / requisito 83: sessão bloqueada por inatividade (perfil TISS ligado)', () => {
+  const SECRET_ENV = 'chave-sintetica-do-servidor-com-mais-de-32-caracteres';
+  const MIN = 60_000;
+  const withSession = (o: { sessionId?: string; authAtMs?: number } = {}) => {
+    const base = claims();
+    return {
+      ...base,
+      data: {
+        claims: {
+          ...base.data.claims,
+          session_id: o.sessionId ?? 'sess-1',
+          amr: [
+            {
+              method: 'password',
+              timestamp: Math.floor((o.authAtMs ?? Date.now() - 60 * MIN) / 1000),
+            },
+          ],
+        },
+      },
+    };
+  };
+  const putActivity = async (o: { at: number; scope?: boolean; sid?: string; uid?: string }) => {
+    const { encodeSessionActivity, sessionActivitySecret, SESSION_ACTIVITY_COOKIE } =
+      await import('./session-activity');
+    jar.values.set(
+      SESSION_ACTIVITY_COOKIE,
+      encodeSessionActivity(
+        { uid: o.uid ?? USER, sid: o.sid ?? 'sess-1', at: o.at, scope: o.scope ?? true },
+        sessionActivitySecret(),
+      ),
+    );
+  };
+
+  beforeEach(() => {
+    jar.values.clear();
+    vi.stubEnv('TISS_SECURITY_PROFILE_ENFORCE', 'true');
+    vi.stubEnv('SUPABASE_SECRET_KEY', SECRET_ENV);
+    db.profile = profile();
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('atividade há 2 min: identidade validada, com o session_id', async () => {
+    getClaims.mockResolvedValue(withSession());
+    await putActivity({ at: Date.now() - 2 * MIN });
+    const { authenticate } = await subject();
+    const r = await authenticate();
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.identity.sessionId).toBe('sess-1');
+  });
+
+  it('10 min parado: SESSION_LOCKED com o token VÁLIDO, e requireUser vira 401 com motivo', async () => {
+    getClaims.mockResolvedValue(withSession());
+    await putActivity({ at: Date.now() - 10 * MIN - 1 });
+    const { authenticate, requireUser } = await subject();
+    await expect(authenticate()).resolves.toEqual({ ok: false, reason: 'SESSION_LOCKED' });
+    await expect(requireUser()).rejects.toMatchObject({
+      httpStatus: 401,
+      reason: 'SESSION_LOCKED',
+    });
+  });
+
+  it('apagar o cookie não destrava: sem registro e com login antigo, bloqueia', async () => {
+    getClaims.mockResolvedValue(withSession());
+    const { authenticate } = await subject();
+    await expect(authenticate()).resolves.toEqual({ ok: false, reason: 'SESSION_LOCKED' });
+  });
+
+  it('login de 1 min atrás sem registro ainda: segue (o guarda grava o registro ao montar)', async () => {
+    getClaims.mockResolvedValue(withSession({ authAtMs: Date.now() - MIN }));
+    const { authenticate } = await subject();
+    await expect(authenticate()).resolves.toMatchObject({ ok: true });
+  });
+
+  it('registro de outra sessão (login anterior) não vale', async () => {
+    getClaims.mockResolvedValue(withSession({ sessionId: 'sess-nova' }));
+    await putActivity({ at: Date.now() - MIN, sid: 'sess-velha' });
+    const { authenticate } = await subject();
+    await expect(authenticate()).resolves.toEqual({ ok: false, reason: 'SESSION_LOCKED' });
+  });
+
+  it('fora do alcance (registro com scope=false): nunca bloqueia, mesmo parado há horas', async () => {
+    getClaims.mockResolvedValue(withSession());
+    await putActivity({ at: Date.now() - 300 * MIN, scope: false });
+    const { authenticate } = await subject();
+    await expect(authenticate()).resolves.toMatchObject({ ok: true });
+  });
+
+  it('cookie adulterado (horário trocado sem a chave) não vale', async () => {
+    getClaims.mockResolvedValue(withSession());
+    await putActivity({ at: Date.now() - 20 * MIN });
+    const { SESSION_ACTIVITY_COOKIE } = await import('./session-activity');
+    const [, mac] = jar.values.get(SESSION_ACTIVITY_COOKIE)!.split('.');
+    const forged = Buffer.from(
+      JSON.stringify({ uid: USER, sid: 'sess-1', at: Date.now(), scope: true }),
+    ).toString('base64url');
+    jar.values.set(SESSION_ACTIVITY_COOKIE, `${forged}.${mac}`);
+    const { authenticate } = await subject();
+    await expect(authenticate()).resolves.toEqual({ ok: false, reason: 'SESSION_LOCKED' });
+  });
+
+  it('perfil desligado (padrão): nada muda, sem cookie e parado há horas', async () => {
+    vi.stubEnv('TISS_SECURITY_PROFILE_ENFORCE', '');
+    getClaims.mockResolvedValue(withSession());
+    const { authenticate } = await subject();
+    await expect(authenticate()).resolves.toMatchObject({ ok: true });
+  });
+
+  it('a revogação por epoch continua antes de tudo (sessão revogada não vira "bloqueada")', async () => {
+    getClaims.mockResolvedValue(withSession());
+    db.profile = profile({ claimsVersion: 2 });
+    await putActivity({ at: Date.now() - MIN });
+    const { authenticate } = await subject();
+    await expect(authenticate()).resolves.toEqual({ ok: false, reason: 'CLAIMS_OUTDATED' });
   });
 });

@@ -47,9 +47,7 @@ export function decidePlatformStaffScope(clinic: TissScopeDecision): TissScopeDe
 }
 
 /** O perfil só é APLICADO com a flag ligada; o alcance é calculado sempre, para teste e simulação. */
-export function isTissProfileEnforced(env: {
-  TISS_SECURITY_PROFILE_ENFORCE?: string | undefined;
-}): boolean {
+export function isTissProfileEnforced(env: Readonly<Record<string, string | undefined>>): boolean {
   return env.TISS_SECURITY_PROFILE_ENFORCE === 'true';
 }
 

@@ -226,6 +226,17 @@ export function collectInventory(root: string): Inventory {
       guard: 'public-local-session-clear',
       call: 'supabase.auth.signOut',
     },
+    // S2 (requisito 83): renova só o registro de atividade da PRÓPRIA sessão, depois da porta única (sessão
+    // bloqueada continua bloqueada); não lê nem escreve dado de clínica.
+    'src/app/(app)/_lib/session-activity-actions.ts#registerSessionActivityAction': {
+      guard: 'authenticate-own-session-activity-cookie',
+      call: 'authenticate',
+    },
+    // S2: encerra a sessão local depois do bloqueio por inatividade (mesmo contrato do switchAccountAction).
+    'src/app/(app)/_lib/session-activity-actions.ts#lockSessionAction': {
+      guard: 'public-local-session-clear',
+      call: 'supabase.auth.signOut',
+    },
     'src/app/(app)/auth/confirm/route.ts#GET': {
       guard: 'public-static-confirmation-bridge',
       call: 'bridgeHtml',

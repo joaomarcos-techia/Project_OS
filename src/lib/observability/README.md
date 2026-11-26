@@ -47,6 +47,7 @@ Contexto só funciona em runtime **Node** (Edge não suporta `AsyncLocalStorage`
 | `auth.mfa.failed` | `login/mfa/actions.ts` | A1 |
 | `auth.ratelimit.tripped` | `rate-limit` (login/mfa) | A1/M3 — só havia `degraded` (fail-open) |
 | `auth.session.revoked` | `authenticate()` (`tenant-context.ts`) | A1/N3 — sítio corrigido (ADR-037 tirou do middleware) |
+| `auth.session.locked` | `authenticate()` (`tenant-context.ts`) e `lockSessionAction` | S2 / requisito 83 da ANS — sessão do perfil TISS bloqueada por inatividade (`reason`: `idle`, `no_activity_record`, `client_idle`); só com `TISS_SECURITY_PROFILE_ENFORCE=true` |
 | `checkout.activation_failed` | `join/[token]/actions.ts` | M1 — era `console.error` |
 | `db.pool.saturation` | `pool-stats.ts` | A4/E4 — golden signal ausente |
 | `ai.provider.error` | `gemini.ts` | N1 — a saved-search citava; nada emitia |

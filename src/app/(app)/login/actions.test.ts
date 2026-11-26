@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   assertLoginAllowed: vi.fn(),
@@ -26,9 +26,13 @@ const mocks = vi.hoisted(() => ({
   sendPasswordResetEmail: vi.fn(),
   signInWithPassword: vi.fn(),
   signOut: vi.fn(),
+  cookieSet: vi.fn(),
 }));
 
-vi.mock('next/headers', () => ({ headers: mocks.headers }));
+vi.mock('next/headers', () => ({
+  headers: mocks.headers,
+  cookies: async () => ({ set: mocks.cookieSet }),
+}));
 vi.mock('@/contexts/identity/internal/password-reset-email', () => ({
   sendPasswordResetEmail: mocks.sendPasswordResetEmail,
 }));
@@ -514,5 +518,79 @@ describe('S4 / requisito 81: senha vencida no perfil TISS', () => {
       );
     }
     expect(mocks.sendPasswordResetEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe('S2 / requisito 83: o login grava o registro de atividade desta sessão (perfil TISS ligado)', () => {
+  const SESSION = 'sess-login-1';
+  const token = `h.${Buffer.from(JSON.stringify({ session_id: SESSION })).toString('base64url')}.s`;
+  function loginForm(): FormData {
+    const data = new FormData();
+    data.set('email', 'pessoa@example.test');
+    data.set('password', 'SenhaForte7!');
+    return data;
+  }
+
+  beforeEach(() => {
+    vi.stubEnv('TISS_SECURITY_PROFILE_ENFORCE', 'true');
+    vi.stubEnv('SUPABASE_SECRET_KEY', 'chave-sintetica-do-servidor-com-mais-de-32-caracteres');
+    mocks.cookieSet.mockReset();
+    mocks.assertLoginAllowed.mockResolvedValue({ ok: true });
+    mocks.signInWithPassword.mockResolvedValue({
+      data: { user: { id: 'u-1' }, session: { access_token: token } },
+      error: null,
+    });
+    mocks.createServerClient.mockResolvedValue({
+      auth: { signInWithPassword: mocks.signInWithPassword, signOut: mocks.signOut },
+    });
+    mocks.readAuthoritativeProfile.mockResolvedValue({
+      role: 'gestor',
+      ativo: true,
+      deletedAt: null,
+      clinicId: 'clinic-tiss',
+      mfaEnrolledAt: null,
+    });
+    mocks.isRole.mockReturnValue(true);
+    mocks.getAal.mockResolvedValue('aal1');
+    mocks.postLoginRedirect.mockReturnValue('/dashboard');
+    mocks.tissPasswordAge.mockResolvedValue(null);
+    mocks.redirect.mockImplementation((d: string) => {
+      throw new Error(`REDIRECT:${d}`);
+    });
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  async function activityCookie() {
+    const { SESSION_ACTIVITY_COOKIE, decodeSessionActivity, sessionActivitySecret } =
+      await import('@/lib/auth/session-activity');
+    const call = mocks.cookieSet.mock.calls.find(([name]) => name === SESSION_ACTIVITY_COOKIE);
+    return call ? decodeSessionActivity(call[1] as string, sessionActivitySecret()) : null;
+  }
+
+  it('no alcance: registro assinado, preso ao usuário e à sessão, com scope=true', async () => {
+    vi.stubEnv('TISS_SECURITY_PROFILE_SCOPE', 'platform');
+    const { loginAction } = await import('./actions');
+    await expect(loginAction({ error: null }, loginForm())).rejects.toThrow('REDIRECT:/dashboard');
+    const a = await activityCookie();
+    expect(a).toMatchObject({ uid: 'u-1', sid: SESSION, scope: true });
+    expect(Math.abs(a!.at - Date.now())).toBeLessThan(5_000);
+  });
+
+  it('clínica sem Convênios: registro com scope=false (a porta única nunca bloqueia essa sessão)', async () => {
+    const { readTissFootprintLazy } = await import('@/app/(app)/_lib/tiss-footprint');
+    vi.mocked(readTissFootprintLazy).mockResolvedValue({
+      moduleEnabled: false,
+      hasTissData: false,
+    });
+    const { loginAction } = await import('./actions');
+    await expect(loginAction({ error: null }, loginForm())).rejects.toThrow('REDIRECT:/dashboard');
+    expect(await activityCookie()).toMatchObject({ uid: 'u-1', sid: SESSION, scope: false });
+  });
+
+  it('perfil desligado: nenhum cookie novo', async () => {
+    vi.stubEnv('TISS_SECURITY_PROFILE_ENFORCE', '');
+    const { loginAction } = await import('./actions');
+    await expect(loginAction({ error: null }, loginForm())).rejects.toThrow('REDIRECT:/dashboard');
+    expect(mocks.cookieSet).not.toHaveBeenCalled();
   });
 });
