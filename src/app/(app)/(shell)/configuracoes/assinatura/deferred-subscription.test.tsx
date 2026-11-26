@@ -1,0 +1,439 @@
+// @vitest-environment happy-dom
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { DeferredSubscription } from './deferred-subscription';
+
+const baseline = {
+  planName: 'Clínica',
+  amountMinor: 39700,
+  trialEndsAt: '2026-11-08T12:00:00.000Z',
+  trialActive: false,
+  paid: false,
+  billingStatus: 'trial' as const,
+  paidPeriodActive: false,
+};
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
+describe('deferred subscription controls', () => {
+  it('explains the fixed Pix authorization without offering an unsupported amount change', () => {
+    render(
+      <DeferredSubscription
+        {...baseline}
+        paid
+        billingStatus="active"
+        paidPeriodActive
+        planChanges={{ amountChangeBlocked: true, options: [], pending: null }}
+      />,
+    );
+    expect(screen.getByText('Pagamento por Pix Automático')).toBeTruthy();
+    expect(screen.getByText(/O banco não permite alterar o valor desta autorização/)).toBeTruthy();
+    expect(screen.queryByRole('combobox')).toBeNull();
+  });
+  it('shows Pix upgrade prices and the safe next step without calling change-plan', () => {
+    const fetcher = vi.fn();
+    vi.stubGlobal('fetch', fetcher);
+    render(
+      <DeferredSubscription
+        {...baseline}
+        paid
+        billingStatus="active"
+        paidPeriodActive
+        managementAvailable
+        contractId="2d0c7853-147a-4b91-a178-3d081617c132"
+        accessUntil="2026-12-01T12:00:00.000Z"
+        planChanges={{
+          amountChangeBlocked: true,
+          options: [
+            {
+              id: 'target',
+              name: 'Clínica — 2 médicos',
+              code: 'clinica_2026_2',
+              amountMinor: 39700,
+            },
+          ],
+          pending: null,
+        }}
+      />,
+    );
+    expect(screen.getByText(/Clínica — 2 médicos.*397,00/)).toBeTruthy();
+    expect(screen.getByText(/Depois desse prazo, escolha o novo plano/)).toBeTruthy();
+    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it('does not suggest cancelling Pix renewal when replacement checkout is closed', () => {
+    render(
+      <DeferredSubscription
+        {...baseline}
+        paid
+        billingStatus="active"
+        paidPeriodActive
+        checkoutAvailable={false}
+        planChanges={{ amountChangeBlocked: true, options: [], pending: null }}
+      />,
+    );
+    expect(
+      screen.getByText(/Não cancele a renovação apenas para tentar mudar de plano/),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Depois desse prazo, escolha o novo plano/)).toBeNull();
+  });
+  it('offers conversion during trial once, without treating pending checkout as paid', async () => {
+    const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => undefined);
+    const fetcher = vi.fn().mockResolvedValue(
+      Response.json({
+        state: 'checkout_pending',
+        checkoutUrl: 'https://app.abacatepay.com/pay/bill_trial',
+      }),
+    );
+    vi.stubGlobal('fetch', fetcher);
+    render(<DeferredSubscription {...baseline} trialActive />);
+    expect(screen.getByText(/contratar agora/)).toBeTruthy();
+    const button = screen.getByRole('button', { name: 'Contratar assinatura' });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await waitFor(() => expect(assign).toHaveBeenCalledOnce());
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(screen.queryByText('Pagamento confirmado')).toBeNull();
+  });
+  it('explains authenticated pending activation without promising payment or offering another checkout', () => {
+    const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => undefined);
+    const fetcher = vi.fn();
+    vi.stubGlobal('fetch', fetcher);
+    render(<DeferredSubscription {...baseline} activationPending />);
+    expect(screen.getByText('Pagamento em verificação')).toBeTruthy();
+    expect(screen.queryByText('Pagamento confirmado')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Contratar assinatura' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Atualizar confirmação' }));
+    expect(reload).toHaveBeenCalledOnce();
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it('hides new checkout when acquisition is paused', () => {
+    render(<DeferredSubscription {...baseline} checkoutAvailable={false} />);
+    expect(screen.getByText('Contratação temporariamente indisponível')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Contratar assinatura' })).toBeNull();
+  });
+  it.each([
+    [3, 54400, '544,00'],
+    [4, 69100, '691,00'],
+    [5, 83800, '838,00'],
+  ])(
+    'schedules %i doctors at the full server price with one request and no early seat',
+    async (doctors, amountMinor, displayedPrice) => {
+      const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => undefined);
+      const fetcher = vi.fn().mockResolvedValue(Response.json({ state: 'scheduled' }));
+      vi.stubGlobal('fetch', fetcher);
+      render(
+        <DeferredSubscription
+          {...baseline}
+          paid
+          paidPeriodActive
+          billingStatus="active"
+          contractId="2d0c7853-147a-4b91-a178-3d081617c132"
+          planChanges={{
+            options: [
+              {
+                id: 'target-plan',
+                name: `Clínica — ${doctors} médicos`,
+                code: `clinica_2026_${doctors}`,
+                amountMinor,
+              },
+            ],
+            pending: null,
+          }}
+        />,
+      );
+      expect(
+        screen.getByText(/Não há cobrança proporcional nem liberação antecipada/),
+      ).toBeTruthy();
+      expect(
+        screen.getByRole('option', {
+          name: new RegExp(`${doctors} médicos.*${displayedPrice}/mês`),
+        }),
+      ).toBeTruthy();
+      expect(screen.getByText(/Os 3 acessos administrativos continuam incluídos/)).toBeTruthy();
+      fireEvent.change(screen.getByLabelText('Plano para a próxima renovação'), {
+        target: { value: 'target-plan' },
+      });
+      const button = screen.getByRole('button', {
+        name: 'Agendar mudança para a próxima renovação',
+      });
+      fireEvent.click(button);
+      fireEvent.click(button);
+      await waitFor(() => expect(reload).toHaveBeenCalledOnce());
+      expect(fetcher).toHaveBeenCalledOnce();
+      expect(fetcher).toHaveBeenCalledWith(
+        '/api/billing/plan-change',
+        expect.objectContaining({
+          body: JSON.stringify({
+            contractId: '2d0c7853-147a-4b91-a178-3d081617c132',
+            targetPlanId: 'target-plan',
+          }),
+        }),
+      );
+    },
+  );
+  it('does not offer a replacement plan while a prior request is uncertain', () => {
+    render(
+      <DeferredSubscription
+        {...baseline}
+        paid
+        planChanges={{
+          options: [],
+          pending: {
+            planId: 'target',
+            confirmed: false,
+            effectiveNotBefore: '2026-12-01T12:00:00Z',
+          },
+        }}
+      />,
+    );
+    expect(screen.getByText('Alteração em verificação')).toBeTruthy();
+    expect(screen.queryByRole('combobox')).toBeNull();
+  });
+  const managed = {
+    ...baseline,
+    paid: true,
+    paidPeriodActive: true,
+    billingStatus: 'active' as const,
+    managementAvailable: true,
+    contractId: '2d0c7853-147a-4b91-a178-3d081617c132',
+    accessUntil: '2026-12-01T12:00:00.000Z',
+    cancellationState: 'none' as const,
+  };
+  it('explains irreversible cancellation and asks before making a request', () => {
+    const fetcher = vi.fn();
+    vi.stubGlobal('fetch', fetcher);
+    render(<DeferredSubscription {...managed} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar renovação' }));
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    expect(screen.getByText(/Esta ação é definitiva/)).toBeTruthy();
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Manter assinatura' })).toBeNull();
+  });
+  it('deduplicates cancellation clicks and refreshes only after confirmation', async () => {
+    const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => undefined);
+    const fetcher = vi.fn().mockResolvedValue(Response.json({ state: 'renewal_cancelled' }));
+    vi.stubGlobal('fetch', fetcher);
+    render(<DeferredSubscription {...managed} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar renovação' }));
+    const button = screen.getByRole('button', { name: 'Confirmar cancelamento' });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await waitFor(() => expect(reload).toHaveBeenCalledOnce());
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(fetcher).toHaveBeenCalledWith(
+      '/api/billing/cancellation',
+      expect.objectContaining({ body: JSON.stringify({ contractId: managed.contractId }) }),
+    );
+  });
+  it('keeps uncertain cancellation visible without claiming the renewal stopped', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(Response.json({ error: 'reconcile_required' }, { status: 409 })),
+    );
+    const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => undefined);
+    render(<DeferredSubscription {...managed} cancellationState="requested" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Verificar cancelamento' }));
+    await waitFor(() => expect(screen.getByText(/Ainda não foi possível confirmar/)).toBeTruthy());
+    expect(reload).not.toHaveBeenCalled();
+  });
+  it('does not offer a replacement while the cancelled paid period is active', () => {
+    render(<DeferredSubscription {...managed} cancellationState="confirmed" />);
+    expect(screen.getByText('Renovação cancelada')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Contratar novamente' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cancelar renovação' })).toBeNull();
+  });
+  it('offers a new checkout only after the server confirms the ended cancellation', () => {
+    render(
+      <DeferredSubscription
+        {...managed}
+        cancellationState="confirmed"
+        paidPeriodActive={false}
+        canRecontract
+        billingStatus="cancelled"
+      />,
+    );
+    expect(screen.getByText('Assinatura encerrada')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Contratar novamente' })).toBeTruthy();
+    expect(screen.queryByText('Renovação em verificação')).toBeNull();
+    expect(screen.getByText(/Não haverá uma nova avaliação gratuita/)).toBeTruthy();
+  });
+  it('lets an ended Pix subscription choose a new paid plan without duplicate checkout clicks', async () => {
+    const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => undefined);
+    const fetcher = vi.fn().mockResolvedValue(
+      Response.json({
+        state: 'checkout_pending',
+        checkoutUrl: 'https://app.abacatepay.com/pay/bill_recontract',
+      }),
+    );
+    vi.stubGlobal('fetch', fetcher);
+    render(
+      <DeferredSubscription
+        {...managed}
+        cancellationState="confirmed"
+        paidPeriodActive={false}
+        canRecontract
+        billingStatus="cancelled"
+        recontractOptions={[
+          { id: 'consultorio', name: 'Consultório', code: 'consultorio_2026', amountMinor: 19700 },
+          {
+            id: 'clinica',
+            name: 'Clínica — 2 médicos',
+            code: 'clinica_2026_2',
+            amountMinor: 39700,
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByRole('option', { name: /Clínica — 2 médicos.*397,00\/mês/ })).toBeTruthy();
+    const button = screen.getByRole('button', { name: 'Continuar para pagamento' });
+    expect(button.hasAttribute('disabled')).toBe(true);
+    fireEvent.change(screen.getByLabelText('Plano da nova assinatura'), {
+      target: { value: 'clinica' },
+    });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await waitFor(() => expect(assign).toHaveBeenCalledOnce());
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(fetcher).toHaveBeenCalledWith(
+      '/api/billing/checkout',
+      expect.objectContaining({ body: JSON.stringify({ targetPlanId: 'clinica' }) }),
+    );
+    expect(screen.queryByText('Pagamento confirmado')).toBeNull();
+  });
+  it('keeps the new Pix checkout closed when acquisition is paused', () => {
+    render(
+      <DeferredSubscription
+        {...managed}
+        cancellationState="confirmed"
+        paidPeriodActive={false}
+        canRecontract
+        billingStatus="cancelled"
+        checkoutAvailable={false}
+        recontractOptions={[
+          { id: 'target', name: 'Clínica', code: 'clinica_2026_2', amountMinor: 39700 },
+        ]}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: 'Continuar para pagamento' })).toBeNull();
+    expect(screen.getByText('Nova contratação temporariamente indisponível')).toBeTruthy();
+  });
+  it('locks a pending recontract to its original plan and offers the same checkout', async () => {
+    const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => undefined);
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue(
+        Response.json({
+          state: 'checkout_pending',
+          checkoutUrl: 'https://app.abacatepay.com/pay/bill_existing',
+        }),
+      );
+    vi.stubGlobal('fetch', fetcher);
+    render(
+      <DeferredSubscription
+        {...managed}
+        cancellationState="confirmed"
+        paidPeriodActive={false}
+        canRecontract
+        billingStatus="cancelled"
+        recontractPendingPlanId="clinica"
+        recontractOptions={[
+          {
+            id: 'clinica',
+            name: 'Clínica — 2 médicos',
+            code: 'clinica_2026_2',
+            amountMinor: 39700,
+          },
+        ]}
+      />,
+    );
+    const select = screen.getByLabelText('Plano da nova assinatura') as HTMLSelectElement;
+    expect(select.disabled).toBe(true);
+    expect(select.value).toBe('clinica');
+    fireEvent.click(screen.getByRole('button', { name: 'Retomar checkout' }));
+    await waitFor(() => expect(assign).toHaveBeenCalledOnce());
+    expect(fetcher).toHaveBeenCalledWith(
+      '/api/billing/checkout',
+      expect.objectContaining({ body: JSON.stringify({ targetPlanId: 'clinica' }) }),
+    );
+  });
+  it('does not deny that a charge may already exist while awaiting confirmation', () => {
+    render(<DeferredSubscription {...baseline} />);
+    expect(screen.getByText(/Se já pagou, não faça outra assinatura/)).toBeTruthy();
+    expect(screen.queryByText(/Nenhuma cobrança inicial foi criada/)).toBeNull();
+  });
+  it('preserves the absolute free-trial deadline while offering optional early conversion', () => {
+    render(<DeferredSubscription {...baseline} trialActive />);
+    expect(screen.getByText('Avaliação sem cartão')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Contratar assinatura' })).toBeTruthy();
+    expect(screen.getByText(/sem aguardar o fim da avaliação/)).toBeTruthy();
+  });
+  it('does not offer another subscription after initial payment', () => {
+    render(<DeferredSubscription {...baseline} paid paidPeriodActive billingStatus="active" />);
+    expect(screen.getByText('Pagamento confirmado')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Contratar assinatura' })).toBeNull();
+  });
+  it('shows renewal pending instead of reusing the initial checkout', () => {
+    render(<DeferredSubscription {...baseline} paid billingStatus="past_due" />);
+    expect(screen.getByText('Renovação em verificação')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Contratar assinatura' })).toBeNull();
+  });
+  it('does not originate on a cancelled contract', () => {
+    render(<DeferredSubscription {...baseline} billingStatus="cancelled" />);
+    expect(screen.queryByRole('button', { name: 'Contratar assinatura' })).toBeNull();
+  });
+  it('guards repeated clicks before React rerenders and transmits no price or tenant', async () => {
+    const fetcher = vi.fn().mockReturnValue(new Promise<Response>(() => undefined));
+    vi.stubGlobal('fetch', fetcher);
+    render(<DeferredSubscription {...baseline} />);
+    const button = screen.getByRole('button', { name: 'Contratar assinatura' });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(fetcher).toHaveBeenCalledWith(
+      '/api/billing/checkout',
+      expect.objectContaining({ method: 'POST', body: '{}' }),
+    );
+  });
+  it('rejects a foreign redirect and presents recoverable feedback', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          Response.json({ state: 'checkout_pending', checkoutUrl: 'https://evil.example/pay' }),
+        ),
+    );
+    render(<DeferredSubscription {...baseline} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Contratar assinatura' }));
+    await waitFor(() =>
+      expect(screen.getByText(/Não foi possível abrir a contratação/)).toBeTruthy(),
+    );
+  });
+  it('keeps an ambiguous attempt for reconciliation instead of suggesting a second charge', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(Response.json({ error: 'reconcile_required' }, { status: 409 })),
+    );
+    render(<DeferredSubscription {...baseline} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Contratar assinatura' }));
+    await waitFor(() => expect(screen.getByText(/Não crie outra cobrança/)).toBeTruthy());
+  });
+  it('refreshes the subscription after authoritative recovery without reopening checkout', async () => {
+    const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => undefined);
+    const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => undefined);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(Response.json({ error: 'already_paid' }, { status: 409 })),
+    );
+    render(<DeferredSubscription {...baseline} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Contratar assinatura' }));
+    await waitFor(() => expect(reload).toHaveBeenCalledOnce());
+    expect(assign).not.toHaveBeenCalled();
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+});

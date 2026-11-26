@@ -27,7 +27,8 @@ import { z } from 'zod';
 
 import { hashEmail } from '@/lib/auth/email-hash';
 import { signupPasswordSchema } from '@/lib/auth/signup-password';
-import { dbAdmin } from '@/lib/db';
+import { dbAdmin, type Tx } from '@/lib/db';
+import { pilotIdentityCondition } from './signup-pilot-repository';
 import { env } from '@/lib/env';
 import { metrics } from '@/lib/observability/metrics';
 
@@ -189,9 +190,9 @@ let ceilingReached = false;
  * Não depende do Redis: o cenário em que o teto importa é justamente o de Redis
  * fora do ar.
  */
-async function atCapacity(now: Date): Promise<boolean> {
+async function atCapacity(now: Date, transaction?: Tx): Promise<boolean> {
   if (now.getTime() - ceilingCheckedAt < CEILING_RECHECK_MS) return ceilingReached;
-  const [row] = await dbAdmin
+  const [row] = await (transaction ?? dbAdmin)
     .select({ live: sql<number>`count(*)::int` })
     .from(signupSessions)
     .where(liveCondition());
@@ -216,6 +217,7 @@ export function resetSignupCeilingCache(): void {
  */
 export async function createSignupSession(
   input: CreateSignupSessionInput,
+  storage?: { tx: Tx },
 ): Promise<CreateSignupSessionResult> {
   const { ip, origin, expectedHost, turnstileToken } = input;
 
@@ -260,14 +262,14 @@ export async function createSignupSession(
   }
 
   const now = new Date();
-  if (await atCapacity(now)) {
+  if (await atCapacity(now, storage?.tx)) {
     metrics.emit('signup.session.blocked', { reason: 'at_capacity' });
     return { ok: false, reason: 'at_capacity' };
   }
 
   const rawToken = randomBytes(32).toString('base64url');
 
-  const [row] = await dbAdmin
+  const [row] = await (storage?.tx ?? dbAdmin)
     .insert(signupSessions)
     .values({
       tokenHash: hashSignupToken(rawToken),
@@ -315,7 +317,10 @@ export async function createSignupSession(
  * hash o atacante precisaria do `MAGIC_TOKEN_SECRET`; o tempo do índice não
  * varia de forma útil com o valor procurado.
  */
-export async function readSignupSession(rawToken: string): Promise<SignupSessionState | null> {
+export async function readSignupSession(
+  rawToken: string,
+  storage?: { tx: Tx },
+): Promise<SignupSessionState | null> {
   const tokenHash = hashSignupToken(rawToken);
 
   // Renova o idle na MESMA ida ao banco que lê — ler e depois atualizar seriam
@@ -331,7 +336,7 @@ export async function readSignupSession(rawToken: string): Promise<SignupSession
   // of type string... Received an instance of Date"). O teste unitário não pegou
   // porque lá o banco é mock; o smoke contra o banco real pegou na primeira
   // execução.
-  const [row] = await dbAdmin
+  const [row] = await (storage?.tx ?? dbAdmin)
     .update(signupSessions)
     .set({
       idleExpiresAt: sql`CASE WHEN ${signupSessions.status} = 'email_pending'
@@ -355,7 +360,7 @@ export async function readSignupSession(rawToken: string): Promise<SignupSession
     });
 
   if (!row) {
-    const [verified] = await dbAdmin
+    const [verified] = await (storage?.tx ?? dbAdmin)
       .select({
         riskLevel: signupSessions.riskLevel,
         rowVersion: signupSessions.rowVersion,
@@ -397,7 +402,7 @@ export async function readSignupSession(rawToken: string): Promise<SignupSession
     row.emailHash &&
     (row.authAttemptState === 'completed' || row.authAttemptState === 'uncertain')
   ) {
-    const [verifiedSibling] = await dbAdmin
+    const [verifiedSibling] = await (storage?.tx ?? dbAdmin)
       .select({ id: signupSessions.id })
       .from(signupSessions)
       .where(
@@ -613,6 +618,7 @@ export async function recordSignupIdentity(
     .where(
       and(
         usableIdentity(tokenHash),
+        pilotIdentityCondition(tokenHash, { email, ownerName, clinicName }),
         inArray(signupSessions.status, ['details_complete', 'identity_pending']),
         isNull(signupSessions.authAttemptState),
         eq(signupSessions.rowVersion, rowVersion),
@@ -695,6 +701,7 @@ export async function correctSignupEmail(
         liveCondition(),
         eq(signupSessions.rowVersion, parsed.data.rowVersion),
         eq(signupSessions.status, 'email_pending'),
+        pilotIdentityCondition(tokenHash, { email: parsed.data.email }),
         eq(signupSessions.verificationFlowVersion, 2),
         eq(signupSessions.emailHash, hashEmail(parsed.data.currentEmail)),
         eq(signupSessions.authAttemptState, 'completed'),
@@ -1389,6 +1396,7 @@ export async function reserveSignupAuthAttempt(
         usableIdentity(tokenHash),
         eq(signupSessions.status, 'identity_pending'),
         eq(signupSessions.emailHash, hashEmail(check.data.email)),
+        pilotIdentityCondition(tokenHash, { email: check.data.email }),
         isNotNull(signupSessions.ownerName),
         isNotNull(signupSessions.clinicName),
         isNotNull(signupSessions.acceptedAt),

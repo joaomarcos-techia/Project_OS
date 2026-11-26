@@ -1,0 +1,46 @@
+{
+  "observedAt": "2026-11-08T20:19:18.468Z",
+  "status": "PASS",
+  "environment": "authorized_dev_only",
+  "migrationSha256": "e1515b18deebdfd1dac558d9f02d5024655e81ad3ea196ad38ed12e3f3e9aaa7",
+  "migration": {
+    "observedAt": "2026-11-08T20:17:03.202Z",
+    "environment": "known_dev_project",
+    "preflight": "PASS",
+    "remoteMigrationsBefore": 137,
+    "pending": ["0137_trial_service_role_privileges"],
+    "applied": ["0137_trial_service_role_privileges"],
+    "serviceExcessBefore": true,
+    "productionWrites": 0,
+    "existingDataPreserved": true,
+    "postflight": "PASS",
+    "remoteMigrationsAfter": 138,
+    "pendingAfter": [],
+    "serviceExcessAfter": false
+  },
+  "security": {
+    "observedAt": "2026-11-08T20:17:09.194Z",
+    "status": "PASS",
+    "environment": "known_dev_project",
+    "forcedRlsTables": 2,
+    "authenticatedReadOnly": true,
+    "anonymousAccess": false,
+    "serviceDelete": false,
+    "securedTriggerFunctions": 3,
+    "productionWrites": 0
+  },
+  "previewSmoke": {
+    "observedAt": "2026-11-08T20:14:10.952Z",
+    "status": "PASS",
+    "preview": "https://project-n4xaxn7k6-clinic-os-v2-s-projects.vercel.app",
+    "sourceCommit": "fb715b7ae31583504b008b08c0c138615615afd8",
+    "runtimeSourceMatchesE2ECommit": "311e5dd0",
+    "login": 200,
+    "hydratedLoginForm": "PASS",
+    "anonymousProtectedRoutesDenied": 2,
+    "signedDevRuntimeProof": "PASS",
+    "remoteWrites": 0
+  },
+  "productionWrites": 0,
+  "providerCalls": 0
+}

@@ -359,8 +359,15 @@ export async function ensurePasswordAuthenticatedSignupAuthBinding(input: {
 
 /**
  * Valida a autoridade usada pelo recovery sem aceitar divergência entre Auth e banco.
- * Um marker `pending` só recebe grant quando a mesma referência está `uncertain`;
- * marker `set` divergente falha fechado, e órfãos usam o epoch autoritativo do Auth.
+ * Marker `set` divergente falha fechado, e órfãos usam o epoch autoritativo do Auth.
+ *
+ * Marker `pending` (P-29, 20/11/2026): a conta já confirmada que nunca concluiu a senha do
+ * cadastro (por exemplo, quem confirmou pelo link e abandonou, ou a conta legada cuja senha
+ * não confirmada o Auth apagou na prova de recovery) recebe o grant curto, para que o dono do
+ * e-mail, provado pelo próprio link de recovery, instale a primeira senha. Só pela mesma
+ * referência do draft possuído e sem instalação em andamento (`completed`/`uncertain`, nunca
+ * `reserved`), ou pelo caminho órfão de uso único quando o draft já expirou. Conta não
+ * confirmada, convidada, banida ou com outra referência continua recusada.
  */
 export async function ensureReadyOwnedSignupAuthBinding(input: {
   userId: string;
@@ -397,16 +404,23 @@ export async function ensureReadyOwnedSignupAuthBinding(input: {
       return { ok: false, reason: 'obfuscated' };
     }
     if (current?.passwordState === 'pending') {
-      if (
-        owned.ok &&
-        current.signupRef === owned.signupRef &&
-        owned.credentialState === 'uncertain'
-      ) {
-        // Não promove o marker e não toca a senha. O OTP de recovery emitirá um
-        // grant curto; só ele poderá disputar o CAS `uncertain -> reserved`.
-        return { ok: true, signupRef: owned.signupRef };
+      if (owned.ok) {
+        if (
+          current.signupRef === owned.signupRef &&
+          (owned.credentialState === 'uncertain' || owned.credentialState === 'completed')
+        ) {
+          // Não promove o marker e não toca a senha. O OTP de recovery emitirá um
+          // grant curto; só ele poderá disputar o CAS `completed|uncertain -> reserved`.
+          return { ok: true, signupRef: owned.signupRef };
+        }
+        return { ok: false, reason: 'obfuscated' };
       }
-      return { ok: false, reason: 'obfuscated' };
+      // Draft expirado: o grant órfão é de uso único pelo epoch do Auth e a troca relê a conta.
+      const orphanEpoch = Date.parse(user.updated_at ?? '');
+      if (!Number.isFinite(orphanEpoch) || orphanEpoch < 0) {
+        return { ok: false, reason: 'obfuscated' };
+      }
+      return { ok: true, signupRef: current.signupRef, orphanEpoch };
     }
     if (hasSignupAuthBindingMarker(user) && !current) {
       return { ok: false, reason: 'obfuscated' };

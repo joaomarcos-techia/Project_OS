@@ -1,0 +1,46 @@
+{
+  "observedAt": "2026-11-10T13:25:57.650Z",
+  "environment": "DEV_Preview_AbacatePay_Sandbox",
+  "runtimeSha": "ea45fb8e9b6f90b7fb6f999e4cc186d4f8fd9c45",
+  "runId": "2d072b20-dab5-4073-bdaf-2c8f1989c739",
+  "clinicId": "3b1d8180-9455-4ff1-87f3-eecbfef94cb0",
+  "subscriptionId": "9cf0a65a-ef4c-4e09-84dc-034985b1036b",
+  "checkoutId": "bill_6WgrJ0S5pfFrkZyhJcyNTKLE",
+  "amountMinor": 39700,
+  "stage": "awaiting_human_sandbox_payment",
+  "uiToCheckout": {
+    "status": "PASS",
+    "stages": [
+      "real_browser_login",
+      "one_click_plan_to_trial_without_hosted_checkout",
+      "database_origin_absolute_deadline_and_no_initial_provider_operation",
+      "desktop_mobile_subscription",
+      "real_qoro_route_to_hosted_sandbox_checkout_single_journal"
+    ]
+  },
+  "providerReadback": {
+    "status": "PENDING",
+    "subscriptions": 0,
+    "localCreateOperations": 1,
+    "paidInvoices": 0
+  },
+  "payment": "NOT RUN",
+  "webhookAndPaidUi": "NOT RUN",
+  "fixtureRetention": "retained_no_timeout_cleanup",
+  "operatorFix": {
+    "dateParameterFailureReproducedReadOnly": true,
+    "isoRoundtripReadOnly": "PASS",
+    "directedTestsPassed": 61,
+    "operatorTestsPassed": 38,
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "format": "PASS",
+    "runtimeApplicationChanged": false
+  },
+  "sourceHashes": {
+    "scripts/abacatepay-checkout-operator.ts": "e61348910caf0118cef68b2996d2a415fc408d8c8855b40097d245240ad18495",
+    "scripts/abacatepay-checkout-session.ts": "84251c97f4ffe25f9aadde549f3d4d743bae47b35d6140802eac7ced3dbf6fe8",
+    "src/lib/payments/saas/checkout-operator-session.test.ts": "12f117a6fcfd4d49664ef71a79747f304e7f9c6c091327fbaf2b390b9faa4ccd"
+  },
+  "productionWrites": 0
+}

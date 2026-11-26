@@ -42,6 +42,7 @@ export * from '@/contexts/ai-agent/proactive-jobs/schema';
 // C13 — Billing. schema.ts side-effect-imports './events', registrando
 // billing.* no catálogo do outbox.
 export * from '@/contexts/billing/schema';
+export * from '@/contexts/billing/gateway-schema';
 export * from '@/contexts/feedback/schema';
 // ADR-049 — Payments (cobranca de PACIENTE na conta da propria clinica).
 // Sem eventos proprios nesta fase: 1.1 e so a credencial.

@@ -26,6 +26,13 @@ export interface PublicEnvEntry {
 }
 
 export const PUBLIC_ENV_REGISTRY: Record<string, PublicEnvEntry> = {
+  NEXT_PUBLIC_VERCEL_ENV: {
+    owner: 'plataforma',
+    purpose: 'Separar eventos Sentry do navegador entre Preview e Production.',
+    exposure: 'public-by-design',
+    rationale:
+      'Metadata pública de ambiente adicionada pela Vercel para Next.js; contém somente development, preview ou production. Não identifica usuário nem concede acesso. Ausente em execução local, preserva NODE_ENV.',
+  },
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: {
     owner: 'plataforma',
     purpose: 'Identificador público do widget Cloudflare Turnstile no browser.',

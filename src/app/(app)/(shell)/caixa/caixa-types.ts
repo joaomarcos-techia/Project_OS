@@ -9,6 +9,8 @@
  * fazia o cartão importar de quem o importa (ciclo pego por `arch:check`).
  */
 /** `cash`: "Pagou em dinheiro" — o painel de confirmação só com dinheiro (08/10/2026). */
+import { TrialAccessError } from '@/lib/trial-access/policy';
+
 export type CashPanelMode = 'confirm' | 'cash' | 'cancel' | 'estorno';
 
 export type ActionResult<T = undefined> =
@@ -76,6 +78,7 @@ function fromAuthError(err: unknown): ActionResult<never> | null {
 }
 
 export function fail(err: unknown): ActionResult<never> {
+  if (err instanceof TrialAccessError) return { ok: false, code: err.code, message: err.message };
   const auth = fromAuthError(err);
   if (auth) return auth;
   const name = err instanceof Error ? err.name : '';

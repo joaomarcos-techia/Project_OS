@@ -26,6 +26,7 @@ import { idempotencyKeys } from '@/lib/db/schema/infra/idempotency';
 import { payloadHash } from '@/lib/idempotency/hash';
 import { logger } from '@/lib/observability/logger';
 import { isUniqueViolation } from '@/lib/outbox/errors';
+import { assertTrialPaidFeature } from '@/lib/trial-access';
 
 import {
   CrmConflictError,
@@ -111,6 +112,7 @@ async function deleteCreatedAuthUser(
 export async function inviteClinicMember(
   args: InviteClinicMemberArgs,
 ): Promise<InviteClinicMemberResult> {
+  await assertTrialPaidFeature(args.clinicId, 'team_invites');
   const admin = createAdminClient();
   const key = inviteIdemKey(args.idempotencyKey);
   const crm = normalizeCrm(args.crm);
@@ -274,6 +276,7 @@ export interface ResendClinicInviteArgs {
  * como fallback operacional.
  */
 export async function resendClinicInvite(args: ResendClinicInviteArgs): Promise<{ link: string }> {
+  await assertTrialPaidFeature(args.clinicId, 'team_invites');
   const admin = createAdminClient();
 
   // 1. Re-valida: pertence à clínica + ainda pendente (autoridade server-side; a UI

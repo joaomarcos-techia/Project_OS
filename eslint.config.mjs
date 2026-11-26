@@ -150,6 +150,8 @@ const config = [
       'scripts/load-test-seed-runner.ts',
       // Bootstrap do cluster temporário: loopback fixo e data_directory verificado.
       'scripts/security/tenant-isolation.ts',
+      // Guarded DEV release operator; explicit fixed ref and frozen manifest.
+      'scripts/security/abacatepay-dev-release.ts',
       'scripts/security/signup-regression.ts',
       // Mesmo bootstrap, para o harness de provisionamento O-6: cluster efêmero
       // sob o TEMP do SO, loopback fixo, migrations reais aplicadas em ordem.
@@ -235,6 +237,16 @@ const config = [
       // asaas_payment_id (server-to-server, validado por token) e processa a
       // transição. Mesma justificativa dos crons. Só esta rota de webhook.
       'src/app/api/webhooks/asaas/**/*.{ts,tsx}',
+      // ADR-069: private gateway tables have FORCE RLS/no tenant policies.
+      // Exact paths only: authenticated secret+HMAC receiver, leased readback
+      // processor, server-authorized tenant checkout, and pre-tenant saga.
+      'src/app/api/webhooks/abacatepay/route.ts',
+      'src/contexts/billing/internal/abacatepay-processing.ts',
+      'src/contexts/billing/internal/deferred-checkout.ts',
+      'src/contexts/onboarding/internal/signup-free-trial.ts',
+      // ADR-069 C3: exact pre-tenant invitation/identity seams, locked and pinned.
+      'src/contexts/onboarding/internal/signup-pilot-repository.ts',
+      'src/contexts/onboarding/internal/signup-pilot.ts',
       // C14: read-models de "candidatos" (Scheduling/Financial são donos da regra
       // de "quem recebe") + repository da fila proativa fazem scan cross-tenant
       // read-only (sem PII, bound por LIMIT); writes per-clínica seguem em

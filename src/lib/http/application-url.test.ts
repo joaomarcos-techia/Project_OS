@@ -4,7 +4,7 @@ const { mockEnv } = vi.hoisted(() => ({
   mockEnv: {
     APP_BASE_URL: 'https://app.qoro.test',
     NODE_ENV: 'test',
-    VERCEL_ENV: undefined as 'preview' | undefined,
+    VERCEL_ENV: undefined as 'preview' | 'production' | undefined,
     VERCEL_URL: undefined as string | undefined,
     VERCEL_BRANCH_URL: undefined as string | undefined,
     VERCEL_AUTOMATION_BYPASS_SECRET: undefined as string | undefined,
@@ -22,6 +22,7 @@ import {
   createOnboardingInviteUrl,
   createPasswordResetRedirectUrl,
   resolveTrustedApplicationOrigin,
+  resolveAuthLinkOrigin,
   resolvePreviewCallbackOrigin,
 } from './application-url';
 
@@ -190,6 +191,69 @@ describe('buildApplicationUrl', () => {
     expect(createOnboardingInviteUrl('a'.repeat(43))).toBe(
       `https://app.qoro.test/join#invite=${'a'.repeat(43)}`,
     );
+  });
+
+  // Ciclo 9 (20/11/2026): a entrada geral de APP_BASE_URL do Preview aponta para outro deploy, e o
+  // link de redefinição abria o código de outra branch.
+  describe('origem dos links de Auth por e-mail', () => {
+    const links = () => [
+      createPasswordResetConfirmationUrl('hash'),
+      createAuthConfirmationUrl('hash', 'recovery'),
+      createOnboardingInviteUrl('a'.repeat(43)),
+      createSignupConfirmationUrl('hash', 'recovery', 'a'.repeat(64)),
+    ];
+
+    it('no Preview, usa o alias da branch injetado pela Vercel, não o APP_BASE_URL geral', () => {
+      mockEnv.VERCEL_ENV = 'preview';
+      mockEnv.APP_BASE_URL = 'https://outro-deploy.vercel.app';
+      mockEnv.VERCEL_URL = 'deploy-atual.vercel.app';
+      mockEnv.VERCEL_BRANCH_URL = 'branch-atual.vercel.app';
+      expect(resolveAuthLinkOrigin()).toBe('https://branch-atual.vercel.app');
+      for (const link of links()) {
+        const url = new URL(link);
+        expect(url.origin).toBe('https://branch-atual.vercel.app');
+        expect(url.search).toBe('');
+      }
+      // Callback que não é link de Auth continua no valor configurado.
+      expect(createMetaWebhookUrl()).toBe('https://outro-deploy.vercel.app/api/webhooks/meta');
+    });
+
+    it('alias inválido cai na URL imutável do deploy; sem nenhuma, no APP_BASE_URL', () => {
+      mockEnv.VERCEL_ENV = 'preview';
+      mockEnv.VERCEL_URL = 'deploy-atual.vercel.app';
+      for (const invalido of [
+        'https://user:pass@evil.test',
+        'evil.test',
+        'vercel.app',
+        'branch.vercel.app:8443',
+        'https://branch.vercel.app/caminho',
+      ]) {
+        mockEnv.VERCEL_BRANCH_URL = invalido;
+        expect(new URL(createPasswordResetConfirmationUrl('hash')).origin).toBe(
+          'https://deploy-atual.vercel.app',
+        );
+      }
+      mockEnv.VERCEL_URL = 'evil.test';
+      expect(new URL(createPasswordResetConfirmationUrl('hash')).origin).toBe(
+        'https://app.qoro.test',
+      );
+    });
+
+    it.each([undefined, 'production'] as const)(
+      'fora do Preview (%s), usa só APP_BASE_URL mesmo com variáveis da Vercel presentes',
+      (vercelEnv) => {
+        mockEnv.VERCEL_ENV = vercelEnv;
+        mockEnv.VERCEL_URL = 'deploy-atual.vercel.app';
+        mockEnv.VERCEL_BRANCH_URL = 'branch-atual.vercel.app';
+        expect(resolveAuthLinkOrigin()).toBe('https://app.qoro.test');
+        for (const link of links()) expect(new URL(link).origin).toBe('https://app.qoro.test');
+      },
+    );
+
+    it('sem APP_BASE_URL fora do Preview, recusa em vez de inventar uma origem', () => {
+      mockEnv.APP_BASE_URL = undefined as unknown as string;
+      expect(() => createPasswordResetConfirmationUrl('hash')).toThrow('[app-url]');
+    });
   });
 
   it('rejeita hash de token vazio', () => {

@@ -194,7 +194,10 @@ export async function resetPasswordAction(
         !Number.isFinite(authEpoch) ||
         authEpoch !== grant.epoch ||
         isOrphanRecoveryEpochConsumed(authUser.app_metadata, grant.epoch) ||
-        readSignupPasswordState(authUser, grant.signupRef) !== 'set'
+        // P-29: `pending` = conta confirmada que nunca concluiu a senha do cadastro; a prova do
+        // link de recovery deixa o dono do e-mail instalar a primeira. Sem marker desta
+        // referência, a troca continua recusada.
+        readSignupPasswordState(authUser, grant.signupRef) === null
       ) {
         return { ok: false as const, reason: 'stale' as const };
       }

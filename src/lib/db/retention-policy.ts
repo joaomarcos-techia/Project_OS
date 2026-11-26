@@ -40,7 +40,12 @@ export interface RetentionPolicy {
 }
 
 const OUTBOX_DAYS = 30;
-const LOGIN_ATTEMPTS_DAYS = 90;
+/**
+ * Registro de acesso (data, hora e IP de cada tentativa de login). Marco Civil da Internet (Lei 12.965/2014),
+ * art. 15: o provedor de aplicações PJ com fins econômicos mantém os registros de acesso por 6 (seis) meses.
+ * 186 dias cobrem o maior semestre (184 dias) com folga para a purga mensal. O e-mail já é HMAC (email-hash.ts).
+ */
+export const LOGIN_ATTEMPTS_DAYS = 186;
 /**
  * A2 — mensageria raw. 90d cobre suporte/forense e a janela de reprocessamento;
  * o dado útil já foi promovido para as tabelas de domínio no momento do ingest.
@@ -68,7 +73,7 @@ export const RETENTION_POLICIES: readonly RetentionPolicy[] = [
     idColumns: ['id'],
     days: LOGIN_ATTEMPTS_DAYS,
     expired: () => sql`attempted_at < now() - make_interval(days => ${LOGIN_ATTEMPTS_DAYS})`,
-    why: 'Rate-limit usa janela de 15min; o resto é forense de curto prazo (agregados ficam nos logs estruturados).',
+    why: 'Registro de acesso: 6 meses do Marco Civil (art. 15); 186 dias cobrem o semestre mais longo. O rate-limit usa só 15 min.',
   },
   {
     table: 'idempotency_keys',

@@ -7,6 +7,10 @@ import path from 'node:path';
 import postgres from 'postgres';
 import selfsigned from 'selfsigned';
 import { sql } from 'drizzle-orm';
+import { readPreflightCatalog } from '../abacatepay-preflight-transport';
+import { assertReleaseCatalog, type ReleasePlan } from '../abacatepay-release-validation';
+import { applyAtomicReleaseSql, buildAtomicReleaseSql } from '../abacatepay-release-apply';
+import { createHash } from 'node:crypto';
 
 const bin =
   process.env.SECURITY_PG_BIN ??
@@ -26,6 +30,13 @@ if (init.error) throw init.error;
 assert.equal(init.status, 0, init.stderr);
 const cert = await selfsigned.generate([{ name: 'commonName', value: 'localhost' }], {
   keySize: 2048,
+  // Deliberately omit an IP SAN so the hostname-negative proof is meaningful.
+  extensions: [
+    { name: 'basicConstraints', cA: true },
+    { name: 'keyUsage', keyCertSign: true, digitalSignature: true, keyEncipherment: true },
+    { name: 'extKeyUsage', serverAuth: true },
+    { name: 'subjectAltName', altNames: [{ type: 2, value: 'localhost' }] },
+  ],
 });
 await writeFile(path.join(data, 'server.crt'), cert.cert);
 await writeFile(path.join(data, 'server.key'), cert.private, { mode: 0o600 });
@@ -96,6 +107,187 @@ try {
   // O marker do diretório impede confundir este cluster com o serviço Postgres da máquina.
   const [settings] = await admin`SELECT current_setting('data_directory') AS dir`;
   assert.equal(path.resolve(String(settings?.dir)), path.resolve(data));
+  // Reuse this already isolated CI cluster, not another service or Production.
+  await admin.unsafe('CREATE DATABASE qoro_preflight_synthetic');
+  const preflightDb = postgres(url.replace('/postgres?', '/qoro_preflight_synthetic?'), {
+    ssl: 'require',
+    max: 1,
+    onnotice: () => undefined,
+  });
+  try {
+    await preflightDb.unsafe(`
+      CREATE SCHEMA drizzle;
+      CREATE TABLE drizzle.__drizzle_migrations (id serial PRIMARY KEY, hash text NOT NULL, created_at bigint NOT NULL);
+      INSERT INTO drizzle.__drizzle_migrations SELECT n+1,repeat('a',64),1000+n FROM generate_series(0,135) n;
+      SELECT setval(pg_get_serial_sequence('drizzle.__drizzle_migrations','id'),136);
+      CREATE TABLE public.subscriptions (id integer PRIMARY KEY);
+      CREATE TABLE public.invoices (id integer PRIMARY KEY);
+      CREATE TABLE public.profiles (id integer PRIMARY KEY);
+      CREATE TABLE public.patient_charges (id integer PRIMARY KEY);
+      CREATE TABLE public.plans (id integer PRIMARY KEY);
+      CREATE TABLE public.prices (id integer PRIMARY KEY);
+    `);
+    for (const table of ['subscriptions', 'invoices', 'profiles', 'patient_charges'])
+      await preflightDb.unsafe(
+        `ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY; ALTER TABLE public.${table} FORCE ROW LEVEL SECURITY`,
+      );
+    const environment: NodeJS.ProcessEnv = {
+      NODE_ENV: 'test',
+      PGHOST: 'localhost',
+      PGPORT: String(port),
+      PGUSER: 'security_local',
+      PGPASSWORD: 'synthetic-unused-trust-fixture',
+      PGDATABASE: 'qoro_preflight_synthetic',
+      PGSSLMODE: 'verify-full',
+      PGSSLROOTCERT: path.join(data, 'server.crt'),
+      PGOPTIONS: '-c default_transaction_read_only=on',
+      PGCONNECT_TIMEOUT: '3',
+    };
+    const executable = path.join(bin, `psql${suffix}`);
+    const plan: ReleasePlan = {
+      financial: 'a'.repeat(40),
+      folder: 'isolated-synthetic',
+      migrations: Array.from({ length: 160 }, (_, idx) => ({
+        idx,
+        tag: String(idx).padStart(4, '0') + '_synthetic',
+        when: 1000 + idx,
+        hash: 'a'.repeat(64),
+        acceptedHashes: ['a'.repeat(64)],
+      })),
+    };
+    const proof = assertReleaseCatalog(
+      plan,
+      readPreflightCatalog(environment, executable),
+      'before',
+    );
+    assert.equal(proof.history.pending.length, 24);
+    pass(
+      'preflight libpq real: CA/hostname verify-full, snapshot READ ONLY, journal136 e24 pendentes',
+    );
+    assert.throws(() => readPreflightCatalog({ ...environment, PGHOST: '127.0.0.1' }, executable));
+    pass('preflight libpq real: hostname divergente recusado, sem fallback require');
+    const wrongCA = await selfsigned.generate([{ name: 'commonName', value: 'untrusted' }], {
+      keySize: 2048,
+    });
+    const wrongCAPath = path.join(cluster, 'wrong-ca.crt');
+    await writeFile(wrongCAPath, wrongCA.cert);
+    assert.throws(() =>
+      readPreflightCatalog({ ...environment, PGSSLROOTCERT: wrongCAPath }, executable),
+    );
+    pass('preflight libpq real: CA não confiável recusada');
+    await preflightDb.unsafe('ALTER TABLE public.profiles DISABLE ROW LEVEL SECURITY');
+    assert.throws(() =>
+      assertReleaseCatalog(plan, readPreflightCatalog(environment, executable), 'before'),
+    );
+    pass('preflight libpq real: RLS divergente interrompe aprovação');
+    await preflightDb.unsafe(
+      "UPDATE drizzle.__drizzle_migrations SET hash=repeat('b',64) WHERE id=1",
+    );
+    assert.throws(() =>
+      assertReleaseCatalog(plan, readPreflightCatalog(environment, executable), 'before'),
+    );
+    pass('preflight libpq real: hash de journal divergente interrompe aprovação');
+    await preflightDb.unsafe(
+      "UPDATE drizzle.__drizzle_migrations SET hash=repeat('a',64) WHERE id=1; ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY",
+    );
+    const syntheticBodies = Array.from(
+      { length: 24 },
+      (_, n) => `CREATE TABLE public.gate_b_apply_${n}(id integer);`,
+    );
+    const applyPlan: ReleasePlan = {
+      ...plan,
+      migrations: plan.migrations.map((item) => {
+        if (item.idx < 136) return item;
+        const hash = createHash('sha256')
+          .update(syntheticBodies[item.idx - 136]!)
+          .digest('hex');
+        return { ...item, hash, acceptedHashes: [hash] };
+      }),
+    };
+    const invalidBodies = [...syntheticBodies];
+    invalidBodies[12] = 'SELECT nonexistent_synthetic_function();';
+    const invalidPlan = {
+      ...applyPlan,
+      migrations: applyPlan.migrations.map((item) =>
+        item.idx !== 148
+          ? item
+          : {
+              ...item,
+              hash: createHash('sha256').update(invalidBodies[12]!).digest('hex'),
+            },
+      ),
+    };
+    assert.throws(() =>
+      applyAtomicReleaseSql(
+        environment,
+        buildAtomicReleaseSql(invalidPlan, invalidBodies),
+        executable,
+      ),
+    );
+    const [rolledBack] =
+      await preflightDb`SELECT count(*)::int count FROM drizzle.__drizzle_migrations`;
+    assert.equal(rolledBack?.count, 136);
+    const [partialDDL] = await preflightDb`SELECT to_regclass('public.gate_b_apply_0') name`;
+    assert.equal(partialDDL?.name, null);
+    pass('B3 sintético: erro na13ª migration reverte DDL e journal da transação inteira');
+    const changedBodies = [...syntheticBodies];
+    changedBodies[0] += ' INSERT INTO public.plans(id) VALUES(1);';
+    const changedPlan = {
+      ...applyPlan,
+      migrations: applyPlan.migrations.map((item) =>
+        item.idx !== 136
+          ? item
+          : {
+              ...item,
+              hash: createHash('sha256').update(changedBodies[0]!).digest('hex'),
+            },
+      ),
+    };
+    assert.throws(() =>
+      applyAtomicReleaseSql(
+        environment,
+        buildAtomicReleaseSql(changedPlan, changedBodies),
+        executable,
+      ),
+    );
+    const [legacyPreserved] = await preflightDb`SELECT count(*)::int count FROM public.plans`;
+    assert.equal(legacyPreserved?.count, 0);
+    pass('B3 sintético: alteração de fingerprint legado aborta e reverte a cadeia');
+    await preflightDb`SELECT pg_advisory_lock(4242)`;
+    try {
+      assert.throws(() =>
+        applyAtomicReleaseSql(
+          environment,
+          buildAtomicReleaseSql(applyPlan, syntheticBodies),
+          executable,
+        ),
+      );
+    } finally {
+      await preflightDb`SELECT pg_advisory_unlock(4242)`;
+    }
+    pass('B3 sintético: lock ocupado interrompe antes de qualquer DDL');
+    applyAtomicReleaseSql(
+      environment,
+      buildAtomicReleaseSql(applyPlan, syntheticBodies),
+      executable,
+    );
+    const [applied] =
+      await preflightDb`SELECT count(*)::int count FROM drizzle.__drizzle_migrations`;
+    assert.equal(applied?.count, 160);
+    assert.throws(() =>
+      applyAtomicReleaseSql(
+        environment,
+        buildAtomicReleaseSql(applyPlan, syntheticBodies),
+        executable,
+      ),
+    );
+    const [noReplay] =
+      await preflightDb`SELECT count(*)::int count FROM drizzle.__drizzle_migrations`;
+    assert.equal(noReplay?.count, 160);
+    pass('B3 sintético:24 migrations confirmadas uma vez; replay não reaplica SQL/journal');
+  } finally {
+    await preflightDb.end({ timeout: 1 });
+  }
   await admin.unsafe(`
     CREATE ROLE authenticated NOLOGIN NOBYPASSRLS;
     CREATE SCHEMA auth;

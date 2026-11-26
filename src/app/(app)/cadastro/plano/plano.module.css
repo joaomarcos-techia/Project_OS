@@ -1,0 +1,31 @@
+/* Encosta as ações no fim da coluna de pagamento, como no canvas. */
+.actionsBottom {
+  margin-top: auto;
+}
+
+/* Vazia, a região aria-live precisa existir, mas não pode somar o gap da coluna. */
+.live:empty {
+  margin-bottom: -22px;
+}
+
+/* Preço dentro de cada opção de plano. A cor vem do elemento pai. */
+.planPrice {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+/*
+ * Mantém título e bloco dentro da região aria-live no retorno do pagamento,
+ * com o mesmo alinhamento e espaçamento da área central da moldura.
+ */
+.liveStack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: inherit;
+  width: 100%;
+}

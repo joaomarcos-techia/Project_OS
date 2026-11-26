@@ -3,11 +3,13 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
-import { readFile, open } from 'node:fs/promises';
+import { readFile, open, writeFile } from 'node:fs/promises';
 import { parse } from 'dotenv';
 import postgres from 'postgres';
 import { z } from 'zod';
 import { readMigrations } from './scratch-schema';
+import { startOperationalRedis } from './abacatepay-operational-infra';
+import { startPilotMail } from './signup-pilot-mail';
 
 let raw = '';
 for await (const chunk of process.stdin) {
@@ -97,28 +99,61 @@ Object.assign(childEnv, {
   SIGNUP_LOCAL_INTEGRATION: 'ONLY_SYNTHETIC_LOCAL_55442',
 });
 const mailMode = process.argv.includes('--mail');
-const browserMode = process.argv.includes('--browser') || mailMode;
+const pilotMode = process.argv.includes('--pilot');
+const browserMode = process.argv.includes('--browser') || mailMode || pilotMode;
+let redis: Awaited<ReturnType<typeof startOperationalRedis>> | undefined;
+let mailbox: Awaited<ReturnType<typeof startPilotMail>> | undefined;
 let server: ReturnType<typeof spawn> | undefined;
 let serverLog: Awaited<ReturnType<typeof open>> | undefined;
 try {
   if (browserMode) {
-    // Only the existing development rate limiter is used; no email, payment or
-    // Production credentials are inherited. Random HMAC keys isolate test keys.
-    const configured = parse(await readFile('C:/dev/ClinicaOS_V2/.env.local'));
-    for (const key of ['UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN']) {
-      assert.ok(configured[key], `Missing development rate limiter: ${key}`);
-      childEnv[key] = configured[key];
+    if (pilotMode) {
+      assert.equal(
+        process.env.GITHUB_ACTIONS,
+        'true',
+        'Synthetic pilot stack runs only on Actions',
+      );
+      redis = await startOperationalRedis({ rateLimitScripts: true });
+      mailbox = await startPilotMail();
+      Object.assign(childEnv, {
+        UPSTASH_REDIS_REST_URL: redis.url,
+        UPSTASH_REDIS_REST_TOKEN: redis.token,
+        SIGNUP_LOCAL_PILOT: 'true',
+        PILOT_MAIL_URL: mailbox.url,
+        PILOT_MAIL_TOKEN: mailbox.token,
+        NODE_OPTIONS: `--import=${path.resolve('scripts/security/signup-pilot-fetch.mjs')}`,
+        RESEND_API_KEY: 're_synthetic_pilot_only',
+        EMAIL_FROM: 'Qoro <confirmacao@example.test>',
+        SIGNUP_ENABLED: 'false',
+        SAAS_SIGNUP_PROVIDER: 'asaas',
+        ABACATEPAY_PILOT_PROVISIONING_ENABLED: 'true',
+        ABACATEPAY_STORE_ID: 'store_synthetic',
+        ABACATEPAY_API_KEY: 'synthetic-only',
+        ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID: 'prod_probe',
+        ABACATEPAY_NEW_CHECKOUTS_ENABLED: 'false',
+        CRYPTO_SECRET_BACKEND: 'env',
+        CRYPTO_MASTER_KEY_V1: randomBytes(32).toString('base64'),
+        CRYPTO_LOOKUP_SALT: randomBytes(32).toString('base64'),
+      });
+    } else {
+      // Only the existing development rate limiter is used; no email, payment or
+      // Production credentials are inherited. Random HMAC keys isolate test keys.
+      const configured = parse(await readFile('C:/dev/ClinicaOS_V2/.env.local'));
+      for (const key of ['UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN']) {
+        assert.ok(configured[key], `Missing development rate limiter: ${key}`);
+        childEnv[key] = configured[key];
+      }
+      if (mailMode) {
+        for (const key of ['RESEND_API_KEY_DEV', 'EMAIL_FROM_DEV', 'E2E_RESEND_INBOX_ADDRESS'])
+          assert.ok(configured[key], `Missing authorized development email configuration: ${key}`);
+        childEnv.RESEND_API_KEY = configured.RESEND_API_KEY_DEV;
+        childEnv.EMAIL_FROM = configured.EMAIL_FROM_DEV;
+        childEnv.E2E_RESEND_INBOX_ADDRESS = configured.E2E_RESEND_INBOX_ADDRESS;
+        childEnv.SIGNUP_LOCAL_MAIL = 'true';
+      }
     }
     childEnv.VERCEL_ENV = 'development';
     childEnv.SIGNUP_LOCAL_BROWSER = 'true';
-    if (mailMode) {
-      for (const key of ['RESEND_API_KEY_DEV', 'EMAIL_FROM_DEV', 'E2E_RESEND_INBOX_ADDRESS'])
-        assert.ok(configured[key], `Missing authorized development email configuration: ${key}`);
-      childEnv.RESEND_API_KEY = configured.RESEND_API_KEY_DEV;
-      childEnv.EMAIL_FROM = configured.EMAIL_FROM_DEV;
-      childEnv.E2E_RESEND_INBOX_ADDRESS = configured.E2E_RESEND_INBOX_ADDRESS;
-      childEnv.SIGNUP_LOCAL_MAIL = 'true';
-    }
     assert.equal(
       await fetch('http://localhost:3210/api/signup/runtime-fingerprint').catch(() => null),
       null,
@@ -176,14 +211,71 @@ try {
         '--config',
         'scripts/security/signup-local.config.ts',
         '--reporter=json',
-        `--outputFile=dist/signup-${mailMode ? 'mail' : browserMode ? 'browser' : 'local'}-integration.json`,
+        `--outputFile=dist/signup-${pilotMode ? 'pilot-browser' : mailMode ? 'mail' : browserMode ? 'browser' : 'local'}-integration.json`,
       ],
-      { env: childEnv, stdio: ['ignore', 'inherit', 'inherit'], windowsHide: true },
+      {
+        env: childEnv,
+        stdio: pilotMode ? 'ignore' : ['ignore', 'inherit', 'inherit'],
+        windowsHide: true,
+      },
     );
     child.once('error', reject);
     child.once('exit', (value) => resolve(value ?? 1));
   });
   process.exitCode = code;
+  if (pilotMode) {
+    // Raw test errors may contain synthetic active codes from Playwright call
+    // logs. Publish only fixed test names, error kinds and source coordinates.
+    const report = z
+      .object({
+        success: z.boolean(),
+        numPassedTests: z.number(),
+        numFailedTests: z.number(),
+        testResults: z.array(
+          z.object({
+            assertionResults: z.array(
+              z.object({
+                status: z.string(),
+                fullName: z.string(),
+                failureMessages: z.array(z.string()).optional(),
+              }),
+            ),
+          }),
+        ),
+      })
+      .parse(JSON.parse(await readFile('dist/signup-pilot-browser-integration.json', 'utf8')));
+    const failures = report.testResults.flatMap((r) =>
+      r.assertionResults
+        .filter((a) => a.status === 'failed')
+        .map((a) => {
+          const detail = a.failureMessages?.join('\n') ?? '';
+          return {
+            test: a.fullName,
+            kind: detail.match(/\b(AssertionError|TimeoutError|TypeError)\b/u)?.[1] ?? 'Error',
+            sourceLine:
+              detail.match(/signup-pilot-browser\.integration\.ts:(\d+):\d+/u)?.[1] ?? null,
+          };
+        }),
+    );
+    console.log(JSON.stringify({ syntheticPilotExit: code, failures }));
+    const summary = z
+      .record(z.string(), z.unknown())
+      .parse(JSON.parse(await readFile('dist/signup-pilot-browser-summary.json', 'utf8')));
+    await writeFile(
+      'dist/signup-pilot-browser-summary.json',
+      JSON.stringify(
+        {
+          ...summary,
+          status: code === 0 && report.success ? 'PASS' : 'FAIL',
+          passedTests: report.numPassedTests,
+          failedTests: report.numFailedTests,
+          failures,
+        },
+        null,
+        2,
+      ),
+    );
+  }
 } finally {
   if (server && server.exitCode === null) {
     // Exact child tree only; never kill unrelated Node/Next processes.
@@ -200,4 +292,6 @@ try {
     else server.kill('SIGTERM');
   }
   await serverLog?.close();
+  await mailbox?.stop();
+  await redis?.stop();
 }

@@ -953,6 +953,55 @@
       "when": 1793804271309,
       "tag": "0135_ai_clinic_operational_info",
       "breakpoints": true
+    },
+    {
+      "idx": 136,
+      "version": "7",
+      "when": 1794096000000,
+      "tag": "0136_trial_resource_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 137,
+      "version": "7",
+      "when": 1794168300000,
+      "tag": "0137_trial_service_role_privileges",
+      "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1794171600000,
+      "tag": "0138_saas_gateway_bindings",
+      "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1794189600000,
+      "tag": "0139_saas_gateway_recontracts",
+      "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1794199882765,
+      "tag": "0140_saas_recurring_payment_observations",
+      "breakpoints": true
+    },
+    {
+      "idx": 141,
+      "version": "7",
+      "when": 1794222981810,
+      "tag": "0141_saas_scheduled_plan_changes",
+      "breakpoints": true
+    },
+    {
+      "idx": 142,
+      "version": "7",
+      "when": 1794326400000,
+      "tag": "0142_saas_review_replays",
+      "breakpoints": true
     }
   ]
 }

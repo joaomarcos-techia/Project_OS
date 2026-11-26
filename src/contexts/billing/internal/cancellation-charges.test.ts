@@ -141,9 +141,36 @@ describe('removeSubscriptionCharges', () => {
       extraPaymentIds: ['pay_inexistente', 'pay_ja_apagada'],
     });
 
-    expect(result).toEqual({ ok: true, removedPaymentIds: [], paidPaymentIds: [] });
+    expect(result).toEqual({
+      ok: true,
+      removedPaymentIds: ['pay_inexistente', 'pay_ja_apagada'],
+      paidPaymentIds: [],
+    });
     expect(provider.cancelPayment).not.toHaveBeenCalled();
     expect(provider.updateSubscription).not.toHaveBeenCalled();
+  });
+
+  it('reconciles the known local invoice after DELETE succeeded but its acknowledgement was lost', async () => {
+    const { provider, vivas, soltas } = fakeAsaas([payment('pay_lost_ack', 'PENDING')]);
+    provider.cancelPayment.mockImplementation(async (id: string) => {
+      const previous = vivas.get(id)!;
+      vivas.delete(id);
+      soltas.set(id, { ...previous, deleted: true });
+      throw new BillingProviderError('synthetic timeout after remote deletion', 'timeout', 504);
+    });
+    const input = { asaasSubscriptionId: 'sub_1', extraPaymentIds: ['pay_lost_ack'] };
+    await expect(removeSubscriptionCharges(provider, input)).resolves.toEqual({
+      ok: true,
+      removedPaymentIds: ['pay_lost_ack'],
+      paidPaymentIds: [],
+    });
+    provider.cancelPayment.mockClear();
+    await expect(removeSubscriptionCharges(provider, input)).resolves.toEqual({
+      ok: true,
+      removedPaymentIds: ['pay_lost_ack'],
+      paidPaymentIds: [],
+    });
+    expect(provider.cancelPayment).not.toHaveBeenCalled();
   });
 
   it('cartão em análise não pode ser apagado: devolve in_flight para tentar depois', async () => {
@@ -227,7 +254,7 @@ describe('removeSubscriptionCharges', () => {
       extraPaymentIds: ['pay_1'],
     });
 
-    expect(again).toEqual({ ok: true, removedPaymentIds: [], paidPaymentIds: [] });
+    expect(again).toEqual({ ok: true, removedPaymentIds: ['pay_1'], paidPaymentIds: [] });
     expect(provider.cancelPayment).not.toHaveBeenCalled();
   });
 });

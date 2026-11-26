@@ -281,6 +281,7 @@ async function readCurrentSubscription(tx: Tx, clinicId: string): Promise<Curren
       currentPeriodEnd: subscriptions.currentPeriodEnd,
       trialEndsAt: subscriptions.trialEndsAt,
       asaasSubscriptionId: subscriptions.asaasSubscriptionId,
+      billingProvider: subscriptions.billingProvider,
     })
     .from(subscriptions)
     .innerJoin(plans, eq(plans.id, subscriptions.planId))
@@ -288,6 +289,12 @@ async function readCurrentSubscription(tx: Tx, clinicId: string): Promise<Curren
     .where(eq(subscriptions.clinicId, clinicId))
     .limit(1);
   if (!row) throw new PlanChangeError('Assinatura não encontrada.', 'subscription_not_found');
+  if (row.billingProvider === 'abacatepay') {
+    throw new PlanChangeError(
+      'Esta assinatura usa a nova integração. Alterações de plano ainda estão em validação.',
+      'provider_operation_unavailable',
+    );
+  }
   return row as CurrentSubscription;
 }
 
@@ -350,7 +357,7 @@ export function fitsPlanUserLimit(activeUsers: number, limit: number | null): bo
   return Number.isInteger(activeUsers) && activeUsers > 0 && limit !== null && activeUsers <= limit;
 }
 
-async function assertTargetPlanCapacity(
+export async function assertTargetPlanCapacity(
   tx: Tx,
   clinicId: string,
   targetPlanId: string,

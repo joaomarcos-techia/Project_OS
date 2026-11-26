@@ -1,0 +1,398 @@
+{
+  "observedAt": "2026-11-10T16:05:26.828Z",
+  "status": "PARTIAL",
+  "scope": "initial 2-5 doctor acquisition; isolated UI integration, no production activation",
+  "baseline": "4e120afeb712787ac6120f46f953605ce7cf639b",
+  "directed": {
+    "status": "PASS",
+    "unitTests": 236,
+    "files": 8,
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "format": "PASS"
+  },
+  "presentation": {
+    "sourceBranch": "ui/refactor-qoro-20261108",
+    "sourceSha": "e47ec2f0101cd7b9b220d1c72f94495fe4ee8073",
+    "fullRedesignMerged": false,
+    "scope": "plan page, form, shared presentation frame and CSS; financial handlers preserved",
+    "plannedBrowserScenarios": 8,
+    "browserStatus": "PARTIAL; all 10 public tests passed, eight UI cases reached a synthetic heading with corrupted accents before the UTF8 fixture correction; followup CI pending",
+    "otherWorktreesModified": false,
+    "tissModified": false
+  },
+  "branchComposition": {
+    "mode": "read_only_three_way_file_projection_no_branch_merge",
+    "mergeBases": [
+      "5620a0987ec53db7d7358728eb7d457d9d373df3",
+      "311e5dd0962433a8d3aafb5f7d6f9ce095cd8071"
+    ],
+    "comparedFiles": 120,
+    "potentialConflicts": [
+      {
+        "file": ".env.example",
+        "conflicts": 1,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "docs/adr/067-cotas-temporarias-de-avaliacao.md",
+        "conflicts": 1,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "docs/decoupling/09-gates-de-validacao.md",
+        "conflicts": 1,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "docs/decoupling/10-matriz-de-riscos.md",
+        "conflicts": 1,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "docs/decoupling/13-criterios-de-aceite.md",
+        "conflicts": 1,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "docs/decoupling/README.md",
+        "conflicts": 1,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "docs/decoupling/asaas-to-abacatepay/CONTINUACAO-2026-11-07.md",
+        "conflicts": 1,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "docs/decoupling/asaas-to-abacatepay/MATRIZ-CENARIOS-E-TESTES.md",
+        "conflicts": 4,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "docs/decoupling/asaas-to-abacatepay/PLANO-MESTRE-MIGRACAO-ASAAS-ABACATEPAY.md",
+        "conflicts": 1,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "docs/decoupling/asaas-to-abacatepay/SCHEMA-CANDIDATO.sql",
+        "conflicts": 1,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "docs/decoupling/plano-preservado-20261107.json",
+        "conflicts": 1,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "docs/quality/trial-resource-limits-2026-11-08.md",
+        "conflicts": 3,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "docs/runbooks/provider-rollback.md",
+        "conflicts": 1,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "docs/specs/trial-interface-e-cotas-2026-11.md",
+        "conflicts": 3,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "drizzle/migrations/meta/_journal.json",
+        "conflicts": 1,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "scripts/security/billing-gateway-schema.ts",
+        "conflicts": 6,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "scripts/security/trial-resource-limits.ts",
+        "conflicts": 3,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "src/app/(app)/cadastro/plano/page.tsx",
+        "conflicts": 1,
+        "projectedCurrentIncludesUncommittedScope": true
+      },
+      {
+        "file": "src/app/(app)/cadastro/plano/plan-selection-form.test.tsx",
+        "conflicts": 1,
+        "projectedCurrentIncludesUncommittedScope": true
+      },
+      {
+        "file": "src/app/(app)/cadastro/plano/plan-selection-form.tsx",
+        "conflicts": 4,
+        "projectedCurrentIncludesUncommittedScope": true
+      },
+      {
+        "file": "src/lib/payments/abacatepay/initial-payment.test.ts",
+        "conflicts": 5,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "src/lib/payments/abacatepay/initial-payment.ts",
+        "conflicts": 3,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "src/lib/payments/abacatepay/reader.ts",
+        "conflicts": 5,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "src/lib/payments/abacatepay/sandbox-commands.test.ts",
+        "conflicts": 4,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "src/lib/payments/abacatepay/sandbox-commands.ts",
+        "conflicts": 3,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "src/lib/payments/abacatepay/transport.ts",
+        "conflicts": 1,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "src/lib/payments/abacatepay/webhook.test.ts",
+        "conflicts": 1,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "src/lib/payments/saas/command-operation.ts",
+        "conflicts": 3,
+        "projectedCurrentIncludesUncommittedScope": false
+      },
+      {
+        "file": "src/lib/payments/saas/postgres-store.ts",
+        "conflicts": 2,
+        "projectedCurrentIncludesUncommittedScope": false
+      }
+    ],
+    "actualBranchMergeExecuted": false,
+    "warning": "Conservative per-file projection is not the result of a recursive branch merge"
+  },
+  "turnstile": {
+    "officialDummyPairOnlyInIsolatedBuild": true,
+    "productionSettingsChanged": false,
+    "previousPublicRun": {
+      "passed": 8,
+      "failed": 2,
+      "skipped": 0,
+      "causes": [
+        "cold local development compilation timeout",
+        "visibility assertion incompatible with interaction-only host"
+      ]
+    },
+    "localUiAttempt": "BLOCKED before browser by constrained local memory and warmup timeout",
+    "finalCiStatus": "PENDING; result recorded on PR #53, not inferred from previous head"
+  },
+  "unchangedFinancialRuntime": [
+    {
+      "file": "src/contexts/billing/internal/abacatepay-processing.ts",
+      "sha256": "e15949c89a33ff3e0739de082bbe6e9b28eaab2d4a14614dd204449c47bcc125",
+      "unchanged": true
+    },
+    {
+      "file": "src/contexts/billing/internal/deferred-checkout.ts",
+      "sha256": "97b6095c6a196cfc0a6cc2ff4a238955c41ff0a37620c8965ba7823af9493955",
+      "unchanged": true
+    },
+    {
+      "file": "src/lib/payments/abacatepay/initial-payment.ts",
+      "sha256": "653e4c9872344568b2f81cfd85b7e245c138095db4938473e143c2d26ef9d41f",
+      "unchanged": true
+    },
+    {
+      "file": "src/lib/payments/abacatepay/webhook.ts",
+      "sha256": "8aa1980346e2019eefc16f623a1be0b03dd367201f066663eed291b7d08526f1",
+      "unchanged": true
+    },
+    {
+      "file": "src/lib/payments/saas/acquisition.ts",
+      "sha256": "931a6e41e106f6067ff48ed962c7f1dc8b6c284e8a926f1bd2d7f2ffc1572348",
+      "unchanged": true
+    }
+  ],
+  "existingProofs": {
+    "initialPostgres": 18,
+    "recurringPostgres": 85,
+    "providerHttpInTheseDbProofs": "synthetic",
+    "paidTwoDoctors": "checkout-pago-20261110.json; real Sandbox payment retained; not repeated"
+  },
+  "fiveDoctors": {
+    "plan": "clinica_2026_5",
+    "amountMinor": 83800,
+    "slot": "next-checkout-five-ui-20261110",
+    "externalStatus": "NOT RUN at source checkpoint; require protected operator evidence"
+  },
+  "publicOffer": {
+    "observedAt": "2026-11-10T15:35:45.547Z",
+    "mode": "public_HTTP_no_auth_no_writes",
+    "results": [
+      {
+        "url": "https://qoro.dev/",
+        "http": 200,
+        "cache": "HIT",
+        "trial14": true,
+        "trial7": false,
+        "teamUnlimited": false,
+        "upTo10": false,
+        "upTo5": true,
+        "traceContainsPatientData": false
+      },
+      {
+        "url": "https://qoro.dev/precos",
+        "http": 200,
+        "cache": "HIT",
+        "trial14": true,
+        "trial7": false,
+        "teamUnlimited": false,
+        "upTo10": false,
+        "upTo5": true,
+        "traceContainsPatientData": false
+      }
+    ]
+  },
+  "productionNamesOnly": {
+    "observedAt": "2026-11-10T15:36:32.948Z",
+    "mode": "production_names_and_scopes_only_no_decryption",
+    "keys": [
+      {
+        "name": "SAAS_SIGNUP_PROVIDER",
+        "present": false
+      },
+      {
+        "name": "ABACATEPAY_API_KEY",
+        "present": false
+      },
+      {
+        "name": "ABACATEPAY_STORE_ID",
+        "present": false
+      },
+      {
+        "name": "ABACATEPAY_SANDBOX_PLAN_PRODUCTS",
+        "present": false
+      },
+      {
+        "name": "ABACATEPAY_WEBHOOK_SECRET",
+        "present": false
+      },
+      {
+        "name": "ASAAS_API_KEY",
+        "present": true
+      },
+      {
+        "name": "ASAAS_WEBHOOK_TOKEN",
+        "present": true
+      },
+      {
+        "name": "DATABASE_URL",
+        "present": true
+      },
+      {
+        "name": "NEXT_PUBLIC_SUPABASE_URL",
+        "present": true
+      },
+      {
+        "name": "NEXT_PUBLIC_TURNSTILE_SITE_KEY",
+        "present": true
+      },
+      {
+        "name": "TURNSTILE_SECRET_KEY",
+        "present": true
+      },
+      {
+        "name": "OFFER_2026_ANNUAL_NEW_SALES_ENABLED",
+        "present": true
+      }
+    ],
+    "valuesExposed": false,
+    "configurationChanges": 0,
+    "financialActivationAuthorized": false
+  },
+  "sourceHashes": {
+    "src/app/(app)/cadastro/plano/page.tsx": "a74d9e2e193d35daec1806890ce4d6c592d079c25b10d098a314a4b249248db7",
+    "src/app/(app)/cadastro/plano/plan-selection-form.tsx": "b80b04986ab93533392036ff95ebe4f042c807bca52597c20006e2a3d508a18c",
+    "src/components/shared/signup-frame.tsx": "b5f7d0248223d7e48eb14a3dc13a7ca87a648ebe5e23ccdc4a496060744d2844",
+    "src/components/shared/signup-frame.module.css": "2bf3f7abca34c6bbf544351d70fe100d722e758dccd1cee1ff983fe3e971c2e8",
+    "src/components/shared/signup-frame.test.tsx": "84b27666d14175899f8532b2a96def0cbaa19b4baaa74444ebb04983afd2a30c",
+    "src/app/(app)/cadastro/plano/plano.module.css": "2730e453ecbfc1035196aecf5c52b4a1d123c80fdfee213ab823738d8eca18a5",
+    "src/app/(app)/cadastro/plano/plan-selection-form.test.tsx": "5e42b79c6231bdfbb8336b31d4ff63befcf68369018cb2d25877de24a17e5b93",
+    "src/contexts/onboarding/internal/signup-draft.test.ts": "439825094598eed174785e9622e271c98055a406c479b5cd9f1a4ca7463c5790",
+    "scripts/security/local-build.ts": "0486d3f03e7265004871d1d4cfa6e4eaf82dfffc34cc2c7d5b968970c58a003f",
+    "playwright.ci.config.ts": "9e370f07e6276b3ea401ad91d8f5ac27ab079dfbb0b70391385cc68bc9f98463",
+    "e2e/public-surface.spec.ts": "0875d27b10a20d4a3d83b1d9ec52b2219b2e8758453fd43890e89d6e39c07971",
+    "e2e/abacatepay-plan-ui.spec.ts": "9213300ad1741d53aafac0b7a3013ce72fa7cba19cb023af4912128b9ac5412f",
+    "e2e/abacatepay-trial-preview.spec.ts": "e8048742f95373c80a26553b9df2b6851c08cc2f3b7d0e3c4dd1476c6a3e4564"
+  },
+  "productionWrites": 0,
+  "productionGo": "NO-GO; live composition/cohort and prior risk gates remain",
+  "ciBeforeFixtureCorrection": {
+    "runId": 42846932199,
+    "sha": "01a3af710e870256ab6d36be416f44e21a283f90",
+    "status": "FAIL",
+    "unitPassed": 6897,
+    "publicPassed": 10,
+    "planUiFailed": 8,
+    "skipped": 0,
+    "cause": "Synthetic destination HTML omitted charset=utf-8; report confirmed mojibake heading",
+    "correction": "Only fixture Content-Type changed; navigation and financial assertions preserved",
+    "chromiumCharsetRegression": {
+      "passed": 2,
+      "scope": "loopback HTTP; original failure reproduced and UTF8 exact heading verified; not full UI E2E"
+    },
+    "followupCi": "PENDING"
+  },
+  "externalPreflight": {
+    "observedAt": "2026-11-10T15:56:33.686Z",
+    "status": "BLOCKED",
+    "scope": "read-only preflight before any new five-doctor fixture",
+    "sha": "01a3af710e870256ab6d36be416f44e21a283f90",
+    "preview": "https://project-8ruxlt5ic-clinic-os-v2-s-projects.vercel.app",
+    "checks": {
+      "previewReady": true,
+      "signedDevRuntime": true,
+      "devAuthAdminReadiness": true,
+      "sandboxProducts": 5,
+      "webhookTargetSameRelease": true,
+      "invalidWebhookHttp": 401,
+      "devCanonicalReadOnlyConnect": "CONNECT_TIMEOUT",
+      "devCatalogRestHttp": 503,
+      "devDatabaseTcp": "PASS to both resolved IPv4 addresses"
+    },
+    "attempts": [
+      {
+        "action": "preflight",
+        "stage": "sandbox_store",
+        "result": "unavailable"
+      },
+      {
+        "action": "preflight",
+        "stage": "dev_schema_and_catalog",
+        "result": "CONNECT_TIMEOUT"
+      },
+      {
+        "action": "canonical DEV SELECT 1 in READ ONLY",
+        "result": "CONNECT_TIMEOUT",
+        "executions": 2
+      },
+      {
+        "action": "DEV REST plan catalog GET",
+        "result": "HTTP 503"
+      }
+    ],
+    "rootCause": "not established; DEV database service unavailable through canonical connection and REST",
+    "nextAction": "Repeat read-only readiness after DEV recovery; prepare/create only after all gates pass",
+    "newAuthUsers": 0,
+    "newCheckouts": 0,
+    "payments": 0,
+    "productionWrites": 0
+  }
+}
