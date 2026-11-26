@@ -20,7 +20,7 @@ name: Convênios — provas sintéticas de banco
 # então um push só de documentação não gasta minutos do Actions.
 on:
   push:
-    branches: [feat/convenios-tiss-20261110]
+    branches: [feat/convenios-tiss-20261110, integracao/composicao-64-55-20261126]
     paths:
       - 'src/contexts/health-insurance/**'
       - 'src/lib/premium-access/**'
