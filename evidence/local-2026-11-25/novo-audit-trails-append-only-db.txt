@@ -1,0 +1,9 @@
+PASS 1: INSERT continua: pelo dono e pela sessão da clínica (authenticated com app.current_clinic)
+PASS 2: UPDATE, DELETE e TRUNCATE recusados para o dono (inclusive com session_replication_role=replica) e direto na partição audit_events_2026_11; authenticated sem privilégio
+PASS 3: anonimização LGPD real (anonymizePatientAuditTrail): retira nome, e-mail e sexo; ação, recurso e data ficam idênticos
+PASS 4: retirar dado pessoal mudando outra coluna, ou retirar chave fora da lista, é recusado
+PASS 5: hi_account_events (histórico da conta da guia): UPDATE, DELETE e TRUNCATE recusados
+PASS 6: exclusão de clínica COM histórico da conta TISS é recusada (o ON DELETE CASCADE bate no gatilho); clínica sem histórico continua excluível — reset:prod/dev e limpezas de E2E precisam preservar a trilha antes da promoção
+PASS 7: catálogo: gatilho ALWAYS (o que a detecção da ADR-075 confere); o DONO ainda pode removê-lo por DDL — a reversão prova isso e devolve o comportamento anterior
+
+7/7 provas da trilha append-only da clínica (S5) passaram.

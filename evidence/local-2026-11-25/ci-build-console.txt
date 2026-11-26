@@ -1,0 +1,5 @@
+FAIL    78s  Build
+FAIL     3s  Client bundle secrets and local HTTP boundaries
+FAIL     6s  E2E gate (superfície pública, sem credencial)
+
+0 PASS, 3 FAIL, 2 SKIPPED em 86s → evidence\local-2026-11-25\ci-build

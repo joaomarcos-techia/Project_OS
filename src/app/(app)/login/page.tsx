@@ -33,6 +33,10 @@ const REASONS: Record<string, string> = {
   disabled: 'Seu acesso foi desativado. Contate o administrador.',
   no_profile: 'Profile não encontrado. Contate o administrador.',
   password_updated: 'Senha atualizada. Entre novamente com sua nova senha.',
+  inactivity:
+    'Sua sessão foi bloqueada depois de 10 minutos sem atividade (perfil de segurança de Convênios). Entre novamente: o rascunho do prontuário ficou salvo.',
+  inactivity_unsaved:
+    'Sua sessão foi bloqueada depois de 10 minutos sem atividade. Não foi possível confirmar o salvamento das últimas alterações (falha de conexão): confira o rascunho depois de entrar.',
 };
 
 function LoginScreen() {

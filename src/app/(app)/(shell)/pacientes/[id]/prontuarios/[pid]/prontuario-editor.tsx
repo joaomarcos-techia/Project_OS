@@ -14,6 +14,8 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/ui/cn';
 
+import { registerPendingWork } from '@/app/(app)/_lib/pending-work';
+
 import { autosaveProntuario } from '../actions';
 
 const AUTOSAVE_MS = 10_000;
@@ -126,6 +128,19 @@ export function ProntuarioEditor({
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [content, persist, signed]);
+
+  // S2 (requisito 83): antes do bloqueio por inatividade o guarda pede para salvar o que falta. Espera um save em
+  // andamento terminar, salva o pendente e responde se ficou tudo no servidor (nada vai para o navegador).
+  useEffect(() => {
+    if (signed) return;
+    return registerPendingWork(async () => {
+      for (let i = 0; i < 50 && savingRef.current; i += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      if (dirtyRef.current) await persist();
+      return !dirtyRef.current && !savingRef.current;
+    });
+  }, [persist, signed]);
 
   // Flush no unmount: ao TROCAR de paciente (ou fechar), o cleanup do debounce
   // cancelaria o autosave pendente e perderia o texto. Aqui salvamos as edições

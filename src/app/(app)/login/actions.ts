@@ -30,6 +30,14 @@ import {
   lastAccessSecret,
 } from '@/lib/auth/last-access';
 import { readLastAccessSummary, recordLoginAttempt } from '@/lib/auth/login-audit';
+import { isTissProfileEnforced } from '@/lib/auth/security-profile/tiss-scope';
+import {
+  SESSION_ACTIVITY_COOKIE,
+  SESSION_ACTIVITY_COOKIE_OPTIONS,
+  encodeSessionActivity,
+  sessionActivitySecret,
+  sessionIdFromAccessToken,
+} from '@/lib/auth/session-activity';
 import { assertLoginAllowed, assertPasswordResetAllowed, getClientIp } from '@/lib/auth/rate-limit';
 import { postLoginRedirect } from '@/lib/auth/policies';
 import { resolvePreTenantOnboarding } from '@/lib/auth/pretenant-onboarding';
@@ -243,12 +251,31 @@ export async function loginAction(
     };
   }
 
+  const inTissScope = await isInTissPasswordScope(profile.clinicId ?? null, readTissFootprintLazy);
+
+  // S2 (requisito 83 da ANS): com o perfil ligado, todo login grava o registro de atividade desta sessão (assinado,
+  // preso ao usuário e à sessão, com o alcance). A porta única bloqueia a sessão do alcance após 10 min sem atividade.
+  if (isTissProfileEnforced(process.env)) {
+    const sessionId = sessionIdFromAccessToken(data.session?.access_token);
+    if (sessionId) {
+      try {
+        (await cookies()).set(
+          SESSION_ACTIVITY_COOKIE,
+          encodeSessionActivity(
+            { uid: data.user.id, sid: sessionId, at: Date.now(), scope: inTissScope },
+            sessionActivitySecret(),
+          ),
+          SESSION_ACTIVITY_COOKIE_OPTIONS,
+        );
+      } catch {
+        /* sem o registro, vale o login recente; o guarda do shell grava em seguida */
+      }
+    }
+  }
+
   // R42 (requisito 42 da ANS): aviso de último acesso no perfil TISS. Cookie curto, HttpOnly e assinado (só data e
   // contagem); o layout lê uma vez e apaga. Fora do alcance, nada muda.
-  if (
-    lastAccess &&
-    (await isInTissPasswordScope(profile.clinicId ?? null, readTissFootprintLazy))
-  ) {
+  if (lastAccess && inTissScope) {
     try {
       (await cookies()).set(
         LAST_ACCESS_COOKIE,

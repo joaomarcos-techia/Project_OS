@@ -1,0 +1,26 @@
+PASS     4s  Commits do
+PASS    13s  0162 — matriz de permissões I.2, arquivo final do journal (12 provas)
+PASS    11s  Matriz I.2 — escopo das guias e valores nas leituras (D-1, D-3, D-4)
+PASS    74s  0165 — cancelamento na operadora e substituição só com recibo (P7.5)
+PASS    20s  Manutenção de Convênios — vencimento das autorizações e resumo diário (P6.6/P12.6)
+PASS    14s  Comprovante da autorização em partes (P6.3)
+PASS    12s  Avisos de autorização entregues à clínica (P6.6, 0166)
+PASS    29s  Concorrência da manutenção de Convênios (execuções sobrepostas, linha presa, conexão derrubada)
+PASS    14s  Interruptor do módulo pela plataforma (P1.13, contrato do console)
+PASS    73s  Relatório por operadora e período (P9.10, somas contra o livro)
+PASS    21s  Estados da cobertura não bloqueiam o atendimento clínico (P5.1)
+PASS    14s  Série recorrente de convênio e consumo da autorização (P4.7)
+PASS     8s  Credenciais da operadora e leitura só para o envio SOAP (P2.5, P6.5, P12.5)
+PASS    14s  Envio do lote pelo conector homologado contra a operadora stub (P9.4, teto "Testado")
+PASS    26s  Worker do outbox — prazo de reserva e descarte em bloco (R61, 6 provas)
+FAIL   108s  Invocação compartilhada do cron (R61-B, 6 provas, corte real aos 60 s)
+PASS    17s  Itens executados adicionais (P8.4, política P8.4-r aprovada, 0167; 28 provas)
+PASS    13s  Guia nova depois de cancelada (SP/SADT e Consulta; 14 provas)
+PASS    16s  Ensaio da aplicação da 0167 com o migrador real (lock, reaplicação, reversão; 11 provas)
+PASS    44s  Desempenho da H.2 com o código real (P14.4; metas e desvio registrado)
+PASS    76s  SP/SADT — solicitação, automação e indicação clínica × D24
+PASS    83s  Repasse do convênio — cancelamento com repasse e revisão humana (0163)
+PASS    78s  Interruptor do módulo — classe A recusada, classe C preservada
+PASS    78s  0164 — gatilhos do módulo, classe A barrada no banco, preservação e recuperação passam
+
+23 PASS, 1 FAIL, 1 SKIPPED em 860s → evidence\local-2026-11-25\sinteticas

@@ -186,3 +186,43 @@ describe('ProntuarioEditor — autosave', () => {
     expect(autosave).not.toHaveBeenCalled();
   });
 });
+
+describe('S2 / requisito 83: salvar antes do bloqueio por inatividade', () => {
+  it('2/7. o guarda pede o flush: o pendente vai ao servidor como rascunho e o editor responde "salvo"', async () => {
+    const { flushPendingWork, pendingWorkCount } = await import('@/app/(app)/_lib/pending-work');
+    const { unmount } = render(<ProntuarioEditor prontuario={makeProntuario()} />);
+    expect(pendingWorkCount()).toBe(1);
+    type('conduta registrada antes de sair');
+    let saved = false;
+    await act(async () => {
+      saved = await flushPendingWork();
+    });
+    expect(saved).toBe(true);
+    expect(autosave).toHaveBeenCalledWith(
+      'pront-1',
+      { queixa_principal: 'conduta registrada antes de sair' },
+      1,
+    );
+    unmount();
+    expect(pendingWorkCount()).toBe(0);
+  });
+
+  it('10. falha de rede no flush: responde "não salvo" e o texto continua no editor', async () => {
+    const { flushPendingWork } = await import('@/app/(app)/_lib/pending-work');
+    autosave.mockResolvedValueOnce({ ok: false, kind: 'error' } as AutosaveResult);
+    render(<ProntuarioEditor prontuario={makeProntuario()} />);
+    type('texto que não pode sumir');
+    let saved = true;
+    await act(async () => {
+      saved = await flushPendingWork();
+    });
+    expect(saved).toBe(false);
+    expect((firstField() as HTMLTextAreaElement).value).toBe('texto que não pode sumir');
+  });
+
+  it('prontuário assinado não registra trabalho pendente', async () => {
+    const { pendingWorkCount } = await import('@/app/(app)/_lib/pending-work');
+    render(<ProntuarioEditor prontuario={makeProntuario({ status: 'assinado' })} />);
+    expect(pendingWorkCount()).toBe(0);
+  });
+});

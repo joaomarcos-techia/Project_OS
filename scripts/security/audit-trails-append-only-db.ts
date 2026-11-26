@@ -8,7 +8,8 @@
  *   3. a anonimização LGPD real (`anonymizePatientAuditTrail`) passa e só retira as chaves de dado pessoal;
  *   4. alteração que retira dado pessoal MAS muda outra coluna, ou retira chave fora da lista, é recusada;
  *   5. hi_account_events: UPDATE e DELETE recusados;
- *   6. limite honesto: o dono ainda pode DESABILITAR o gatilho por DDL (por isso a detecção do catálogo e a
+ *   6. compatibilidade: excluir clínica COM histórico TISS é recusado (cascata); sem histórico, continua possível;
+ *   7. limite honesto: o dono ainda pode DESABILITAR o gatilho por DDL (por isso a detecção do catálogo e a
  *      evidência externa da ADR-075); a reversão remove só os gatilhos.
  *
  *   SECURITY_PG_BIN=... PORT=55612 NODE_OPTIONS=--conditions=react-server npx tsx scripts/security/audit-trails-append-only-db.ts
@@ -100,15 +101,27 @@ try {
   await refused(() => sql`truncate public.hi_account_events`);
   pass('hi_account_events (histórico da conta da guia): UPDATE, DELETE e TRUNCATE recusados');
 
-  // ── 6. Limite honesto e reversão ──────────────────────────────────
+  // ── 6. Compatibilidade: exclusão de clínica (reset:prod/dev e limpeza de E2E fazem DELETE FROM clinics) ──
+  const withHistory = randomUUID();
+  const withoutHistory = randomUUID();
+  await sql`insert into public.clinics (id, slug, nome, status) values
+    (${withHistory}::uuid, ${`au-h-${withHistory.slice(0, 10)}`}, 'Clínica com histórico TISS', 'active'),
+    (${withoutHistory}::uuid, ${`au-s-${withoutHistory.slice(0, 10)}`}, 'Clínica sem histórico', 'active')`;
+  await sql`insert into public.hi_account_events (clinic_id, guide_id, action, actor_kind) values (${withHistory}::uuid, ${randomUUID()}::uuid, 'payment_recorded', 'system')`;
+  await refused(() => sql`delete from public.clinics where id = ${withHistory}::uuid`);
+  await sql`delete from public.clinics where id = ${withoutHistory}::uuid`;
+  assert.equal((await sql`select 1 from public.clinics where id = ${withHistory}::uuid`).length, 1);
+  pass('exclusão de clínica COM histórico da conta TISS é recusada (o ON DELETE CASCADE bate no gatilho); clínica sem histórico continua excluível — reset:prod/dev e limpezas de E2E precisam preservar a trilha antes da promoção');
+
+  // ── 7. Limite honesto e reversão ──────────────────────────────────
   const [{ enabled }] = (await sql`select tgenabled::text as enabled from pg_trigger where tgname = 'audit_events_append_only_row' and tgrelid = 'public.audit_events'::regclass`) as unknown as [{ enabled: string }];
   assert.equal(enabled, 'A'); // ALWAYS — a detecção do catálogo da ADR-075 confere isto
   await sql.unsafe(rollback);
   await sql`delete from public.audit_events where id = ${r2!.id}`;
   pass('catálogo: gatilho ALWAYS (o que a detecção da ADR-075 confere); o DONO ainda pode removê-lo por DDL — a reversão prova isso e devolve o comportamento anterior');
 
-  console.log(`\n${passed}/6 provas da trilha append-only da clínica (S5) passaram.`);
-  assert.equal(passed, 6);
+  console.log(`\n${passed}/7 provas da trilha append-only da clínica (S5) passaram.`);
+  assert.equal(passed, 7);
 } finally {
   await cluster.stop();
 }
