@@ -36,8 +36,9 @@ DDL, ou fazer DETACH de uma partição. Contra isso, três camadas propostas (a 
 
 1. **Detecção:** a checagem do catálogo no `/api/health` (parte 2 da ADR-075) passa a incluir os quatro gatilhos
    desta candidata (presentes, `tgenabled = 'A'`, função íntegra).
-2. **DETACH antes de 180 dias:** o único caminho do app é o cron de partições (`/api/cron/audit-partitions`); ele
-   passa a recusar partição de `audit_events` com fim de intervalo há menos de 180 dias.
+2. **DETACH antes de 180 dias:** o cron `/api/cron/audit-partitions` só provisiona (não desanexa). O único caminho
+   que desanexa é o operador (`pnpm audit:partitions --retain N`), que **desde 26/11 recusa N < 6 meses**
+   (`src/lib/db/audit-retention-floor.ts`, 2 testes).
 3. **Evidência externa:** resumo diário com SHA-256 encadeado das linhas do dia (`id`, `created_at`, `action`,
    `resource_type`, `resource_id`, hash do `before`/`after`), enviado a um destino fora do banco (log externo). Uma
    linha alterada ou apagada depois quebra a cadeia. É o risco `auditoria-sem-hash-chain` já registrado.
@@ -50,3 +51,24 @@ DDL, ou fazer DETACH de uma partição. Contra isso, três camadas propostas (a 
   0165) vai para depois destas.
 - Retenção: com a trilha travada, o descarte (quando houver prazo) é só por DETACH de partição com mais de 180
   dias, nunca DELETE.
+
+## Revisão do #59 (26/11/2026, `c6e91bf1`, só leitura)
+
+| Ponto | #59 (ADR-075) | 0171 (#55) | Responsabilidade |
+| --- | --- | --- | --- |
+| Tabela | `super_admin_actions` (trilha da plataforma) | `audit_events` (particionada) e `hi_account_events` (trilha da clínica) | disjuntas: nenhuma tabela nas duas |
+| Privilégios | `REVOKE ALL` de PUBLIC/anon/authenticated/service_role/qoro_runtime | `REVOKE UPDATE/DELETE/TRUNCATE`; INSERT e SELECT ficam; service_role mantém UPDATE em `audit_events` só para a anonimização LGPD | cada uma no seu escopo |
+| Gatilho | linha (UPDATE/DELETE) + comando (TRUNCATE), `ENABLE ALWAYS`, `search_path = ''` | o mesmo desenho; a função aceita só a anonimização LGPD que retira chaves de dado pessoal | mesmo padrão; **não há segundo sistema** |
+| Detecção | parte 2 da ADR-075 (catálogo no `/api/health`) | a mesma checagem deve listar os 4 gatilhos da 0171 | **#59 (dono da parte 2)**, com a lista desta candidata |
+| Reset de Production | `reset-prod-data.ts` passa a preservar `super_admin_actions` | o reset ainda apaga `audit_events` e `login_attempts` e faz `DELETE FROM clinics` | ajuste do reset no mesmo PR que promover a 0171 (prova 6 do harness) |
+| Número | candidata `0165` (colide com a `0165_hi_guide_cancellations` aplicada no DEV) | 0171 | #59 renumera para **0172** (manifesto de 26/11) |
+
+**Integridade contra privilégio total (limite honesto):** os gatilhos param a aplicação, o pool administrativo e até
+o modo `replica`, mas o dono do banco ainda pode desabilitar o gatilho por DDL ou desanexar partição. Isso não é
+"imutável". O que existe: (1) detecção pelo catálogo (gatilho presente, `tgenabled = 'A'`, função íntegra), que é a
+parte 2 da ADR-075, ainda não feita; (2) piso de 6 meses no único caminho de DETACH; (3) evidência externa com hash
+encadeado, proposta e **não implementada**. Sem (1) e (3), a classificação correta é "append-only contra a
+aplicação, com adulteração privilegiada detectável só depois da parte 2". S5 segue **PARTIAL**.
+
+**Sequência final proposta:** #64 (0168) → rebase do #55 → 0169, 0170, 0171 → #59 renumerado (0172) e parte 2 da
+ADR-075 cobrindo as duas trilhas. Nenhuma política global aplicada neste ciclo.

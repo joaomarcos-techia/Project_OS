@@ -1,0 +1,32 @@
+// SOMENTE LEITURA, PRODUÇÃO: existe dado TISS? Só contagens agregadas (nenhum id, nome ou conteúdo).
+// Uma transação READ ONLY conferida dentro dela, sem SET de sessão.
+import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+
+const REF = 'shlcbxawrxuaebazuiue';
+const require = createRequire('C:/dev/Qoro_convenios_tiss_20261110/package.json');
+const postgres = require('postgres');
+const txt = readFileSync('C:/dev/ClinicaOS_V2/.env.local', 'utf8');
+const line = txt.split(/\r?\n/).find((l) => /^\s*DATABASE_URL_PROD\s*=/.test(l));
+if (!line) throw new Error('DATABASE_URL_PROD ausente');
+const raw = line.replace(/^\s*DATABASE_URL_PROD\s*=\s*/, '').replace(/^['"]|['"]$/g, '');
+const u = new URL(raw);
+if (!(u.hostname + ' ' + decodeURIComponent(u.username)).includes(REF)) throw new Error('projeto inesperado');
+if (!u.searchParams.has('sslmode')) u.searchParams.set('sslmode', 'require');
+const sql = postgres(u.toString(), { connect_timeout: 45, max: 1, prepare: false, idle_timeout: 5, onnotice: () => {} });
+const TABLES = ['hi_clinic_settings', 'hi_insurers', 'hi_plans', 'hi_memberships', 'hi_authorizations', 'hi_guides', 'hi_batches', 'hi_account_events', 'hi_glosses', 'hi_payments'];
+try {
+  const out = await sql.begin('READ ONLY', async (tx) => {
+    const [ro] = await tx`select current_setting('transaction_read_only') as ro, now()::text as agora`;
+    if (ro.ro !== 'on') throw new Error('transação não é read only');
+    const linhas = {};
+    for (const t of TABLES) {
+      const [{ reg }] = await tx`select to_regclass(${'public.' + t})::text as reg`;
+      linhas[t] = reg ? (await tx.unsafe(`select count(*)::int as n from public.${t}`))[0].n : 'ausente';
+    }
+    return { agora: ro.agora, linhas };
+  });
+  console.log(JSON.stringify(out, null, 1));
+} finally {
+  await sql.end({ timeout: 5 });
+}

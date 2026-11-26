@@ -1,0 +1,37 @@
+// SOMENTE LEITURA: ledger do Drizzle (drizzle.__drizzle_migrations) no DEV e em PRODUÇÃO.
+// Uma transação READ ONLY conferida dentro dela, sem SET de sessão. Só contagem, `created_at` (= `when` do
+// journal) e o hash de cada linha das últimas 14: nenhum dado de negócio.
+// Uso: node --use-system-ca ledger-readonly.mjs <DEV|PROD>
+import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+
+const target = process.argv[2] === 'PROD' ? 'PROD' : 'DEV';
+const REF = target === 'PROD' ? 'shlcbxawrxuaebazuiue' : 'pqhkirrszzpwezdaqrai';
+const require = createRequire('C:/dev/Qoro_convenios_tiss_20261110/package.json');
+const postgres = require('postgres');
+const txt = readFileSync('C:/dev/ClinicaOS_V2/.env.local', 'utf8');
+const line = txt.split(/\r?\n/).find((l) => new RegExp(`^\s*DATABASE_URL_${target}\s*=`).test(l));
+if (!line) throw new Error(`DATABASE_URL_${target} ausente`);
+const raw = line.replace(/^\s*DATABASE_URL_[A-Z]+\s*=\s*/, '').replace(/^['"]|['"]$/g, '');
+const u = new URL(raw);
+if (!(u.hostname + ' ' + decodeURIComponent(u.username)).includes(REF)) throw new Error('projeto inesperado');
+if (!u.searchParams.has('sslmode')) u.searchParams.set('sslmode', 'require');
+const sql = postgres(u.toString(), { connect_timeout: 45, max: 1, prepare: false, idle_timeout: 5, onnotice: () => {} });
+try {
+  const out = await sql.begin('READ ONLY', async (tx) => {
+    const [ro] = await tx`select current_setting('transaction_read_only') as ro, now()::text as agora`;
+    if (ro.ro !== 'on') throw new Error('transação não é read only');
+    const [c] = await tx`select count(*)::int as linhas, max(created_at)::text as ultimo_when from drizzle.__drizzle_migrations`;
+    const tail = await tx`select created_at::text as when, hash from drizzle.__drizzle_migrations order by created_at desc limit 14`;
+    const cand = await tx`select
+        to_regclass('public.hi_historical_coverages') is not null as t0169,
+        to_regclass('public.auth_password_history') is not null as t0170,
+        exists (select 1 from pg_trigger where tgname = 'audit_events_append_only_row') as t0171,
+        to_regclass('public.saas_pix_replacement_intents') is not null as t0168,
+        exists (select 1 from pg_trigger where tgname = 'super_admin_actions_append_only_row') as t59`;
+    return { alvo: target, agora: ro.agora, ledger: c, ultimas: tail, objetos: cand[0] };
+  });
+  console.log(JSON.stringify(out, null, 1));
+} finally {
+  await sql.end({ timeout: 5 });
+}
