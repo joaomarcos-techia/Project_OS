@@ -49,15 +49,19 @@ export async function registerSessionActivityAction(): Promise<SessionActivityRe
  * sessão local é encerrada no Auth (`signOut` local) e o cookie de atividade sai. O cliente segue para
  * `/login?reason=inactivity`. Action (POST com a proteção de origem do Next), não GET: um link de fora não desloga.
  */
-export async function lockSessionAction(): Promise<{ ok: true }> {
+export async function lockSessionAction(): Promise<{ ok: true } | { ok: false; error: string }> {
   const store = await cookies();
+  // O registro de atividade sai em qualquer caso (não abre nada; só tira o que esta sessão gravou).
+  store.delete(SESSION_ACTIVITY_COOKIE);
   try {
     const supabase = await createServerClient({ cookieWrites: 'required' });
+    // Sem sessão não há o que encerrar: negativa explícita (nenhuma action "dá certo" sem sessão).
+    const { data } = await supabase.auth.getClaims();
+    if (!data?.claims) return { ok: false, error: 'Nenhuma sessão para encerrar.' };
     await supabase.auth.signOut({ scope: 'local' });
   } catch {
-    /* sem sessão para encerrar: o cookie de atividade sai do mesmo jeito */
+    return { ok: false, error: 'Nenhuma sessão para encerrar.' };
   }
-  store.delete(SESSION_ACTIVITY_COOKIE);
   metrics.emit('auth.session.locked', { reason: 'client_idle' });
   return { ok: true };
 }

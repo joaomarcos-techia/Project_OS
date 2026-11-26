@@ -6,6 +6,7 @@ const m = vi.hoisted(() => ({
   set: vi.fn(),
   del: vi.fn(),
   signOut: vi.fn(),
+  getClaims: vi.fn(),
   emit: vi.fn(),
 }));
 
@@ -13,7 +14,7 @@ vi.mock('next/headers', () => ({ cookies: async () => ({ set: m.set, delete: m.d
 vi.mock('@/lib/auth/tenant-context', () => ({ authenticate: m.authenticate }));
 vi.mock('@/app/(app)/_lib/tiss-footprint', () => ({ readTissFootprintLazy: m.readFootprint }));
 vi.mock('@/lib/auth/supabase-server', () => ({
-  createServerClient: async () => ({ auth: { signOut: m.signOut } }),
+  createServerClient: async () => ({ auth: { signOut: m.signOut, getClaims: m.getClaims } }),
 }));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: m.emit } }));
 
@@ -101,6 +102,7 @@ describe('registerSessionActivityAction (S2)', () => {
 
 describe('lockSessionAction (S2)', () => {
   it('encerra a sessão local no Auth e apaga o registro de atividade', async () => {
+    m.getClaims.mockResolvedValue({ data: { claims: { sub: 'u-1' } }, error: null });
     m.signOut.mockResolvedValue({ error: null });
     await expect(lockSessionAction()).resolves.toEqual({ ok: true });
     expect(m.signOut).toHaveBeenCalledWith({ scope: 'local' });
@@ -108,9 +110,21 @@ describe('lockSessionAction (S2)', () => {
     expect(m.emit).toHaveBeenCalledWith('auth.session.locked', { reason: 'client_idle' });
   });
 
-  it('falha no Auth não impede apagar o registro', async () => {
+  it('sem sessão (chamada direta, sem cookie): negativa explícita; só o registro de atividade sai', async () => {
+    m.getClaims.mockResolvedValue({ data: null, error: new Error('sem sessão') });
+    await expect(lockSessionAction()).resolves.toEqual({
+      ok: false,
+      error: 'Nenhuma sessão para encerrar.',
+    });
+    expect(m.signOut).not.toHaveBeenCalled();
+    expect(m.del).toHaveBeenCalledWith(SESSION_ACTIVITY_COOKIE);
+    expect(m.emit).not.toHaveBeenCalled();
+  });
+
+  it('falha no Auth: negativa, e o registro sai do mesmo jeito', async () => {
+    m.getClaims.mockResolvedValue({ data: { claims: { sub: 'u-1' } }, error: null });
     m.signOut.mockRejectedValue(new Error('auth fora'));
-    await expect(lockSessionAction()).resolves.toEqual({ ok: true });
+    await expect(lockSessionAction()).resolves.toMatchObject({ ok: false });
     expect(m.del).toHaveBeenCalledWith(SESSION_ACTIVITY_COOKIE);
   });
 });
