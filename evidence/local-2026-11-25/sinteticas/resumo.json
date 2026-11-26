@@ -1,0 +1,207 @@
+{
+ "workflow": ".github/workflows/convenios-synthetic-db.yml",
+ "sha": "ae49a69c79a684a771e0cf119c43adf08f1f612f",
+ "startedAt": "2026-11-25T23:57:26.902Z",
+ "totalSeconds": 860,
+ "results": [
+  {
+   "job": "synthetic-db",
+   "step": "Commits do",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 4,
+   "log": "01-Commits-do.log"
+  },
+  {
+   "job": "synthetic-db",
+   "step": "Install dependencies",
+   "status": "SKIPPED (instalação local já presente)",
+   "code": null,
+   "seconds": 0
+  },
+  {
+   "job": "synthetic-db",
+   "step": "0162 — matriz de permissões I.2, arquivo final do journal (12 provas)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 13,
+   "log": "03-0162-matriz-de-permissões-I-2-arquivo-final-do-journal-12-pr.log"
+  },
+  {
+   "job": "synthetic-db",
+   "step": "Matriz I.2 — escopo das guias e valores nas leituras (D-1, D-3, D-4)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 11,
+   "log": "04-Matriz-I-2-escopo-das-guias-e-valores-nas-leituras-D-1-D-3-D.log"
+  },
+  {
+   "job": "synthetic-db",
+   "step": "0165 — cancelamento na operadora e substituição só com recibo (P7.5)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 74,
+   "log": "05-0165-cancelamento-na-operadora-e-substituição-só-com-recibo-.log"
+  },
+  {
+   "job": "synthetic-db",
+   "step": "Manutenção de Convênios — vencimento das autorizações e resumo diário (P6.6/P12.6)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 20,
+   "log": "06-Manutenção-de-Convênios-vencimento-das-autorizações-e-resumo.log"
+  },
+  {
+   "job": "synthetic-db",
+   "step": "Comprovante da autorização em partes (P6.3)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 14,
+   "log": "07-Comprovante-da-autorização-em-partes-P6-3-.log"
+  },
+  {
+   "job": "synthetic-db",
+   "step": "Avisos de autorização entregues à clínica (P6.6, 0166)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 12,
+   "log": "08-Avisos-de-autorização-entregues-à-clínica-P6-6-0166-.log"
+  },
+  {
+   "job": "synthetic-db",
+   "step": "Concorrência da manutenção de Convênios (execuções sobrepostas, linha presa, conexão derrubada)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 29,
+   "log": "09-Concorrência-da-manutenção-de-Convênios-execuções-sobreposta.log"
+  },
+  {
+   "job": "synthetic-db",
+   "step": "Interruptor do módulo pela plataforma (P1.13, contrato do console)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 14,
+   "log": "10-Interruptor-do-módulo-pela-plataforma-P1-13-contrato-do-cons.log"
+  },
+  {
+   "job": "synthetic-db",
+   "step": "Relatório por operadora e período (P9.10, somas contra o livro)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 73,
+   "log": "11-Relatório-por-operadora-e-período-P9-10-somas-contra-o-livro.log"
+  },
+  {
+   "job": "synthetic-db",
+   "step": "Estados da cobertura não bloqueiam o atendimento clínico (P5.1)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 21,
+   "log": "12-Estados-da-cobertura-não-bloqueiam-o-atendimento-clínico-P5-.log"
+  },
+  {
+   "job": "synthetic-db",
+   "step": "Série recorrente de convênio e consumo da autorização (P4.7)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 14,
+   "log": "13-Série-recorrente-de-convênio-e-consumo-da-autorização-P4-7-.log"
+  },
+  {
+   "job": "synthetic-db",
+   "step": "Credenciais da operadora e leitura só para o envio SOAP (P2.5, P6.5, P12.5)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 8,
+   "log": "14-Credenciais-da-operadora-e-leitura-só-para-o-envio-SOAP-P2-5.log"
+  },
+  {
+   "job": "synthetic-db",
+   "step": "Envio do lote pelo conector homologado contra a operadora stub (P9.4, teto \"Testado\")",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 14,
+   "log": "15-Envio-do-lote-pelo-conector-homologado-contra-a-operadora-st.log"
+  },
+  {
+   "job": "synthetic-db",
+   "step": "Worker do outbox — prazo de reserva e descarte em bloco (R61, 6 provas)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 26,
+   "log": "16-Worker-do-outbox-prazo-de-reserva-e-descarte-em-bloco-R61-6-.log"
+  },
+  {
+   "job": "synthetic-db",
+   "step": "Invocação compartilhada do cron (R61-B, 6 provas, corte real aos 60 s)",
+   "status": "FAIL",
+   "code": 1,
+   "seconds": 108,
+   "log": "17-Invocação-compartilhada-do-cron-R61-B-6-provas-corte-real-ao.log"
+  },
+  {
+   "job": "synthetic-db",
+   "step": "Itens executados adicionais (P8.4, política P8.4-r aprovada, 0167; 28 provas)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 17,
+   "log": "18-Itens-executados-adicionais-P8-4-política-P8-4-r-aprovada-01.log"
+  },
+  {
+   "job": "synthetic-db",
+   "step": "Guia nova depois de cancelada (SP/SADT e Consulta; 14 provas)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 13,
+   "log": "19-Guia-nova-depois-de-cancelada-SP-SADT-e-Consulta-14-provas-.log"
+  },
+  {
+   "job": "synthetic-db",
+   "step": "Ensaio da aplicação da 0167 com o migrador real (lock, reaplicação, reversão; 11 provas)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 16,
+   "log": "20-Ensaio-da-aplicação-da-0167-com-o-migrador-real-lock-reaplic.log"
+  },
+  {
+   "job": "synthetic-db",
+   "step": "Desempenho da H.2 com o código real (P14.4; metas e desvio registrado)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 44,
+   "log": "21-Desempenho-da-H-2-com-o-código-real-P14-4-metas-e-desvio-reg.log"
+  },
+  {
+   "job": "synthetic-db",
+   "step": "SP/SADT — solicitação, automação e indicação clínica × D24",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 76,
+   "log": "22-SP-SADT-solicitação-automação-e-indicação-clínica-D24.log"
+  },
+  {
+   "job": "synthetic-db",
+   "step": "Repasse do convênio — cancelamento com repasse e revisão humana (0163)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 83,
+   "log": "23-Repasse-do-convênio-cancelamento-com-repasse-e-revisão-human.log"
+  },
+  {
+   "job": "synthetic-db",
+   "step": "Interruptor do módulo — classe A recusada, classe C preservada",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 78,
+   "log": "24-Interruptor-do-módulo-classe-A-recusada-classe-C-preservada.log"
+  },
+  {
+   "job": "synthetic-db",
+   "step": "0164 — gatilhos do módulo, classe A barrada no banco, preservação e recuperação passam",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 78,
+   "log": "25-0164-gatilhos-do-módulo-classe-A-barrada-no-banco-preservaçã.log"
+  }
+ ]
+}
