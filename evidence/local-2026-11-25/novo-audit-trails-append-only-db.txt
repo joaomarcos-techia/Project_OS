@@ -3,6 +3,7 @@ PASS 2: UPDATE, DELETE e TRUNCATE recusados para o dono (inclusive com session_r
 PASS 3: anonimização LGPD real (anonymizePatientAuditTrail): retira nome, e-mail e sexo; ação, recurso e data ficam idênticos
 PASS 4: retirar dado pessoal mudando outra coluna, ou retirar chave fora da lista, é recusado
 PASS 5: hi_account_events (histórico da conta da guia): UPDATE, DELETE e TRUNCATE recusados
-PASS 6: catálogo: gatilho ALWAYS (o que a detecção da ADR-075 confere); o DONO ainda pode removê-lo por DDL — a reversão prova isso e devolve o comportamento anterior
+PASS 6: exclusão de clínica COM histórico da conta TISS é recusada (o ON DELETE CASCADE bate no gatilho); clínica sem histórico continua excluível — reset:prod/dev e limpezas de E2E precisam preservar a trilha antes da promoção
+PASS 7: catálogo: gatilho ALWAYS (o que a detecção da ADR-075 confere); o DONO ainda pode removê-lo por DDL — a reversão prova isso e devolve o comportamento anterior
 
-6/6 provas da trilha append-only da clínica (S5) passaram.
+7/7 provas da trilha append-only da clínica (S5) passaram.

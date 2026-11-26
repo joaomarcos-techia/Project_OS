@@ -23,12 +23,15 @@ import { redact } from './_env';
 import { sql } from 'drizzle-orm';
 
 import { dbAdmin } from '@/lib/db';
+import { assertAuditRetainMonths } from '@/lib/db/audit-retention-floor';
 import { env } from '@/lib/env';
 
 const PARENT = 'audit_events';
 const MONTHS_AHEAD = Number(process.env.AUDIT_MONTHS_AHEAD ?? 6);
 const retainIdx = process.argv.indexOf('--retain');
 const RETAIN_MONTHS = retainIdx >= 0 ? Number(process.argv[retainIdx + 1] ?? 0) : 0;
+// S5: nunca desanexar trilha com menos de 180 dias (requisitos 58 e 85 da ANS).
+assertAuditRetainMonths(RETAIN_MONTHS);
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const partName = (y: number, m1: number) => `${PARENT}_${y}_${pad2(m1)}`;
