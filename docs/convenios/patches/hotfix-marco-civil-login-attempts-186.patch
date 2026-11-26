@@ -1,5 +1,5 @@
 From 89a7bc5d1483fb3140db515de5ed4e0b63ff5706 Mon Sep 17 00:00:00 2001
-From: joaomarcos-techia <joaogestor.ia@gmail.com>
+From: joaomarcos-techia <joaomarcos-techia@users.noreply.github.com>
 Date: Wed, 25 Nov 2026 19:34:08 -0300
 Subject: [PATCH] fix(retention): guardar login_attempts por 186 dias (Marco
  Civil, art. 15: 6 meses)
