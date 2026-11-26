@@ -110,18 +110,18 @@ describe('lockSessionAction (S2)', () => {
     expect(m.emit).toHaveBeenCalledWith('auth.session.locked', { reason: 'client_idle' });
   });
 
-  it('sem sessão (chamada direta, sem cookie): negativa explícita; só o registro de atividade sai', async () => {
+  it('sem sessão (chamada direta, sem cookie): negativa explícita e nenhum cookie é tocado', async () => {
     m.getClaims.mockResolvedValue({ data: null, error: new Error('sem sessão') });
     await expect(lockSessionAction()).resolves.toEqual({
       ok: false,
       error: 'Nenhuma sessão para encerrar.',
     });
     expect(m.signOut).not.toHaveBeenCalled();
-    expect(m.del).toHaveBeenCalledWith(SESSION_ACTIVITY_COOKIE);
+    expect(m.del).not.toHaveBeenCalled();
     expect(m.emit).not.toHaveBeenCalled();
   });
 
-  it('falha no Auth: negativa, e o registro sai do mesmo jeito', async () => {
+  it('falha no Auth ao encerrar: negativa, e o registro de atividade já saiu', async () => {
     m.getClaims.mockResolvedValue({ data: { claims: { sub: 'u-1' } }, error: null });
     m.signOut.mockRejectedValue(new Error('auth fora'));
     await expect(lockSessionAction()).resolves.toMatchObject({ ok: false });
