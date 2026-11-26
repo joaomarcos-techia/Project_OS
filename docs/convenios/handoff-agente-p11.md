@@ -31,3 +31,46 @@ provado pela agenda (P4.1, P4.4).
 4. Paciente sem carteirinha: convênio com pendência; nenhum sinal nem link de pagamento enviado.
 5. Outra clínica: a operadora de uma clínica não aparece para outra.
 6. E2E da jornada pela conversa, com dados sintéticos.
+
+## Pacote de implementação para a frente do agente (26/11/2026)
+
+**Estado do #28 (`28279c0d`, só leitura):** base na main de **05/10/2026** (`772f70ad`), sete semanas atrás. Contra a
+main atual, o diff tem 836 arquivos. Antes de qualquer jornada de Convênios, o #28 precisa de rebase sobre a
+integração comercial (#64), e depois sobre o #55. A correção do Gemini (assinatura de pensamento) fica **separada**,
+no próprio #28 ou num PR curto, e não se mistura com o domínio TISS.
+
+### Peças (nenhum agente novo; ferramentas no registro que já existe, `src/contexts/ai-agent/tools/`)
+
+| Ferramenta | O que faz | Do Convênios (público) |
+| --- | --- | --- |
+| `list_insurance_options` (nova) | lista operadoras e planos **ativos** da clínica; com o módulo desligado, diz "esta clínica não atende convênio pelo Qoro" | `getSchedulingInsuranceOptions(clinicId)` → `{ enabled, insurers[{ id, name, plans[] }] }` (`null` = schema ausente: tratar como desligado) |
+| `prepare_appointment` (existente) | ganha a modalidade (`particular` ou `convenio` com `insurerId`/`planId`) | antes de confirmar: `checkSchedulingChoice(clinicId, patientId, choice)` → `null` ou o motivo |
+| `confirm_appointment` (existente) | cria pela agenda com `billingMode: 'convenio'` quando for o caso | depois de criar: `recordSchedulingCoverage(...)` (nunca lança; sem carteirinha = pendência da recepção) |
+
+Exportar `getSchedulingInsuranceOptions` pelo `index.ts` do Convênios no mesmo PR (hoje a agenda importa direto de
+`config-queries`; o agente, de outro contexto, só pode usar a superfície pública).
+
+### As cinco jornadas (critério de P11.2; dados sintéticos)
+
+| # | Jornada | Paciente diz | O agente faz | Nunca faz |
+| --- | --- | --- | --- | --- |
+| 1 | **Particular** | "quero marcar uma consulta" | segue o fluxo atual, sem mencionar convênio | mudar sinal, preço ou link do particular |
+| 2 | **Convênio aceito** | "tenho Unimed" (ativa na clínica) | oferece só os planos ativos dela; cria como convênio; avisa que a recepção confere a carteirinha | pedir o número da carteirinha; enviar sinal ou link de pagamento |
+| 3 | **Convênio não aceito** | "tenho a operadora X" (não cadastrada, inativa ou módulo desligado) | diz que a clínica não atende esse convênio pelo Qoro e oferece particular ou falar com a recepção | criar o atendimento como convênio; prometer reembolso |
+| 4 | **Dúvida de cobertura** | "meu plano cobre esse exame?" | responde que quem confirma cobertura é a operadora/recepção e oferece passar para a recepção (handoff) | afirmar cobertura, elegibilidade ou valor; consultar operadora |
+| 5 | **Procedimento com autorização** | pede um procedimento que o plano exige autorizar (`requiresAuthorization` no cadastro do procedimento por operadora) | agenda como convênio e avisa que a clínica precisa da **autorização da operadora** antes do atendimento; a pendência fica para a recepção | dizer que está autorizado; inventar senha ou prazo de autorização |
+
+Regras que valem nas cinco: só depois do **contrato pago** com Convênios (a central de acesso do #53 já barra o
+agente em trial); só com as **permissões** que a sessão do agente tem hoje; nenhum faturamento automático (guia,
+lote e cobrança continuam na recepção); nenhum dado clínico na conversa.
+
+### Testes que acompanham o PR do agente
+
+- unitários das três ferramentas com o Convênios mockado: módulo desligado, operadora inativa, outra clínica
+  (isolamento), carteirinha ausente, autorização exigida;
+- guardas: a resposta nunca contém "coberto", "autorizado" ou valor de convênio (teste de saída);
+- `scripts/smoke-agent-journeys.ts`: as cinco jornadas ponta a ponta contra o banco descartável (o padrão dos
+  harnesses `scripts/security/*-db.ts`), mais o E2E pela conversa no Preview quando o custo permitir.
+
+**Classificação:** P11.1 e P11.2 seguem **BLOCKED** pela frente proprietária. O lado do Convênios está pronto e
+provado pela agenda.
