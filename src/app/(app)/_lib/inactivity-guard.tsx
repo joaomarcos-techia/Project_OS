@@ -29,7 +29,7 @@ export interface InactivityGuardProps {
   limitMs: number;
   renewThrottleMs: number;
   registerActivity: () => Promise<SessionActivityResult>;
-  lockSession: () => Promise<{ ok: true }>;
+  lockSession: () => Promise<{ ok: true } | { ok: false; error: string }>;
   /** Navegação depois do bloqueio (injetável para teste). */
   navigate?: (url: string) => void;
   now?: () => number;
