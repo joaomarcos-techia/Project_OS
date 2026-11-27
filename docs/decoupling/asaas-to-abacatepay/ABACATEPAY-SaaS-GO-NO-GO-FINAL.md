@@ -1,5 +1,9 @@
 # AbacatePay SaaS — decisão final de release e piloto
 
+## 27/11/2026 — candidato composto após CI e Preview autenticado
+
+O PR draft #68 está no SHA `d1dc83d58c53584a970b440f0b619dfedac7a12f`. A [CI 46020822197](https://github.com/joaomarcos-techia/Project_OS/actions/runs/46020822197) passou com **7.854 testes e 28 E2E públicos**; typecheck, lint, build, Semgrep e Preview passaram. No Preview assinado como DEV passaram trial e assinatura Pix paga, sem criar checkout, mais 24 recargas autenticadas de assinatura e seis navegações em desktop/celular sem erro de hidratação observado. O Snyk CLI de produção encontrou **zero vulnerabilidades em 458 dependências** após a correção de `esbuild`; o scan de desenvolvimento ainda reporta 51 caminhos em quatro IDs. O Snyk Code ainda reporta 613 resultados, e o check integrado continua `ERROR` por classificação de cota privada. A [triagem atual](../../security/snyk-retest-20261127.md) registra os limites. **Nenhum deploy, migration ou cobrança em Production neste checkpoint. Production: NO-GO.**
+
 ## 27/11/2026 — correção crítica de dependência em validação
 
 Uma nova varredura Snyk **do workspace pnpm completo** encontrou `esbuild@0.25.0` também no caminho de produção de `@sentry/nextjs`, com severidade crítica. O comando anterior limitado a `package.json` havia testado só 55 dependências e não detectou esse caminho. O override foi atualizado localmente para `esbuild@0.28.1`, a versão corrigida indicada pelo Snyk. O reteste com `--all-projects` passou para **zero caminhos vulneráveis nas 458 dependências de produção**; 51 caminhos de quatro advisories permanecem em ferramentas de desenvolvimento, sem versão corrigida de `uri-js`. Detalhes e alcance em [snyk-retest-20261127.md](../../security/snyk-retest-20261127.md). A alteração de build/dependência exige CI, build e E2E no novo SHA antes de qualquer decisão de release. **Production: NO-GO neste checkpoint.**
