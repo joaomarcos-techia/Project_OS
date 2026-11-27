@@ -16,13 +16,13 @@ jobs:
     runs-on: ubuntu-latest
     # Build frio local comprovado pode exceder 10 min só na compilação; este
     # limite não muda nenhum gate, apenas evita cancelar uma execução saudável.
-    # Proposta TISS (composição #65): +25 min para os 41 harnesses de banco que entram no gate de cobertura.
-    timeout-minutes: 45
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
-      # Proposta TISS: os harnesses de banco leem commits de outras frentes pelo git (cadeia do DEV com o #53, a
-      # 0168 do #64 e a trilha do #59), como no workflow de provas de banco. Só leitura; o token sai em seguida.
+      # Os harnesses de banco do gate de cobertura (abaixo) leem commits de outras frentes pelo git — a cadeia do
+      # DEV com o #53, a 0168 do #64 e a trilha do #59 —, como o workflow de provas de banco. Só leitura; o token
+      # sai em seguida.
       - name: Commits lidos pelos harnesses de banco (só leitura) e retirada do token do git
         run: |
           git fetch --no-tags --depth=1 origin \
@@ -93,11 +93,14 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: 'https://ci.supabase.co'
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_ci'
 
-      # Proposta TISS: o MESMO gate (mesmo `coverage.include`, mesmos pisos) numa execução que também roda os 41
-      # harnesses de banco dentro do Vitest (`vitest.coverage-db.config.ts`). O código de `src/` que eles executam
-      # passa a contar como qualquer teste — sem fusão de relatórios, sem dupla contagem, sem rebaixar o piso.
+      # O MESMO gate (mesmo `coverage.include`, mesmos pisos) numa execução que também roda os harnesses de banco
+      # dentro do Vitest (`vitest.coverage-db.config.ts`, testes gerados de `convenios-synthetic-db*.yml`): o código
+      # de `src/` que eles executam conta como qualquer teste — sem fusão de relatórios, sem dupla contagem.
       - name: Test + coverage gate (unitários + harnesses de banco)
         run: SECURITY_PG_BIN="$(pg_config --bindir)" pnpm vitest run --coverage -c vitest.coverage-db.config.ts
+
+      - name: Testes gerados dos harnesses em dia com os workflows de provas de banco
+        run: pnpm exec tsx scripts/security/db-coverage/gerar.ts --check
 
       # Só nesta branch de composição (#65): o relatório por arquivo, com contagem absoluta de ramos, para medir
       # onde está a cobertura que falta (o texto do log só traz percentuais). Sem dado de paciente nem segredo.

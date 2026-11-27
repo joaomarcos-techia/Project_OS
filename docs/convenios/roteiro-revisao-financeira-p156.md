@@ -115,3 +115,18 @@ harness continua no job "provas sintéticas de banco (legado)", verde no `3d2102
 
 **Decisão (sua):** ( ) aprovado — a P15.6 vira PASS com esta data · ( ) reprovado no caso F__, com o que esperava.
 Ver no Preview é opcional (seção 1); não precisa repetir a bateria. **Até a sua marcação, P15.6 = PENDING.**
+
+## 8. Reconciliação 12 × 13 e recomendação técnica (27/11/2026, noite)
+
+- **12 conferências (F1–F12)** são os casos financeiros da seção 3; a pré-auditoria tem **13 verificações** porque
+  soma uma de apoio, o **isolamento** (outra clínica não vê nem altera nada da jornada). As 13 passaram no
+  `022063b0` (run 45705495819) e o mesmo harness passou de novo nos SHAs posteriores do #55, no job "provas
+  sintéticas de banco (legado)": `3d210289`, `d3801b4f` e `15ab4a9a` (run 46006035434).
+- **Valores:** os da seção 6, idênticos aos esperados da seção 3 (diferença R$ 0,00 em todos).
+- **Escopo:** guia de Consulta, lote, glosa parcial com recurso, demonstrativo com estorno, repasse,
+  coparticipação, separação paciente × operadora, Caixa, relatório por operadora, livro e auditoria.
+- **Alterações posteriores:** nenhuma nos caminhos do dinheiro desde o `022063b0` (seção 7).
+- **Ressalvas materiais:** nenhuma encontrada. Limite conhecido: o gateway da coparticipação é simulado no harness
+  (a cobrança real com o Asaas foi homologada à parte no Sandbox, P10.5).
+
+**Recomendação técnica: APROVAR.** Isto não é o aceite: a P15.6 só fecha com a marcação do fundador na seção 7.

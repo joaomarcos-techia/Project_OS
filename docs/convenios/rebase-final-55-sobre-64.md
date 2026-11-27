@@ -70,3 +70,28 @@ ramos cobertos pelo Vitest e `convenios/_lib` 25,05% — os serviços do módulo
 3. limiar por caminho, que é decisão do dono do piso (#64/#67) e do fundador — não unilateral.
 
 Até um deles, **o rebase do #55 sobre o #64 reprova na CI** mesmo com todos os testes verdes.
+
+## Base comercial consolidada: #68 (27/11, noite)
+
+O PR #68 (`integration/abacatepay-security-20261127`, HEAD `c1d657a5`) **contém o #64 `74823d64`** e soma as
+correções do #67, o hotfix de 186 dias (`d9d7646e`) e a remediação de segurança (lockfile do Next 16 com override
+do `glob`, `autocannon` 8→9). CI oficial dele verde (46004211399). Next 16.4.6, Vitest 4 e o piso de ramos 58%
+iguais ao #64. **A ordem passa a ser: o comercial consolidado (#68, ou o que o substituir) primeiro; o #55
+depois.** A composição #65 foi refeita sobre ele (`62c46831` → `d6913fa5`):
+
+| Arquivo | Resolução |
+| --- | --- |
+| `src/lib/db/retention-policy.ts` e o teste | os dois lados têm **186 dias**; fica o comentário do #55 (Marco Civil art. 15 **e** requisito 84 da ANS) |
+| `docs/security/acoes.md` | gerado: `inventory.ts --write`, `--check` 0 |
+
+Nenhuma migration nova no #68 (o journal comercial continua em 143 entradas, até a 0142; a 0168 segue em
+`docs/decoupling/.../migrations`). O lockfile do rebase final é o do comercial: o #55 não acrescenta dependência.
+
+## Gate de cobertura resolvido (27/11, noite)
+
+O `ci.yml` do #55 passa a rodar o gate com `vitest.coverage-db.config.ts`: a mesma configuração da suíte unitária com
+os 41 harnesses de banco somados ao `include` de TESTES (gerados de `convenios-synthetic-db*.yml` por
+`scripts/security/db-coverage/gerar.ts`; `--check` no CI). Na composição sobre o #68 (`d6913fa5`, CI 46013688647):
+**59,70%** de ramos (antes 55,10%), mesmo denominador (36.536), mesmo piso. No rebase final, o `ci.yml` resolvido é o
+do comercial com estas duas mudanças do #55: o passo que busca as refs lidas pelos harnesses (só leitura, token
+retirado) e o comando do gate. O tempo do job não muda (a CI inteira levou ~9 min).
