@@ -1,0 +1,18 @@
+S2 / requisito 83 — E2E autenticado (Playwright 1.62, Chromium), 27/11/2026 ~05:30 UTC
+
+Alvo: Preview dedicado https://project-b754hsi01-clinic-os-v2-s-projects.vercel.app
+  - código: c4be463b (branch do #55), deploy pela CLI com override SÓ deste deployment:
+    TISS_SECURITY_PROFILE_ENFORCE=true (runtime e build). O ambiente Preview compartilhado não foi alterado.
+  - banco/Auth: DEV (qoro-dev, pqhkirrszzpwezdaqrai); a conta só existe no DEV.
+Conta: e2e-hi-s2-gestor@example.com (fixture `hi-dev-e2e-fixture.ts setup-s2`), clínica sintética e2e-hi-paga
+  (módulo Convênios ligado = no alcance do perfil TISS). Senha só em arquivo fora do repositório.
+
+  ok 1 servidor: atividade parada há 11 min → porta única recusa e o shell manda ao login; login novo volta (27.5s)
+  ok 2 cliente: aviso aos 9 min, bloqueio aos 10 min e a tela deixa de mostrar as informações (33.6s)
+  ok 3 duas abas: interação numa mantém a outra; o bloqueio numa bloqueia a outra (37.3s)
+  3 passed (1.7m)
+
+Primeira execução: a prova 1 falhou só na asserção de texto (a mensagem diz "10 minutos sem atividade", não
+"inatividade"); o redirecionamento do servidor já tinha passado. Corrigida a asserção, 3/3.
+Não coberto por este E2E: o salvamento do rascunho do prontuário na hora do aviso (coberto por teste de unidade do
+editor) e um usuário fora do alcance (coberto pelos testes do `decideSessionLock`).

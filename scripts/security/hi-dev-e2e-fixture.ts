@@ -54,8 +54,9 @@ const outFile = arg('out');
  *   set-state --state paid|trial|suspended           estado comercial da clínica PAGA (só ela)
  *   set-active --account <chave> --active true|false perfil ativo/desativado de uma conta e2e-hi-*
  *   guide-state --guide <id>                         status, versão, ajuste e eventos (só leitura)
+ *   setup-s2 --accounts <arquivo>                    uma conta dedicada ao E2E do S2 (bloqueio por inatividade)
  */
-const COMMANDS = ['setup', 'setup-config', 'cleanup', 'setup-states', 'setup-authorizations', 'setup-i2', 'deliver-alerts', 'setup-p75', 'setup-sadt', 'complete-sadt', 'setup-r54', 'setup-p84', 'p84-state', 'set-state', 'set-active', 'guide-state'];
+const COMMANDS = ['setup', 'setup-config', 'cleanup', 'setup-states', 'setup-authorizations', 'setup-i2', 'deliver-alerts', 'setup-p75', 'setup-sadt', 'complete-sadt', 'setup-r54', 'setup-p84', 'p84-state', 'set-state', 'set-active', 'guide-state', 'setup-s2'];
 if (!COMMANDS.includes(command ?? '') || !expectedRef || !accountsFile || !outFile) {
   throw new Error(`uso: ${COMMANDS.join('|')} --expected-ref <ref> --accounts <arquivo> --out <ids.json>`);
 }
@@ -405,6 +406,23 @@ async function pagaClinic(): Promise<string> {
   const [c] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.clinics WHERE slug = 'e2e-hi-paga'`);
   if (!c) throw new Error('clínica e2e-hi-paga ausente (rode setup antes)');
   return c.id;
+}
+
+/**
+ * S2 (bloqueio por inatividade, requisito 83): UMA conta dedicada (`e2e-hi-s2-gestor`) na clínica paga, que está no
+ * alcance do perfil TISS (módulo ligado). Não toca nas contas das outras fixtures: as senhas delas (e o pacote do
+ * Preview) continuam válidas. Recusa se o módulo da clínica paga estiver desligado, em vez de ligá-lo.
+ */
+async function setupS2() {
+  const clinicId = await pagaClinic();
+  const [mod] = await exec<{ enabled: boolean }>(sql`SELECT enabled FROM public.hi_clinic_settings WHERE clinic_id = ${clinicId}::uuid`);
+  if (!mod?.enabled) throw new Error('módulo Convênios desligado na e2e-hi-paga: a conta S2 ficaria fora do alcance');
+  const email = 'e2e-hi-s2-gestor@example.com';
+  const pass = password();
+  const userId = await ensureUser(email, pass);
+  await profile(userId, clinicId, 'Gestora Sintética E2E S2', 'gestor');
+  writeFileSync(accountsFile!, JSON.stringify({ s2: { email, password: pass, userId, clinic: 'paga', role: 'gestor' } }, null, 1));
+  console.log(`[hi-dev-e2e-fixture] conta S2 pronta na e2e-hi-paga (módulo ligado); senha só em ${accountsFile}`);
 }
 
 const pgCode = (e: unknown): string | undefined => {
@@ -1646,6 +1664,7 @@ const main =
   : command === 'complete-sadt' ? completeSadt
   : command === 'setup-r54' ? setupR54
   : command === 'setup-p84' ? setupP84
+  : command === 'setup-s2' ? setupS2
   : command === 'p84-state' ? p84State
   : command === 'set-state' ? setState
   : command === 'set-active' ? setActive
