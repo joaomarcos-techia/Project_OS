@@ -138,3 +138,27 @@ for (const width of [1440, 390]) {
     });
   }
 }
+
+test('paid subscription hydrates after repeated reloads on desktop and mobile', async ({
+  page,
+}) => {
+  test.skip(!enabled, 'Explicit isolated local harness required');
+  expect(origin && new URL(origin).hostname).toBe('127.0.0.1');
+  const browserErrors: string[] = [];
+  page.on('pageerror', (error) => browserErrors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error' && /hydration|React error #418/u.test(message.text())) {
+      browserErrors.push(message.text());
+    }
+  });
+
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/cadastro/qoro-billing-harness?billingState=abacate-paid');
+    for (let attempt = 0; attempt < 12; attempt++) {
+      await expect(page.getByText('Pagamento confirmado', { exact: true })).toBeVisible();
+      await page.reload();
+    }
+  }
+  expect(browserErrors).toEqual([]);
+});

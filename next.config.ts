@@ -29,6 +29,7 @@ export const nextConfig: NextConfig = {
     : {}),
   experimental: {
     webpackMemoryOptimizations: true,
+    webpackBuildWorker: true,
     // O upload de logo aceita 4 MB. A margem cobre o envelope multipart sem
     // ultrapassar o teto de 4,5 MB das Vercel Functions.
     serverActions: { bodySizeLimit: CLINIC_LOGO_ACTION_BODY_SIZE_LIMIT },
