@@ -48,7 +48,7 @@ Dos **424 historicamente abertos**, a tabela individual resulta em 18 `FIXED_VER
 
 - O repositório GitHub foi conferido como `PUBLIC`, e os scans CLI com URL pública executaram. O check de PR do Snyk ainda retornou **“You have used your limit of private tests”** no PR de composição #68; a associação/classificação do check do GitHub continua incorreta ou desatualizada. O scan CLI não comprova que o painel atualizou o projeto monitorado, o SHA exibido ou que não houve faturamento. Não foi usado `snyk monitor` para criar projeto duplicado.
 - O Snyk Code ainda tem resultados abertos. Não foram escondidos diretórios, desativadas regras nem adicionadas exceções em massa. A classificação técnica do CSV não altera o painel.
-- Hidratação autenticada, E2E financeiro sem mutações reais, build completo, testes completos e CI no SHA final precisam de evidência própria antes de declarar o PR #64 pronto. Nenhuma implantação ou merge em Production é autorizada por este documento.
+- Hidratação autenticada e E2E financeiro sem mutações reais ainda precisam de evidência própria antes de declarar o PR #64 pronto. Build completo, testes completos e CI já passaram no checkpoint `e39f6482`; um commit documental posterior exige seus próprios checks. Nenhuma implantação ou merge em Production é autorizada por este documento.
 - O PR #55 (TISS) e suas migrations não foram incorporados à composição comercial.
 
 ## Validação da composição
@@ -57,4 +57,6 @@ Dos **424 historicamente abertos**, a tabela individual resulta em 18 `FIXED_VER
 - `pnpm test`: **690 arquivos, 7.853 testes aprovados**, sem falha.
 - Build direto do Next 16.4.6 sobre a composição completa: **PASS** com variáveis sintéticas de CI e sem conexão a banco ou gateway; o primeiro comando sem variáveis falhou na validação de ambiente, depois foi repetido corretamente. Há warnings de deprecação do import Sentry e da convenção `middleware`, sem falha de compilação.
 - Testes dirigidos: formulário de exportação 11/11 e guards de carga 4/4. Nenhum teste de carga contra serviço real foi iniciado.
-- A CI oficial deve executar no SHA documental final do PR #68; os resultados antigos dos PRs #64/#67 não são transferidos para ele. O E2E autenticado em Preview ainda não tem credenciais sintéticas disponíveis neste worktree e não foi declarado PASS.
+- A [CI oficial 46002485158](https://github.com/joaomarcos-techia/Project_OS/actions/runs/46002485158) terminou `SUCCESS` no SHA `e39f64822660b405604836d011112622dcf79282`: 690 arquivos e 7.853 testes, 28 E2E públicos, typecheck, lint, build, inventário, isolamento PostgreSQL e limites de segurança passaram. O Semgrep e o Preview também passaram nesse SHA. O check integrado do Snyk falhou antes da análise por "You have used your limit of private tests"; o resultado CLI acima é uma execução separada, não um check verde no PR.
+- No Preview do SHA `e39f6482`, 12 recargas reais da página pública de login em desktop e 12 em móvel não geraram React #418, erro de hidratação nem `pageerror`. O E2E autenticado da assinatura não foi executado: este worktree isolado não possui credenciais sintéticas de teste. Portanto, hidratação do Qoro completo permanece `PARTIAL`.
+- O novo commit documental que registrar este checkpoint precisa de CI própria antes de ser tratado como HEAD validado; não transferir os checks do SHA anterior automaticamente.
