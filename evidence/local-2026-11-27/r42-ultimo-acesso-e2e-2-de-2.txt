@@ -1,0 +1,4 @@
+# R42 — Preview dedicado da composição project-5obbwg376 (fdb8bac4 = #64 74823d64 Next 16 + #55), perfil só nele (13:16:12 UTC)
+    ok 1 [chromium] › e2e\convenios-r42-ultimo-acesso-preview.spec.ts:55:1 › 1–3. último acesso e a tentativa sem sucesso depois dele aparecem no shell depois do login (25.5s)
+    ok 2 [chromium] › e2e\convenios-r42-ultimo-acesso-preview.spec.ts:80:1 › 4. fora do alcance do perfil TISS (clínica sem Convênios): nenhum aviso (5.5s)
+    2 passed (32.3s)

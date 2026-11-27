@@ -107,3 +107,17 @@ Depois disso: refazer esta revisão sobre o SHA final e repetir o `/security-rev
 - ~~**Picomatch (GHSA-fc5q-39xc-vjpf)**~~ **resolvido em 19/11:** o GitHub retirou o advisory (`withdrawn_at` 2026-11-18T15:38:56Z, conferido pela API); a exceção temporária saiu do `pnpm-workspace.yaml` e o gate `pnpm audit --prod --audit-level high` da CI volta a valer por inteiro (igual no #56).
 - **Middleware**: o redirecionamento 307 de POST de server action sem cookie (handoff S-02) segue como proposta para o
   fundador; Convênios contorna na própria página.
+
+## Revisão de 27/11 (tarde): superfícies novas e provas autenticadas
+
+| Área | O que foi conferido | Evidência | Resultado |
+| --- | --- | --- | --- |
+| Sessão (S2) — rascunho clínico | rede caída no autosave não trava o editor nem "reivindica" o texto: vira erro, o aviso e o bloqueio tentam de novo; sem rede até o fim, o login avisa que o salvamento não foi confirmado; nada de texto clínico no navegador | `prontuario-editor.test.tsx` 13/13 (3 novos reproduziram o defeito antes da correção); E2E R1/R2 no Preview | **Defeito corrigido** (média: perda silenciosa do rascunho) |
+| Sessão (S2) — revogação | depois do bloqueio, o refresh token da sessão é recusado pelo Auth e os cookies antigos não reabrem o shell; o token de acesso continua criptograficamente válido até expirar (limite conhecido, coberto pelo cookie de atividade que envelhece em tempo real) | E2E R6 | OK, com o limite registrado |
+| Tenant e RLS — rascunho | outra clínica: a tela devolve 404 e a API com o token dela devolve 0 linhas; a dona lê 1 (controle); o conteúdo fica cifrado em repouso (`content_encrypted`) | E2E R5 e R1 (leitura de servidor) | OK |
+| Concorrência do rascunho | a aba com a versão antiga recebe conflito e não sobrescreve a nova | E2E R3 | OK |
+| Console da plataforma (P1.13) | super admin com AAL2; cada troca pede motivo e um código TOTP novo; código errado não muda nada; ligar sem disponibilidade comercial é bloqueado; as duas trilhas registram | E2E 4/4 com o super admin de teste | OK |
+| Saúde (`/api/health?deep=1`) | `audit_trails` só no modo profundo e só com acesso de monitoramento (`healthAuthLevel`); consulta parametrizada e só de leitura ao catálogo; o motivo leva só o tipo do achado, nunca nome de tabela | `append-only-barrier.test.ts` 10/10; `arch-db-check` 0 achados | OK |
+| Login (S8) | o limitador barrou o 5º login seguido da mesma conta contra o Upstash real do Preview ("Muitas tentativas") — prova incidental do R69 no caminho normal | rodadas 2 e 3 do E2E da S2 | OK |
+
+Continua aberto para a P15.5: S3 e S4 autenticados (dependem da 0170 no DEV) e a S5 aplicada num banco compartilhado.

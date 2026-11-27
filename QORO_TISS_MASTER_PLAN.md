@@ -122,6 +122,24 @@
 | Coordenação | UI: janela de testes pesados aceita e usada (23:33–00:10); terminologia de guias decidida pela UI e aplicada; títulos de página nas 13 telas; divisão de arquivos (handoff-ui.md §8). #53: release congela a cauda TISS do `4d0ed1d5` |
 | Próximo passo exato | ver "Próxima ação exata" acima |
 
+### Checkpoint de 27/11/2026, tarde — GO mestre final (engenharia, E2E autenticado, composição sobre o Next 16)
+
+| Item | Estado |
+| --- | --- |
+| **S2 — defeito real corrigido** | rede caída faz a Server Action do autosave **rejeitar**; o editor ficava preso em "Salvando…", nunca mais salvava e o aviso respondia "não salvo" sem tentar de novo (o texto se perdia em silêncio no bloqueio). Corrigido no `03cba3f5`; 3 testes novos reproduziram antes (13/13 depois) |
+| **S2 — E2E do rascunho** | Preview dedicado `project-ct4ykc53k` (`03cba3f5`, perfil ligado só nele, DEV): R1–R5 **PASS** em rodada única (12:46 UTC); R6 (sessão revogada: refresh token recusado pelo Auth, cookies antigos não reabrem o shell) **PASS** isolado às 13:18 depois de corrigir o leitor de cookie do spec → **6/6**. **S2 = PASS** no Preview (perfil ligado só no deployment de teste, nunca em ambiente compartilhado nem em Production). Com os 3 de 27/11 manhã: 9 cenários autenticados (`s2-inatividade-pacote.md`) |
+| **P1.13 — E2E** | **4/4 PASS** no mesmo Preview com o super admin de TESTE do DEV (TOTP de `auth.mfa_factors`): bloqueado sem disponibilidade comercial; TOTP errado não muda nada; ligar e desligar com motivo e código novo, banco e as duas trilhas conferidos; `convenios.available` ligado só durante o teste e restaurado (leitura de conferência) |
+| **R42 — E2E na composição** | **2/2 PASS** no Preview dedicado da composição `project-5obbwg376` (`fdb8bac4`, Next 16 + shell do #56): depois de 1 tentativa errada, o shell mostra "Seu último acesso foi em <hoje>; 1 tentativa sem sucesso desde então"; clínica sem Convênios não vê aviso. P12.12 segue PARCIAL só pela aprovação humana do S8 e pela interpretação do R43 (S9) |
+| **S5 — detecção integrada** | `appendOnlyHealth` + `APPEND_ONLY_BARRIERS` (uma lista, um verificador; o #59 só acrescenta a spec dele); `/api/health?deep=1` → `audit_trails` (adulterada = degraded; não instalada = motivo informativo); 10/10. Contrato com o #59 com o hash real da função da plataforma; handoff comentado no #59 |
+| **Migrations — ordem final** | `migration-final-order-db.ts`: cadeia do DEV (com a 0159) + 0168 do #64 + 0169–0171 + candidata do #59 como 0172, num descartável só: **6/6 local e no Linux** (passo novo do job de provas de banco, verde no `d3801b4f`). DEV continua sem as candidatas: o #64 não consolidou (seção 3 da ordem do fundador) |
+| **CI oficial do #55** | **PASS no `d3801b4f`**: CI 45999834071, ADR 45999834161, provas de banco 45999822348 (com a ordem final), legado 45999822371 — runners padrão, repositório público |
+| **Composição sobre o #64 novo** | #64 andou para `74823d64` (**Next 16.4.6 + Vitest 4**, CI dele verde). Composição #65 = `fdb8bac4`: typecheck e lint verdes, **817/817 arquivos de teste verdes no Vitest 4**, build do Next 16 no Preview, provas de banco verdes (46000551698, com a ordem final). **Gate vermelho: piso global de ramos 55,09% < 58%** — `src/contexts/health-insurance` tem 23,75% de ramos no Vitest (os serviços são provados pelos harnesses de banco, fora da cobertura). Caminhos em `rebase-final-55-sobre-64.md`; o piso não foi rebaixado |
+| B5 | pesquisa de 27/11: nenhuma homologação pública; TISS 4.03.00 obrigatório desde 01/07/2026 e o #55 já está nele |
+| P12.6 | token do Sentry segue recusado (HTTP 401): BLOCKED só na entrega real |
+| P15.6 | ficha de aceite objetiva (esperado × observado × diferença R$ 0,00); a evidência continua válida (nenhum código financeiro mudou desde o `022063b0`); **aguarda a marcação do fundador** |
+| Armadilhas | limitador do S8 com janela deslizante do Upstash barra E2E seguidos ("Muitas tentativas"); a clínica `e2e-hi-paga` não comporta mais médicos (capacidade do plano); um usuário de Auth órfão sintético (`e2e-hi-s2-medica2`) ficou no DEV, sem perfil |
+| Contagem | **95/117** (+P1.13). Continuam parciais por requisito faltante: P4.7, P12.8–P12.10, P12.12, P14.3, P14.5, P15.2, P15.5; bloqueadas por dependência externa: P2.5, P9.4, P13.6, P15.3, P15.4 (B5), P12.3, P12.13 (B6), P12.6 (Sentry), P11.1/P11.2 (frente do agente), P15.6 (aceite), P15.8/P15.9 (liberação) |
+
 ### Checkpoint de 27/11/2026, manhã — segurança da janela pública e S5 (só local, sem push)
 
 | Item | Estado |
@@ -158,7 +176,7 @@
 | Banco de Production | ledger 160 linhas (0000–0159); DDL do Convênios presente, **tabelas TISS vazias** |
 | Composição #64 + #55 | `local/composicao-64-55` em `79ec69f4`; `node_modules` próprio do lockfile (`--frozen-lockfile`); typecheck 0; suíte 814/814 arquivos, 9.182 testes, 3 pulados, 0 falhas; defeito real corrigido (testes S2 do editor sem o `timeZone` do #56) |
 | S2 | PASS TÉCNICO LOCAL (servidor + guarda + rascunho); perfil desligado |
-| P1.13 | PASS TÉCNICO LOCAL (tela + action com TOTP; banco 7/7); falta E2E |
+| P1.13 | **PASS** (tela + action com TOTP; banco 7/7; E2E 4/4 no Preview em 27/11 com o super admin de teste) |
 | S5 / migrations | 0171 7/7; manifesto `manifesto-migrations-2026-11-26.md` (DEV 169, Production 160; candidatas 0169–0171 com sha256; #59 → 0172) |
 | #28 | pacote das cinco jornadas; base de 05/10 |
 | Contagem | **94/117** (nenhuma tarefa nova cumpre o critério completo: todas as novas dependem de E2E autenticado, DEV ou merge) |
@@ -174,7 +192,7 @@
 | S4 | candidata **0170** (histórico de verificadores scrypt), reuso e vencimento de 90 dias com carência; banco 6/6, ciclo 8/8, login 42/42 |
 | R42 | aviso de último acesso (consulta no banco 5/5, aviso 3/3, componente 3/3); patch de 3 linhas para o shell do #56 |
 | S5 | candidata **0171** no padrão da ADR-075 (sem segundo sistema), com a anonimização LGPD como única alteração aceita; banco 6/6; contrato para o #59 (`s5-contrato-trilha-59.md`) |
-| S2 | PARTIAL: o salvamento do prontuário no servidor já existe e está provado; falta o bloqueio no servidor e o aviso no shell (`s2-inatividade-pacote.md`) |
+| S2 | **PASS** (27/11): bloqueio no servidor, aviso no shell e rascunho provados em 9 cenários autenticados no Preview dedicado; defeito do autosave com rede caída corrigido (`s2-inatividade-pacote.md`) |
 | B7 | **PASS (política composta)** — P13.5 concluída |
 | Bateria local (`c8935bc5`/`ae49a69c`) | tipos e lint do repositório inteiro, madge, arch DB, migrations, observabilidade, registro, **suíte completa com cobertura (377 s)**, inventário, isolamentos (Postgres local): verdes; sintéticas 23/24 (o 24º usa `node_modules/.bin/tsx` de Unix: NOT RUN no Windows); legado verde até a P15.6 e a B6; harnesses novos 30/30; build, bundle e E2E público: ver `evidence/local-2026-11-25` |
 | Integração local | composição **local** `aeda1e46` (#64 `92363ef1` + #55): 11 conflitos, 7 pela resolução da c11 (o #64 não mudou esses arquivos), `caixa-view.tsx` do #64, `arch-db-check.ts` unido, journal e 0159 da c11 (sha256 `eb00a4e3…`), patches do #56 aplicados; não publicada |
@@ -201,7 +219,7 @@
 
 | ID | Critério | Trabalho deste ciclo | Estado | Dependência real |
 | --- | --- | --- | --- | --- |
-| P1.13 | interruptor na plataforma | — | BLOCKED | dono do console da plataforma |
+| P1.13 | interruptor na plataforma | E2E 4/4 (27/11) | **PASS** | liberação comercial é a P15.8 |
 | P2.5 | homologação externa | pesquisa de operadoras: nenhuma com homologação aberta; Petrobras 4.01.00 e Caixa 4.02.00 não servem | BLOCKED | B5 (credenciamento e clínica piloto) |
 | P4.7 | importação histórica | diretriz do fundador: opção (b); guarda já provada | PARTIAL | implementar (b): migration aditiva 0168, DEV, E2E |
 | P9.4 | envio real | — | BLOCKED | B5 |

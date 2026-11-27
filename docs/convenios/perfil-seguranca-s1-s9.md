@@ -167,3 +167,13 @@ de implantação em **30/06/2026** (vencido): quem estiver no alcance precisa de
 | S9 | pesquisa documental completa; resíduos nas questões 1 e 5, controvérsia na 4 | `consulta-regulatoria-s9.md`, seção 6 |
 
 Continuam desligados para usuário real: S2, S3, S4, S6 e o aviso de último acesso (R42). S7 segue PASS.
+
+## Atualização de 27/11/2026 (tarde): provas autenticadas
+
+| Item | Estado | Evidência |
+| --- | --- | --- |
+| S2 | **PASS no Preview** (perfil ligado só no deployment de teste): bloqueio pelo servidor, aviso aos 9 min, duas abas, rascunho salvo no aviso mesmo depois de falha de rede, aviso honesto sem rede, conflito entre abas, outra clínica (404 e RLS), sessão revogada. Defeito do autosave com rede caída corrigido | `evidence/local-2026-11-27/s2-*`; `s2-inatividade-pacote.md` |
+| S8 / R42 | aviso de último acesso **provado no shell comercial** (composição com o #56, Next 16); fora do alcance não aparece | `evidence/local-2026-11-27/r42-ultimo-acesso-e2e-2-de-2.txt` |
+| S8 / R69 | o limitador barrou o 5º login seguido da mesma conta contra o Upstash real do Preview (prova incidental do caminho normal; a queda do Upstash segue provada por unitários) | rodadas 2 e 3 do E2E da S2 |
+| S5 | detecção integrada à saúde (`audit_trails` em `/api/health?deep=1`); ordem final das migrations com a trilha do #59 6/6 | `append-only-barrier.ts`; `manifesto-migrations-2026-11-26.md` §8 |
+| S3 / S4 | sem mudança: E2E autenticado depende da 0170 no DEV (depois do #64) | — |

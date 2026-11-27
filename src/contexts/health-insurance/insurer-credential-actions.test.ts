@@ -62,8 +62,8 @@ const SECRET = 'senha-sintetica-da-operadora-NUNCA-em-log-9f3a';
 const spies: Array<ReturnType<typeof vi.spyOn>> = [];
 const printed = () =>
   spies.flatMap((s) =>
-    s.mock.calls.map((c) =>
-      c.map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).join(' '),
+    s.mock.calls.map((c: unknown[]) =>
+      c.map((x: unknown) => (typeof x === 'string' ? x : JSON.stringify(x))).join(' '),
     ),
   );
 
@@ -201,7 +201,11 @@ describe('acesso à credencial cifrada (P12.5)', () => {
     // Só o envio do lote pelo webservice (P9.4) chama a leitura em claro — e só roda para operadora
     // homologada (lista de produção vazia: gate em tiss-soap.test.ts).
     const callers = walk(join(root, 'src'))
-      .filter((f) => /tiss-soap\/credential['"]|readWebserviceCredentialForSendTx/u.test(readFileSync(f, 'utf8')))
+      .filter((f) =>
+        /tiss-soap\/credential['"]|readWebserviceCredentialForSendTx/u.test(
+          readFileSync(f, 'utf8'),
+        ),
+      )
       .map((f) => relative(root, f).split(sep).join('/'))
       .sort();
     expect(callers).toEqual([

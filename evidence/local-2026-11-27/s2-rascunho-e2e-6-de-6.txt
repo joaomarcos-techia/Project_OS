@@ -1,0 +1,13 @@
+# S2 — rodada limpa (12:46 UTC) no Preview project-ct4ykc53k (03cba3f5): R1–R5
+    ok 1 [chromium] › e2e\convenios-s2-rascunho-preview.spec.ts:221:1 › R1. aviso salva o rascunho no servidor mesmo após falha de rede; bloqueio; login novo recupera o texto (57.5s)
+    ok 2 [chromium] › e2e\convenios-s2-rascunho-preview.spec.ts:269:1 › R2. rede caída no aviso e no bloqueio: o login avisa que o salvamento não foi confirmado (29.7s)
+    ok 3 [chromium] › e2e\convenios-s2-rascunho-preview.spec.ts:295:1 › R3. duas abas no mesmo rascunho: a versão antiga recebe conflito e não sobrescreve a nova (25.3s)
+    ok 4 [chromium] › e2e\convenios-s2-rascunho-preview.spec.ts:323:1 › R4. duas abas e bloqueio simultâneo: o pendente da aba do editor vai ao servidor (29.2s)
+    ok 5 [chromium] › e2e\convenios-s2-rascunho-preview.spec.ts:346:1 › R5. outra clínica não abre o rascunho: tela 404 e a API com o token dela devolve zero linhas (10.2s)
+    1 failed
+    5 passed (2.8m)
+  (R6 dessa rodada falhou só no leitor de cookie do spec: o nome real é sb-<ref>-auth-token-v2-<geração>.N)
+
+# R6 isolado depois da correção do leitor (13:16:45 UTC)
+    ok 1 [chromium] › e2e\convenios-s2-rascunho-preview.spec.ts:368:1 › R6. sessão revogada: refresh token recusado pelo Auth e cookies antigos não reabrem o shell (28.3s)
+    1 passed (29.5s)
