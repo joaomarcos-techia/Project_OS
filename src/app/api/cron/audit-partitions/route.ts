@@ -25,6 +25,7 @@ import { sql } from 'drizzle-orm';
 
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
+import { sealAuditPartitionsIfInstalled } from '@/lib/db/append-only-barrier';
 import { contiguousMonthsAhead, PARTITIONED_PARENTS } from '@/lib/db/retention-policy';
 import { withCron } from '@/lib/http/cron';
 import { logger } from '@/lib/observability/logger';
@@ -79,6 +80,12 @@ export const GET = withCron(
         }
       }
     }
+    // S5: partição nova nasce sem o gatilho de TRUNCATE e com o default ACL do Supabase. Com a barreira da trilha
+    // instalada (0171), sela todas (idempotente); sem ela, não faz nada.
+    const sealedPartitions = await sealAuditPartitionsIfInstalled(
+      async (text) =>
+        (await dbAdmin.execute(sql.raw(text))) as unknown as Array<Record<string, unknown>>,
+    );
     // A7 — o cron não pode só CRIAR e ir embora: ele é o único provisionador, e
     // "falhou em silêncio" era o cenário sem detecção. Cada run reporta a saúde
     // real de cada pai; se estiver ruim, sai uma linha `error` para a
@@ -121,15 +128,23 @@ export const GET = withCron(
     metrics.emit('cron.audit_partitions.ensured', {
       ensured,
       needs_remediation: needsRemediation.length,
+      sealed_partitions: sealedPartitions,
       health,
     });
     await recordHeartbeat('audit-partitions', 'success', {
       ensured,
       needsRemediation: needsRemediation.length,
+      sealedPartitions,
       health,
     });
     return Response.json(
-      { ok: true, ensured, needs_remediation: needsRemediation, health },
+      {
+        ok: true,
+        ensured,
+        needs_remediation: needsRemediation,
+        sealed_partitions: sealedPartitions,
+        health,
+      },
       { status: 200 },
     );
   },

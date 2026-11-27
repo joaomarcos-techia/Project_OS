@@ -1,5 +1,24 @@
 # Hotfix Marco Civil — `login_attempts` por 186 dias (incidente operacional, separado do TISS)
 
+## Estado em 27/11/2026, 05h UTC: PUBLICADO em Production; falta só a leitura depois do cron
+
+Executado pela frente TISS, como executor único registrado no PR #66, por autorização expressa do fundador.
+Evidência em `evidence/tiss-marco-civil-2026-11-27/`.
+
+| Etapa | Resultado |
+| --- | --- |
+| Production antes | `dpl_HFDyevnCy4j2DTBupq9xatKqX65s`, `gitCommitSha` `dddc650b`, `source: cli` (metadados da Vercel) |
+| Candidato | `079754d8` (PR #66): mesmo patch-id do `93eae727`; só `retention-policy.ts` e o teste; CI verde |
+| Pré-voo (só leitura) | flags de aquisição sem mudança desde 16/11; `login_attempts` 228, o mais antigo de 10/08, 125 dentro dos 6 meses; health profundo, outbox e auth hook `ok`; impressão digital financeira tirada |
+| Deploy | `vercel deploy --prod --skip-domain` de cópia limpa do SHA exato → `dpl_EEWp26xT2TZBdSH3nshw6wMaom75`, READY, `gitCommitSha` `079754d8`, 21 crons idênticos (mesmo hash) |
+| Promoção | `vercel promote` → `app.qoro.dev` = `dpl_EEWp26xT2TZBdSH3nshw6wMaom75` (04:56 UTC) |
+| Pós-voo (só leitura) | rotas, health e outbox iguais à linha de base; `subscriptions`, `invoices`, `plans`, `prices` e `login_attempts` com impressão digital **idêntica**; nenhuma escrita no banco de Production |
+| Rollback | `vercel promote dpl_HFDyevnCy4j2DTBupq9xatKqX65s` |
+| **Falta** | depois de 01/12 05:00 UTC: `node --use-system-ca prod-marco-civil-voo.mjs pos` (heartbeat `success`, mais antigo ainda 10/08, os 125 preservados). Só então o risco fica encerrado |
+
+O #53 e o #64 precisam carregar o commit para o próximo deploy não reverter a regra. As seções abaixo são o
+histórico do preparo.
+
 **Horário limite: 01/12/2026 às 05:00 UTC (01/12, 02:00 em Brasília).** É quando o cron mensal
 `/api/cron/data-retention` (`0 5 1 * *`, `vercel.json`) roda. Para ter margem, o deploy de Production com o hotfix
 deve estar READY até **30/11/2026, 23:59 de Brasília**.

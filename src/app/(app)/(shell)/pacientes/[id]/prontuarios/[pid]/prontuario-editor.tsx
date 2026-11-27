@@ -16,7 +16,7 @@ import { cn } from '@/lib/ui/cn';
 
 import { registerPendingWork } from '@/app/(app)/_lib/pending-work';
 
-import { autosaveProntuario } from '../actions';
+import { autosaveProntuario, type AutosaveResult } from '../actions';
 
 const AUTOSAVE_MS = 10_000;
 
@@ -89,12 +89,19 @@ export function ProntuarioEditor({
   // ANTES do await (dirty=false); se o usuário digitar durante o save lento, o
   // setField re-marca dirty → o autosave seguinte persiste o que faltou (corrige a
   // corrida "salvou e perdeu o que digitei no meio"). Falha → mantém dirty p/ retry.
+  // Rede caída faz a chamada da action REJEITAR (não volta `{ ok: false }`): sem o catch, `savingRef` ficava preso
+  // em true e o editor nunca mais salvava (nem no aviso de inatividade da S2). Rejeição = erro de salvamento.
   const persist = useCallback(async (): Promise<void> => {
     if (signed || savingRef.current || !dirtyRef.current) return;
     savingRef.current = true;
     dirtyRef.current = false;
     setStatus('saving');
-    const res = await autosaveProntuario(prontuario.id, contentRef.current, rowVersionRef.current);
+    let res: AutosaveResult;
+    try {
+      res = await autosaveProntuario(prontuario.id, contentRef.current, rowVersionRef.current);
+    } catch {
+      res = { ok: false, kind: 'error', message: 'Falha de rede ao salvar.' };
+    }
     savingRef.current = false;
     if (res.ok) {
       rowVersionRef.current = res.rowVersion;
@@ -148,7 +155,9 @@ export function ProntuarioEditor({
   useEffect(() => {
     return () => {
       if (!signed && dirtyRef.current) {
-        void autosaveProntuario(prontuario.id, contentRef.current, rowVersionRef.current);
+        autosaveProntuario(prontuario.id, contentRef.current, rowVersionRef.current).catch(() => {
+          /* fire-and-forget: rede caída aqui não tem tela para avisar; o texto não sobe */
+        });
       }
     };
     // refs são sempre atuais; deps vazias = roda só no unmount real.

@@ -23,6 +23,7 @@ import { redact } from './_env';
 import { sql } from 'drizzle-orm';
 
 import { dbAdmin } from '@/lib/db';
+import { sealAuditPartitionsIfInstalled } from '@/lib/db/append-only-barrier';
 import { assertAuditRetainMonths } from '@/lib/db/audit-retention-floor';
 import { env } from '@/lib/env';
 
@@ -74,6 +75,17 @@ console.log(
   `[audit:partitions] provision: ${ensured}/${MONTHS_AHEAD + 1} partição(ões) garantida(s) (mês atual + ${MONTHS_AHEAD}).`,
 );
 for (const w of warnings) console.warn(`[audit:partitions] AVISO ${w}`);
+// S5: com a barreira da trilha (0171) instalada, toda partição (inclusive a nova) recebe o gatilho de TRUNCATE e
+// perde UPDATE/DELETE/TRUNCATE dos papéis do app. Sem a barreira, não faz nada.
+const sealed = await sealAuditPartitionsIfInstalled(
+  async (text) =>
+    (await dbAdmin.execute(sql.raw(text))) as unknown as Array<Record<string, unknown>>,
+);
+console.log(
+  sealed === null
+    ? '[audit:partitions] barreira append-only (0171) não instalada: nada a selar.'
+    : `[audit:partitions] barreira append-only: ${sealed} partição(ões) selada(s).`,
+);
 
 // --- RETENÇÃO (opt-in) -----------------------------------------------------
 if (RETAIN_MONTHS > 0) {

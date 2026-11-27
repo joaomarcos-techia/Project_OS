@@ -52,6 +52,63 @@ DDL, ou fazer DETACH de uma partição. Contra isso, três camadas propostas (a 
 - Retenção: com a trilha travada, o descarte (quando houver prazo) é só por DETACH de partição com mais de 180
   dias, nunca DELETE.
 
+## Atualização de 27/11/2026: partições e verificador do catálogo
+
+**Defeito da própria candidata, corrigido.** Antes, a 0171 travava só o pai `audit_events`. Em Postgres:
+- o gatilho de **linha** do pai é clonado nas partições;
+- o de **comando** (`TRUNCATE`) não é clonado;
+- privilégio não é herdado.
+
+Resultado: o dono do banco esvaziava um mês inteiro com `TRUNCATE audit_events_AAAA_MM`, sem recusa (provado em
+Postgres descartável). Em Production, pelo default ACL do Supabase, o `service_role` tem `TRUNCATE` e o
+`authenticated` tem DML direto nas 13 partições (leitura só do catálogo, 27/11). A RLS das partições está
+**ligada**, então não há leitura entre clínicas pela partição.
+
+**Correção:**
+- `public.clinic_audit_seal_partitions()`, idempotente: em cada partição, tira `UPDATE`/`DELETE`/`TRUNCATE` dos
+  papéis do app e cria o gatilho de comando em `ENABLE ALWAYS`;
+- a migration chama a função ao ser aplicada;
+- os dois provisionadores de partição (`/api/cron/audit-partitions` e `pnpm audit:partitions`) chamam a função
+  depois de criar partição, e só quando a barreira está instalada (`sealAuditPartitionsIfInstalled`);
+- a reversão remove também os gatilhos das partições.
+
+**Detecção pelo catálogo, um verificador só.** `src/lib/db/append-only-barrier.ts` (`inspectAppendOnlyBarrier`) lê
+só o catálogo e acusa:
+- gatilho ausente, fora de `ALWAYS` ou apontando para outra função, no pai **e em cada partição**;
+- corpo da função diferente do SHA-256 fixado;
+- `UPDATE`/`DELETE`/`TRUNCATE` devolvido a papel do app;
+- partição dos últimos 6 meses desanexada.
+
+O harness tem **11/11 provas locais** (`evidence/local-2026-11-27/`), com 7 adulterações do dono acusadas, cada uma
+desfeita depois. Sem a barreira aplicada, o relatório sai `installed: false, ok: true`.
+
+**Para a parte 2 da ADR-075 (#59):** usar o mesmo verificador nas duas trilhas, em vez de um segundo. A spec da
+clínica já está pronta (`CLINIC_AUDIT_BARRIER`). A da plataforma, pelos nomes do `c6e91bf1`, é:
+
+```ts
+export const PLATFORM_AUDIT_BARRIER: AppendOnlyBarrierSpec = {
+  id: 'platform_audit',
+  schemaVersion: 'super-admin-actions-append-only',
+  // SHA-256 do corpo de public.super_admin_actions_append_only(), fixado pelo #59 a partir da própria candidata
+  // (mesmo teste de `append-only-barrier.test.ts`).
+  functions: { 'public.super_admin_actions_append_only': '<sha256 do corpo>' },
+  trails: [{
+    table: 'public.super_admin_actions',
+    rowTrigger: 'super_admin_actions_append_only_row',
+    stmtTrigger: 'super_admin_actions_append_only_stmt',
+    triggerFunction: 'public.super_admin_actions_append_only',
+    forbidden: { roles: ['anon', 'authenticated', 'service_role', 'qoro_runtime'], privileges: ['UPDATE', 'DELETE', 'TRUNCATE'] },
+  }],
+};
+```
+
+No `/api/health`, o executor pode ser `(t, p) => dbAdmin.$client.unsafe(t, p)`. O check degrada se algum relatório
+vier `ok: false`; os limiares de volume da ADR-075 continuam com o #59. A `super_admin_actions` não é
+particionada e não tem o defeito acima.
+
+**Continua não feito**, como a ADR-075 decidiu: a ancoragem externa (hash encadeado ou cópia WORM), que é a única
+defesa contra quem tem DDL e também mexe no catálogo.
+
 ## Revisão do #59 (26/11/2026, `c6e91bf1`, só leitura)
 
 | Ponto | #59 (ADR-075) | 0171 (#55) | Responsabilidade |
