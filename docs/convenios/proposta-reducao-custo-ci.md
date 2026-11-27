@@ -75,3 +75,22 @@ proposta usa o padrão que continua válido se os checks virarem obrigatórios (
 A lógica do filtro (item 1) pode ser conferida localmente com `git diff --name-only <base> HEAD` nos commits deste
 ciclo: os commits só de documentação (`f6bc8939`, `d1ba0250`) dariam `code=false`; os de código, `code=true`. A
 verificação oficial fica para uma janela autorizada.
+
+## 26/11/2026 — janela com o repositório público (runners padrão gratuitos)
+
+Conferido antes de usar: todos os jobs rodam em `ubuntu-latest`, grupo "GitHub Actions" (runner padrão hospedado
+pelo GitHub; em repositório público, sem cobrança de minutos). Nenhum larger runner. Nenhum workflow usa
+`pull_request_target`; os únicos que leem segredos são o `db-backup.yml` (agendado na `main`, **desabilitado
+durante a janela pública**) e o `convenios-preview-e2e.yml` (só em push na branch do #55 com `e2e/preview-run.json`,
+não disparado nesta janela). `GITHUB_TOKEN` padrão só leitura.
+
+| Item pedido | Estado |
+| --- | --- |
+| cache de dependências | já existe (`actions/setup-node` com `cache: pnpm` em todos os jobs de Node) |
+| cancelar runs obsoletos | já existe (`concurrency` com `cancel-in-progress: true` em todos os workflows) |
+| pular jobs em mudança só de documentação | **proposto, não aplicado** (`paths-ignore: ['docs/**', 'evidence/**', '**/*.md']` no `pull_request` do `ci.yml`). Hoje a `main` não tem check obrigatório, então pular não trava merge; quando houver branch protection com check obrigatório, um job pulado por `paths-ignore` fica "pendente" e bloqueia o merge: precisa de um job "noop" com o mesmo nome |
+| seleção de testes por mudança | proposto (`vitest --changed` nos PRs intermediários), com a suíte completa obrigatória no SHA final |
+| artefatos volumosos e retenção | `ci.yml` só sobe o relatório do E2E em falha (7 dias); Preview E2E 14 dias; o artefato de 30 dias era o dump do `db-backup` (apagado nesta janela) |
+| limite de concorrência | `concurrency` por workflow e ref; sem limite global (não necessário com runner gratuito) |
+
+Nenhuma dessas mudanças foi aplicada ao `ci.yml` neste ciclo: a política de CI é da `main` e não foi alterada.

@@ -212,3 +212,28 @@ jobs:
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55552 NODE_OPTIONS=--conditions=react-server \
             pnpm exec tsx scripts/security/health-insurance-module-switch-triggers-db.ts
+
+      # Ciclo de 26/11 (candidatas fora do journal + P0): mesmas provas da bateria local, agora no runner Linux.
+      - name: P0 Marco Civil — login_attempts por 186 dias (rota real do cron) e R42
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55607 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/login-attempts-retention-db.ts
+
+      - name: Candidata 0169 — importação histórica com convênio sem guia nem cobrança (P4.7-b)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55608 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/health-insurance-historical-import-db.ts
+
+      - name: Candidata 0170 — histórico de verificadores de senha (S4)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55609 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/auth-password-history-db.ts
+
+      - name: Candidata 0171 — trilhas da clínica append-only (S5, padrão ADR-075)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55612 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/audit-trails-append-only-db.ts
