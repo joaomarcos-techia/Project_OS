@@ -35,6 +35,7 @@ import { dbAdmin } from '@/lib/db';
 import { assertCronRuntimeReady } from '@/lib/env';
 import { SIGNUP_SESSION_CEILING, getSignupSessionPressure } from '@/contexts/onboarding';
 import { healthAuthLevel } from '@/lib/http/health-auth';
+import { appendOnlyHealth } from '@/lib/db/append-only-barrier';
 import { checkExternals, type CheckStatus } from '@/lib/http/health-probes';
 
 export const runtime = 'nodejs';
@@ -127,9 +128,24 @@ export async function GET(req: Request): Promise<Response> {
     }
   }
 
+  // S5 / ADR-075 — trilhas append-only conferidas pelo catálogo, só no modo profundo (o monitor usa `?strict=1`).
+  // Instalada e adulterada = degraded; não instalada só vira motivo informativo (ver `appendOnlyHealth`).
+  let auditTrails: CheckStatus = db === 'down' ? 'down' : 'ok';
+  let auditTrailReasons: Record<string, string> = {};
+  if (deep && db !== 'down') {
+    const health = await appendOnlyHealth(
+      async (text, params) =>
+        (await dbAdmin.$client.unsafe(text, params as never[])) as unknown as Array<
+          Record<string, unknown>
+        >,
+    );
+    auditTrails = health.status;
+    auditTrailReasons = health.reasons;
+  }
+
   const ext = await checkExternals(deep);
   const checks: Record<
-    'db' | 'gemini' | 'meta' | 'asaas' | 'redis' | 'outbox' | 'signup',
+    'db' | 'gemini' | 'meta' | 'asaas' | 'redis' | 'outbox' | 'signup' | 'audit_trails',
     CheckStatus
   > = {
     db,
@@ -141,6 +157,7 @@ export async function GET(req: Request): Promise<Response> {
     redis: ext.redis,
     outbox,
     signup,
+    audit_trails: auditTrails,
   };
 
   const status = aggregate(checks);
@@ -156,8 +173,14 @@ export async function GET(req: Request): Promise<Response> {
   // distingue "Asaas caiu" de "nossa key está errada" — dois incidentes com
   // runbooks opostos. O reason é de baixa cardinalidade e não vaza credencial
   // (é `http_401`/`timeout`/`not_configured`, nunca a chave ou a URL).
-  if (deep && Object.keys(ext.reasons).length > 0) {
-    body.reasons = ext.reasons;
+  const reasons = {
+    ...ext.reasons,
+    ...Object.fromEntries(
+      Object.entries(auditTrailReasons).map(([id, why]) => [`audit_trails.${id}`, why]),
+    ),
+  };
+  if (deep && Object.keys(reasons).length > 0) {
+    body.reasons = reasons;
   }
   // super_admin: SLIs de fila nomeados (outbox_depth/outbox_oldest_age) p/ debug.
   if (level === 'super_admin') {

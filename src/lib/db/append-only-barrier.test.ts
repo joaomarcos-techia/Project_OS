@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import {
+  APPEND_ONLY_BARRIERS,
+  appendOnlyHealth,
   CLINIC_AUDIT_BARRIER,
   CLINIC_AUDIT_FUNCTION_SHA256,
   type CatalogQuery,
@@ -138,5 +140,49 @@ describe('append-only-barrier (S5)', () => {
     };
     await expect(sealAuditPartitionsIfInstalled(some)).resolves.toBe(14);
     expect(calls[1]).toContain('public.clinic_audit_seal_partitions()');
+  });
+
+  it('saúde: a lista de barreiras começa com a da clínica (o #59 acrescenta a da plataforma, sem segundo verificador)', () => {
+    expect(APPEND_ONLY_BARRIERS.map((b) => b.id)).toEqual(['clinic_audit']);
+  });
+
+  it('saúde: não instalada = ok com motivo informativo; uma consulta só', async () => {
+    const query: CatalogQuery = async () => [{ installed: false }];
+    await expect(appendOnlyHealth(query)).resolves.toEqual({
+      status: 'ok',
+      reasons: { clinic_audit: 'not_installed' },
+    });
+  });
+
+  it('saúde: instalada e adulterada = degraded com os tipos de achado (sem nomes de tabela no motivo)', async () => {
+    const query: CatalogQuery = async (text) => {
+      if (text.includes('_schema_version')) return [{ installed: true }];
+      if (text.includes('from pg_proc')) return []; // as duas funções sumiram
+      return [];
+    };
+    const health = await appendOnlyHealth(query, [{ ...CLINIC_AUDIT_BARRIER, trails: [] }]);
+    expect(health).toEqual({ status: 'degraded', reasons: { clinic_audit: 'function_missing' } });
+  });
+
+  it('saúde: instalada e íntegra = ok sem motivo; erro de leitura do catálogo = degraded (falha não é silêncio)', async () => {
+    const intact: CatalogQuery = async (text) => {
+      if (text.includes('_schema_version')) return [{ installed: true }];
+      if (text.includes('from pg_proc'))
+        return Object.entries(CLINIC_AUDIT_FUNCTION_SHA256).map(([fn, h]) => ({ fn, h }));
+      return [];
+    };
+    await expect(
+      appendOnlyHealth(intact, [{ ...CLINIC_AUDIT_BARRIER, trails: [] }]),
+    ).resolves.toEqual({
+      status: 'ok',
+      reasons: {},
+    });
+    const broken: CatalogQuery = async () => {
+      throw new Error('catálogo indisponível');
+    };
+    await expect(appendOnlyHealth(broken)).resolves.toEqual({
+      status: 'degraded',
+      reasons: { clinic_audit: 'check_failed' },
+    });
   });
 });

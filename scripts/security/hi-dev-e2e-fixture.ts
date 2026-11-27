@@ -56,7 +56,7 @@ const outFile = arg('out');
  *   guide-state --guide <id>                         status, versão, ajuste e eventos (só leitura)
  *   setup-s2 --accounts <arquivo>                    uma conta dedicada ao E2E do S2 (bloqueio por inatividade)
  */
-const COMMANDS = ['setup', 'setup-config', 'cleanup', 'setup-states', 'setup-authorizations', 'setup-i2', 'deliver-alerts', 'setup-p75', 'setup-sadt', 'complete-sadt', 'setup-r54', 'setup-p84', 'p84-state', 'set-state', 'set-active', 'guide-state', 'setup-s2'];
+const COMMANDS = ['setup', 'setup-config', 'cleanup', 'setup-states', 'setup-authorizations', 'setup-i2', 'deliver-alerts', 'setup-p75', 'setup-sadt', 'complete-sadt', 'setup-r54', 'setup-p84', 'p84-state', 'set-state', 'set-active', 'guide-state', 'setup-s2', 'setup-p113'];
 if (!COMMANDS.includes(command ?? '') || !expectedRef || !accountsFile || !outFile) {
   throw new Error(`uso: ${COMMANDS.join('|')} --expected-ref <ref> --accounts <arquivo> --out <ids.json>`);
 }
@@ -433,6 +433,8 @@ async function setupS2() {
   };
   await add('s2', 'e2e-hi-s2-gestor@example.com', 'paga', clinicId, 'gestor', 'Gestora Sintética E2E S2');
   await add('s2medica', 'e2e-hi-s2-medica@example.com', 'paga', clinicId, 'doctor', 'Dra. Sintética E2E S2');
+  // Uma médica só: o plano da clínica paga não comporta outra (capacidade de equipe do #53). O E2E cabe no limite
+  // do S8 (5 logins por e-mail e 10 por IP em 15 min) — rodadas seguidas precisam esperar a janela.
 
   const nome = 'Paciente Sintético E2E S2 Rascunho';
   const cpf = cpfOf('577215664');
@@ -450,6 +452,21 @@ async function setupS2() {
   writeFileSync(accountsFile!, JSON.stringify(accounts, null, 1));
   writeFileSync(outFile!, JSON.stringify({ clinicId, patientId: patient!.id, otherClinicId: outra }, null, 1));
   console.log(`[hi-dev-e2e-fixture] S2 pronta: 3 contas (paga: gestora e médica; outra clínica: médica) e o paciente do rascunho; senhas só em ${accountsFile}`);
+}
+
+/**
+ * P1.13 (interruptor de Convênios por clínica no console da plataforma): UMA clínica sintética dedicada
+ * (`e2e-hi-p113`), paga com o plano do catálogo real (inclui Convênios) e com o módulo DESLIGADO — o E2E liga e
+ * desliga pela tela do super admin de teste. Sem conta de clínica (o E2E só usa o super admin). Idempotente: se o
+ * módulo tiver ficado ligado de uma rodada interrompida, volta a desligado por aqui (só nesta clínica).
+ */
+async function setupP113() {
+  const clinicId = await clinic('e2e-hi-p113', 'Clínica Sintética E2E P1.13');
+  await subscription(clinicId, 'paid');
+  await exec(sql`UPDATE public.hi_clinic_settings SET enabled = false WHERE clinic_id = ${clinicId}::uuid AND enabled`);
+  writeFileSync(accountsFile!, JSON.stringify({}, null, 1));
+  writeFileSync(outFile!, JSON.stringify({ clinicId }, null, 1));
+  console.log('[hi-dev-e2e-fixture] P1.13 pronta: clínica e2e-hi-p113 paga, módulo desligado');
 }
 
 const pgCode = (e: unknown): string | undefined => {
@@ -1692,6 +1709,7 @@ const main =
   : command === 'setup-r54' ? setupR54
   : command === 'setup-p84' ? setupP84
   : command === 'setup-s2' ? setupS2
+  : command === 'setup-p113' ? setupP113
   : command === 'p84-state' ? p84State
   : command === 'set-state' ? setState
   : command === 'set-active' ? setActive

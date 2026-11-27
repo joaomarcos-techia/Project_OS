@@ -98,3 +98,20 @@ valor:
 
 **Isto é a pré-auditoria, não o aceite.** A P15.6 fecha só com a sua aprovação. A sessão pode ser curta: ler esta
 tabela e, se quiser ver com os próprios olhos, abrir no Preview os casos que escolher pela jornada da seção 1.
+
+## 7. Ficha de aceite (27/11/2026) — o que falta é só a sua decisão
+
+**Validade da evidência:** entre o `022063b0` (pré-auditoria 13/13) e o HEAD do #55, nenhum arquivo de faturamento,
+glosa, pagamento, repasse, coparticipação, livro ou Caixa mudou (`git diff --stat 022063b0 HEAD` nesses caminhos: só
+`historical-coverage.ts` da P4.7, `platform.ts` da P1.13, `security-footprint.ts` do S1 e exportações). O mesmo
+harness continua no job "provas sintéticas de banco (legado)", verde no `3d210289` (run 45946347984).
+
+| Item | Esperado | Observado | Diferença |
+| --- | --- | --- | --- |
+| F1–F12 (tabela da seção 6) | valores da seção 3 | idênticos | **R$ 0,00 em todos** |
+| A receber (F8) | R$ 40,00 operadora + R$ 45,00 paciente | R$ 85,00 | R$ 0,00 |
+| Caixa (F9) | só a coparticipação | só a coparticipação | — |
+| Livro (F11) | R$ 100,00 líquido; glosa fora do caixa | R$ 100,00; glosa só em "glosado" | R$ 0,00 |
+
+**Decisão (sua):** ( ) aprovado — a P15.6 vira PASS com esta data · ( ) reprovado no caso F__, com o que esperava.
+Ver no Preview é opcional (seção 1); não precisa repetir a bateria. **Até a sua marcação, P15.6 = PENDING.**

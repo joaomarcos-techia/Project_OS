@@ -88,3 +88,28 @@ ele pega 0169 e as do #55 andam um número cada (ainda candidatas, sem custo).
 
 **Não aplicada.** Não há necessidade efetiva agora: o #55 não está mergeado, o #64 ainda não promoveu a 0168 ao
 journal, e o #59 precisa renumerar. Aplicar antes disso criaria ledger à frente do código das branches.
+
+## 8. Ordem final em um descartável só (27/11/2026)
+
+`scripts/security/migration-final-order-db.ts` aplica, num Postgres 17 descartável, a cadeia exata do DEV (0000–0167
+com a 0159), a 0168 lida do próprio #64 (`74823d64`), as candidatas 0169, 0170 e 0171 e a candidata do #59
+(`c6e91bf1`) na posição 0172 (renumerada só no descartável; o arquivo do #59 não muda). **6/6 PASS**
+(`evidence/local-2026-11-27/ordem-final-migrations-6-de-6.txt`):
+
+1. bytes de 0168, 0169–0171 e da candidata do #59 iguais aos deste manifesto;
+2. 173 arquivos aplicados nessa ordem, objetos de cada uma presentes (`billing_gateway.pix_replacement_intents`,
+   `hi_historical_coverages`, `auth_password_history`, as duas versões em `_schema_version`);
+3. **um verificador, duas trilhas**: `inspectAppendOnlyBarrier` aprova a da clínica (15 relações) e a da plataforma
+   (spec do contrato S5 com o hash tirado da própria candidata do #59);
+4. `audit_events` e `super_admin_actions`: INSERT continua; UPDATE com alteração, DELETE e TRUNCATE recusados
+   (42501) para o dono, com e sem `session_replication_role = replica`;
+5. 5 adulterações do dono na trilha da plataforma acusadas pelo verificador (gatilho desligado, só em origin,
+   removido, função reescrita, DELETE devolvido) e desfeitas;
+6. a reversão da 0171 tira só a barreira da clínica; a 0172 continua instalada e recusando.
+
+**Achado da rodada (comportamento esperado, registrado):** `UPDATE audit_events SET action = action` (linha idêntica)
+não é recusado. A 0171 recusa alteração de conteúdo; a anonimização LGPD é a única alteração aceita, e uma linha
+idêntica não altera nada. A prova usa alteração real.
+
+**Conclusão para a ordem definitiva:** nenhuma dependência nova; a sequência da seção 3 vale com o #64 atual. Se o #59
+entrar antes do #55, ele fica com 0169 e as do #55 andam um número cada, ainda como candidatas.

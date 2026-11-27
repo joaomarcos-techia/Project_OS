@@ -9,9 +9,14 @@ executado contra o remoto: nada foi publicado e nenhum Actions rodou. Ele vem da
 1. #64 mergeado na `main` com a 0168 promovida ao journal pelo dono.
 2. Hotfix do Marco Civil já carregado pelo #53/#64 (`93eae727`/`89a7bc5d`); se não, o #55 já traz os 186 dias e
    o conflito em `retention-policy.ts` se resolve pela versão do #55 (mesmo valor, comentário mais completo).
-3. Não usar o Next 16 experimental: o #55 entra sobre o candidato comercial validado.
-4. **Atualização de 27/11:** o #64 continua em `92363ef1`, a base da composição verde #65 (`444c0103`). Se o #64
-   mudar, refazer a composição sobre o SHA novo antes do rebase e rodar de novo os gates abaixo.
+3. Não usar o Next 16 experimental por conta própria: o #55 entra sobre o candidato comercial validado (hoje o #64 com Next 16, ver 4).
+4. **Atualização de 27/11 (tarde):** o #64 andou para `74823d64` — o candidato comercial com **Next 16.4.6 e Vitest 4**
+   (CI oficial do #64 verde nesse SHA: lint, typecheck, testes e build). A composição foi refeita localmente sobre ele
+   (`local/composicao-64n16-55`, `4f9eb6f9` = #65 `444c0103` + #64 `74823d64` + #55 `03cba3f5`). Conflitos só em
+   `scripts/security/local-build.ts` (união: a lista do Next 16 e o `load-core.ts` da TUSS) e no `docs/security/acoes.md`
+   (gerado: `inventory.ts --write`, `--check` 0). Os gates do Next 16 (typecheck, Vitest 4, build) rodam no runner Linux
+   da composição (#65), não no notebook. A regra 3 continua: o #55 não leva Next 16 por conta própria; ele chega pela base
+   comercial quando o #64 for o candidato qualificado.
 5. **PR #67** (outra frente, dependências da `main`, inclui Vitest 4 e `vitest.config.ts`): se entrar antes do #55,
    o rebase regenera o `pnpm-lock.yaml` a partir do `package.json` resolvido (não mesclar lockfile na mão) e roda a
    suíte inteira no Vitest 4. O piso de cobertura de branches dele (58%) vale também para o #55.
