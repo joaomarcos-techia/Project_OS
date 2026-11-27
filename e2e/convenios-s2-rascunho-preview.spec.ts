@@ -51,10 +51,10 @@ test.skip(
 type Account = { email: string; password: string; userId: string };
 const accounts = env('E2E_S2_ACCOUNT')
   ? (JSON.parse(readFileSync(env('E2E_S2_ACCOUNT')!, 'utf8')) as Record<
-      's2medica' | 's2outra',
+      's2' | 's2medica' | 's2outra',
       Account
     >)
-  : ({} as Record<'s2medica' | 's2outra', Account>);
+  : ({} as Record<'s2' | 's2medica' | 's2outra', Account>);
 const ids = env('E2E_S2_IDS')
   ? (JSON.parse(readFileSync(env('E2E_S2_IDS')!, 'utf8')) as {
       clinicId: string;
@@ -181,12 +181,21 @@ async function userReads(token: string, pid: string): Promise<number> {
   return ((await res.json()) as unknown[]).length;
 }
 
-/** Sessão do `@supabase/ssr` guardada em cookie (às vezes em pedaços `.0`, `.1`…; prefixo `base64-`). */
+/**
+ * Sessão do `@supabase/ssr` guardada em cookie (às vezes em pedaços `.0`, `.1`…; prefixo `base64-`). O Qoro usa o
+ * nome `sb-<ref>-auth-token-v2` (`supabase-session-cookie.ts`); o legado sem `-v2` só entra se não houver o atual.
+ */
 function sessionFromCookies(cookies: Cookie[]): { access_token: string; refresh_token: string } {
-  const parts = cookies
-    .filter((c) => /^sb-.+-auth-token(\.\d+)?$/.test(c.name))
-    .sort((a, b) => Number(a.name.split('.').pop()) - Number(b.name.split('.').pop()));
-  expect(parts.length, 'cookie de sessão do Supabase').toBeGreaterThan(0);
+  const named = (re: RegExp) =>
+    cookies
+      .filter((c) => re.test(c.name))
+      .sort((a, b) => Number(a.name.split('.').pop()) - Number(b.name.split('.').pop()));
+  const current = named(/^sb-.+-auth-token-v2(\.\d+)?$/);
+  const parts = current.length ? current : named(/^sb-.+-auth-token(\.\d+)?$/);
+  expect(
+    parts.length,
+    `cookie de sessão do Supabase (havia: ${cookies.map((c) => c.name).join(', ')})`,
+  ).toBeGreaterThan(0);
   let value = parts.map((c) => c.value).join('');
   value = decodeURIComponent(value);
   if (value.startsWith('base64-'))
@@ -207,6 +216,7 @@ const encodeActivity = (a: object) => {
 // ── cenários ──────────────────────────────────────────────────────────────────────────────────────
 
 let r1: { pid: string; text: string; preLock: Cookie[] } | null = null;
+let loggedIn: BrowserContext | null = null;
 
 test('R1. aviso salva o rascunho no servidor mesmo após falha de rede; bloqueio; login novo recupera o texto', async ({
   browser,
@@ -251,7 +261,9 @@ test('R1. aviso salva o rascunho no servidor mesmo após falha de rede; bloqueio
   const again = await login(context, accounts.s2medica);
   await again.goto(draftUrl(pid), { waitUntil: 'load' });
   await expect(field(again)).toHaveValue(text);
-  await context.close();
+  await again.close();
+  // A sessão nova segue para o R3 (um login a menos: limite do S8 de 5 por e-mail, janela deslizante do Upstash).
+  loggedIn = context;
 });
 
 test('R2. rede caída no aviso e no bloqueio: o login avisa que o salvamento não foi confirmado', async ({
@@ -283,8 +295,9 @@ test('R2. rede caída no aviso e no bloqueio: o login avisa que o salvamento nã
 test('R3. duas abas no mesmo rascunho: a versão antiga recebe conflito e não sobrescreve a nova', async ({
   browser,
 }) => {
-  const context = await newContext(browser);
-  const a = await login(context, accounts.s2medica);
+  const context = loggedIn ?? (await newContext(browser));
+  const a = loggedIn ? await context.newPage() : await login(context, accounts.s2medica);
+  loggedIn = null;
   const pid = await newDraft(a);
   const b = await context.newPage();
   await b.goto(draftUrl(pid), { waitUntil: 'load' });
@@ -325,9 +338,8 @@ test('R4. duas abas e bloqueio simultâneo: o pendente da aba do editor vai ao s
   expect(new URL(editor.url()).searchParams.get('reason')).toBe('inactivity');
   expect((await serverDraft(pid)).row.row_version).toBe(2);
 
-  const again = await login(context, accounts.s2medica);
-  await again.goto(draftUrl(pid), { waitUntil: 'load' });
-  await expect(field(again)).toHaveValue(text);
+  // A recuperação pela tela depois do login novo já é provada no R1; aqui basta o servidor (sem gastar um login a
+  // mais: o limite do S8 é de 5 por e-mail em 15 min).
   await context.close();
 });
 
@@ -355,24 +367,36 @@ test('R5. outra clínica não abre o rascunho: tela 404 e a API com o token dela
 test('R6. sessão revogada: refresh token recusado pelo Auth e cookies antigos não reabrem o shell', async ({
   browser,
 }) => {
-  expect(r1, 'R1 precisa ter rodado').not.toBeNull();
-  const old = sessionFromCookies(r1!.preLock);
+  // Independente dos outros cenários (conta própria, no alcance): uma sessão, bloqueada pelo guarda.
+  const locked = await newContext(browser);
+  await locked.clock.install();
+  const page = await login(locked, accounts.s2);
+  await page.goto('/dashboard', { waitUntil: 'load' });
+  const preLock = await locked.cookies();
+  await locked.clock.fastForward(10 * MIN + 5_000);
+  await page.waitForURL((u) => u.pathname.startsWith('/login'), { timeout: 30_000 });
+  await locked.close();
+
+  const old = sessionFromCookies(preLock);
   const refresh = await fetch(`${SUPA}/auth/v1/token?grant_type=refresh_token`, {
     method: 'POST',
     headers: { apikey: ANON, 'content-type': 'application/json' },
     body: JSON.stringify({ refresh_token: old.refresh_token }),
   });
-  expect(refresh.status, 'o bloqueio encerrou a sessão no Auth').toBeGreaterThanOrEqual(400);
+  expect(
+    refresh.status,
+    'o bloqueio encerrou a sessão no Auth (refresh token revogado)',
+  ).toBeGreaterThanOrEqual(400);
 
   // Os cookies de antes do bloqueio, com o tempo real que um bloqueio por inatividade implica (≥ 10 min).
-  const activity = r1!.preLock.find((c) => c.name === ACTIVITY)!;
+  const activity = preLock.find((c) => c.name === ACTIVITY)!;
   const aged = { ...decodeActivity(activity.value), at: Date.now() - 11 * MIN };
-  const context = await newContext(browser);
-  await context.addCookies(
-    r1!.preLock.map((c) => (c.name === ACTIVITY ? { ...c, value: encodeActivity(aged) } : c)),
+  const replay = await newContext(browser);
+  await replay.addCookies(
+    preLock.map((c) => (c.name === ACTIVITY ? { ...c, value: encodeActivity(aged) } : c)),
   );
-  const page = await context.newPage();
-  await page.goto('/dashboard', { waitUntil: 'load' });
-  expect(new URL(page.url()).pathname).toMatch(/^\/login/);
-  await context.close();
+  const again = await replay.newPage();
+  await again.goto('/dashboard', { waitUntil: 'load' });
+  expect(new URL(again.url()).pathname).toMatch(/^\/login/);
+  await replay.close();
 });

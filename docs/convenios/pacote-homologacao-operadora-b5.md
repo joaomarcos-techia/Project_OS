@@ -106,3 +106,20 @@ Resumo (detalhe em `QORO-TISS-CONFORMIDADE-REGULATORIA.md`, seção 17):
 
 **Pergunta 18 (nova):** "A operadora aceita a versão 4.03.00 em todas as transações (lote, recurso, demonstrativo,
 elegibilidade, cancelamento)?" — várias versões convivem no pacote de set/2026 (04.00.00 a 04.03.00).
+
+## Pesquisa de 27/11/2026: nenhuma via pública nova
+
+Busca por ambientes de homologação TISS abertos a quem ainda não é prestador credenciado. Resultado:
+
+- a ANS publicou o **TISS 4.03.00** (março/2026), obrigatório desde **01/07/2026** (Ofício-Circular nº 6/2025,
+  citado pela Unimed Planalto Médio). O #55 já gera e valida nessa versão (`tiss/schemas/4.03.00`, XSDs oficiais);
+- operadoras mantêm **homologação própria por prestador credenciado**: por exemplo, o WebC Prestador da Unimed
+  Planalto Médio já recebe 4.03.00 em homologação antes da produção (Informativo TISS nº 04/2026). O acesso exige o
+  código de prestador da própria operadora — o mesmo bloqueio de sempre: clínica piloto credenciada;
+- nenhum ambiente público, sandbox aberto ou credencial de teste genérica foi encontrado.
+
+Fontes: [Padrão TISS março/2026 (ANS)](https://www.gov.br/ans/pt-br/assuntos/prestadores/padrao-para-troca-de-informacao-de-saude-suplementar-2013-tiss/padrao-tiss-marco-2026),
+[Informativo TISS nº 04/2026 (Unimed Planalto Médio)](https://www.unimed.coop.br/site/web/planaltomedio/informativo-tiss-n-04-2026).
+
+**B5 continua BLOCKED por dependência externa legítima** (credenciamento de uma clínica piloto numa operadora e o
+acesso dela ao ambiente de homologação). O pacote acima segue pronto para o primeiro credenciamento.

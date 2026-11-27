@@ -91,7 +91,7 @@ export const PLATFORM_AUDIT_BARRIER: AppendOnlyBarrierSpec = {
   schemaVersion: 'super-admin-actions-append-only',
   // SHA-256 do corpo de public.super_admin_actions_append_only(), fixado pelo #59 a partir da própria candidata
   // (mesmo teste de `append-only-barrier.test.ts`).
-  functions: { 'public.super_admin_actions_append_only': '<sha256 do corpo>' },
+  functions: { 'public.super_admin_actions_append_only': 'd6011e513b59fa7db23671f30fdf386933b0d44f36b0fd9d054a720744f8d762' },
   trails: [{
     table: 'public.super_admin_actions',
     rowTrigger: 'super_admin_actions_append_only_row',
@@ -129,3 +129,22 @@ aplicação, com adulteração privilegiada detectável só depois da parte 2". 
 
 **Sequência final proposta:** #64 (0168) → rebase do #55 → 0169, 0170, 0171 → #59 renumerado (0172) e parte 2 da
 ADR-075 cobrindo as duas trilhas. Nenhuma política global aplicada neste ciclo.
+
+## Atualização de 27/11 (tarde): a integração provada num descartável só
+
+O hash acima é o do corpo da função na candidata do #59 (`c6e91bf1`, `0165_super_admin_actions_append_only`),
+calculado do mesmo jeito que o `append-only-barrier.test.ts` calcula o da clínica. A prova de integração está no
+#55: `scripts/security/migration-final-order-db.ts` (6/6 local; também no job de provas de banco no Linux) aplica a
+cadeia do DEV + 0168 + 0169–0171 + a candidata do #59 na posição 0172 e passa as **duas** trilhas pelo **mesmo**
+`inspectAppendOnlyBarrier`, com esta spec; 5 adulterações do dono na trilha da plataforma são acusadas, e a reversão da
+0171 não toca a 0172.
+
+**Handoff para o #59 (parte 2 da ADR-075), sem mexer na branch dele:**
+
+1. renumerar a candidata para a próxima livre na hora do merge (hoje 0172; 0169 se entrar antes do #55);
+2. copiar a spec acima para `append-only-barrier.ts` (`PLATFORM_AUDIT_BARRIER`) e o teste do hash (o mesmo padrão do
+   `CLINIC_AUDIT_FUNCTION_SHA256`);
+3. no `/api/health`, rodar `inspectAppendOnlyBarrier` com `CLINIC_AUDIT_BARRIER` e `PLATFORM_AUDIT_BARRIER`; degradar se
+   algum `installed && !ok` (e avisar se a barreira esperada não estiver instalada no ambiente);
+4. a ancoragem externa (hash encadeado ou cópia WORM) continua fora, como a ADR-075 decidiu: é a única defesa contra quem
+   tem DDL e também mexe no catálogo.

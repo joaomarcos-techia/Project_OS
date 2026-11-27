@@ -254,3 +254,45 @@ export async function sealAuditPartitionsIfInstalled(query: CatalogQuery): Promi
   const [r] = await query(`select public.clinic_audit_seal_partitions() as sealed`, []);
   return Number(r?.sealed ?? 0);
 }
+
+/**
+ * Barreiras conferidas pela saúde da aplicação. **Uma** lista e **um** verificador para todas as trilhas append-only:
+ * a do #59 (trilha da plataforma, `PLATFORM_AUDIT_BARRIER` no contrato S5) entra AQUI, não num verificador próprio.
+ */
+export const APPEND_ONLY_BARRIERS: readonly AppendOnlyBarrierSpec[] = [CLINIC_AUDIT_BARRIER];
+
+export interface AppendOnlyHealth {
+  status: 'ok' | 'degraded';
+  /** Por barreira: `not_installed` (informativo), os tipos de achado separados por vírgula, ou `check_failed`. */
+  reasons: Record<string, string>;
+}
+
+/**
+ * S5 / ADR-075 — detecção na saúde (`/api/health?deep=1`): barreira instalada e íntegra = ok; instalada com achado
+ * (gatilho desligado ou removido, função trocada, privilégio devolvido, partição solta) = `degraded`; erro ao ler o
+ * catálogo = `degraded` (falha de verificação não vira silêncio). Não instalada = ok com motivo informativo: o
+ * ambiente ainda não recebeu a migration (ou alguém a reverteu por DDL — o limite honesto: quem tem DDL e mexe no
+ * catálogo só é pego pela ancoragem externa da ADR-075). O motivo leva só o tipo do achado, nunca nome de tabela.
+ */
+export async function appendOnlyHealth(
+  query: CatalogQuery,
+  specs: readonly AppendOnlyBarrierSpec[] = APPEND_ONLY_BARRIERS,
+  now: Date = new Date(),
+): Promise<AppendOnlyHealth> {
+  const reasons: Record<string, string> = {};
+  let status: AppendOnlyHealth['status'] = 'ok';
+  for (const spec of specs) {
+    try {
+      const report = await inspectAppendOnlyBarrier(query, spec, now);
+      if (!report.installed) reasons[spec.id] = 'not_installed';
+      else if (!report.ok) {
+        status = 'degraded';
+        reasons[spec.id] = [...new Set(report.findings.map((f) => f.kind))].sort().join(',');
+      }
+    } catch {
+      status = 'degraded';
+      reasons[spec.id] = 'check_failed';
+    }
+  }
+  return { status, reasons };
+}

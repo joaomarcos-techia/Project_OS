@@ -1,0 +1,7 @@
+# P1.13 — E2E do interruptor no console, Preview dedicado project-ct4ykc53k (03cba3f5), super admin de TESTE do DEV com TOTP
+    ok 1 [chromium] › e2e\convenios-p113-interruptor-preview.spec.ts:150:3 › P1.13 — interruptor de Convênios no console (Preview, DEV) › 1. disponibilidade comercial desligada (padrão): "Ligar Convênios" bloqueado (3.6s)
+    ok 2 [chromium] › e2e\convenios-p113-interruptor-preview.spec.ts:162:3 › P1.13 — interruptor de Convênios no console (Preview, DEV) › 2. código TOTP errado é recusado e nada muda (40.0s)
+    ok 3 [chromium] › e2e\convenios-p113-interruptor-preview.spec.ts:180:3 › P1.13 — interruptor de Convênios no console (Preview, DEV) › 3. motivo + código novo liga; banco e as duas trilhas registram (12.6s)
+    ok 4 [chromium] › e2e\convenios-p113-interruptor-preview.spec.ts:203:3 › P1.13 — interruptor de Convênios no console (Preview, DEV) › 4. motivo + outro código novo desliga; estado volta e fica registrado (20.7s)
+    4 passed (1.6m)
+  pós-teste (leitura no DEV, BEGIN READ ONLY): convenios.available restaurado (linha ausente = padrão desligado); e2e-hi-p113 enabled=false; 2 trocas (enable+disable) em super_admin_actions
