@@ -10,14 +10,15 @@
 
 | Análise | Evidência | Resultado |
 | --- | --- | --- |
-| Snyk Open Source no candidato | CLI `snyk test --file=package.json`, saída JSON local fora do repositório | 0 vulnerabilidades, exit 0 no candidato inicial |
+| Snyk Open Source no candidato | CLI `snyk test --dev --file=package.json`, saída JSON local fora do repositório | 0 vulnerabilidades, incluindo dependências de desenvolvimento, exit 0 no código composto |
 | Snyk Code no candidato | CLI `snyk code test`, SARIF local fora do repositório | 614 resultados: 606 abertos (47 altos, 340 médios, 219 baixos) e 8 ignorados; exit 1 |
 | Snyk Code no snapshot histórico | Mesmo CLI e organização, worktree isolado em `5620a098` | 421 resultados, reproduzindo as 409 ocorrências abertas e 12 ignoradas do relatório antigo |
-| Snyk Open Source no PR #67 `f74e1a37` | CLI `snyk test --file=package.json` no worktree do PR | 0 vulnerabilidades, exit 0 |
+| Snyk Open Source no PR #67 `f74e1a37` | CLI `snyk test --dev --file=package.json` no worktree do PR | 0 vulnerabilidades, incluindo dependências de desenvolvimento, exit 0 |
 | Snyk Code no PR #67 `f74e1a37` | CLI `snyk code test` no worktree do PR | 414 resultados: 406 abertos (14 altos, 250 médios, 142 baixos) e 8 ignorados; exit 1 |
 | Comparação por `fingerprints.identity` | SARIF histórico versus candidato | 408 identidades persistem, 13 não reaparecem; 206 identidades são novas no candidato, que tem código comercial adicional |
 | `pnpm audit --prod --audit-level moderate` | Lockfile do candidato inicial | Nenhuma vulnerabilidade conhecida em dependência de produção |
 | `pnpm audit --audit-level moderate` | Após atualizar `autocannon` 8→9 | Nenhuma vulnerabilidade conhecida no lockfile completo |
+| Snyk Secrets | CLI `snyk secrets test` | `BLOCKED`: organização retornou 403 `SNYK-CLI-0016`, recurso não habilitado; não foi ligado automaticamente |
 
 O inventário **individual** de todos os 436 registros históricos, incluindo os 12 ignorados, está em [snyk-historical-reconciliation-20261127.csv](snyk-historical-reconciliation-20261127.csv). A lista distingue presença do mesmo fingerprint no reteste e conclusão técnica. `FIXED_VERIFIED` significa que o achado deixou de ser detectado no reteste; `FALSE_POSITIVE_REPORTED` e `NOT_APPLICABLE_REPORTED` continuam aparecendo no Snyk, sem exceção em massa. Os 15 advisories Open Source têm identificadores A1–A15 do relatório original, pois ele não contém os IDs Snyk individuais.
 
@@ -45,11 +46,15 @@ Dos **424 historicamente abertos**, a tabela individual resulta em 18 `FIXED_VER
 
 ## Limites e próximos gates
 
-- O scan CLI comprova que a análise executou; não comprova sozinho que o painel do Snyk atualizou o projeto monitorado, o SHA exibido no painel ou que não houve faturamento. Não foi usado `snyk monitor` para criar projeto duplicado.
+- O repositório GitHub foi conferido como `PUBLIC`, e os scans CLI com URL pública executaram. O check de PR do Snyk ainda retornou **“You have used your limit of private tests”** no PR de composição #68; a associação/classificação do check do GitHub continua incorreta ou desatualizada. O scan CLI não comprova que o painel atualizou o projeto monitorado, o SHA exibido ou que não houve faturamento. Não foi usado `snyk monitor` para criar projeto duplicado.
 - O Snyk Code ainda tem resultados abertos. Não foram escondidos diretórios, desativadas regras nem adicionadas exceções em massa. A classificação técnica do CSV não altera o painel.
 - Hidratação autenticada, E2E financeiro sem mutações reais, build completo, testes completos e CI no SHA final precisam de evidência própria antes de declarar o PR #64 pronto. Nenhuma implantação ou merge em Production é autorizada por este documento.
 - O PR #55 (TISS) e suas migrations não foram incorporados à composição comercial.
 
-## Validação do SHA final
+## Validação da composição
 
-A preencher com os comandos executados, SHA e resultados verificados ao fechar a composição. Não usar a CI antiga do PR #64 ou do PR #67 como prova do novo commit.
+- No Codespace isolado, Node 22/pnpm 11.17: `pnpm install --frozen-lockfile`, `pnpm typecheck` e `pnpm lint` passaram.
+- `pnpm test`: **690 arquivos, 7.853 testes aprovados**, sem falha.
+- Build direto do Next 16.4.6 sobre a composição completa: **PASS** com variáveis sintéticas de CI e sem conexão a banco ou gateway; o primeiro comando sem variáveis falhou na validação de ambiente, depois foi repetido corretamente. Há warnings de deprecação do import Sentry e da convenção `middleware`, sem falha de compilação.
+- Testes dirigidos: formulário de exportação 11/11 e guards de carga 4/4. Nenhum teste de carga contra serviço real foi iniciado.
+- A CI oficial deve executar no SHA documental final do PR #68; os resultados antigos dos PRs #64/#67 não são transferidos para ele. O E2E autenticado em Preview ainda não tem credenciais sintéticas disponíveis neste worktree e não foi declarado PASS.
