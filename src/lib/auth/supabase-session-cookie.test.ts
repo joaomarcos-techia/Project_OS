@@ -39,4 +39,27 @@ describe('atributos comuns do cookie Supabase', () => {
     expect(isSupabaseSessionGeneration(second)).toBe(true);
     expect(second).not.toBe(first);
   });
+
+  it('reconhece apenas fragmentos numéricos do cookie, inclusive com prefixo literal', async () => {
+    const { supabaseAuthCookies, supabaseVersionedAuthCookies } =
+      await import('./supabase-session-cookie');
+    const prefix = 'sb-project.auth-token';
+    const names = [
+      prefix,
+      `${prefix}.0`,
+      `${prefix}.12`,
+      `${prefix}.x`,
+      'sb-projectXauth-token.1',
+      `${prefix}-generation`,
+    ];
+    const cookies = names.map((name) => ({ name, value: 'synthetic' }));
+
+    expect(supabaseAuthCookies(cookies, prefix).map((cookie) => cookie.name)).toEqual(
+      names.slice(0, 3),
+    );
+    expect(supabaseVersionedAuthCookies(cookies, prefix).map((cookie) => cookie.name)).toEqual([
+      ...names.slice(0, 3),
+      `${prefix}-generation`,
+    ]);
+  });
 });

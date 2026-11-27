@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 
-const PORT = 55449;
+const PORT = Number(process.env.SIGNUP_REDIS_FIXTURE_PORT ?? 55449);
 const counters = new Map();
 let unavailable = false;
 
@@ -80,7 +80,7 @@ const server = createServer(async (request, response) => {
   } catch (error) {
     const detail = error instanceof Error ? (error.stack ?? error.message) : 'invalid request';
     response.writeHead(400, { 'content-type': 'application/json' });
-    response.end(JSON.stringify({ error: detail }));
+    response.end(JSON.stringify({ error: 'invalid request' }));
     send({
       type: 'observation',
       commandCount: 0,
@@ -113,4 +113,4 @@ server.once('error', (error) => {
   send({ type: 'fatal', error: error instanceof Error ? error.message : 'fixture failed' });
   process.exitCode = 1;
 });
-server.listen(PORT, '127.0.0.1', () => send({ type: 'ready' }));
+server.listen(PORT, '127.0.0.1', () => send({ type: 'ready', port: server.address().port }));

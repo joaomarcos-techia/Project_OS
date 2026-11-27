@@ -13,7 +13,8 @@
  *   - Migrations 0003 + 0004 aplicadas.
  *   - Custom Access Token Hook ATIVADO no Supabase Dashboard
  *     (Auth → Hooks → Custom Access Token → public.custom_access_token_hook).
- *   - SMOKE_USER_EMAIL + SMOKE_USER_PASSWORD env (cria user dedicado para smoke).
+ *   - SMOKE_USER_EMAIL env; SMOKE_USER_PASSWORD é opcional (sem ela, usa senha
+ *     aleatória por execução para o usuário dedicado de smoke).
  *
  * Idempotente: cria/garante a clinic + profile do smoke user antes do teste.
  * NUNCA usa o super_admin do founder para isso.
@@ -28,8 +29,12 @@ import { sql } from 'drizzle-orm';
 import { dbAdmin } from '@/lib/db';
 import { createAdminClient } from '@/lib/auth/supabase-admin';
 
+import { randomSyntheticPassword, requireSyntheticPassword } from './security/synthetic-password';
+
 const SMOKE_EMAIL = process.env.SMOKE_USER_EMAIL ?? 'smoke@clinicaos.dev';
-const SMOKE_PASSWORD = process.env.SMOKE_USER_PASSWORD ?? 'smoke-passwd-min-12-chars';
+const SMOKE_PASSWORD = process.env.SMOKE_USER_PASSWORD
+  ? requireSyntheticPassword(process.env.SMOKE_USER_PASSWORD, 'SMOKE_USER_PASSWORD')
+  : randomSyntheticPassword();
 const SMOKE_CLINIC_ID = '99999999-9999-9999-9999-999999999999';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
