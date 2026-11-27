@@ -60,3 +60,32 @@ epoch continua antes), 12 fora do alcance (nunca bloqueia). Contagem: cookie e d
 de novo uma vez; depois disso, quem está fora do alcance nunca é bloqueado. No console `/admin` não há guarda:
 super admin fora do modo plataforma está fora do alcance (sem clínica); no modo `platform`, o console precisa do
 mesmo guarda (anotar no #57).
+
+## 27/11/2026 — o rascunho no bloqueio, autenticado (Preview dedicado)
+
+**Defeito real achado e corrigido (`03cba3f5`).** Com a rede caída, a chamada da Server Action do autosave
+**rejeita** (não devolve `{ ok: false }`). O editor deixava `savingRef` preso: ficava em "Salvando…" para sempre,
+nunca mais salvava e o aviso de inatividade respondia "não salvo" sem tentar de novo — o texto se perdia em silêncio
+no bloqueio. O teste antigo ("falha de rede") simulava uma resposta de erro, não a rejeição. Agora a rejeição vira erro
+de salvamento, o texto continua pendente e o próximo pedido (aviso, bloqueio ou "Salvar agora") tenta de novo; o flush
+do unmount não gera rejeição solta. Três testes novos reproduziram o defeito antes da correção (13/13 depois).
+
+**E2E** (`e2e/convenios-s2-rascunho-preview.spec.ts`, Preview `project-ct4ykc53k` do `03cba3f5` com o perfil ligado só
+nele; Auth e banco do DEV; contas `setup-s2`):
+
+| # | Cenário | O que prova |
+| --- | --- | --- |
+| R1 | médica digita; o autosave cai (rede abortada); a rede volta; o aviso aos 9 min salva; bloqueio aos 10; login novo | o servidor tem o rascunho (status `rascunho`, clínica, paciente e médica certos, versão 2, **cifrado em repouso**); a tela recupera o texto |
+| R2 | rede caída no aviso e no bloqueio | `reason=inactivity_unsaved` e o aviso honesto no login; o servidor não recebeu nada (nenhum "salvo" falso) |
+| R3 | duas abas no mesmo rascunho | a versão antiga recebe "Conflito de versão" e não sobrescreve; a recarga mostra a nova |
+| R4 | duas abas, bloqueio simultâneo | o pendente da aba do editor vai ao servidor antes de sair |
+| R5 | médica de outra clínica | 404 na tela; a API com o token dela devolve 0 linhas (RLS); a dona lê 1 |
+| R6 | sessão revogada | o refresh token da sessão bloqueada é recusado pelo Auth; os cookies antigos não reabrem o shell |
+
+Com os 3 do `convenios-s2-inatividade-preview.spec.ts` (servidor, aviso e bloqueio, duas abas) são 9 cenários
+autenticados. Limite conhecido e registrado: o token de acesso continua criptograficamente válido até expirar; o
+bloqueio vale porque o cookie de atividade envelhece em tempo real junto com qualquer cópia dele.
+
+**Armadilha de execução:** o limitador do S8 (5 logins por e-mail e 10 por IP em 15 min, janela deslizante do Upstash
+que pondera a janela anterior) barra rodadas seguidas com "Muitas tentativas". O spec usa no máximo 4 logins da médica;
+entre rodadas, esperar a janela.

@@ -32,7 +32,8 @@ executado contra o remoto: nada foi publicado e nenhum Actions rodou. Ele vem da
 | `scripts/arch-db-check.ts` | união das listas de arquivos permitidos |
 | `drizzle/migrations/meta/_journal.json` + `0159` | o journal da c11 (168 entradas; 0159 `eb00a4e3…`); depois a 0168 do #64 |
 | `docs/security/acoes.md` | **gerado**: aceitar qualquer lado e rodar `inventory.ts --write` |
-| testes S2 do `prontuario-editor.test.tsx` | passar `timeZone="America/Sao_Paulo"` (o #56 exige; correção `aed8f210` da composição) |
+| testes S2 do `prontuario-editor.test.tsx` | passar `timeZone="America/Sao_Paulo"` (o #56 exige; correções `aed8f210` e `fdb8bac4` da composição: o build do Next 16 checa os tipos dos testes em `src`) |
+| `insurer-credential-actions.test.ts` | parâmetros do mapa de `mock.calls` tipados (`unknown[]`/`unknown`): o Vitest 4 os deixa implícitos; já no #55 |
 | shell, login e editor do #56 | **sem conflito**: o merge aplica S2 e R42 sozinho (`56-s2-r42-shell-login-editor.patch` é o mesmo resultado) |
 
 ## Gates depois do rebase (local primeiro, CI oficial só com autorização de custo)
@@ -50,3 +51,22 @@ executado contra o remoto: nada foi publicado e nenhum Actions rodou. Ele vem da
 
 Uma rodada do `ci.yml` no SHA final, as provas de banco no Linux (inclusive o corte real do R61-B, que não roda no
 Windows) e o E2E autenticado no Preview (S2, P1.13, R42, P4.7). **OFFICIAL CI: NOT RUN — COST CONTROL.**
+
+## Composição sobre o #64 com Next 16 (`fdb8bac4`, 27/11 tarde): o que passou e o gate que falta
+
+CI 46000563012: typecheck e lint **verdes**; **817/817 arquivos de teste verdes no Vitest 4**; o build do Next 16 subiu
+(Preview dedicado `project-5obbwg376`). **Único gate vermelho: o piso global de ramos do #64**, 55,09% contra 58% (o #64
+sozinho mede 58,51%). Causa medida no relatório de texto da própria CI: `src/contexts/health-insurance` tem 23,75% de
+ramos cobertos pelo Vitest e `convenios/_lib` 25,05% — os serviços do módulo são provados pelos harnesses de banco
+(`scripts/security/*-db.ts`, dezenas, no job de provas sintéticas), que **não entram** na cobertura do Vitest.
+
+**Não rebaixar o piso.** Caminhos, em ordem de recomendação:
+
+1. **somar a cobertura dos harnesses de banco ao gate** (o código É exercitado por teste): rodar os harnesses com
+   `NODE_V8_COVERAGE` no job de provas sintéticas, converter para lcov e juntar ao relatório do Vitest antes do gate
+   — mudança de CI, sem mexer no limiar;
+2. testes de unidade novos para os ramos de decisão dos serviços do módulo que hoje só o banco prova (validações,
+   mapeamentos, mensagens), começando por `tiss/messages` (40,69%) e `convenios/_lib`;
+3. limiar por caminho, que é decisão do dono do piso (#64/#67) e do fundador — não unilateral.
+
+Até um deles, **o rebase do #55 sobre o #64 reprova na CI** mesmo com todos os testes verdes.

@@ -190,7 +190,8 @@ function sessionFromCookies(cookies: Cookie[]): { access_token: string; refresh_
     cookies
       .filter((c) => re.test(c.name))
       .sort((a, b) => Number(a.name.split('.').pop()) - Number(b.name.split('.').pop()));
-  const current = named(/^sb-.+-auth-token-v2(\.\d+)?$/);
+  // `sb-<ref>-auth-token-v2-<geração de 32 hex>` (+ pedaços `.0`, `.1`): uma geração por sessão estabelecida.
+  const current = named(/^sb-.+-auth-token-v2(-[0-9a-f]{32})?(\.\d+)?$/);
   const parts = current.length ? current : named(/^sb-.+-auth-token(\.\d+)?$/);
   expect(
     parts.length,

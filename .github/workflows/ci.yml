@@ -16,9 +16,21 @@ jobs:
     runs-on: ubuntu-latest
     # Build frio local comprovado pode exceder 10 min só na compilação; este
     # limite não muda nenhum gate, apenas evita cancelar uma execução saudável.
-    timeout-minutes: 20
+    # Proposta TISS (composição #65): +25 min para os 41 harnesses de banco que entram no gate de cobertura.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+
+      # Proposta TISS: os harnesses de banco leem commits de outras frentes pelo git (cadeia do DEV com o #53, a
+      # 0168 do #64 e a trilha do #59), como no workflow de provas de banco. Só leitura; o token sai em seguida.
+      - name: Commits lidos pelos harnesses de banco (só leitura) e retirada do token do git
+        run: |
+          git fetch --no-tags --depth=1 origin \
+            8c591c8f3d89b459a80c30bb36541eae1123861f \
+            97e2c3067ad35ce487a426d966949f7391c37870 \
+            74823d649d8a9aa6f8842bf6cbfb9f953d0470f2 \
+            c6e91bf1991fcabe2f30aa67b20914e0ab625a64
+          git config --local --unset-all http.https://github.com/.extraheader || true
 
       - uses: pnpm/action-setup@v4
         with:
@@ -81,8 +93,11 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: 'https://ci.supabase.co'
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_ci'
 
-      - name: Test + coverage gate
-        run: pnpm test:coverage
+      # Proposta TISS: o MESMO gate (mesmo `coverage.include`, mesmos pisos) numa execução que também roda os 41
+      # harnesses de banco dentro do Vitest (`vitest.coverage-db.config.ts`). O código de `src/` que eles executam
+      # passa a contar como qualquer teste — sem fusão de relatórios, sem dupla contagem, sem rebaixar o piso.
+      - name: Test + coverage gate (unitários + harnesses de banco)
+        run: SECURITY_PG_BIN="$(pg_config --bindir)" pnpm vitest run --coverage -c vitest.coverage-db.config.ts
 
       # Só nesta branch de composição (#65): o relatório por arquivo, com contagem absoluta de ramos, para medir
       # onde está a cobertura que falta (o texto do log só traz percentuais). Sem dado de paciente nem segredo.
