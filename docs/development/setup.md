@@ -30,6 +30,8 @@ O app não possui landing pública; `/` conduz ao login. Não aponte variáveis 
 
 Para preparar um banco de desenvolvimento autorizado:
 
+Defina `SEED_DEV_PASSWORD` em `.env.local` com uma senha aleatória de pelo menos 16 caracteres antes de rodar o seed. O seed usa essa senha nas contas sintéticas e atualiza a senha de contas de seed já existentes. A senha não é exibida no terminal.
+
 ```bash
 pnpm db:migrate:dev
 pnpm seed:dev
