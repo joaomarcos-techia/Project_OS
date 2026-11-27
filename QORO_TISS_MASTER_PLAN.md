@@ -122,6 +122,19 @@
 | Coordenação | UI: janela de testes pesados aceita e usada (23:33–00:10); terminologia de guias decidida pela UI e aplicada; títulos de página nas 13 telas; divisão de arquivos (handoff-ui.md §8). #53: release congela a cauda TISS do `4d0ed1d5` |
 | Próximo passo exato | ver "Próxima ação exata" acima |
 
+### Checkpoint de 27/11/2026, noite — gate de cobertura resolvido com medição real; base comercial = #68
+
+| Item | Estado |
+| --- | --- |
+| **Cobertura de ramos (composição)** | **PASS: 59,70%** (21.815/36.536) contra o piso de 58%, no `d6913fa5` (CI 46013688647 inteira verde, ~9 min). Antes: 55,10% (20.132/36.536). **Mesmo denominador** (36.536 ramos, nenhum arquivo retirado), mesmo `coverage.include` (`src/**`), mesmo piso, mesma instrumentação (v8 do Vitest 4) |
+| Como | os 41 harnesses de banco dos workflows de provas rodam **dentro do Vitest**, na mesma execução da suíte unitária (`vitest.coverage-db.config.ts` + testes gerados em `scripts/security/db-coverage/` por `gerar.ts`, que confere a lista contra os workflows). 860/860 arquivos de teste verdes; as 113 linhas `PASS n:` dos próprios harnesses aparecem no log (execução real, não SQL solto); tempos iguais aos do job de banco |
+| Por área | TISS 37,95% → **54,59%**; base comercial 60,54% → 61,33% (os harnesses também exercitam outbox, tenant e agenda) |
+| Base comercial | **#68** (`c1d657a5`) contém o #64 `74823d64` + correções do #67 + hotfix 186 dias + remediação de segurança; nenhuma migration nova. Composição refeita sobre ele (conflito só em `retention-policy`, os dois com 186 dias) |
+| R43 | parte técnica exigível implementada e testada (senha mascarada, campo limpo após erro, nada memorizado pelo Qoro); só a leitura literal do `autocomplete=off` segue como pergunta da S9 |
+| P15.6 | reconciliação 12 conferências × 13 verificações (a 13ª é o isolamento) e **recomendação técnica de aprovação**; o aceite continua do fundador |
+| P12.6 | causa do 401: o `SENTRY_AUTH_TOKEN` do `.env.local` contém uma URL, não um token. Falta um token com `alerts:write` e `project:read` (ou a regra pela tela) |
+| Contagem | **95/117** (nenhuma tarefa nova cumpre o critério completo: P4.7, S3/S4 dependem da 0169/0170 no DEV depois do comercial; P14.3/P15.2 dependem das jornadas completas e da P11) |
+
 ### Checkpoint de 27/11/2026, tarde — GO mestre final (engenharia, E2E autenticado, composição sobre o Next 16)
 
 | Item | Estado |
