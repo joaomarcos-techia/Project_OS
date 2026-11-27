@@ -1,5 +1,21 @@
 # Snyk: reteste e reconciliação de 27/11/2026
 
+## Open Source: varredura completa do workspace e correção crítica
+
+O comando anterior `snyk test --file=package.json --dev` examinava apenas **55 dependências**, sem cobrir o workspace pnpm. O CLI exigiu `--all-projects` quando `pnpm-lock.yaml` e `pnpm-workspace.yaml` foram selecionados. A varredura correta do SHA `3d795354` examinou **1.003 dependências** e reportou **63 caminhos / cinco IDs únicos**: 12 críticos de `esbuild@0.25.0`, sete altos de `uri-js@4.4.1` e 44 médios de `minimatch`/`uri-js`. Sem `--dev`, havia **um caminho crítico de produção** para `esbuild` por `@sentry/nextjs → @sentry/bundler-plugins → webpack → minimizer-webpack-plugin`. Portanto o antigo “zero vulnerabilidades no lockfile” estava incorreto como afirmação Snyk; `pnpm audit` usou outra base de advisories e não refuta esse achado.
+
+O override de `esbuild` foi alterado **somente de `0.25.0` para `0.28.1`**, versão corrigida indicada pelo [advisory Snyk](https://security.snyk.io/vuln/SNYK-JS-ESBUILD-17750822). Após atualizar o lockfile e executar `pnpm install --frozen-lockfile`, o Snyk `--all-projects` retornou **zero vulnerabilidades em 458 dependências de produção**; com `--dev`, restam **51 caminhos / quatro IDs** em 1.004 dependências, sem o crítico de `esbuild`. Esses resultados são do worktree com a alteração ainda não validada pela CI; o build, testes e reteste no SHA commitado são gates obrigatórios.
+
+| ID Snyk | Escopo e resultado | Situação |
+| --- | --- | --- |
+| `SNYK-JS-ESBUILD-17750822` | Um caminho de produção e 11 de desenvolvimento em `0.25.0`; versão `0.28.1` removida do scan após override. | Correção local; CI pendente. |
+| `SNYK-JS-MINIMATCH-22111072` | 30 caminhos de ferramentas de desenvolvimento; o vetor descrito exige `optimizationLevel >= 2` em `firstPhasePreProcess`, ausentes do código instalado em `minimatch@3.1.5`. | Não reproduzível nessa versão; não forçar major 11 sobre ESLint 9 sem compatibilidade. |
+| `SNYK-JS-URIJS-19963961` | Sete caminhos via `eslint → ajv@6 → uri-js`. | Somente desenvolvimento; sem versão corrigida publicada. |
+| `SNYK-JS-URIJS-19963963` | Mesmos sete caminhos; alerta alto de loop em `removeDotSegments`. | Somente desenvolvimento; sem entrada de usuário da aplicação; revisar o upstream. |
+| `SNYK-JS-URIJS-20341609` | Mesmos sete caminhos; exceção em `mailto` malformado. | Somente desenvolvimento; sem versão corrigida publicada. |
+
+Os três advisories de `uri-js` não possuem versão corrigida segundo o [Snyk](https://security.snyk.io/vuln/SNYK-JS-URIJS-19963963); nenhuma dependência de produção o inclui no scan atual. O [advisory de `minimatch`](https://security.snyk.io/vuln/SNYK-JS-MINIMATCH-22111072) descreve uma condição que não existe no código da versão instalada. Esses achados não foram ignorados no Snyk. A confirmação de zero caminhos de produção é uma evidência de composição, não uma garantia de ausência de outras falhas.
+
 ## Reteste após autenticação e correção do convite piloto
 
 O CLI Snyk Code 1.1309.0 analisou o **SHA exato `1c8704e36594c00248a2eea17e669d14cdf0b2f3`** do PR #68, com `--org=joaomarcos-techia` e URL remota pública. O SARIF local `C:\dev\qoro-snyk-audit-20261127\code-1c8704e3.json` (SHA256 `DB508DE2F64CDAE4EFB19EAE5217E31BC0C8AA2111A4843309B9DA28DD22B8C1`) contém **613 resultados: 49 altos, 342 médios e 222 baixos**. O open redirect do convite piloto deixou de aparecer. O outro alerta de redirect é o retorno HTTPS do provedor, restrito por allowlist. O CLI retornou exit 1 porque ainda há resultados, não porque a análise falhou.
