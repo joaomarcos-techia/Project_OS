@@ -161,7 +161,7 @@
     "@types/react": "^19.0.4",
     "@types/react-dom": "^19.0.2",
     "@vitest/coverage-v8": "4.1.12",
-    "autocannon": "8.0.0",
+    "autocannon": "9.0.0",
     "cross-env": "7.0.3",
     "dotenv": "16.4.5",
     "drizzle-kit": "0.28.1",

@@ -112,4 +112,22 @@ describe('mensagem de erro do envelope chega ao operador', () => {
     await waitFor(() => expect(screen.getByText(/abc123/)).toBeTruthy());
     expect(screen.queryByText('Falha ao exportar')).toBeNull();
   });
+
+  it.each([
+    'http://storage.example/x.pdf',
+    'javascript:alert(1)',
+    'data:text/html,<script>alert(1)</script>',
+  ])('não oferece download para URL não HTTPS: %s', async (signedUrl) => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ signedUrl, sha256: 'abc123', rowCount: 1, expiresInDays: 7 }),
+    } as never);
+
+    render(<ExportAuditForm clinicId="c1" />);
+    submit();
+
+    await waitFor(() => expect(screen.getByText('Link de download inválido.')).toBeTruthy());
+    expect(screen.queryByRole('link', { name: /Baixar PDF/ })).toBeNull();
+  });
 });
