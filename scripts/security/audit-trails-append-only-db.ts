@@ -120,8 +120,14 @@ try {
   await sql`delete from public.audit_events where id = ${r2!.id}`;
   pass('catálogo: gatilho ALWAYS (o que a detecção da ADR-075 confere); o DONO ainda pode removê-lo por DDL — a reversão prova isso e devolve o comportamento anterior');
 
-  console.log(`\n${passed}/7 provas da trilha append-only da clínica (S5) passaram.`);
-  assert.equal(passed, 7);
+  // ── 8. Recuperação: reaplicar depois da reversão (replay) devolve a proteção ──
+  await sql.unsafe(body);
+  const [r3] = await sql`insert into public.audit_events (clinic_id, action, resource_type, resource_id) values (${clinic}::uuid, 'teste.replay', 'patient', ${randomUUID()}) returning id`;
+  await refused(() => sql`update public.audit_events set action = 'adulterado' where id = ${r3!.id}`);
+  pass('recuperação: a 0171 reaplica limpa depois da reversão e volta a recusar UPDATE');
+
+  console.log(`\n${passed}/8 provas da trilha append-only da clínica (S5) passaram.`);
+  assert.equal(passed, 8);
 } finally {
   await cluster.stop();
 }

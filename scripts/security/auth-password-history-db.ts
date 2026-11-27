@@ -192,8 +192,14 @@ try {
     `cascata: ${left === 0 ? 'apagar o perfil apaga o histórico' : `perfil com exclusão lógica mantém ${left} verificadores (apagados com o perfil físico)`}; reversão remove a tabela`,
   );
 
-  console.log(`\n${passed}/6 provas do histórico de senhas (S4) passaram.`);
-  assert.equal(passed, 6);
+  // Recuperação: reaplicar depois da reversão (replay) recria a tabela com RLS forçado.
+  await sql.unsafe(body);
+  const [{ forced }] = (await sql`select relforcerowsecurity as forced from pg_class where oid = 'public.auth_password_history'::regclass`) as unknown as [{ forced: boolean }];
+  assert.equal(forced, true);
+  pass('recuperação: a 0170 reaplica limpa depois da reversão, com RLS forçado');
+
+  console.log(`\n${passed}/7 provas do histórico de senhas (S4) passaram.`);
+  assert.equal(passed, 7);
 } finally {
   await cluster.stop();
 }
