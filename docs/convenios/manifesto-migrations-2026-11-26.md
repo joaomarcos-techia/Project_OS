@@ -31,7 +31,7 @@ Sem dado TISS em Production; o código publicado (`dddc650b`) não tem o módulo
 | 0168 | `0168_saas_pix_replacement_intents.sql` | #64 (dono) | `844cf2f2592edba659bbcc84fa2d9ab3b265b7e688ce60112307db5815be2520` | 1795814573857 |
 | 0169 | `0169_hi_historical_coverages.candidate.sql` | #55 (P4.7-b) | `522a4b5b559bc8943e4f83b023862a346af975c205d548897da3c48f3f53e91c` | a definir na promoção |
 | 0170 | `0170_auth_password_history.candidate.sql` | #55 (S4) | `f1f127fc2fe8ca141eebc599d6f16c8ffe8ac4b3afe0acc622c3dc72b8bc76a6` | a definir |
-| 0171 | `0171_audit_trails_append_only.candidate.sql` | #55 (S5, padrão ADR-075) | `eab6c87561436763c537c9113bbd67bfef9094bcd6e49603b0e2f47c310025d0` | a definir |
+| 0171 | `0171_audit_trails_append_only.candidate.sql` | #55 (S5, padrão ADR-075) | `db0aaf0ce46a0135c7555a25c3a56bffedb6440f777032510e52fb8e3eae89cc` (27/11; antes `eab6c875…`, sem a selagem das partições) | a definir |
 | #59 | `0165_super_admin_actions_append_only.candidate.sql` | #59 (ADR-075) | `76ae66a44e5100742a8946600a5f62efa12344b117b74c1dc9b7eca04b5fc76b` | **renumerar para 0172** |
 
 ## 3. Sequência proposta (sem renumerar nada aplicado, sem migration vazia, sem tocar hash aplicado)
@@ -56,7 +56,7 @@ ele pega 0169 e as do #55 andam um número cada (ainda candidatas, sem custo).
 | --- | --- | --- |
 | 0169 | `scripts/security/health-insurance-historical-import-db.ts` | 8/8 (RLS, guarda de inserção, imutável, premium/módulo, mesma clínica/lote, nenhuma guia ou cobrança) |
 | 0170 | `scripts/security/auth-password-history-db.ts` | 6/6 (FK + cascata, CHECK do verificador scrypt, RLS forçado sem política, só service_role) |
-| 0171 | `scripts/security/audit-trails-append-only-db.ts` | **7/7** (inclui a prova nova: excluir clínica COM histórico TISS é recusado; sem histórico, possível) |
+| 0171 | `scripts/security/audit-trails-append-only-db.ts` | **11/11** em 27/11, só local (`evidence/local-2026-11-27/`): a selagem das partições fecha o `TRUNCATE` direto na partição; detecção de 7 adulterações pelo catálogo (`src/lib/db/append-only-barrier.ts`); reversão e replay. A versão anterior (8/8 no Linux, `b81c007b`) **não** tinha a selagem |
 | #59 | `scripts/security/super-admin-actions-append-only-db.ts` (no #59) | não executado aqui (é do #59) |
 
 ## 5. Pré-requisitos de promoção que os testes revelaram

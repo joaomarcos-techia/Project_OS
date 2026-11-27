@@ -7,7 +7,8 @@
 --     administrativo mantém UPDATE em audit_events só para a anonimização LGPD, que o gatilho restringe;
 --   - gatilho que recusa UPDATE/DELETE em toda linha e TRUNCATE no comando, com `ENABLE ALWAYS` (vale também com
 --     `session_replication_role = replica`, que desligaria um gatilho comum);
---   - em tabela particionada o gatilho de linha do pai vale para todas as partições, inclusive as futuras.
+--   - em tabela particionada o gatilho de LINHA do pai é clonado em todas as partições, inclusive as futuras; o de
+--     COMANDO (TRUNCATE) e os privilégios NÃO: `clinic_audit_seal_partitions()` (abaixo) cuida de cada partição.
 --
 -- O que ISTO NÃO resolve (honesto, igual à ADR-075): o dono do banco ainda pode DESABILITAR/REMOVER o gatilho por
 -- DDL ou fazer DETACH de uma partição. Contra privilégio total:
@@ -82,6 +83,43 @@ CREATE TRIGGER hi_account_events_append_only_stmt BEFORE TRUNCATE ON public.hi_a
 ALTER TABLE public.hi_account_events ENABLE ALWAYS TRIGGER hi_account_events_append_only_row;
 --> statement-breakpoint
 ALTER TABLE public.hi_account_events ENABLE ALWAYS TRIGGER hi_account_events_append_only_stmt;
+--> statement-breakpoint
+
+-- PARTIÇÕES de audit_events (achado de 27/11): privilégio NÃO é herdado pela partição, e o gatilho de COMANDO do
+-- pai não dispara num TRUNCATE feito direto na partição (o de LINHA é clonado; o de comando, não). Sem isto, o dono
+-- (e o service_role, que tem TRUNCATE na partição pelo default ACL do Supabase) esvaziava um mês inteiro da trilha.
+-- Esta função sela TODAS as partições anexadas (idempotente): tira UPDATE/DELETE/TRUNCATE dos papéis do app direto
+-- na partição e cria nela o gatilho de comando em ENABLE ALWAYS. Os provisionadores de partição (cron
+-- /api/cron/audit-partitions e `pnpm audit:partitions`) a chamam depois de criar partição nova.
+CREATE OR REPLACE FUNCTION public.clinic_audit_seal_partitions()
+RETURNS integer
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  part regclass;
+  roles text := 'PUBLIC, anon, authenticated, service_role';
+  sealed integer := 0;
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'qoro_runtime') THEN
+    roles := roles || ', qoro_runtime';
+  END IF;
+  FOR part IN SELECT i.inhrelid::regclass FROM pg_inherits i WHERE i.inhparent = 'public.audit_events'::regclass LOOP
+    EXECUTE format('REVOKE UPDATE, DELETE, TRUNCATE ON %s FROM %s', part, roles);
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger t WHERE t.tgrelid = part AND t.tgname = 'audit_events_append_only_stmt') THEN
+      EXECUTE format('CREATE TRIGGER audit_events_append_only_stmt BEFORE TRUNCATE ON %s '
+        'FOR EACH STATEMENT EXECUTE FUNCTION public.clinic_audit_append_only()', part);
+    END IF;
+    EXECUTE format('ALTER TABLE %s ENABLE ALWAYS TRIGGER audit_events_append_only_stmt', part);
+    sealed := sealed + 1;
+  END LOOP;
+  RETURN sealed;
+END;
+$$;
+--> statement-breakpoint
+REVOKE EXECUTE ON FUNCTION public.clinic_audit_seal_partitions() FROM PUBLIC, anon, authenticated, service_role;
+--> statement-breakpoint
+SELECT public.clinic_audit_seal_partitions();
 --> statement-breakpoint
 
 INSERT INTO public._schema_version (version) VALUES ('0171-audit-trails-append-only')

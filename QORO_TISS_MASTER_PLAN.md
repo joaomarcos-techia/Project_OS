@@ -122,6 +122,18 @@
 | Coordenação | UI: janela de testes pesados aceita e usada (23:33–00:10); terminologia de guias decidida pela UI e aplicada; títulos de página nas 13 telas; divisão de arquivos (handoff-ui.md §8). #53: release congela a cauda TISS do `4d0ed1d5` |
 | Próximo passo exato | ver "Próxima ação exata" acima |
 
+### Checkpoint de 27/11/2026, manhã — segurança da janela pública e S5 (só local, sem push)
+
+| Item | Estado |
+| --- | --- |
+| Janela pública | **mantida aberta** por ordem do fundador (o #64 ainda testa). Varredura de 27/11: 116 artefatos restantes, 1.682 logs de run e o histórico publicado inteiro (com `refs/pull/*`) **sem segredo operacional**; secret scanning e push protection ligados; `main` com ruleset (sem exclusão, sem force push); `db-backup` **desabilitado**. O incidente dos dumps está registrado **fora do repositório** (avaliação LGPD e registro do art. 10 da Resolução CD/ANPD nº 15/2024) |
+| Hotfix Marco Civil | o candidato do PR #66 (`079754d8`) tem o mesmo patch do `93eae727` (patch-id igual), só a regra de retenção, CI verde. Deploy de Production e pós-voo **pendentes** com o dono do deploy (pedido registrado no #66) |
+| **S5 — defeito achado na própria 0171** | `TRUNCATE` **direto numa partição** de `audit_events` passava: o gatilho de comando do pai não dispara na partição, e privilégio não é herdado (em Production, `service_role` tem `TRUNCATE` e `authenticated` tem DML nas 13 partições; a RLS das partições está ligada, então não há leitura entre clínicas). Corrigido: `clinic_audit_seal_partitions()` na candidata e nos dois provisionadores de partição |
+| S5 — detecção pelo catálogo | `src/lib/db/append-only-barrier.ts`: **um** verificador parametrizável (a spec da clínica pronta; a da plataforma do #59 no contrato S5), para a parte 2 da ADR-075 usar nas duas trilhas. Harness **11/11 local** (`evidence/local-2026-11-27/`), 7 adulterações do dono acusadas |
+| Gates locais | ESLint, Prettier (arquivos de produção), inventário de segurança `--check`, `check:migrations`, `tsc` do projeto (0 erros), testes unitários novos 6/6. **CI oficial não rodou neste SHA**: a CI verde continua sendo a do `37650d74` |
+| PR #67 (outra frente) | sobe dependências na `main` (inclui Vitest 4 e o lockfile). Se entrar antes do #55, o rebase final regenera o lockfile e roda a suíte no Vitest 4 |
+| Contagem | **94/117** (S5 continua parcial: falta a integração no `/api/health` pelo #59 e a ancoragem externa, que a ADR-075 deixou para frente própria) |
+
 ### Checkpoint de 27/11/2026, madrugada — CI oficial gratuita (repositório público)
 
 | Item | Estado |

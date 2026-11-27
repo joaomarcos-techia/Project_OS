@@ -10,6 +10,13 @@ executado contra o remoto: nada foi publicado e nenhum Actions rodou. Ele vem da
 2. Hotfix do Marco Civil já carregado pelo #53/#64 (`93eae727`/`89a7bc5d`); se não, o #55 já traz os 186 dias e
    o conflito em `retention-policy.ts` se resolve pela versão do #55 (mesmo valor, comentário mais completo).
 3. Não usar o Next 16 experimental: o #55 entra sobre o candidato comercial validado.
+4. **Atualização de 27/11:** o #64 continua em `92363ef1`, a base da composição verde #65 (`444c0103`). Se o #64
+   mudar, refazer a composição sobre o SHA novo antes do rebase e rodar de novo os gates abaixo.
+5. **PR #67** (outra frente, dependências da `main`, inclui Vitest 4 e `vitest.config.ts`): se entrar antes do #55,
+   o rebase regenera o `pnpm-lock.yaml` a partir do `package.json` resolvido (não mesclar lockfile na mão) e roda a
+   suíte inteira no Vitest 4. O piso de cobertura de branches dele (58%) vale também para o #55.
+6. Os commits locais de 27/11 sobre o `37650d74` (S5: selagem das partições da 0171 e verificador do catálogo)
+   entram no rebase junto com o resto. Eles ainda não têm CI oficial.
 
 ## Conflitos esperados (vistos na composição) e a resolução
 
