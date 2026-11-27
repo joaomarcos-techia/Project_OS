@@ -1,8 +1,12 @@
 # AbacatePay SaaS — decisão final de release e piloto
 
+## 27/11/2026 — regressão de retenção e reteste no código final
+
+O commit `63fd0ab97598f4092e4fa870131088f862c30249` acrescenta uma regressão para o SQL efetivo do cron: `login_attempts` é purgado com parâmetro de **186 dias**. O teste dirigido passou (17/17), assim como ESLint e Prettier. O Snyk CLI no mesmo SHA manteve **0 vulnerabilidades em 458 dependências de produção**, **51 caminhos em quatro IDs de desenvolvimento** e **611 resultados Code**, sem alteração de fingerprints. A [matriz atual](../../security/snyk-current-reconciliation-20261127.csv) cobre os 611 resultados desse SHA. A CI final e o check integrado Snyk ainda precisam de fechamento; este último continua recusando por cota privada apesar do repositório público. Nenhum deploy ou DDL Production foi executado. **Production: NO-GO.**
+
 ## 27/11/2026 — reteste Snyk após a correção da senha sintética
 
-O código de `bbdc900d3087db9246a775ec58b110004e255439` passou no Snyk Open Source completo com **zero vulnerabilidades em 458 dependências de produção**; o escopo de desenvolvimento mantém **51 caminhos em quatro IDs**. O Snyk Code reportou **611 resultados: 49 HIGH, 340 MEDIUM e 222 LOW**, todos com classificação individual na [matriz do SHA](../../security/snyk-current-reconciliation-20261127.csv). A senha fixa desapareceu. O alerta de SRI do Turnstile também não foi reproduzido, mas o widget não mudou e o risco permanece. O check integrado do Snyk ainda falha por cota privada. O Preview ficou pronto. A [CI 46025015699](https://github.com/joaomarcos-techia/Project_OS/actions/runs/46025015699) falhou somente no inventário gerado após o novo import; as cinco referências deslocadas foram atualizadas e o inventário passou localmente. A CI do próximo SHA ainda está pendente. **Production: NO-GO.**
+O código de `bbdc900d3087db9246a775ec58b110004e255439` passou no Snyk Open Source completo com **zero vulnerabilidades em 458 dependências de produção**; o escopo de desenvolvimento mantém **51 caminhos em quatro IDs**. O Snyk Code reportou **611 resultados: 49 HIGH, 340 MEDIUM e 222 LOW**, classificados individualmente na matriz preservada no commit `6b0b74ef`. A senha fixa desapareceu. O alerta de SRI do Turnstile também não foi reproduzido, mas o widget não mudou e o risco permanece. O check integrado do Snyk ainda falha por cota privada. O Preview ficou pronto. A [CI 46025015699](https://github.com/joaomarcos-techia/Project_OS/actions/runs/46025015699) falhou somente no inventário gerado após o novo import; as cinco referências deslocadas foram atualizadas e o inventário passou localmente. **Production: NO-GO.**
 
 ## 27/11/2026 — revisão complementar de segurança
 
