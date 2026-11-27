@@ -196,6 +196,55 @@ describe('S2 / requisito 83: salvar antes do bloqueio por inatividade', () => {
     expect((firstField() as HTMLTextAreaElement).value).toBe('texto que não pode sumir');
   });
 
+  it('10b. rede caída de verdade (a action REJEITA): mostra o erro, não trava em "salvando" e salva quando a rede volta', async () => {
+    const { flushPendingWork } = await import('@/app/(app)/_lib/pending-work');
+    autosave.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    render(<ProntuarioEditor prontuario={makeProntuario()} />);
+    type('evolução digitada com a rede caída');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(autosave).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Erro ao salvar')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Salvar agora' }).hasAttribute('disabled')).toBe(false);
+    expect((firstField() as HTMLTextAreaElement).value).toBe('evolução digitada com a rede caída');
+
+    // A rede voltou: o aviso de inatividade pede o flush e o MESMO texto vai ao servidor (nada ficou "reivindicado").
+    let saved = false;
+    await act(async () => {
+      saved = await flushPendingWork();
+    });
+    expect(saved).toBe(true);
+    expect(autosave).toHaveBeenCalledTimes(2);
+    expect(autosave).toHaveBeenLastCalledWith('pront-1', { queixa_principal: 'evolução digitada com a rede caída' }, 1);
+  });
+
+  it('10c. rede caída no aviso E no bloqueio: responde "não salvo" e tenta de novo no segundo pedido', async () => {
+    const { flushPendingWork } = await import('@/app/(app)/_lib/pending-work');
+    autosave.mockRejectedValue(new TypeError('Failed to fetch'));
+    render(<ProntuarioEditor prontuario={makeProntuario()} />);
+    type('texto que o login vai avisar que não foi salvo');
+    let first = true;
+    let second = true;
+    await act(async () => {
+      first = await flushPendingWork();
+      second = await flushPendingWork();
+    });
+    expect([first, second]).toEqual([false, false]);
+    expect(autosave).toHaveBeenCalledTimes(2); // não ficou preso no primeiro
+  });
+
+  it('flush no unmount com a rede caída não vira rejeição solta', async () => {
+    autosave.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    const { unmount } = render(<ProntuarioEditor prontuario={makeProntuario()} />);
+    type('pendente ao trocar de paciente');
+    unmount();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(autosave).toHaveBeenCalledTimes(1);
+  });
+
   it('prontuário assinado não registra trabalho pendente', async () => {
     const { pendingWorkCount } = await import('@/app/(app)/_lib/pending-work');
     render(<ProntuarioEditor prontuario={makeProntuario({ status: 'assinado' })} />);

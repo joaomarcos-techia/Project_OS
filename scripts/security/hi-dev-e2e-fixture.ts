@@ -409,20 +409,47 @@ async function pagaClinic(): Promise<string> {
 }
 
 /**
- * S2 (bloqueio por inatividade, requisito 83): UMA conta dedicada (`e2e-hi-s2-gestor`) na clínica paga, que está no
- * alcance do perfil TISS (módulo ligado). Não toca nas contas das outras fixtures: as senhas delas (e o pacote do
- * Preview) continuam válidas. Recusa se o módulo da clínica paga estiver desligado, em vez de ligá-lo.
+ * S2 (bloqueio por inatividade, requisito 83): contas DEDICADAS, que não tocam nas das outras fixtures (as senhas
+ * delas e o pacote do Preview continuam válidos):
+ *  - `e2e-hi-s2-gestor` e `e2e-hi-s2-medica` na clínica paga, no alcance do perfil TISS (módulo ligado);
+ *  - um paciente sintético só da S2 na clínica paga (o rascunho do prontuário é criado pelo E2E, pela tela);
+ *  - `e2e-hi-s2-outra`, médica de OUTRA clínica sintética (`e2e-hi-s2-outra`, paga, sem Convênios), para o
+ *    isolamento do rascunho.
+ * Recusa se o módulo da clínica paga estiver desligado, em vez de ligá-lo.
  */
 async function setupS2() {
   const clinicId = await pagaClinic();
   const [mod] = await exec<{ enabled: boolean }>(sql`SELECT enabled FROM public.hi_clinic_settings WHERE clinic_id = ${clinicId}::uuid`);
   if (!mod?.enabled) throw new Error('módulo Convênios desligado na e2e-hi-paga: a conta S2 ficaria fora do alcance');
-  const email = 'e2e-hi-s2-gestor@example.com';
-  const pass = password();
-  const userId = await ensureUser(email, pass);
-  await profile(userId, clinicId, 'Gestora Sintética E2E S2', 'gestor');
-  writeFileSync(accountsFile!, JSON.stringify({ s2: { email, password: pass, userId, clinic: 'paga', role: 'gestor' } }, null, 1));
-  console.log(`[hi-dev-e2e-fixture] conta S2 pronta na e2e-hi-paga (módulo ligado); senha só em ${accountsFile}`);
+  type Account = { email: string; password: string; userId: string; clinic: string; role: string };
+  const accounts: Record<string, Account> = {};
+  const add = async (key: string, email: string, clinicKey: string, clinic: string, role: string, nome: string) => {
+    const pass = password();
+    const userId = await ensureUser(email, pass);
+    await profile(userId, clinic, nome, role);
+    await exec(sql`UPDATE public.profiles SET invite_accepted_at = coalesce(invite_accepted_at, now()) WHERE id = ${userId}::uuid`);
+    accounts[key] = { email, password: pass, userId, clinic: clinicKey, role };
+    return userId;
+  };
+  await add('s2', 'e2e-hi-s2-gestor@example.com', 'paga', clinicId, 'gestor', 'Gestora Sintética E2E S2');
+  await add('s2medica', 'e2e-hi-s2-medica@example.com', 'paga', clinicId, 'doctor', 'Dra. Sintética E2E S2');
+
+  const nome = 'Paciente Sintético E2E S2 Rascunho';
+  const cpf = cpfOf('577215664');
+  let [patient] = await exec<{ id: string }>(sql`SELECT id::text AS id FROM public.patients WHERE clinic_id = ${clinicId}::uuid AND nome = ${nome}`);
+  if (!patient) {
+    [patient] = await exec<{ id: string }>(sql`
+      INSERT INTO public.patients (clinic_id, nome, cpf_encrypted, cpf_hash)
+      VALUES (${clinicId}::uuid, ${nome}, ${await encryptForTenant(clinicId, cpf)}, ${await hashForLookup(cpf)}) RETURNING id::text AS id`);
+  }
+
+  const outra = await clinic('e2e-hi-s2-outra', 'Clínica Sintética E2E S2 Outra');
+  await add('s2outra', 'e2e-hi-s2-outra@example.com', 'outra', outra, 'doctor', 'Dra. Sintética Outra Clínica');
+  await subscription(outra, 'paid');
+
+  writeFileSync(accountsFile!, JSON.stringify(accounts, null, 1));
+  writeFileSync(outFile!, JSON.stringify({ clinicId, patientId: patient!.id, otherClinicId: outra }, null, 1));
+  console.log(`[hi-dev-e2e-fixture] S2 pronta: 3 contas (paga: gestora e médica; outra clínica: médica) e o paciente do rascunho; senhas só em ${accountsFile}`);
 }
 
 const pgCode = (e: unknown): string | undefined => {
