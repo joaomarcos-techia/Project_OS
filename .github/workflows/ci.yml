@@ -84,6 +84,19 @@ jobs:
       - name: Test + coverage gate
         run: pnpm test:coverage
 
+      # Só nesta branch de composição (#65): o relatório por arquivo, com contagem absoluta de ramos, para medir
+      # onde está a cobertura que falta (o texto do log só traz percentuais). Sem dado de paciente nem segredo.
+      - name: Upload coverage summary (composição)
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-composicao
+          path: |
+            coverage/coverage-summary.json
+            coverage/coverage-final.json
+          retention-days: 7
+          if-no-files-found: warn
+
       - name: Security inventory (AST and explicit guard review)
         run: pnpm security:inventory
 
