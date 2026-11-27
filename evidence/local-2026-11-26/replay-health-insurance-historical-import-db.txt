@@ -1,0 +1,27 @@
+{"ts":"2026-11-27T00:04:19.629Z","kind":"metric","event":"outbox.enqueued","clinicId":"7b41b8cd-840e-4aaa-b625-170389445bbe","eventType":"scheduling.appointment.created","eventId":"bfa8529f-38de-4787-9ef1-5f1df37cb472"}
+{"ts":"2026-11-27T00:04:19.676Z","kind":"metric","event":"outbox.enqueued","clinicId":"7b41b8cd-840e-4aaa-b625-170389445bbe","eventType":"scheduling.appointment.created","eventId":"2975b562-f90b-4d0e-a6f9-d855e1e89701"}
+PASS 1: linha válida: operadora pelo registro ANS e plano pelo código na operadora; atendimento importado (atendido, convênio, do lote) e a referência histórica gravados
+PASS 2: erros por linha, todos reunidos: operadora inexistente, de outra clínica (vira "não cadastrada"), suspensa; plano inexistente, de outra operadora e arquivado (6 mensagens)
+{"ts":"2026-11-27T00:04:19.790Z","kind":"metric","event":"outbox.enqueued","clinicId":"7b41b8cd-840e-4aaa-b625-170389445bbe","eventType":"scheduling.appointment.created","eventId":"7335da93-215b-4ac4-8a67-d1d705e32ea2"}
+{"ts":"2026-11-27T00:04:19.809Z","kind":"metric","event":"premium.denied","feature":"health_insurance","reason":"trial","source":"service"}
+PASS 3: compatibilidade comercial: em trial, a porta recusa, o banco recusa o atendimento de convênio importado e a referência (D24); módulo desligado recusado na porta; ativo volta a aceitar
+{"ts":"2026-11-27T00:04:20.007Z","kind":"metric","event":"outbox.enqueued","clinicId":"7b41b8cd-840e-4aaa-b625-170389445bbe","eventType":"scheduling.appointment.created","eventId":"eeb7552a-f4d0-4412-ba22-7e28f8cbd16e"}
+{"ts":"2026-11-27T00:04:20.057Z","kind":"metric","event":"outbox.enqueued","clinicId":"7b41b8cd-840e-4aaa-b625-170389445bbe","eventType":"scheduling.appointment.created","eventId":"7fdd41e6-a177-4b86-a316-d96668bd7452"}
+PASS 4: guardas do banco: particular, outro lote, plano de outra operadora e atendimento não importado recusados; reimportar o mesmo atendimento não duplica (PK); a referência não se altera
+{"ts":"2026-11-27T00:04:20.305Z","kind":"metric","event":"insurance.reconcile.run","candidates":0,"processed":0,"guideReady":0,"gapOpen":0,"closed":0,"busy":0,"failed":0,"skippedForBudget":0}
+{"ts":"2026-11-27T00:04:20.528Z","kind":"metric","event":"outbox.processed","clinicId":"7b41b8cd-840e-4aaa-b625-170389445bbe","eventType":"scheduling.appointment.created","attempts":1}
+{"ts":"2026-11-27T00:04:20.550Z","kind":"metric","event":"outbox.processed","clinicId":"7b41b8cd-840e-4aaa-b625-170389445bbe","eventType":"scheduling.appointment.created","attempts":1}
+{"ts":"2026-11-27T00:04:20.571Z","kind":"metric","event":"outbox.processed","clinicId":"7b41b8cd-840e-4aaa-b625-170389445bbe","eventType":"scheduling.appointment.created","attempts":1}
+{"ts":"2026-11-27T00:04:20.590Z","kind":"metric","event":"outbox.processed","clinicId":"7b41b8cd-840e-4aaa-b625-170389445bbe","eventType":"scheduling.appointment.created","attempts":1}
+{"ts":"2026-11-27T00:04:20.612Z","kind":"metric","event":"outbox.processed","clinicId":"7b41b8cd-840e-4aaa-b625-170389445bbe","eventType":"scheduling.appointment.created","attempts":1}
+{"ts":"2026-11-27T00:04:20.821Z","kind":"metric","event":"worker.tick","processed":5,"failed":0,"skipped":0,"empty":45,"stuck_reclaimed":0,"circuit_paused":0,"duration_ms":515}
+{"ts":"2026-11-27T00:04:21.083Z","kind":"metric","event":"worker.tick","processed":0,"failed":0,"skipped":0,"empty":50,"stuck_reclaimed":0,"circuit_paused":0,"duration_ms":260}
+{"ts":"2026-11-27T00:04:21.332Z","kind":"metric","event":"worker.tick","processed":0,"failed":0,"skipped":0,"empty":50,"stuck_reclaimed":0,"circuit_paused":0,"duration_ms":248}
+{"ts":"2026-11-27T00:04:21.518Z","kind":"metric","event":"worker.tick","processed":0,"failed":0,"skipped":0,"empty":50,"stuck_reclaimed":0,"circuit_paused":0,"duration_ms":185}
+PASS 5: faturamento: evento, reconcile e correção ignoram o importado; fora dos candidatos do reconcile; depois do outbox, guias/pendências/recebíveis/coparticipações iguais ({"guides":0,"gaps":0,"receivables":0,"copays":0})
+PASS 6: isolamento: a sessão da clínica B não lê nem grava referência histórica da A (RLS; o atendimento da A nem fica visível para a guarda)
+PASS 7: rastro TISS (S1/S3): clínica sem nada fica fora; com carteirinha entra; desligar o módulo NÃO tira do alcance enquanto o dado existe
+PASS 8: reversão da 0169: remove a tabela e as funções; atendimentos, lotes e operadoras ficam
+PASS 9: recuperação: a 0169 reaplica limpa depois da reversão (tabela, gatilhos e RLS de volta)
+
+9/9 provas da importação histórica com convênio (P4.7-b) passaram.

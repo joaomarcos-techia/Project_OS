@@ -224,9 +224,19 @@ try {
   assert.ok(Number((await sql`select count(*)::int as n from public.appointments where id = ${ap1}::uuid`)[0]!.n) === 1);
   pass('reversão da 0169: remove a tabela e as funções; atendimentos, lotes e operadoras ficam');
 
+  // ── 8. Recuperação: reaplicar a candidata depois da reversão (replay) ──
+  await sql.unsafe(candidateBody);
+  const [{ t2 }] = (await sql`select to_regclass('public.hi_historical_coverages')::text as t2`) as unknown as [{ t2: string | null }];
+  assert.equal(t2, 'hi_historical_coverages');
+  const [cat] = await sql`select (select count(*)::int from pg_trigger where tgrelid = 'public.hi_historical_coverages'::regclass and not tgisinternal) as gatilhos,
+      (select relrowsecurity from pg_class where oid = 'public.hi_historical_coverages'::regclass) as rls`;
+  assert.ok(Number(cat!.gatilhos) >= 2, 'gatilhos de guarda e de imutabilidade de volta');
+  assert.equal(cat!.rls, true);
+  pass('recuperação: a 0169 reaplica limpa depois da reversão (tabela, gatilhos e RLS de volta)');
+
   void SYS_ACTOR;
-  console.log(`\n${passed}/8 provas da importação histórica com convênio (P4.7-b) passaram.`);
-  assert.equal(passed, 8);
+  console.log(`\n${passed}/9 provas da importação histórica com convênio (P4.7-b) passaram.`);
+  assert.equal(passed, 9);
 } finally {
   await cluster.stop();
 }
