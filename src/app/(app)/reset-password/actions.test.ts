@@ -168,6 +168,35 @@ beforeEach(() => {
 });
 
 describe('resetPasswordAction', () => {
+  // Ciclo 9 (replay): cookies capturados antes da troca carregam um grant ainda assinado, mas o
+  // logout global da troca revogou a sessão do link. Nada é instalado e nenhum epoch é consumido.
+  it.each([
+    ['profile', 'sessão revogada', null],
+    ['profile', 'sessão de outra conta', 'outra-conta'],
+    ['pretenant_orphan', 'sessão revogada', null],
+    ['pretenant_orphan', 'sessão de outra conta', 'outra-conta'],
+  ] as const)('grant %s com %s não instala senha', async (kind, _label, sessionUser) => {
+    mocks.readGrant.mockReturnValue(
+      kind === 'profile'
+        ? { kind, userId, epoch: 4, expiresAt: Date.now() + 600_000 }
+        : { kind, userId, epoch: 4, signupRef: 'a'.repeat(64), expiresAt: Date.now() + 600_000 },
+    );
+    mocks.getUser.mockResolvedValue({
+      data: { user: sessionUser ? { ...authUser, id: sessionUser } : null },
+    });
+
+    const result = await resetPasswordAction({ error: null }, form());
+
+    expect(result.error).toBe(
+      'Link de redefinição inválido, expirado ou já utilizado. Peça um novo ao administrador.',
+    );
+    expect(mocks.bumpEpochIfCurrent).not.toHaveBeenCalled();
+    expect(mocks.advanceEpoch).not.toHaveBeenCalled();
+    expect(mocks.updateUser).not.toHaveBeenCalled();
+    expect(mocks.updateAdminUser).not.toHaveBeenCalled();
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
   it('aplica a politica compartilhada antes de abrir sessao', async () => {
     const result = await resetPasswordAction({ error: null }, form('abcdefgh'));
     expect(result.error).not.toBeNull();
@@ -336,6 +365,55 @@ describe('resetPasswordAction', () => {
     expect(mocks.orphanLock).toHaveBeenCalledWith(userId, expect.any(Function));
     expect(mocks.cookieDelete).toHaveBeenCalledWith('qoro_rcv');
     expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'global' });
+  });
+
+  // P-29 (20/11/2026): a conta confirmada que nunca concluiu a senha do cadastro (marker
+  // `pending`) e cujo draft expirou instala a primeira senha pelo link de recovery.
+  it('instala a primeira senha da conta confirmada pending depois que o draft expirou', async () => {
+    mocks.readGrant.mockReturnValue({
+      kind: 'pretenant_orphan',
+      userId,
+      epoch: Date.parse(authUpdatedAt),
+      signupRef,
+      expiresAt: Date.now() + 60_000,
+    });
+    // A conta autoritativa ainda está `pending` (sem marker `set`).
+    mocks.getAdminUser.mockResolvedValue({
+      data: { user: { ...authUser, app_metadata: { marker: 'pending' } } },
+      error: null,
+    });
+
+    await expect(resetPasswordAction({ error: null }, form())).rejects.toThrow(
+      'REDIRECT:/login?reason=password_updated',
+    );
+
+    expect(mocks.updateAdminUser).toHaveBeenCalledWith(userId, {
+      password: 'SenhaForte7',
+      app_metadata: {
+        marker: 'set',
+        qoro_password_recovery_epoch: Date.parse(authUpdatedAt),
+      },
+    });
+    expect(mocks.checkExposure).toHaveBeenCalledWith('SenhaForte7');
+    expect(mocks.orphanLock).toHaveBeenCalledWith(userId, expect.any(Function));
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'global' });
+  });
+
+  it('recusa grant de orphan sem marker do cadastro desta referência', async () => {
+    mocks.readGrant.mockReturnValue({
+      kind: 'pretenant_orphan',
+      userId,
+      epoch: Date.parse(authUpdatedAt),
+      signupRef,
+      expiresAt: Date.now() + 60_000,
+    });
+    mocks.readPasswordState.mockReturnValue(null);
+
+    const result = await resetPasswordAction({ error: null }, form());
+
+    expect(result.error).toContain('inválido');
+    expect(mocks.updateAdminUser).not.toHaveBeenCalled();
+    expect(mocks.cookieDelete).toHaveBeenCalledWith('qoro_rcv');
   });
 
   it('recusa grant de orphan quando Auth mudou depois da emissão', async () => {

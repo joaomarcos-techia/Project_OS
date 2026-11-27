@@ -257,7 +257,7 @@ test.describe('produção: ciclo financeiro e caixa na Clínica A', () => {
         await receivedRegion.getByRole('button', { name: 'Reembolsar' }).count(),
         'a conta E2E deve iniciar sem recebimento reembolsável hoje',
       ).toBe(0);
-      await cancelCard.getByRole('button', { name: 'Pagar', exact: true }).click();
+      await cancelCard.getByRole('button', { name: 'Registrar pagamento', exact: true }).click();
       await cancelCard
         .getByRole('button', { name: `Cancelar conta de ${cancelDescription}`, exact: true })
         .click();
@@ -279,11 +279,11 @@ test.describe('produção: ciclo financeiro e caixa na Clínica A', () => {
       await page.reload();
       let mainCard = await financialCard(page, mainDescription, 'A receber');
       await expect(mainCard).toBeVisible();
-      await mainCard.getByRole('button', { name: 'Confirmar pagamento' }).click();
+      await mainCard.getByRole('button', { name: 'Registrar recebimento' }).click();
       await mainCard.getByLabel('Valor recebido').fill('3,33');
       const firstPaymentStatus = await clickServerAction(
         page,
-        mainCard.getByRole('button', { name: /Receber R\$/u }),
+        mainCard.getByRole('button', { name: /Registrar R\$/u }),
       );
       expect(firstPaymentStatus).toBeLessThan(500);
       await expect
@@ -298,11 +298,11 @@ test.describe('produção: ciclo financeiro e caixa na Clínica A', () => {
 
       await page.reload();
       mainCard = await financialCard(page, mainDescription, 'A receber');
-      await mainCard.getByRole('button', { name: 'Receber saldo', exact: true }).click();
+      await mainCard.getByRole('button', { name: 'Registrar o restante', exact: true }).click();
       await mainCard.getByLabel('Valor recebido').fill('6,67');
       const secondPaymentStatus = await clickServerAction(
         page,
-        mainCard.getByRole('button', { name: /Receber R\$/u }),
+        mainCard.getByRole('button', { name: /Registrar R\$/u }),
       );
       expect(secondPaymentStatus).toBeLessThan(500);
       await expect
@@ -435,7 +435,11 @@ test.describe('produção: ciclo financeiro e caixa na Clínica A', () => {
         .catch(() => false);
 
       await page.goto('/financeiro?tipo=receber&status=pago');
-      await expect(page.getByLabel('Filtrar por tipo')).toHaveValue('receber');
+      await expect(
+        page
+          .getByRole('group', { name: 'Tipo de lançamento' })
+          .getByRole('link', { name: 'A receber' }),
+      ).toHaveAttribute('aria-current', 'page');
       await expect(page.getByLabel('Filtrar por status')).toHaveValue('pago');
       const remainsInPaidFilter = await becomesVisible(
         page.getByText(mainDescription, { exact: true }),
@@ -444,14 +448,22 @@ test.describe('produção: ciclo financeiro e caixa na Clínica A', () => {
       // Espera a lista renderizar antes de procurar o card (a rota tem
       // loading.tsx, entao o shell aparece primeiro).
       await page.getByLabel('Filtrar por status').waitFor({ timeout: 30_000 });
-      await expect(page.getByLabel('Filtrar por tipo')).toHaveValue('receber');
+      await expect(
+        page
+          .getByRole('group', { name: 'Tipo de lançamento' })
+          .getByRole('link', { name: 'A receber' }),
+      ).toHaveAttribute('aria-current', 'page');
       await expect(page.getByLabel('Filtrar por status')).toHaveValue('estornado');
       const appearsInRefundedFilter = await page
         .getByText(mainDescription, { exact: true })
         .isVisible()
         .catch(() => false);
       await page.goto('/financeiro?tipo=manipulado&status=qualquer');
-      await expect(page.getByLabel('Filtrar por tipo')).toHaveValue('');
+      await expect(
+        page
+          .getByRole('group', { name: 'Tipo de lançamento' })
+          .getByRole('link', { name: 'Todos os tipos' }),
+      ).toHaveAttribute('aria-current', 'page');
       await expect(page.getByLabel('Filtrar por status')).toHaveValue('');
       const invalidFiltersIgnored = await becomesVisible(
         page.getByText(mainDescription, { exact: true }),

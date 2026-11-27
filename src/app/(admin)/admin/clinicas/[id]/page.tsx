@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -22,6 +23,8 @@ import {
 import { clinicRepository } from '../../_lib/repositories/clinics.repo';
 import { ExportAuditForm } from './export-form';
 import { ImpersonateForm } from './impersonate-form';
+
+export const metadata: Metadata = { title: 'Clínica' };
 
 export const dynamic = 'force-dynamic';
 

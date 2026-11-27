@@ -13,6 +13,7 @@ import {
   Drawer,
   DrawerBody,
   DrawerContent,
+  DrawerDescription,
   DrawerFooter,
   DrawerHeader,
   DrawerTitle,
@@ -26,21 +27,85 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
 
 import { buscarPacientes, criarAtendimento, type CriarAtendimentoInput } from './actions';
+import { QuickPatientForm } from './quick-patient-form';
 import type { AgendaData } from './data';
+import { todayYmd } from './range';
 
 type Modo = 'agendar' | 'agora';
 
-/** YYYY-MM-DD de hoje (local do browser) para o `min` do input de data. */
-function hojeISODate(): string {
-  const d = new Date();
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+type CampoNovoAtendimento =
+  | 'paciente'
+  | 'procedimento'
+  | 'profissional'
+  | 'data'
+  | 'hora'
+  | 'intervalo'
+  | 'quantidade';
+
+export type ErrosNovoAtendimento = Partial<Record<CampoNovoAtendimento, string>>;
+
+/** Ordem visual dos campos e o `id` de cada controle (foco no primeiro inválido). */
+const CAMPOS: ReadonlyArray<readonly [CampoNovoAtendimento, string]> = [
+  ['paciente', 'appointment-patient'],
+  ['procedimento', 'appointment-procedure'],
+  ['profissional', 'appointment-doctor'],
+  ['data', 'appointment-date'],
+  ['hora', 'appointment-time'],
+  ['intervalo', 'recurrence-interval-weeks'],
+  ['quantidade', 'recurrence-occurrences'],
+];
+
+/**
+ * UX-005 (`docs/otimização_ui_final.md`) — as mesmas checagens de antes, mas todas
+ * de uma vez e por campo: a pessoa vê tudo o que falta no primeiro envio, cada
+ * aviso ao lado do campo. O servidor continua validando tudo.
+ */
+export function validarNovoAtendimento(v: {
+  modo: Modo;
+  temPaciente: boolean;
+  procedureId: string;
+  doctorId: string;
+  date: string;
+  time: string;
+  recurring: boolean;
+  intervalWeeks: string;
+  occurrences: string;
+}): ErrosNovoAtendimento {
+  const erros: ErrosNovoAtendimento = {};
+  if (!v.temPaciente) erros.paciente = 'Selecione o paciente.';
+  if (!v.procedureId) erros.procedimento = 'Selecione o procedimento.';
+  if (!v.doctorId) erros.profissional = 'Selecione o profissional.';
+  if (v.modo === 'agendar') {
+    if (!v.date) erros.data = 'Informe a data.';
+    if (!v.time) erros.hora = 'Informe a hora.';
+    if (v.recurring) {
+      const interval = Number(v.intervalWeeks);
+      const count = Number(v.occurrences);
+      if (!Number.isInteger(interval) || interval < 1) {
+        erros.intervalo = 'Informe um intervalo semanal válido.';
+      }
+      if (!Number.isInteger(count) || count < 2) {
+        erros.quantidade = 'A recorrência precisa de ao menos duas consultas.';
+      }
+    }
+  }
+  return erros;
+}
+
+/** `2026-11-14` → `14/11/2026`, sem passar por `Date` (é data civil da clínica). */
+function dataCurta(ymd: string): string {
+  const [y, m, d] = ymd.split('-');
+  return y && m && d ? `${d}/${m}/${y}` : ymd;
 }
 
 /** Novo atendimento em Drawer — default AGENDAR (decisão do founder); Enter submete. */
 export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  // Hoje no fuso da CLÍNICA, que é como o servidor lê a data e a hora
+  // digitadas. O dia do navegador divergia depois das 21h e para quem atende
+  // de outro fuso.
+  const hojeISODate = () => todayYmd(data.tz);
 
   const [modo, setModo] = useState<Modo>('agendar');
   const [paciente, setPaciente] = useState<ComboboxItem | null>(null);
@@ -54,10 +119,24 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
   const [recurring, setRecurring] = useState(false);
   const [intervalWeeks, setIntervalWeeks] = useState('1');
   const [occurrences, setOccurrences] = useState('4');
-  const [error, setError] = useState<string | null>(null);
+  // Erros de campo (validação da tela) separados do erro do servidor (UX-005).
+  const [fieldErrors, setFieldErrors] = useState<ErrosNovoAtendimento>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  // UX-006: cadastro rápido aberto dentro da gaveta (nada do agendamento se perde).
+  const [cadastrandoPaciente, setCadastrandoPaciente] = useState(false);
+  // Anúncio da seleção feita pelo cadastro rápido (região `status` sempre montada).
+  const [avisoPaciente, setAvisoPaciente] = useState('');
   const [salvando, startSalvar] = useTransition();
 
   const semProcedimentos = data.procedures.length === 0;
+
+  function limparErro(campo: CampoNovoAtendimento) {
+    setFieldErrors((atual) => {
+      if (!atual[campo]) return atual;
+      const { [campo]: _removido, ...resto } = atual;
+      return resto;
+    });
+  }
 
   function reset() {
     setModo('agendar');
@@ -72,18 +151,40 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
     setRecurring(false);
     setIntervalWeeks('1');
     setOccurrences('4');
-    setError(null);
+    setFieldErrors({});
+    setFormError(null);
+    setCadastrandoPaciente(false);
+    setAvisoPaciente('');
   }
 
   function submit() {
-    setError(null);
-    if (!paciente) return setError('Selecione o paciente.');
-    if (!procedureId) return setError('Selecione o procedimento.');
+    setFormError(null);
     const docId = data.isPractitioner ? (data.selfDoctorId ?? '') : doctorId;
-    if (!docId) return setError('Selecione o profissional.');
-    if (modo === 'agendar' && (!date || !time)) {
-      return setError('Informe data e hora.');
+    const erros = validarNovoAtendimento({
+      modo,
+      temPaciente: paciente !== null,
+      procedureId,
+      doctorId: docId,
+      date,
+      time,
+      recurring,
+      intervalWeeks,
+      occurrences,
+    });
+    // Médico agendando para si não vê o campo "Profissional": o aviso não pode
+    // ficar preso a um campo escondido.
+    if (erros.profissional && data.isPractitioner) {
+      setFormError(erros.profissional);
+      delete erros.profissional;
     }
+    setFieldErrors(erros);
+    const primeiro = CAMPOS.find(([campo]) => erros[campo]);
+    if (primeiro) {
+      // Depois do render, para o campo já estar com o erro ligado.
+      requestAnimationFrame(() => document.getElementById(primeiro[1])?.focus());
+      return;
+    }
+    if (!paciente || !docId) return;
     const base = {
       patientId: paciente.id,
       procedureId,
@@ -94,12 +195,6 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
     };
     const interval = Number(intervalWeeks);
     const count = Number(occurrences);
-    if (modo === 'agendar' && recurring && (!Number.isInteger(interval) || interval < 1)) {
-      return setError('Informe um intervalo semanal válido.');
-    }
-    if (modo === 'agendar' && recurring && (!Number.isInteger(count) || count < 2)) {
-      return setError('A recorrência precisa de ao menos duas consultas.');
-    }
     const input: CriarAtendimentoInput =
       modo === 'agendar'
         ? {
@@ -120,13 +215,13 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
             ? `${paciente.label} já está na fila do Consultório.`
             : res.createdCount > 1
               ? `${res.createdCount} consultas semanais criadas para ${paciente.label}.`
-              : `${paciente.label} em ${date} às ${time}.`,
+              : `${paciente.label} em ${dataCurta(date)} às ${time}.`,
         );
         setOpen(false);
         reset();
         router.refresh();
       } else {
-        setError(res.message);
+        setFormError(res.message);
       }
     });
   }
@@ -157,9 +252,12 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
         >
           <DrawerHeader>
             <DrawerTitle>Novo atendimento</DrawerTitle>
+            <DrawerDescription>
+              Escolha o tipo, o paciente, o horário e o procedimento.
+            </DrawerDescription>
           </DrawerHeader>
           <DrawerBody className="flex flex-col gap-4">
-            {error ? <Alert variant="danger">{error}</Alert> : null}
+            {formError ? <Alert variant="danger">{formError}</Alert> : null}
 
             <Field label="Tipo" group>
               <Segmented
@@ -178,38 +276,96 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
                 : 'Agende para uma data/hora futura. O horário é o da clínica.'}
             </p>
 
-            <Field label="Paciente" htmlFor="appointment-patient">
-              <Combobox
-                id="appointment-patient"
-                value={paciente}
-                onSelect={setPaciente}
-                onSearch={async (term) =>
-                  (await buscarPacientes(term)).map((p) => ({ id: p.id, label: p.nome }))
-                }
-                placeholder="Buscar por nome (mín. 2 letras)"
-                emptyLabel="Nenhum paciente encontrado."
-              />
-              {!paciente ? (
-                <Link
-                  href="/pacientes?novo=1"
-                  className="mt-1 inline-block text-(length:--fs-xs) text-link underline"
+            <div className="flex flex-col gap-1">
+              <Field label="Paciente" htmlFor="appointment-patient" error={fieldErrors.paciente}>
+                <Combobox
+                  id="appointment-patient"
+                  value={paciente}
+                  onSelect={(item) => {
+                    setPaciente(item);
+                    if (item) limparErro('paciente');
+                  }}
+                  onSearch={async (term) =>
+                    (await buscarPacientes(term)).map((p) => ({ id: p.id, label: p.nome }))
+                  }
+                  placeholder="Buscar por nome (mín. 2 letras)"
+                  emptyLabel="Nenhum paciente encontrado."
+                />
+              </Field>
+              {/* UX-006: antes era um link para /pacientes que descartava tudo o que já
+                  estava preenchido aqui. Só aparece para quem pode cadastrar paciente. */}
+              {!paciente && !cadastrandoPaciente && data.canCreatePatient ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="self-start"
+                  onClick={() => setCadastrandoPaciente(true)}
                 >
                   Cadastrar novo paciente
-                </Link>
+                </Button>
               ) : null}
-            </Field>
+              <p role="status" className="sr-only">
+                {avisoPaciente}
+              </p>
+            </div>
+
+            {cadastrandoPaciente ? (
+              <QuickPatientForm
+                onCreated={(novo) => {
+                  setPaciente(novo);
+                  setCadastrandoPaciente(false);
+                  limparErro('paciente');
+                  // Concorda com "cadastro", não com a pessoa: o gênero dela
+                  // não é dado do formulário.
+                  setAvisoPaciente(
+                    `Cadastro de ${novo.label} concluído e já selecionado neste atendimento.`,
+                  );
+                  // O formulário rápido some com o foco dentro dele: sem isto o
+                  // foco cai no corpo da página. Segue para o próximo campo do
+                  // agendamento (Profissional, se o catálogo estiver vazio).
+                  requestAnimationFrame(() =>
+                    (
+                      document.getElementById('appointment-procedure') ??
+                      document.getElementById('appointment-doctor')
+                    )?.focus(),
+                  );
+                }}
+                onCancel={() => {
+                  setCadastrandoPaciente(false);
+                  // Devolve o foco à busca de paciente, de onde a pessoa saiu.
+                  requestAnimationFrame(() =>
+                    document.getElementById('appointment-patient')?.focus(),
+                  );
+                }}
+              />
+            ) : null}
 
             {semProcedimentos ? (
               <Alert variant="warning">
-                Nenhum procedimento cadastrado. Cadastre ao menos um (catálogo de procedimentos)
-                para criar atendimentos.
+                Nenhum procedimento cadastrado. Para agendar, a clínica precisa de ao menos um.{' '}
+                {data.canManageProcedures ? (
+                  <Link href="/configuracoes/procedimentos" className="text-link underline">
+                    Cadastrar procedimento
+                  </Link>
+                ) : (
+                  'Peça a quem administra a clínica para cadastrar os procedimentos.'
+                )}
               </Alert>
             ) : (
-              <Field label="Procedimento" htmlFor="appointment-procedure">
+              <Field
+                label="Procedimento"
+                htmlFor="appointment-procedure"
+                error={fieldErrors.procedimento}
+              >
                 <Select
                   id="appointment-procedure"
                   value={procedureId}
-                  onChange={(e) => setProcedureId(e.target.value)}
+                  invalid={Boolean(fieldErrors.procedimento)}
+                  onChange={(e) => {
+                    setProcedureId(e.target.value);
+                    if (e.target.value) limparErro('procedimento');
+                  }}
                 >
                   <option value="">Selecione…</option>
                   {data.procedures.map((p) => (
@@ -222,11 +378,19 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
             )}
 
             {!data.isPractitioner ? (
-              <Field label="Profissional" htmlFor="appointment-doctor">
+              <Field
+                label="Profissional"
+                htmlFor="appointment-doctor"
+                error={fieldErrors.profissional}
+              >
                 <Select
                   id="appointment-doctor"
                   value={doctorId}
-                  onChange={(e) => setDoctorId(e.target.value)}
+                  invalid={Boolean(fieldErrors.profissional)}
+                  onChange={(e) => {
+                    setDoctorId(e.target.value);
+                    if (e.target.value) limparErro('profissional');
+                  }}
                 >
                   <option value="">Selecione…</option>
                   {data.doctors.map((d) => (
@@ -241,21 +405,29 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
             {modo === 'agendar' ? (
               <div className="flex flex-col gap-3">
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Data" htmlFor="appointment-date">
+                  <Field label="Data" htmlFor="appointment-date" error={fieldErrors.data}>
                     <Input
                       id="appointment-date"
                       type="date"
                       min={hojeISODate()}
                       value={date}
-                      onChange={(e) => setDate(e.target.value)}
+                      invalid={Boolean(fieldErrors.data)}
+                      onChange={(e) => {
+                        setDate(e.target.value);
+                        if (e.target.value) limparErro('data');
+                      }}
                     />
                   </Field>
-                  <Field label="Hora" htmlFor="appointment-time">
+                  <Field label="Hora" htmlFor="appointment-time" error={fieldErrors.hora}>
                     <Input
                       id="appointment-time"
                       type="time"
                       value={time}
-                      onChange={(e) => setTime(e.target.value)}
+                      invalid={Boolean(fieldErrors.hora)}
+                      onChange={(e) => {
+                        setTime(e.target.value);
+                        if (e.target.value) limparErro('hora');
+                      }}
                     />
                   </Field>
                 </div>
@@ -272,24 +444,40 @@ export function NewAppointmentDrawer({ data }: { data: AgendaData }) {
                         104 consultas e não tinham nome acessível: rótulo visual
                         sem `htmlFor`, input sem `id`. Um leitor de tela não
                         distinguia "intervalo" de "quantidade". */}
-                    <Field label="Intervalo (semanas)" htmlFor="recurrence-interval-weeks">
+                    <Field
+                      label="Intervalo (semanas)"
+                      htmlFor="recurrence-interval-weeks"
+                      error={fieldErrors.intervalo}
+                    >
                       <Input
                         id="recurrence-interval-weeks"
                         type="number"
                         min={1}
                         max={52}
                         value={intervalWeeks}
-                        onChange={(event) => setIntervalWeeks(event.target.value)}
+                        invalid={Boolean(fieldErrors.intervalo)}
+                        onChange={(event) => {
+                          setIntervalWeeks(event.target.value);
+                          limparErro('intervalo');
+                        }}
                       />
                     </Field>
-                    <Field label="Quantidade de consultas" htmlFor="recurrence-occurrences">
+                    <Field
+                      label="Quantidade de consultas"
+                      htmlFor="recurrence-occurrences"
+                      error={fieldErrors.quantidade}
+                    >
                       <Input
                         id="recurrence-occurrences"
                         type="number"
                         min={2}
                         max={104}
                         value={occurrences}
-                        onChange={(event) => setOccurrences(event.target.value)}
+                        invalid={Boolean(fieldErrors.quantidade)}
+                        onChange={(event) => {
+                          setOccurrences(event.target.value);
+                          limparErro('quantidade');
+                        }}
                       />
                     </Field>
                   </div>

@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+// The tool fixture represents a paid clinic; the registry's denial has its own tests.
+vi.mock('@/lib/entitlements', () => ({ assertOperationalModuleAccessTx: vi.fn(async () => {}) }));
 
 import type { ToolContext } from './registry';
 import { getTool, validateAndExecute } from './registry';

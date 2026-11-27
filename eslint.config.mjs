@@ -1,6 +1,6 @@
 // ESLint flat config (ESLint 9).
 // Composes:
-//   - next/core-web-vitals (via FlatCompat — eslint-config-next is still legacy)
+//   - Next.js Core Web Vitals and TypeScript flat configs
 //   - eslint-plugin-boundaries (cross-context isolation — see docs/CONVENTIONS.md)
 //   - eslint-config-prettier (turn off formatting rules — Prettier owns those)
 //
@@ -12,24 +12,10 @@
 //
 // Override pontual permitido com:
 //   // eslint-disable-next-line boundaries/element-types -- razão obrigatória
-import { FlatCompat } from '@eslint/eslintrc';
+import nextVitals from 'eslint-config-next/core-web-vitals';
+import nextTs from 'eslint-config-next/typescript';
 import boundaries from 'eslint-plugin-boundaries';
 import prettierConfig from 'eslint-config-prettier';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-  // pnpm mantém os plugins como dependências do eslint-config-next.
-  // Resolve também no lint iniciado pelo next build em uma cópia do checkout.
-  resolvePluginsRelativeTo: path.dirname(
-    createRequire(import.meta.url).resolve('eslint-config-next/package.json'),
-  ),
-});
 
 const config = [
   {
@@ -49,7 +35,33 @@ const config = [
     ],
   },
 
-  ...compat.extends('next/core-web-vitals', 'next/typescript'),
+  ...nextVitals,
+  ...nextTs,
+
+  // Preserve the React Hooks lint policy enforced before the Next 16 trial.
+  // The new preset enables React Compiler rules across unchanged application code;
+  // adopting those rules requires a separate, broader refactor.
+  {
+    rules: {
+      // Existing flows deliberately force a full navigation after auth/payment.
+      // This Next 16 rule was not part of the prior lint baseline.
+      '@next/next/no-location-assign-relative-destination': 'off',
+      'react-hooks/static-components': 'off',
+      'react-hooks/use-memo': 'off',
+      'react-hooks/preserve-manual-memoization': 'off',
+      'react-hooks/incompatible-library': 'off',
+      'react-hooks/immutability': 'off',
+      'react-hooks/globals': 'off',
+      'react-hooks/refs': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/error-boundaries': 'off',
+      'react-hooks/purity': 'off',
+      'react-hooks/set-state-in-render': 'off',
+      'react-hooks/unsupported-syntax': 'off',
+      'react-hooks/config': 'off',
+      'react-hooks/gating': 'off',
+    },
+  },
 
   {
     plugins: { boundaries },
@@ -150,6 +162,10 @@ const config = [
       'scripts/load-test-seed-runner.ts',
       // Bootstrap do cluster temporário: loopback fixo e data_directory verificado.
       'scripts/security/tenant-isolation.ts',
+      // Guarded DEV release operator; explicit fixed ref and frozen manifest.
+      'scripts/security/abacatepay-dev-release.ts',
+      // One-shot Pix migrator: exact DEV ref, pinned journal/hash and session lock.
+      'scripts/abacatepay-pix-dev-apply.ts',
       'scripts/security/signup-regression.ts',
       // Mesmo bootstrap, para o harness de provisionamento O-6: cluster efêmero
       // sob o TEMP do SO, loopback fixo, migrations reais aplicadas em ordem.
@@ -235,6 +251,16 @@ const config = [
       // asaas_payment_id (server-to-server, validado por token) e processa a
       // transição. Mesma justificativa dos crons. Só esta rota de webhook.
       'src/app/api/webhooks/asaas/**/*.{ts,tsx}',
+      // ADR-069: private gateway tables have FORCE RLS/no tenant policies.
+      // Exact paths only: authenticated secret+HMAC receiver, leased readback
+      // processor, server-authorized tenant checkout, and pre-tenant saga.
+      'src/app/api/webhooks/abacatepay/route.ts',
+      'src/contexts/billing/internal/abacatepay-processing.ts',
+      'src/contexts/billing/internal/deferred-checkout.ts',
+      'src/contexts/onboarding/internal/signup-free-trial.ts',
+      // ADR-069 C3: exact pre-tenant invitation/identity seams, locked and pinned.
+      'src/contexts/onboarding/internal/signup-pilot-repository.ts',
+      'src/contexts/onboarding/internal/signup-pilot.ts',
       // C14: read-models de "candidatos" (Scheduling/Financial são donos da regra
       // de "quem recebe") + repository da fila proativa fazem scan cross-tenant
       // read-only (sem PII, bound por LIMIT); writes per-clínica seguem em

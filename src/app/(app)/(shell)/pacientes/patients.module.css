@@ -50,6 +50,16 @@
     border-bottom: 0;
   }
 
+  /* A regra global do link da linha é mais específica; no cartão, ele desalinhava do e-mail. */
+  .table td:first-child a {
+    padding-inline: var(--sp-2) !important;
+  }
+
+  /* Em Removidos a célula não tem link: o recuo vem da própria célula. */
+  .table td:first-child:not(:has(a)) {
+    padding-left: var(--sp-2) !important;
+  }
+
   .table td {
     display: block;
     min-width: 0;
@@ -87,7 +97,7 @@
 
   /* Nascimento e vinculo saem no telefone: a linha vira nome + contato + Abrir. */
   .table td:nth-child(3),
-  .table td:nth-child(4) {
+  .table td:nth-child(4):not(:last-child) {
     display: none;
   }
 

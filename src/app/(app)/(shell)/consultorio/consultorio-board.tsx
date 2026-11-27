@@ -1,6 +1,6 @@
 'use client';
 
-import { Calendar, RefreshCw } from 'lucide-react';
+import { Calendar, RefreshCw, Stethoscope } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -75,10 +75,12 @@ function ColumnTitle({
 export function ConsultorioBoard({
   isPractitioner,
   initialBoard,
+  timeZone,
 }: {
   clinicId: string;
   isPractitioner: boolean;
   initialBoard: BoardDTO;
+  timeZone: string;
 }) {
   const [board, setBoard] = useState<BoardDTO>(initialBoard);
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(
@@ -184,12 +186,12 @@ export function ConsultorioBoard({
   return (
     <>
       <PageHeader
-        crumbs={[{ label: 'Operação' }, { label: 'Consultório' }]}
+        icon={<Stethoscope aria-hidden="true" />}
         title="Consultório"
-        description="Atenda um turno inteiro sem trocar de tela."
-        meta={`${board.salaEspera.length} na fila · ${board.emAtendimento.length} em atendimento`}
+        headline="Turno de hoje"
+        description={`${board.salaEspera.length} na fila · ${board.emAtendimento.length} em atendimento`}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {!isPractitioner && board.doctors.length > 0 ? (
               <Select
                 value={selectedDoctorId ?? ''}
@@ -221,6 +223,7 @@ export function ConsultorioBoard({
 
       <CheckinStrip
         cards={board.aChegar}
+        timeZone={timeZone}
         busyId={busyId}
         onCheckIn={onCheckIn}
         onAbsent={onAbsent}
@@ -268,6 +271,7 @@ export function ConsultorioBoard({
                     key={c.appointmentId}
                     card={c}
                     now={now}
+                    timeZone={timeZone}
                     busy={busyId === c.appointmentId}
                     onCall={onCall}
                   />
@@ -282,7 +286,7 @@ export function ConsultorioBoard({
               {viewingFinalizada ? 'Consulta finalizada' : 'Em atendimento'}
             </ColumnTitle>
             {!viewingFinalizada && board.emAtendimento.length > 1 ? (
-              <div className="flex flex-wrap gap-2">
+              <div className={cn('flex flex-wrap gap-2', styles.attendingTabs)}>
                 {board.emAtendimento.map((c) => (
                   <button
                     key={c.appointmentId}
@@ -308,6 +312,7 @@ export function ConsultorioBoard({
               onComplete={onComplete}
               onClose={() => setSelectedAppt(null)}
               onBoardRefresh={() => void refetch()}
+              timeZone={timeZone}
             />
           </section>
 
@@ -318,6 +323,7 @@ export function ConsultorioBoard({
             </ColumnTitle>
             <FinalizedList
               cards={board.finalizadas}
+              timeZone={timeZone}
               selectedId={selectedAppt}
               onOpen={(id) => setSelectedAppt(id)}
             />

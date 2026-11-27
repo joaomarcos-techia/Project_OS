@@ -1,0 +1,76 @@
+{
+  "status": "PASS",
+  "stage": "paid_webhook_database_and_ui",
+  "observedAt": "2026-11-10T13:49:41.683Z",
+  "runId": "2d072b20-dab5-4073-bdaf-2c8f1989c739",
+  "sha": "ea45fb8e9b6f90b7fb6f999e4cc186d4f8fd9c45",
+  "plan": "clinica_2026_2",
+  "amountMinor": 39700,
+  "checkoutId": "bill_6WgrJ0S5pfFrkZyhJcyNTKLE",
+  "clinicId": "3b1d8180-9455-4ff1-87f3-eecbfef94cb0",
+  "subscriptionId": "9cf0a65a-ef4c-4e09-84dc-034985b1036b",
+  "providerSubscriptionId": "subs_zHgJmhLNe4S3c0rDfrY6TTHt",
+  "paidInvoices": 1,
+  "confirmedAttempts": 1,
+  "paidReceipts": 1,
+  "appliedCompletedEvents": 1,
+  "currentPeriodEnd": "2026-12-10T13:44:26.186Z",
+  "desktopMobile": [1440, 390],
+  "automaticCleanup": false,
+  "productionWrites": 0,
+  "environment": "DEV_Preview_AbacatePay_Sandbox",
+  "fixturePhase": "verified",
+  "providerReadback": {
+    "checkoutStatus": "PAID",
+    "paidAmountMinor": 39700,
+    "subscriptionsForCheckout": 1,
+    "subscriptionStatus": "ACTIVE",
+    "method": "CARD",
+    "nativeTrial": false,
+    "environmentVerified": "sandbox"
+  },
+  "localChecks": {
+    "billingStatus": "active",
+    "trialPolicyReleased": true,
+    "periodMatchesApprovedAnchor": true,
+    "createCheckoutOperations": 1
+  },
+  "browser": {
+    "status": "PASS",
+    "stages": [
+      "real_browser_login",
+      "paid_domain_records_verified",
+      "paid_ui_1440",
+      "paid_ui_390",
+      "paid_checkout_repeat_denied",
+      "paid_whatsapp_gate_released",
+      "paid_asaas_gate_released",
+      "real_sandbox_webhook_invoice_receipt_and_paid_ui",
+      "paid_checkout_repeat_denied_and_integration_invite_gates_released"
+    ],
+    "repeatCheckout": {
+      "status": 409,
+      "error": "already_paid"
+    },
+    "invitesAvailableWithoutSending": true,
+    "integrationsConnected": false
+  },
+  "sourceHashes": {
+    "scripts/abacatepay-checkout-operator.ts": "e61348910caf0118cef68b2996d2a415fc408d8c8855b40097d245240ad18495",
+    "scripts/abacatepay-checkout-session.ts": "84251c97f4ffe25f9aadde549f3d4d743bae47b35d6140802eac7ced3dbf6fe8",
+    "e2e/abacatepay-trial-preview.spec.ts": "cdc1b2fde1db1e63d18f853f74dd9a519a5bf1a1dc6ad18c1d163e2906caa30b"
+  },
+  "transientReadFailure": {
+    "firstVerification": "BLOCKED before payment readback; provider socket unavailable",
+    "recovery": "same verify command; no new fixture or financial command"
+  },
+  "retained": true,
+  "providerMutationsByVerification": 0,
+  "olderPaidFixtureChanged": false,
+  "limitations": [
+    "Synthetic Auth identity was administratively confirmed; not an email delivery proof",
+    "Initial payment does not prove recurring renewal, refund or dispute",
+    "No remote checkout deletion or single-use guarantee tested",
+    "No integration connected, invite sent, cancellation or production activation"
+  ]
+}

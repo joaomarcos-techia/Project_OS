@@ -40,12 +40,14 @@ export function MobileNavButton({ open, onClick }: { open: boolean; onClick: () 
       aria-expanded={open}
       onClick={onClick}
       className={cn(
-        // acima do topbar sticky (z-sticky) para o clique não ser interceptado
-        'fixed top-3 left-3 z-[450] grid size-(--hit-target) place-items-center rounded-(--r-md) border border-border bg-surface text-fg-muted shadow-xs nav:hidden',
-        open && 'hidden',
+        // Na barra do topo do console (celular), com nome: um ícone sozinho
+        // obrigava a adivinhar. Some com a gaveta aberta, que tem o próprio fechar.
+        'inline-flex h-(--hit-target) items-center gap-1.5 rounded-(--btn-radius) border border-border bg-(--card) pr-3.5 pl-2.5 text-(length:--fs-sm) font-medium text-(--text-body) shadow-(--elev-1) nav:hidden',
+        open && 'invisible',
       )}
     >
-      <Menu className="size-5" />
+      <Menu aria-hidden="true" className="size-5" />
+      <span aria-hidden="true">Menu</span>
     </button>
   );
 }
@@ -75,9 +77,12 @@ export function ShellSidebar({ open, children }: { open: boolean; children: Reac
       data-slot="shell-sidebar"
       data-open={open}
       className={cn(
-        'fixed inset-y-0 left-0 z-(--z-drawer) flex w-(--sidebar-w) flex-col gap-(--sp-4) overflow-hidden border-r border-border bg-surface pt-(--sp-5)',
-        'transition-transform duration-(--dur-slow) ease-out',
-        'nav:sticky nav:top-0 nav:z-(--z-sticky) nav:h-dvh nav:translate-x-0',
+        // Celular: gaveta branca que desliza da esquerda. Computador: coluna
+        // sobre o fundo do app, fora do painel de conteúdo (mesma linguagem do
+        // menu da clínica), presa ao topo enquanto a página rola.
+        'fixed inset-y-0 left-0 z-(--z-drawer) flex w-(--sidebar-w) flex-col gap-(--sp-4) overflow-hidden rounded-r-(--panel-radius) bg-(--card) pt-(--sp-5)',
+        'transition-transform duration-(--dur-slow) ease-out motion-reduce:transition-none',
+        'nav:sticky nav:top-(--shell-gap) nav:z-(--z-sticky) nav:h-[calc(100dvh-2*var(--shell-gap))] nav:translate-x-0 nav:rounded-none nav:bg-transparent nav:pt-(--sp-2)',
         open ? 'translate-x-0 shadow-(--elev-modal) nav:shadow-none' : '-translate-x-full',
       )}
     >
@@ -90,7 +95,7 @@ export function SideNavGroupLabel({ children }: { children: ReactNode }) {
   return (
     <span
       data-slot="nav-group-label"
-      className="mb-1 block px-(--sp-3) text-(length:--fs-2xs) font-medium tracking-(--tracking-label) text-fg-subtle uppercase"
+      className="mb-1 block px-(--sp-3) text-(length:--fs-2xs) leading-4 font-semibold tracking-[0.06em] text-(--muted-foreground) uppercase"
     >
       {children}
     </span>
@@ -145,16 +150,17 @@ export function SideNavLink({
       aria-current={active ? 'page' : undefined}
       className={cn(
         itemBase,
-        // Ativo sem preenchimento: a referencia distingue por CONTRASTE e PESO,
-        // e a pilula azul anterior gritava mais alto que o conteudo da pagina.
-        // Dois sinais nao-cromaticos (cor do texto + peso) atendem 1.4.1 junto
-        // com o aria-current; hover mantem o fundo porque e transitorio e some.
-        active ? 'font-medium text-fg' : 'text-fg-muted hover:bg-surface-hover hover:text-fg',
+        // Ativo: a mesma peça do menu da clínica — cartão elevado, texto na cor
+        // da marca, peso maior e uma barra à esquerda. Forma, peso e barra dizem
+        // "você está aqui" sem depender só da cor (WCAG 1.4.1).
+        active
+          ? "bg-(--card) font-semibold text-(--text-link) shadow-[inset_0_0_0_1px_var(--border),var(--elev-1)] before:absolute before:top-1/2 before:left-0 before:h-[18px] before:w-[3px] before:-translate-y-1/2 before:rounded-r-[3px] before:bg-(--primary) before:content-['']"
+          : 'text-(--nav-link-fg) hover:bg-(--rail-hover) hover:text-fg',
       )}
     >
       <span
         aria-hidden="true"
-        className={cn('shrink-0 [&>svg]:size-5', active ? 'text-fg' : 'text-fg-subtle')}
+        className={cn('shrink-0 [&>svg]:size-5', active ? 'text-(--text-link)' : 'text-current')}
       >
         {icon}
       </span>
@@ -211,7 +217,7 @@ export function SidebarFootButton({
       type={type}
       onClick={onClick}
       aria-label={ariaLabel}
-      className="flex min-h-(--hit-target) w-full items-center justify-between rounded-(--r-sm) px-(--sp-3) py-2 text-(length:--fs-sm) text-fg-muted transition-colors duration-(--dur-fast) hover:bg-surface-hover hover:text-fg"
+      className="flex min-h-(--hit-target) w-full items-center justify-between rounded-(--btn-radius) px-(--sp-3) py-2 text-(length:--fs-sm) text-(--nav-link-fg) transition-colors duration-(--dur-fast) hover:bg-(--rail-hover) hover:text-fg"
     >
       <span className="flex items-center gap-2 [&>svg]:size-4">
         {icon}
@@ -354,11 +360,16 @@ export function SidebarUserMenu({
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild danger>
-          <button type="submit" form={logoutFormId}>
-            <LogOut />
-            Sair
-          </button>
+        {/* O formulário fica fora do portal. Um botão de submit dentro do menu saía
+            do DOM ao fechar, antes de o clique enviar, e o logout não acontecia. */}
+        <DropdownMenuItem
+          danger
+          onSelect={() =>
+            (document.getElementById(logoutFormId) as HTMLFormElement | null)?.requestSubmit()
+          }
+        >
+          <LogOut />
+          Sair
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

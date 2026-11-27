@@ -2,8 +2,12 @@
 
 import { useRef, useState, type FormEvent } from 'react';
 
+import { signupFrame } from '@/components/shared/signup-frame';
 import { CAPTCHA_TOKEN_FIELD, TurnstileWidget } from '@/components/shared/turnstile-widget';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/ui/cn';
+
+import styles from '../cadastro.module.css';
 
 type CheckState =
   | { status: 'ready' | 'checking' }
@@ -82,31 +86,37 @@ export function SignupProtectionCheck() {
   }
 
   return (
-    <form onSubmit={submit} className="mt-6 space-y-5">
+    <form onSubmit={submit} className={styles.form}>
       {state.status !== 'passed' && (
         <TurnstileWidget action="signup-release-check" resetSignal={resetSignal} />
       )}
-      <Button type="submit" disabled={state.status === 'checking' || state.status === 'passed'}>
-        {state.status === 'checking' ? 'Verificando no servidor…' : 'Validar no servidor'}
-      </Button>
-      <div role="status" aria-live="polite" className="text-sm leading-relaxed">
-        {state.status === 'passed' && (
-          <>
-            <p className="font-semibold">
-              Proteção verificada no servidor: 3 de 3 testes aprovados.
-            </p>
-            <ul className="mt-2 list-disc space-y-1 pl-5">
-              <li>Desafio real aceito para este domínio.</li>
-              <li>Reutilização do mesmo token recusada.</li>
-              <li>Token inválido recusado.</li>
-            </ul>
-            <p className="mt-3 break-all text-fg-muted">Código da verificação: {state.runId}</p>
-            <p className="mt-2">
-              Você pode informar esse código à equipe. Nenhuma conta foi criada.
-            </p>
-          </>
-        )}
-        {state.status === 'error' && <p>{state.message}</p>}
+      <div className={styles.closing}>
+        <Button
+          type="submit"
+          disabled={state.status === 'checking' || state.status === 'passed'}
+          className={signupFrame.buttonFull}
+        >
+          {state.status === 'checking' ? 'Verificando no servidor…' : 'Validar no servidor'}
+        </Button>
+        <div role="status" aria-live="polite" className={cn(styles.live, signupFrame.text)}>
+          {state.status === 'passed' && (
+            <>
+              <p className="font-semibold">
+                Proteção verificada no servidor: 3 de 3 testes aprovados.
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>Desafio real aceito para este domínio.</li>
+                <li>Reutilização do mesmo token recusada.</li>
+                <li>Token inválido recusado.</li>
+              </ul>
+              <p className="mt-3 break-all text-fg-muted">Código da verificação: {state.runId}</p>
+              <p className="mt-2">
+                Você pode informar esse código à equipe. Nenhuma conta foi criada.
+              </p>
+            </>
+          )}
+          {state.status === 'error' && <p>{state.message}</p>}
+        </div>
       </div>
     </form>
   );

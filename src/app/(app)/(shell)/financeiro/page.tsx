@@ -1,16 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import {
-  ArrowDownLeft,
-  ArrowUpRight,
-  Check,
-  CircleDot,
-  Filter,
-  Info,
-  Scale,
-  Truck,
-} from 'lucide-react';
-import type { ReactNode } from 'react';
+import { ArrowDownLeft, ArrowUpRight, Filter, Info, Truck, Wallet } from 'lucide-react';
 
 import { clinicMonthBounds } from '@/contexts/financial/logic';
 import {
@@ -31,6 +21,9 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { DataTable } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
+import { LinkSegmented } from '@/components/ui/link-segmented';
+import { MetricStrip } from '@/components/ui/metric-strip';
+import { PageActions } from '@/components/ui/page-actions';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatCard } from '@/components/ui/stat-card';
 import { PaymentStatusBadge } from '@/components/ui/status-badge';
@@ -45,13 +38,16 @@ import {
 } from '@/components/ui/table';
 import { buttonVariants } from '@/components/ui/button';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { requirePageUser } from '@/lib/auth/page-guard';
+import { requireClinicId } from '@/lib/auth/tenant-context';
 import { withQueryDeadline } from '@/lib/db/query-timeout';
 import { formatBRL } from '@/lib/format';
 import { cn } from '@/lib/ui/cn';
 
 import { NewLancamentoDrawer } from './new-lancamento-drawer';
 import { financeiroPageHref, parseFinanceiroPage } from './pagination';
+
+import styles from './financeiro.module.css';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,7 +58,7 @@ const isStatus = (v: string | undefined): v is LancamentoStatus =>
   v === 'pendente' || v === 'parcial' || v === 'pago' || v === 'cancelado' || v === 'estornado';
 
 export default async function FinanceiroPage({ searchParams }: { searchParams: Promise<SP> }) {
-  const user = await requireUser();
+  const user = await requirePageUser();
   await requireClinicId();
 
   if (!user.permissions.includes(PERMISSIONS.VIEW_FINANCIAL) || !user.clinicId) {
@@ -183,161 +179,159 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
   };
   const ultimoDia = new Date(Date.UTC(anoMes!, mesMes!, 0)).getUTCDate();
   const periodoLabel = `01/${mm}/${anoMes} – ${ultimoDia}/${mm}/${anoMes}`;
+  const mesExtenso = new Intl.DateTimeFormat('pt-BR', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: tz,
+  }).format(from);
+  const mesTitulo = mesExtenso.charAt(0).toUpperCase() + mesExtenso.slice(1);
 
   return (
     <>
       <PageHeader
-        crumbs={[{ label: 'Gestão' }, { label: 'Financeiro' }]}
+        icon={<Wallet aria-hidden="true" />}
         title="Financeiro"
-        description={`Visão gerencial de ${new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: tz }).format(from)}`}
-        meta={
-          <span className="font-mono tabular-nums">
-            atualizado{' '}
-            {new Intl.DateTimeFormat('pt-BR', {
-              timeZone: tz,
-              hourCycle: 'h23',
-              hour: '2-digit',
-              minute: '2-digit',
-            }).format(new Date())}
-          </span>
-        }
+        headline={mesTitulo}
+        description={`Atualizado às ${new Intl.DateTimeFormat('pt-BR', {
+          timeZone: tz,
+          hourCycle: 'h23',
+          hour: '2-digit',
+          minute: '2-digit',
+        }).format(new Date())}`}
         actions={
+          // UX-012: abaixo de 768 px "Fornecedores" entra em "Mais ações" e
+          // "Novo lançamento" fica à vista — a 320 px eram 2 linhas de botões.
+          <PageActions
+            label="Ações do financeiro"
+            secondary={[
+              {
+                href: '/financeiro/fornecedores',
+                label: 'Fornecedores',
+                icon: <Truck aria-hidden="true" className="size-4" />,
+              },
+            ]}
+            primary={
+              canManage ? (
+                <NewLancamentoDrawer
+                  suppliers={suppliers}
+                  methods={methods}
+                  defaultOpen={novo === '1'}
+                />
+              ) : null
+            }
+          />
+        }
+        controls={
           <>
-            <Link
-              href="/financeiro/fornecedores"
-              className={buttonVariants({ variant: 'secondary', size: 'sm' })}
-            >
-              <Truck aria-hidden="true" className="size-4" />
-              Fornecedores
-            </Link>
-            {canManage ? (
-              <NewLancamentoDrawer
-                suppliers={suppliers}
-                methods={methods}
-                defaultOpen={novo === '1'}
-              />
-            ) : null}
+            <LinkSegmented
+              label="Tipo de lançamento"
+              items={[
+                { label: 'Todos os tipos', tipo: undefined },
+                { label: 'A receber', tipo: 'receber' as const },
+                { label: 'A pagar', tipo: 'pagar' as const },
+              ].map((option) => ({
+                label: option.label,
+                href: financeiroPageHref(
+                  {
+                    ...(option.tipo ? { tipo: option.tipo } : {}),
+                    ...(statusFilter ? { status: statusFilter } : {}),
+                  },
+                  1,
+                ),
+                active: tipoFilter === option.tipo,
+              }))}
+            />
+            <form className="flex flex-wrap items-center gap-2">
+              {tipoFilter ? <input type="hidden" name="tipo" value={tipoFilter} /> : null}
+              <Select
+                name="status"
+                defaultValue={statusFilter ?? ''}
+                aria-label="Filtrar por status"
+                className="w-46"
+              >
+                <option value="">Todos os status</option>
+                <option value="pendente">Pendente</option>
+                <option value="parcial">Parcial</option>
+                <option value="pago">Pago</option>
+                <option value="cancelado">Cancelado</option>
+                <option value="estornado">Estornado</option>
+              </Select>
+              <button type="submit" className={buttonVariants({ variant: 'secondary' })}>
+                <Filter aria-hidden="true" className="size-4" />
+                Filtrar
+              </button>
+            </form>
           </>
         }
       />
 
-      <div className="qoro-toolbar">
-        <form className="flex flex-wrap items-center gap-2">
-          <Select
-            name="tipo"
-            defaultValue={tipoFilter ?? ''}
-            aria-label="Filtrar por tipo"
-            className="w-44"
-          >
-            <option value="">Todos os tipos</option>
-            <option value="receber">A receber</option>
-            <option value="pagar">A pagar</option>
-          </Select>
-          <Select
-            name="status"
-            defaultValue={statusFilter ?? ''}
-            aria-label="Filtrar por status"
-            className="w-46"
-          >
-            <option value="">Todos os status</option>
-            <option value="pendente">Pendente</option>
-            <option value="parcial">Parcial</option>
-            <option value="pago">Pago</option>
-            <option value="cancelado">Cancelado</option>
-            <option value="estornado">Estornado</option>
-          </Select>
-          <button type="submit" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
-            <Filter aria-hidden="true" className="size-4" />
-            Filtrar
-          </button>
-        </form>
-        <span className="ml-auto font-mono text-xs text-fg-subtle tabular-nums">
-          {lancamentosResult.total} lançamentos · mais recentes primeiro
-        </span>
-      </div>
+      <div className={styles.page}>
+        <MetricStrip variant="joined" className={styles.metrics ?? ''}>
+          <StatCard
+            label="A receber"
+            value={formatBRL(flow.receber)}
+            valueTone="warning"
+            hint={`${flow.contagens.receber} lançamento${flow.contagens.receber === 1 ? '' : 's'}${flow.contagens.receberVencidos > 0 ? ` · ${flow.contagens.receberVencidos} vencido${flow.contagens.receberVencidos === 1 ? '' : 's'}` : ''}`}
+          />
+          <StatCard
+            label="Recebido no mês"
+            value={formatBRL(flow.recebidoHoje)}
+            valueTone="positive"
+            hint={`${flow.contagens.recebimentos} recebimento${flow.contagens.recebimentos === 1 ? '' : 's'}`}
+          />
+          <StatCard
+            label="A pagar"
+            value={formatBRL(flow.pagar)}
+            hint={`${flow.contagens.pagar} lançamento${flow.contagens.pagar === 1 ? '' : 's'}`}
+          />
+          <StatCard
+            label="Pago no mês"
+            value={formatBRL(flow.pagoHoje)}
+            hint={`${flow.contagens.pagamentos} pagamento${flow.contagens.pagamentos === 1 ? '' : 's'}`}
+          />
+          <StatCard
+            label="Saldo do mês"
+            value={formatBRL(flow.saldoHoje)}
+            valueTone={flow.saldoHoje >= 0 ? 'default' : 'negative'}
+            hint={`Recebido menos pago, até ${diaCurto(new Date())}`}
+          />
+        </MetricStrip>
 
-      <div className="qoro-page-content space-y-3">
-        <section
-          aria-label="Métricas principais"
-          className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(15rem,.7fr)]"
-        >
-          <FinancialMetricGroup title="Entradas">
-            <FinancialMetric
-              label="A receber"
-              value={flow.receber}
-              icon={<ArrowDownLeft />}
-              hint={`${flow.contagens.receber} lançamento${flow.contagens.receber === 1 ? '' : 's'}${flow.contagens.receberVencidos > 0 ? ` · ${flow.contagens.receberVencidos} vencido${flow.contagens.receberVencidos === 1 ? '' : 's'}` : ''}`}
-            />
-            <FinancialMetric
-              label="Recebido no mês"
-              value={flow.recebidoHoje}
-              icon={<Check />}
-              tone="positive"
-              hint={`${flow.contagens.recebimentos} recebimento${flow.contagens.recebimentos === 1 ? '' : 's'}`}
-            />
-          </FinancialMetricGroup>
-          <FinancialMetricGroup title="Saídas">
-            <FinancialMetric
-              label="A pagar"
-              value={flow.pagar}
-              icon={<ArrowUpRight />}
-              hint={`${flow.contagens.pagar} lançamento${flow.contagens.pagar === 1 ? '' : 's'}`}
-            />
-            <FinancialMetric
-              label="Pago no mês"
-              value={flow.pagoHoje}
-              icon={<Check />}
-              hint={`${flow.contagens.pagamentos} pagamento${flow.contagens.pagamentos === 1 ? '' : 's'}`}
-            />
-          </FinancialMetricGroup>
-          <FinancialMetricGroup title="Saldo do mês">
-            <FinancialMetric
-              label="Recebido menos pago"
-              value={flow.saldoHoje}
-              icon={<Scale />}
-              tone={flow.saldoHoje >= 0 ? 'balance' : 'negative'}
-              hint={`até ${diaCurto(new Date())}, fuso da clínica`}
-              emphasis
-            />
-          </FinancialMetricGroup>
-        </section>
-
-        <section
-          aria-label="Créditos antecipados e excedentes"
-          className="qoro-section flex flex-wrap items-center justify-between gap-4 px-4 py-3"
-        >
-          <div>
-            <h2 className="text-sm font-semibold text-fg">Créditos antecipados e excedentes</h2>
-            <p className="mt-1 font-mono text-xl font-semibold tabular-nums text-fg">
-              {formatBRL(advanceCredits.amount)}
+        <div className={styles.halves}>
+          <section aria-label="Créditos antecipados e excedentes" className={styles.credits}>
+            <div className={styles.creditsValue}>
+              <h2>Créditos antecipados e excedentes</h2>
+              <p className={styles.amount}>{formatBRL(advanceCredits.amount)}</p>
+              <p>
+                {advanceCredits.count} crédito{advanceCredits.count === 1 ? '' : 's'} com saldo não
+                aplicado
+              </p>
+            </div>
+            <p className={styles.creditsNote}>
+              Pagamentos confirmados ainda não aplicados a um recebível. Podem anteceder a consulta
+              ou ser um excedente. Este saldo não entra em “A receber”. Após a consulta, o crédito é
+              aplicado ao recebível; se cobrir o valor integral, o atendimento fica pago.
             </p>
-            <p className="text-xs text-fg-muted">
-              {advanceCredits.count} crédito{advanceCredits.count === 1 ? '' : 's'} com saldo não
-              aplicado
-            </p>
-          </div>
-          <p className="max-w-xl text-sm leading-relaxed text-fg-muted">
-            Pagamentos confirmados ainda não aplicados a um recebível. Podem anteceder a consulta ou
-            ser um excedente. Este saldo não entra em “A receber”. Após a consulta, o crédito é
-            aplicado ao recebível; se cobrir o valor integral, o atendimento fica pago.
-          </p>
-        </section>
+          </section>
 
-        <div className="flex min-h-10 flex-wrap items-center gap-2.5 rounded-lg border border-border bg-surface-2 px-3.5 py-2 text-xs text-fg-muted">
-          <Info aria-hidden="true" className="size-4 shrink-0 text-fg-subtle" />
-          <p className="min-w-0 flex-1 text-pretty">
-            Esta é a visão gerencial do mês. Recebimentos e pagamentos do dia são operados no{' '}
-            <Link href="/caixa" className="font-semibold text-link hover:underline">
-              Caixa
-            </Link>
-            .
-          </p>
-          {/* Faixa do mês ao lado do aviso: é o recorte que os números acima
+          <div className={styles.notice}>
+            <Info aria-hidden="true" />
+            <p>
+              Esta é a visão gerencial do mês. Recebimentos e pagamentos do dia são operados no{' '}
+              <Link href="/caixa" className="font-semibold text-link hover:underline">
+                Caixa
+              </Link>
+              .
+            </p>
+            {/* Faixa do mês ao lado do aviso: é o recorte que os números acima
               usam, e sem ele "do mês" fica sem começo nem fim. */}
-          <span className="shrink-0 font-mono tabular-nums">{periodoLabel}</span>
+            <span className={styles.period}>{periodoLabel}</span>
+          </div>
         </div>
 
         <DataTable
+          title="Lançamentos"
+          description={`${lancamentosResult.total} ${lancamentosResult.total === 1 ? 'lançamento' : 'lançamentos'} · mais recentes primeiro`}
           total={lancamentos.length === 0 ? 0 : lancamentosResult.total}
           page={page}
           pageCount={totalPages}
@@ -414,8 +408,7 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
                       tabela, "quanto ainda falta" é a resposta que o operador
                       viria buscar, e ela não cabe no badge compartilhado. */}
                   {diasVencido(l) === 0 && l.status === 'parcial' ? (
-                    <Badge tone="blue">
-                      <CircleDot aria-hidden="true" className="size-3 shrink-0" />
+                    <Badge tone="amber" dot>
                       Parcial · {formatBRL(l.valor - l.valorPago)} em aberto
                     </Badge>
                   ) : (
@@ -441,44 +434,5 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
         </DataTable>
       </div>
     </>
-  );
-}
-
-function FinancialMetricGroup({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="qoro-section overflow-hidden">
-      <h2 className="flex min-h-10 items-center border-b border-border bg-surface-2 px-4 text-(length:--fs-2xs) font-semibold tracking-wide text-fg-subtle uppercase">
-        {title}
-      </h2>
-      <div className="grid grid-flow-col auto-cols-fr divide-x divide-border">{children}</div>
-    </section>
-  );
-}
-
-function FinancialMetric({
-  label,
-  value,
-  icon,
-  hint,
-  tone,
-  emphasis = false,
-}: {
-  label: string;
-  value: number;
-  icon: ReactNode;
-  hint: string;
-  tone?: 'positive' | 'negative' | 'balance';
-  emphasis?: boolean;
-}) {
-  return (
-    <StatCard
-      label={label}
-      value={formatBRL(value)}
-      icon={icon}
-      hint={hint}
-      emphasis={emphasis}
-      valueTone={tone === 'positive' ? 'positive' : tone === 'negative' ? 'negative' : 'default'}
-      className="qoro-grouped-metric rounded-none border-0"
-    />
   );
 }

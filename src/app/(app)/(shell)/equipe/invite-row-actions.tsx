@@ -39,6 +39,8 @@ export function InviteRowActions({ userId, nome }: { userId: string; nome: strin
   const router = useRouter();
   const [resending, startResend] = useTransition();
   const [cancelling, startCancel] = useTransition();
+  // Os diálogos abrem por item de menu, que some ao fechar o menu: o foco volta ao botão "Ações".
+  const menuTrigger = useRef<HTMLButtonElement>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [link, setLink] = useState('');
@@ -91,7 +93,13 @@ export function InviteRowActions({ userId, nome }: { userId: string; nome: strin
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" icon aria-label={`Ações do convite de ${nome}`}>
+          <Button
+            ref={menuTrigger}
+            variant="ghost"
+            size="sm"
+            icon
+            aria-label={`Ações do convite de ${nome}`}
+          >
             <MoreHorizontal className="size-4" />
           </Button>
         </DropdownMenuTrigger>
@@ -106,6 +114,7 @@ export function InviteRowActions({ userId, nome }: { userId: string; nome: strin
       </DropdownMenu>
 
       <ConfirmDialog
+        returnFocusRef={menuTrigger}
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         tone="danger"
@@ -118,7 +127,7 @@ export function InviteRowActions({ userId, nome }: { userId: string; nome: strin
       />
 
       <Dialog open={linkOpen} onOpenChange={setLinkOpen}>
-        <DialogContent>
+        <DialogContent returnFocusRef={menuTrigger}>
           <DialogHeader>
             <DialogHeaderIcon>
               <Copy />

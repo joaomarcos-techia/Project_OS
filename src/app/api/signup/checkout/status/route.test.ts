@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   env: {
+    SIGNUP_ENABLED: true,
     SIGNUP_AUTH_ENABLED: true,
     SIGNUP_IDENTITY_ENABLED: true,
     APP_BASE_URL: 'https://app.qoro.test',
@@ -37,6 +38,7 @@ function request(origin = 'https://app.qoro.test'): Request {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.env.SIGNUP_ENABLED = true;
   mocks.env.SIGNUP_AUTH_ENABLED = true;
   mocks.env.SIGNUP_IDENTITY_ENABLED = true;
   mocks.env.APP_BASE_URL = 'https://app.qoro.test';
@@ -52,6 +54,20 @@ beforeEach(() => {
 });
 
 describe('POST /api/signup/checkout/status', () => {
+  it('keeps confirmed payment recovery available while new acquisition is closed', async () => {
+    mocks.env.SIGNUP_ENABLED = false;
+    mocks.complete.mockResolvedValue({ ok: true, state: 'provisioned' });
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ state: 'provisioned' });
+    expect(mocks.complete).toHaveBeenCalledWith({
+      userId: '11111111-1111-4111-8111-111111111111',
+      verifiedEmail: 'dona@example.invalid',
+    });
+  });
+
   it('distingue configuracao desabilitada de falha do checkout', async () => {
     mocks.env.SIGNUP_AUTH_ENABLED = false;
 

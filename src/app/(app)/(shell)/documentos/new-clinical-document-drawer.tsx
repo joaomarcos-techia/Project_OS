@@ -77,7 +77,8 @@ export function NewClinicalDocumentDrawer({
         <DrawerHeader className="flex-col items-start pr-14">
           <DrawerTitle>Novo documento clínico</DrawerTitle>
           <DrawerDescription>
-            Selecione o paciente e o tipo. Este fluxo não cria uma consulta artificial.
+            Escolha o paciente e o tipo. A emissão continua na ficha do paciente, e nenhuma consulta
+            é criada para isso.
           </DrawerDescription>
         </DrawerHeader>
         <DrawerBody className="flex flex-col gap-(--sp-5)">

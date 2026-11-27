@@ -38,7 +38,7 @@ import type {
   MedicalDocumentContent,
 } from '../types';
 import { decryptJson } from './content-crypto';
-import { loadClinicBranding } from './whitelabel';
+import { loadClinicBranding, loadClinicTimezone } from './whitelabel';
 
 function rowDoctor(row: {
   snapshotDoctorNome: string;
@@ -66,7 +66,8 @@ export async function ensurePrescriptionPdf(
     const [row] = await tx.select().from(prescriptions).where(eq(prescriptions.id, id)).limit(1);
     if (!row) throw new PrescriptionNotFoundError(id);
     const branding: PdfBranding = await loadClinicBranding(tx, clinicId);
-    return { row, branding };
+    const timeZone = await loadClinicTimezone(tx, clinicId);
+    return { row, branding, timeZone };
   });
   if (loaded.row.pdfStoragePath && !force) return; // idempotente: já gerado
 
@@ -97,6 +98,7 @@ export async function ensurePrescriptionPdf(
             medicamentos,
             observacoes,
             issuedAt,
+            timeZone: loaded.timeZone,
           },
           loaded.branding,
           rowDoctor(loaded.row),
@@ -107,6 +109,7 @@ export async function ensurePrescriptionPdf(
             medicamentos,
             observacoes,
             issuedAt,
+            timeZone: loaded.timeZone,
           },
           loaded.branding,
           rowDoctor(loaded.row),
@@ -147,6 +150,7 @@ function renderMedicalDocument(
   content: MedicalDocumentContent,
   branding: PdfBranding,
   doctor: PdfDoctor,
+  timeZone: string,
 ): Promise<Buffer> {
   const issuedAt = row.createdAt.toISOString();
   const patientNome = row.snapshotPatientNome;
@@ -154,7 +158,14 @@ function renderMedicalDocument(
     case 'atestado': {
       const c = content as AtestadoContent;
       return renderAtestadoPDF(
-        { patientNome, descricao: c.descricao, cid: c.cid ?? null, dias: c.dias ?? null, issuedAt },
+        {
+          patientNome,
+          descricao: c.descricao,
+          cid: c.cid ?? null,
+          dias: c.dias ?? null,
+          issuedAt,
+          timeZone,
+        },
         branding,
         doctor,
       );
@@ -162,7 +173,7 @@ function renderMedicalDocument(
     case 'declaracao': {
       const c = content as DeclaracaoContent;
       return renderDeclaracaoPDF(
-        { patientNome, texto: c.texto, periodo: c.periodo ?? null, issuedAt },
+        { patientNome, texto: c.texto, periodo: c.periodo ?? null, issuedAt, timeZone },
         branding,
         doctor,
       );
@@ -170,7 +181,13 @@ function renderMedicalDocument(
     case 'exame': {
       const c = content as ExameContent;
       return renderExamePDF(
-        { patientNome, exames: c.exames, indicacaoClinica: c.indicacaoClinica ?? null, issuedAt },
+        {
+          patientNome,
+          exames: c.exames,
+          indicacaoClinica: c.indicacaoClinica ?? null,
+          issuedAt,
+          timeZone,
+        },
         branding,
         doctor,
       );
@@ -178,7 +195,7 @@ function renderMedicalDocument(
     case 'encaminhamento': {
       const c = content as EncaminhamentoContent;
       return renderEncaminhamentoPDF(
-        { patientNome, especialidade: c.especialidade, motivo: c.motivo, issuedAt },
+        { patientNome, especialidade: c.especialidade, motivo: c.motivo, issuedAt, timeZone },
         branding,
         doctor,
       );
@@ -204,7 +221,8 @@ export async function ensureMedicalDocumentPdf(
       .limit(1);
     if (!row) throw new MedicalDocumentNotFoundError(id);
     const branding: PdfBranding = await loadClinicBranding(tx, clinicId);
-    return { row, branding };
+    const timeZone = await loadClinicTimezone(tx, clinicId);
+    return { row, branding, timeZone };
   });
   if (loaded.row.pdfStoragePath && !force) return;
 
@@ -219,6 +237,7 @@ export async function ensureMedicalDocumentPdf(
     content,
     loaded.branding,
     rowDoctor(loaded.row),
+    loaded.timeZone,
   );
   const path = `${clinicId}/documents/${loaded.row.type}/${id}.pdf`;
   await uploadStorageFile(CLINICAL_PDF_BUCKET, path, pdf);

@@ -115,7 +115,18 @@ export function middleware(req: NextRequest): NextResponse {
   let res: NextResponse;
 
   if (!publicPath && authCookies.length === 0) {
-    res = NextResponse.redirect(new URL('/login', req.url));
+    // S-02 (docs/otimização_ui_final.md, 33): sem sessão, uma Server Action recebia o mesmo 307
+    // das páginas. O navegador reenviava o POST para /login, recebia HTML, e o cliente do Next
+    // lançava ("Algo deu errado"). A action continua recusada aqui, sem chegar ao servidor de
+    // aplicação; a resposta só passa a ser a que o cliente entende: corpo vazio e
+    // `x-action-redirect`, que ele trata como redirecionamento para o login. Destino fixo.
+    res =
+      req.method === 'POST' && req.headers.has('next-action')
+        ? new NextResponse(null, {
+            status: 401,
+            headers: { 'x-action-redirect': '/login;replace', 'content-type': 'text/plain' },
+          })
+        : NextResponse.redirect(new URL('/login', req.url));
   } else if (
     cookieName &&
     authCookies.length > 0 &&

@@ -224,6 +224,14 @@ export async function confirmPayment(
         .limit(1);
       if (!lanc) throw new LancamentoNotFoundError(data.lancamentoId);
 
+      // The screen's paid amount is a concurrency precondition, never the ledger authority.
+      // Check it while holding the row lock so a second operator cannot confirm stale data.
+      if (round2(Number(lanc.valorPago)) !== round2(data.valorPagoEsperado)) {
+        throw new LancamentoStateError(
+          'O valor pago mudou. Recarregue o caixa antes de confirmar.',
+        );
+      }
+
       if (lanc.tipo === 'receber' && lanc.appointmentId) {
         await assertAppointmentPaymentMethod(tx, clinicId, lanc.appointmentId, data.paymentMethod);
       }

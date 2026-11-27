@@ -20,11 +20,13 @@ import { formatHora } from './format';
  */
 export function CheckinStrip({
   cards,
+  timeZone,
   busyId,
   onCheckIn,
   onAbsent,
 }: {
   cards: BoardCardDTO[];
+  timeZone: string;
   busyId: string | null;
   onCheckIn: (id: string) => void;
   /** STATE-001 — falta só é transição válida ANTES do check-in. */
@@ -32,20 +34,15 @@ export function CheckinStrip({
 }) {
   if (cards.length === 0) return null;
   return (
-    <div className="qoro-toolbar" aria-label="A chegar hoje">
-      <span className="text-(length:--fs-2xs) font-semibold tracking-(--tracking-label) text-fg-subtle uppercase">
-        A chegar hoje
-      </span>
-      <span className="font-mono text-(length:--fs-caption) font-semibold tabular-nums text-fg-subtle">
-        {cards.length}
-      </span>
+    <div className="qoro-checkin" aria-label="A chegar hoje">
+      <span className="qoro-checkin-title">A chegar hoje · {cards.length}</span>
       {cards.map((c) => (
         <div
           key={c.appointmentId}
-          className="flex shrink-0 items-center gap-2.5 rounded-(--r-sm) border border-border bg-surface py-0 pr-2 pl-3"
+          className="flex max-w-full flex-wrap items-center gap-x-2.5 gap-y-1.5 rounded-(--btn-radius) border border-border bg-surface py-1.5 pr-1.5 pl-3"
         >
           <span className="font-mono text-(length:--fs-caption) font-semibold tabular-nums text-fg-muted">
-            {formatHora(c.horario)}
+            {formatHora(c.horario, timeZone)}
           </span>
           <span className="max-w-52 truncate text-(length:--fs-sm) font-medium text-fg">
             {c.pacienteNome}

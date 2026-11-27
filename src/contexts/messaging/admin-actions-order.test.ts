@@ -10,6 +10,9 @@
  * A propriedade sob teste: para um não-autorizado, NADA acontece além do 403.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { assertTrialPaidFeature } from '@/lib/trial-access';
+import { TrialAccessError } from '@/lib/trial-access/policy';
+vi.mock('@/lib/trial-access', () => ({ assertTrialPaidFeature: vi.fn(async () => {}) }));
 
 const { requireSuperAdmin, encryptForTenant, superAdminAction, requestContext } = vi.hoisted(
   () => ({
@@ -129,6 +132,14 @@ describe('validação de clinicId (vem de input, não da sessão)', () => {
 });
 
 describe('caminho autorizado preservado', () => {
+  it('superadmin cannot connect an unpaid trial through the administrative action', async () => {
+    vi.mocked(assertTrialPaidFeature).mockRejectedValueOnce(new TrialAccessError('whatsapp'));
+    await expect(connectWhatsappNumber(connectInput)).rejects.toMatchObject({
+      code: 'trial_access_restricted',
+    });
+    expect(encryptForTenant).not.toHaveBeenCalled();
+    expect(superAdminAction).not.toHaveBeenCalled();
+  });
   it('connect: cifra com o clinicId do input e delega ao superAdminAction', async () => {
     superAdminAction.mockImplementation(async () => ({ id: 'num-1' }));
     await expect(connectWhatsappNumber(connectInput)).resolves.toEqual({ id: 'num-1' });

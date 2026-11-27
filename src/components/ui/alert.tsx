@@ -38,7 +38,13 @@ type AlertProps = ComponentProps<'div'> &
 export function Alert({ className, variant = 'info', title, children, ...props }: AlertProps) {
   const Icon = ICONS[variant ?? 'info'];
   return (
-    <div role="alert" className={cn(alertVariants({ variant }), className)} {...props}>
+    <div
+      role="alert"
+      data-slot="alert"
+      data-variant={variant ?? 'info'}
+      className={cn(alertVariants({ variant }), className)}
+      {...props}
+    >
       <Icon aria-hidden="true" className="mt-px size-5 shrink-0 text-(--alert-ic)" />
       <div className="min-w-0">
         {title ? <b className="text-(length:--fs-sm) font-semibold">{title}</b> : null}

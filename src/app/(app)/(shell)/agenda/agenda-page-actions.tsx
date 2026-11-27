@@ -1,50 +1,48 @@
 'use client';
 
-import { CalendarOff, FileUp, List, MoreVertical } from 'lucide-react';
-import Link from 'next/link';
+import { CalendarOff, FileUp, List } from 'lucide-react';
 
-import { Button, buttonVariants } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { PageActions, type PageActionLink } from '@/components/ui/page-actions';
 
 import type { AgendaData } from './data';
 import { NewAppointmentDrawer } from './new-appointment-drawer';
 
-/** Ações operacionais da agenda: uma primária e um menu para destinos ocasionais. */
+/**
+ * Ações operacionais da agenda: uma primária e um menu para destinos ocasionais.
+ * UX-012: abaixo de 1024 px, "Lista de espera" e "Ausências médicas" entram no
+ * menu "Mais ações" (eram três linhas de botões a 375 px e duas a 768 px, medido
+ * em 15/11); no computador, nada muda.
+ */
 export function AgendaPageActions({ data }: { data: AgendaData }) {
+  const secondary: PageActionLink[] = [
+    {
+      href: '/agenda/lista-espera',
+      label: 'Lista de espera',
+      icon: <List aria-hidden="true" className="size-4" />,
+    },
+    ...(data.canManageAvailability
+      ? [
+          {
+            href: '/agenda/ausencias',
+            label: 'Ausências médicas',
+            icon: <CalendarOff aria-hidden="true" className="size-4" />,
+          },
+        ]
+      : []),
+  ];
   return (
-    <div role="group" aria-label="Ações da agenda" className="flex flex-wrap items-center gap-2">
-      <Link href="/agenda/lista-espera" className={buttonVariants({ variant: 'secondary' })}>
-        <List aria-hidden="true" className="size-4" />
-        Lista de espera
-      </Link>
-      {data.canManageAvailability ? (
-        <Link href="/agenda/ausencias" className={buttonVariants({ variant: 'secondary' })}>
-          <CalendarOff aria-hidden="true" className="size-4" />
-          Ausências médicas
-        </Link>
-      ) : null}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" aria-label="Mais opções" className="size-(--hit-target) p-0">
-            <MoreVertical aria-hidden="true" className="size-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem asChild className="min-h-(--hit-target)">
-            <Link href="/agenda/importar">
-              <FileUp aria-hidden="true" />
-              Importar histórico
-            </Link>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      {data.canEditAgenda ? <NewAppointmentDrawer data={data} /> : null}
-    </div>
+    <PageActions
+      label="Ações da agenda"
+      dobraAbaixoDe="lg"
+      secondary={secondary}
+      overflow={[
+        {
+          href: '/agenda/importar',
+          label: 'Importar histórico',
+          icon: <FileUp aria-hidden="true" />,
+        },
+      ]}
+      primary={data.canEditAgenda ? <NewAppointmentDrawer data={data} /> : null}
+    />
   );
 }

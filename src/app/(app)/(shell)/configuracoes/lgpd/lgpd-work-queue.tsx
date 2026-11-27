@@ -51,19 +51,23 @@ const CHANNEL_LABEL = {
 
 type ManagerOption = { id: string; nome: string };
 
-function formatDateTime(value: string): string {
-  return new Date(value).toLocaleString('pt-BR');
+function formatDateTime(value: string, timeZone: string): string {
+  return new Date(value).toLocaleString('pt-BR', { timeZone });
 }
 
 function patientName(request: LgpdRequestDTO): string {
   return request.patientName ?? `Paciente ${request.patientId}`;
 }
 
+// UX-014 (revisto em 15/11): o prazo acompanhado é OPERACIONAL — 15 dias contados do pedido
+// (`due_at` = now() + 15 dias, LGPD_RESPONSE_SLA_DAYS), igual para exportação e exclusão —, e
+// se cumpre ao avisar o titular. A LGPD só fixa 15 dias para a declaração de acesso (art. 19,
+// II); chamá-lo de "prazo legal" afirmaria mais do que o sistema mede.
 function RequestStatus({ request }: { request: LgpdRequestDTO }) {
   const status = STATUS_META[request.status];
   return (
     <Badge tone={request.overdue ? 'red' : status.tone} dot>
-      {request.overdue ? 'SLA vencido' : status.label}
+      {request.overdue ? 'Prazo de resposta vencido' : status.label}
     </Badge>
   );
 }
@@ -73,11 +77,13 @@ function RequestDetail({
   history,
   managers,
   names,
+  timeZone,
 }: {
   request: LgpdRequestDTO;
   history: LgpdRequestHistoryDTO[];
   managers: ManagerOption[];
   names: Map<string, string>;
+  timeZone: string;
 }) {
   const displayName = patientName(request);
   const validExportUrl =
@@ -128,7 +134,9 @@ function RequestDetail({
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
             <div>
               <dt className="text-fg-subtle">Solicitada em</dt>
-              <dd className="mt-0.5 text-fg tabular-nums">{formatDateTime(request.requestedAt)}</dd>
+              <dd className="mt-0.5 text-fg tabular-nums">
+                {formatDateTime(request.requestedAt, timeZone)}
+              </dd>
             </div>
             <div>
               <dt className="text-fg-subtle">Prazo</dt>
@@ -138,7 +146,7 @@ function RequestDetail({
                   request.overdue ? 'font-semibold text-danger-700' : 'text-fg',
                 )}
               >
-                {formatDateTime(request.dueAt)}
+                {formatDateTime(request.dueAt, timeZone)}
               </dd>
             </div>
             <div>
@@ -153,7 +161,7 @@ function RequestDetail({
               <dt className="text-fg-subtle">Comunicação</dt>
               <dd className="mt-0.5 text-fg">
                 {request.requesterNotifiedAt
-                  ? `${formatDateTime(request.requesterNotifiedAt)} · ${
+                  ? `${formatDateTime(request.requesterNotifiedAt, timeZone)} · ${
                       request.requesterNotificationChannel
                         ? CHANNEL_LABEL[request.requesterNotificationChannel]
                         : 'Canal não informado'
@@ -284,7 +292,7 @@ function RequestDetail({
                     <div className="flex flex-wrap items-baseline justify-between gap-2">
                       <strong className="font-medium text-fg">{ACTION_LABEL[entry.action]}</strong>
                       <time className="text-fg-subtle tabular-nums" dateTime={entry.changedAt}>
-                        {formatDateTime(entry.changedAt)}
+                        {formatDateTime(entry.changedAt, timeZone)}
                       </time>
                     </div>
                     <p className="mt-0.5 text-pretty text-fg-muted">
@@ -310,12 +318,14 @@ export function LgpdWorkQueue({
   history,
   managers,
   names,
+  timeZone,
 }: {
   requests: LgpdRequestDTO[];
   selectedRequest: LgpdRequestDTO | null;
   history: LgpdRequestHistoryDTO[];
   managers: ManagerOption[];
   names: Map<string, string>;
+  timeZone: string;
 }) {
   if (requests.length === 0) {
     return (
@@ -347,11 +357,11 @@ export function LgpdWorkQueue({
             </span>
             {overdueCount > 0 ? (
               <Badge tone="red" dot>
-                {overdueCount} com SLA vencido
+                {overdueCount} com prazo de resposta vencido
               </Badge>
             ) : (
               <Badge tone="green" dot>
-                SLAs em dia
+                Prazos de resposta em dia
               </Badge>
             )}
           </TableToolbar>
@@ -377,7 +387,7 @@ export function LgpdWorkQueue({
                       <TableCell>
                         <TableCellStack
                           main={displayName}
-                          sub={`Solicitada em ${formatDateTime(request.requestedAt)}`}
+                          sub={`Solicitada em ${formatDateTime(request.requestedAt, timeZone)}`}
                         />
                       </TableCell>
                       <TableCell>{request.type === 'export' ? 'Exportação' : 'Exclusão'}</TableCell>
@@ -390,7 +400,7 @@ export function LgpdWorkQueue({
                           request.overdue && 'font-semibold text-danger-700',
                         )}
                       >
-                        {formatDateTime(request.dueAt)}
+                        {formatDateTime(request.dueAt, timeZone)}
                       </TableCell>
                       <TableCell>
                         {request.assignedToUserId
@@ -429,6 +439,7 @@ export function LgpdWorkQueue({
           history={history}
           managers={managers}
           names={names}
+          timeZone={timeZone}
         />
       ) : null}
     </div>

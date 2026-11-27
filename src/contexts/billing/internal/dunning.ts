@@ -21,7 +21,8 @@ export interface DunningResult {
   channel: 'asaas' | 'whatsapp' | 'email' | null;
 }
 
-const STAGE_THRESHOLDS = [30, 15, 7, 3, 1] as const;
+export const DUNNING_READONLY_DAYS = 15;
+const STAGE_THRESHOLDS = [30, DUNNING_READONLY_DAYS, 7, 3, 1] as const;
 
 const MS_PER_DAY = 86_400_000;
 
@@ -41,7 +42,7 @@ export function dunningStageForDays(days: number): number {
 
 export function accessForStage(stage: number): AccessMode {
   if (stage >= 30) return 'blocked';
-  if (stage >= 15) return 'readonly';
+  if (stage >= DUNNING_READONLY_DAYS) return 'readonly';
   return 'enabled';
 }
 

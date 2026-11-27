@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { Banknote, Bot, CircleCheck, MessageCircle, Database, TriangleAlert } from 'lucide-react';
 import type { ComponentType } from 'react';
 
@@ -10,6 +11,8 @@ import type { HealthStatus } from '../_lib/dto';
 import { guardAdminAccess } from '../_lib/guard';
 import { formatDateTime } from '../_lib/format';
 import { healthService } from '../_lib/services/health.service';
+
+export const metadata: Metadata = { title: 'Saúde da plataforma' };
 
 // Probe ativo a cada render; não cacheia entre requests.
 export const dynamic = 'force-dynamic';

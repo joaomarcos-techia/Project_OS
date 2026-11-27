@@ -29,11 +29,12 @@ describe('human handoff assignment and SLA', () => {
     expect(actions.match(/await assertAssignedTo/g)?.length).toBeGreaterThanOrEqual(3);
   });
 
-  it('prioriza vencidas e urgentes e permite filtrar SLA vencido', () => {
+  it('prioriza vencidas e urgentes e permite filtrar o prazo vencido', () => {
     expect(queries).toContain('overdueOnly?: boolean');
     expect(queries).toContain('overdueFirst');
     expect(queries).toContain('urgentFirst');
-    expect(listPage).toContain('<option value="overdue">SLA vencido</option>');
+    // UX-014: o filtro fala a língua da recepção ("prazo"), não "SLA".
+    expect(listPage).toContain('<option value="overdue">Prazo vencido</option>');
     expect(listPage).toContain('assignedToUserId');
   });
 });

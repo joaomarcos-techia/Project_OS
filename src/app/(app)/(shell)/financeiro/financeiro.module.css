@@ -1,0 +1,104 @@
+/* Financeiro — app v5: faixa de cinco indicadores, créditos e aviso lado a lado,
+   e a tabela de lançamentos num cartão. */
+.page {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.metrics {
+  --kc-min: 160px;
+}
+
+.halves {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 16px;
+}
+
+.credits {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 420px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+  background: var(--surface);
+}
+
+.creditsValue {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.creditsValue h2 {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.amount {
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: clamp(20px, 2.2vw, 24px);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.creditsNote {
+  min-width: 0;
+  flex: 1 1 280px;
+  margin: 0;
+  color: var(--text-body);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.notice {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 420px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+  background: var(--secondary);
+  color: var(--text-body);
+  font-size: 14px;
+}
+
+.notice > svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--text-link);
+}
+
+.notice > p {
+  min-width: 0;
+  flex: 1 1 240px;
+  margin: 0;
+  text-wrap: pretty;
+}
+
+.period {
+  flex: none;
+  color: var(--text-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}

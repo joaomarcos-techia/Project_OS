@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 /**
  * /prescricoes/[id]/pdf — preview + download por endpoint same-origin que
  * revalida sessão, permissão e tenant. Se o PDF ainda não existe (falha na
@@ -13,6 +14,8 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 import { resourceGate } from '@/lib/auth/page-guard';
 
 import { RegeneratePdfButton } from './regenerate-button';
+
+export const metadata: Metadata = { title: 'Receita' };
 
 export const dynamic = 'force-dynamic';
 

@@ -3,6 +3,25 @@ import { describe, expect, it } from 'vitest';
 import { scrubEvent } from './sentry-scrub';
 
 describe('scrubEvent', () => {
+  it('redacts private invite fragments before navigation or error breadcrumbs leave the browser', () => {
+    const token = 'a'.repeat(64);
+    const url = `https://app.example.test/cadastro/piloto#invite=${token}`;
+    const event = scrubEvent({
+      type: undefined,
+      request: { url },
+      breadcrumbs: [
+        {
+          category: 'navigation',
+          message: url,
+          data: { from: url, to: url, inviteToken: token, safe: 19700 },
+        },
+      ],
+      extra: { invite_token: token },
+    });
+    expect(JSON.stringify(event)).not.toContain(token);
+    expect(event?.request?.url).toBe('https://app.example.test/cadastro/piloto#invite=[REDACTED]');
+    expect(event?.breadcrumbs?.[0]?.data?.safe).toBe(19700);
+  });
   it('redige token no caminho de convite e dados estruturados de checkout', () => {
     const event = scrubEvent({
       type: undefined,

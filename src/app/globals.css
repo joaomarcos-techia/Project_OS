@@ -1,20 +1,5 @@
 @import 'tailwindcss';
 
-[data-qoro-shell='tenant'] .qoro-cash-metrics {
-  gap: 0;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  background: var(--surface);
-}
-[data-qoro-shell='tenant'] .qoro-cash-metrics > div {
-  border: 0;
-  border-right: 1px solid var(--border);
-  border-radius: 0;
-}
-[data-qoro-shell='tenant'] .qoro-cash-metrics > div:last-child {
-  border-right: 0;
-}
 [data-qoro-shell='tenant'] .qoro-cash-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -191,7 +176,8 @@
    de tokens — nenhuma regra estrutural `[data-qoro-shell='tenant'] …` casa com
    ele, então o login não herda sidebar, nav nem grid de tabela do painel. */
 body:has([data-qoro-shell='tenant']),
-body:has([data-qoro-tokens='qorov2']) {
+body:has([data-qoro-tokens='qorov2']),
+body:has([data-qoro-tokens='app-v5']) {
   --background: oklch(0.988 0.0035 98);
   --foreground: oklch(0.216 0.006 106);
   --card: oklch(1 0 0);
@@ -305,7 +291,8 @@ body:has([data-qoro-tokens='qorov2']) {
 }
 
 .dark body:has([data-qoro-shell='tenant']),
-.dark body:has([data-qoro-tokens='qorov2']) {
+.dark body:has([data-qoro-tokens='qorov2']),
+.dark body:has([data-qoro-tokens='app-v5']) {
   --background: oklch(0.18 0.008 106);
   --foreground: oklch(0.95 0.006 98);
   --card: oklch(0.225 0.008 106);
@@ -341,100 +328,1058 @@ body:has([data-qoro-tokens='qorov2']) {
   color: var(--success-200);
 }
 
+/* =========================================================================
+   Qoro App v5 (novembro/2026) — SOMENTE o app da clínica.
+
+   Fonte: canvas "App · sistema de design" (qoro-app-v5.css). Este bloco vem
+   DEPOIS do de setembro e repete só o seletor do tenant, então ganha dele pela
+   ordem. As telas públicas (`data-qoro-tokens='qorov2'`: login, cadastro,
+   checkout) continuam no bloco anterior — o onboarding será refeito à parte.
+
+   Paleta fria da marca: azul #1A1ED5, tinta #0A0C25, fundo do app #EEF0F5.
+   Regras do design: Manrope só em títulos e números grandes, Inter no resto;
+   sombra só no que flutua; cartão é só borda; status é ponto + texto.
+
+   O design não tem tema escuro. O escuro abaixo é DERIVADO (mesmos matizes,
+   contraste AA conferido par a par) e mora no bloco `.dark` seguinte.
+   ========================================================================= */
+body:has([data-qoro-shell='tenant']),
+body:has([data-qoro-tokens='app-v5']) {
+  /* Superfícies */
+  --shell-bg: #eef0f5;
+  --background: #ffffff;
+  --card: #ffffff;
+  --secondary: #f6f7fb;
+  --surface-hover: #f4f5f9;
+  --surface-head: #fafbfd;
+  --sidebar-accent: #ffffff;
+
+  /* Tinta: 19,2 · 12,5 · 6,6 · 5,0:1 sobre o branco */
+  --foreground: #0a0c25;
+  --text-body: #33333b;
+  --muted-foreground: #5c5c66;
+  --text-3: #6e6e79;
+  --text-faint: #9a9ca8;
+  --nav-link-fg: #5c5c66;
+
+  /* Linhas: borda de cartão, borda de controle, divisória interna, campo */
+  --border: #e3e5ee;
+  --border-2: #d3d6e2;
+  --border-soft: #eceef4;
+  --border-strong: #8a8d9c;
+
+  /* Azul da marca */
+  --primary: #1a1ed5;
+  --primary-50: #f5f6ff;
+  --primary-100: #eeefff;
+  --primary-200: #d6d8fa;
+  --primary-600: var(--primary);
+  --primary-700: #1216a8;
+  --primary-800: #0e1187;
+  --primary-900: var(--primary-800);
+  --primary-foreground: #ffffff;
+  --primary-hover: var(--primary-700);
+  --primary-active: var(--primary-800);
+  --primary-soft: var(--primary-100);
+  --text-link: var(--primary);
+  --ring: var(--primary);
+
+  /* Semânticas — mesmos nomes da escala global, valores do v5 */
+  --success-50: #e3f7ef;
+  --success-100: #c9eedf;
+  --success-200: #8fd9bb;
+  --success-500: #04805d;
+  --success-600: #04805d;
+  --success-700: #03684c;
+  --warning-50: #fff3d6;
+  --warning-100: #ffe9b3;
+  --warning-200: #f2ddb2;
+  --warning-500: #e3a008;
+  --warning-600: #8a5300;
+  --warning-700: #7a4a00;
+  --danger-50: #fde8e8;
+  --danger-100: #f9d2d2;
+  --danger-200: #f3caca;
+  --danger-500: #c42b2b;
+  --danger-600: #b42323;
+  --danger-700: #a21f1f;
+
+  /* Status: ponto colorido + texto em fundo neutro; fundo colorido só para o
+     que pede atenção (aguardando, falta, vencido). */
+  --pill-bg: var(--surface-hover);
+  --pill-fg: var(--text-body);
+  --tone-gray-dot: #9a9ca8;
+  --tone-gray-bg: #f1f2f6;
+  --tone-gray-fg: #4a4a52;
+  --tone-green-dot: #04805d;
+  --tone-green-bg: #e3f7ef;
+  --tone-green-fg: #03684c;
+  --tone-blue-dot: #1a1ed5;
+  --tone-blue-bg: #eeefff;
+  --tone-blue-fg: #1a1ed5;
+  --tone-navy-dot: #5c5c66;
+  --tone-navy-bg: #ecedf2;
+  --tone-navy-fg: #33333b;
+  --tone-amber-dot: #e3a008;
+  --tone-amber-bg: #fff3d6;
+  --tone-amber-fg: #6b4200;
+  --tone-orange-dot: #d9622b;
+  --tone-orange-bg: #fdebdd;
+  --tone-orange-fg: #8a3208;
+  --tone-red-dot: #c42b2b;
+  --tone-red-bg: #fde8e8;
+  --tone-red-fg: #a21f1f;
+
+  /* Avisos dentro da tela */
+  --alert-amber-bg: #fffaee;
+  --alert-amber-border: #f2ddb2;
+  --alert-amber-fg: #4d3200;
+  --alert-amber-icon: #8a5300;
+  --alert-blue-bg: #f5f6ff;
+  --alert-blue-border: #d6d8fa;
+  --alert-blue-fg: #1b1e45;
+  --alert-blue-icon: #1a1ed5;
+  --alert-red-bg: #fff6f6;
+  --alert-red-border: #f3caca;
+  --alert-red-fg: #7a1c1c;
+  --alert-red-icon: #b42323;
+
+  /* Botões */
+  --btn-border: var(--border-2);
+  --btn-border-hover: #c3c7d6;
+  --btn-ghost-fg: var(--text-body);
+  --btn-primary-shadow: none;
+  --btn-danger-bg: var(--surface);
+  --btn-danger-bg-hover: var(--danger-50);
+  --btn-danger-fg: var(--danger-600);
+  --btn-danger-border: #ebc3c3;
+  --btn-danger-border-hover: #e3a9a9;
+  --btn-danger-shadow: none;
+  --btn-sm-fs: 13px;
+
+  /* Menu lateral */
+  --rail-hover: rgb(10 12 37 / 0.05);
+  --rail-pressed: rgb(10 12 37 / 0.06);
+  --rail-sep: rgb(10 12 37 / 0.08);
+
+  /* Gráficos */
+  --chart-1: var(--primary);
+  --chart-2: var(--primary);
+  --chart-3: var(--primary);
+  --viz-grid: var(--border-soft);
+  --viz-baseline: var(--border-2);
+  --viz-closed: var(--border-2);
+  --viz-hatch: rgb(255 255 255 / 0.45);
+  --meter-done: var(--success-600);
+  --meter-now: var(--primary);
+  --meter-waiting: var(--warning-500);
+  --meter-upcoming: var(--border-2);
+  --meter-missed: var(--tone-orange-dot);
+  --meter-cancelled: var(--surface);
+  --meter-cancelled-ring: var(--tone-gray-dot);
+
+  /* Sombra só no que flutua */
+  --elev-raised: none;
+  --elev-card: none;
+  --elev-1: 0 1px 2px rgb(10 12 37 / 0.06);
+  --elev-overlay: 0 0 0 1px rgb(10 12 37 / 0.06), 0 16px 40px rgb(10 12 37 / 0.14);
+  --elev-popover: var(--elev-overlay);
+  /* Os aliases --sh-* resolvem no :root; precisam ser redefinidos aqui para que
+     as utilities shadow-* acompanhem o tenant. */
+  --sh-xs: none;
+  --sh-sm: none;
+  --sh-md: var(--elev-overlay);
+  --sh-lg: var(--elev-overlay);
+  --focus-ring: 0 0 0 0 transparent;
+
+  /* Tipografia: Inter no corpo, Manrope em títulos e números grandes */
+  --font-sans:
+    var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: var(--font-manrope), 'Segoe UI', system-ui, sans-serif;
+  --font-mono: var(--font-sans);
+  --font-heading: var(--font-display);
+  --fs-page: 24px;
+  --fs-h1: 24px;
+  --fs-h2: 24px;
+  --fs-section: 15px;
+  --fs-subsection: 14px;
+  --fs-2xs: 11px;
+
+  /* Raios: 6 etiqueta · 8 botão e campo · 12 cartão · 16 painel */
+  --tag-radius: 6px;
+  --btn-radius: 8px;
+  --field-radius: 8px;
+  --card-radius: 12px;
+  --panel-radius: 16px;
+
+  /* Densidade: 36 px no computador, 40 no celular, 44 em tela de toque */
+  --control-h: 36px;
+  --control-h-sm: 32px;
+  --control-h-lg: 40px;
+  --control-px: 14px;
+  --control-fs: 14px;
+  --hit-target: 36px;
+  --row-h: 52px;
+  --card-pad: 20px;
+  --field-border: var(--border-strong);
+  --field-border-hover: var(--text-3);
+  --field-ring-focus: rgb(26 30 213 / 0.14);
+  --field-placeholder: var(--text-3);
+  --table-header-bg: var(--surface-head);
+  --table-stripe: transparent;
+
+  /* Shell: fundo do app, menu e painel */
+  --shell-gap: 12px;
+  /* Recolhido 44 px (o valor do canvas) e aberto 176 px (+12 px de borda ao abrir
+     por cima): o founder pediu o menu mais estreito em 10/11, com a barra da
+     referência dele como medida. Marca e quadrado do ativo têm 36 px e as mesmas
+     bordas; aberto, os nomes mais longos ("Recolher menu", "Configurações") ficam
+     a ~28 px da borda da pílula. */
+  --rail-w: 44px;
+  --rail-logo: 36px;
+  --rail-logo-inset: calc((var(--rail-w) - var(--rail-logo)) / 2);
+  --rail-icon-inset: calc((var(--rail-w) - 20px) / 2);
+  /* Cada item é um bloco recuado das bordas: no menu recolhido vira um quadrado
+     de 36 px em volta do ícone, alinhado à marca; aberto, uma pílula. */
+  --rail-pill-inset: 4px;
+  --rail-pill-radius: 10px;
+  --rail-item-h: 40px;
+  --rail-heading-h: 28px;
+  /* Ritmo vertical (respiro pedido pelo founder em 18/11): item → folga curta → item; novo grupo
+     → espaço maior. O título fica mais perto dos próprios itens (8 px) que do grupo de cima. */
+  --rail-item-gap: 4px;
+  --rail-group-gap: 16px;
+  --rail-top-gap: 16px;
+  --rail-foot-gap: 16px;
+  --rail-peek-w: 188px;
+  --rail-pin-w: 176px;
+  --page-px: 24px;
+  --page-pt: 0px;
+  --page-pt-mobile: 0px;
+  --page-pb: 24px;
+  color: var(--text);
+  background: var(--shell-bg);
+}
+@media (pointer: coarse) {
+  body:has([data-qoro-shell='tenant']),
+  body:has([data-qoro-tokens='app-v5']) {
+    --hit-target: 44px;
+  }
+}
+@media (max-width: 720px) {
+  body:has([data-qoro-shell='tenant']),
+  body:has([data-qoro-tokens='app-v5']) {
+    --control-h: 40px;
+    --control-h-sm: 36px;
+  }
+}
+
+.dark body:has([data-qoro-shell='tenant']),
+.dark body:has([data-qoro-tokens='app-v5']) {
+  --shell-bg: #0d0f1d;
+  --background: #15172b;
+  --card: #15172b;
+  --secondary: #1b1e35;
+  --surface-hover: #21253f;
+  --surface-head: #191c32;
+  --sidebar-accent: #15172b;
+
+  --foreground: #f1f2f8;
+  --text-body: #d0d2df;
+  --muted-foreground: #a6a9bc;
+  --text-3: #8e92a8;
+  --text-faint: #676b85;
+  --nav-link-fg: #a6a9bc;
+
+  --border: #2c3050;
+  --border-2: #3a3f62;
+  --border-soft: #242844;
+  --border-strong: #6f7493;
+
+  --primary: #4a4eeb;
+  --primary-50: #1a1e45;
+  --primary-100: #24285e;
+  --primary-200: #3a3f8c;
+  --primary-700: #5e62f5;
+  --primary-800: #7276ff;
+  --primary-foreground: #ffffff;
+  --text-link: #a3a6ff;
+
+  --success-50: #0f2d25;
+  --success-100: #133a30;
+  --success-200: #5fd8ab;
+  --success-500: #2fbf8a;
+  --success-600: #4fd3a3;
+  --success-700: #5fd8ab;
+  --warning-50: #33270c;
+  --warning-100: #3a2c0e;
+  --warning-200: #f5c66a;
+  --warning-500: #e3a008;
+  --warning-600: #f2c063;
+  --warning-700: #f5c66a;
+  --danger-50: #3a1717;
+  --danger-100: #3d1a1c;
+  --danger-200: #f7a3a3;
+  --danger-500: #e25555;
+  --danger-600: #f38b8b;
+  --danger-700: #f7a3a3;
+
+  --tone-gray-dot: #8e92a8;
+  --tone-gray-bg: #21253f;
+  --tone-gray-fg: #c4c7d6;
+  --tone-green-dot: #2fbf8a;
+  --tone-green-bg: #0f2d25;
+  --tone-green-fg: #5fd8ab;
+  --tone-blue-dot: #8a8eff;
+  --tone-blue-bg: #24285e;
+  --tone-blue-fg: #b4b7ff;
+  --tone-navy-dot: #a6a9bc;
+  --tone-navy-bg: #2a2e48;
+  --tone-navy-fg: #d0d2df;
+  --tone-amber-dot: #e3a008;
+  --tone-amber-bg: #3a2c0e;
+  --tone-amber-fg: #f5c66a;
+  --tone-orange-dot: #e07a47;
+  --tone-orange-bg: #3d2216;
+  --tone-orange-fg: #f6a97f;
+  --tone-red-dot: #e25555;
+  --tone-red-bg: #3d1a1c;
+  --tone-red-fg: #f7a3a3;
+
+  --alert-amber-bg: #2a220f;
+  --alert-amber-border: #4a3a14;
+  --alert-amber-fg: #f7d9a0;
+  --alert-amber-icon: #f2c063;
+  --alert-blue-bg: #1a1d3f;
+  --alert-blue-border: #33397a;
+  --alert-blue-fg: #d3d5ff;
+  --alert-blue-icon: #a3a6ff;
+  --alert-red-bg: #2e1618;
+  --alert-red-border: #5a2a2e;
+  --alert-red-fg: #f8c4c4;
+  --alert-red-icon: #f38b8b;
+
+  --btn-border-hover: #4a5078;
+  --btn-danger-border: #5a2a2e;
+  --btn-danger-border-hover: #7a3a40;
+
+  --rail-hover: rgb(255 255 255 / 0.06);
+  --rail-pressed: rgb(255 255 255 / 0.08);
+  --rail-sep: rgb(255 255 255 / 0.09);
+
+  --viz-hatch: rgb(255 255 255 / 0.32);
+  /* O bloco escuro de setembro tem a mesma especificidade e define estes dois;
+     sem repetir aqui, o gráfico voltaria aos azuis lavados do tema anterior. */
+  --chart-1: var(--primary);
+  --chart-2: var(--primary);
+
+  --elev-1: 0 1px 2px rgb(0 0 0 / 0.4);
+  --elev-overlay: 0 0 0 1px rgb(255 255 255 / 0.06), 0 16px 40px rgb(0 0 0 / 0.55);
+  --field-ring-focus: rgb(138 142 255 / 0.28);
+}
+
+/* ---- Shell v5: fundo do app, menu lateral e painel de conteúdo ----------
+   O menu fica SOBRE o fundo do app, fora do painel. Três estados:
+   - recolhido (padrão): trilho de 72 px só com ícones, contadores e um traço
+     curto no lugar do título de cada grupo;
+   - ao passar o mouse (depois de um instante de intenção) ou focar com o
+     teclado: abre por cima com 228 px, sem mover a tela; o traço vira o nome
+     do grupo e o contador vira etiqueta ao lado do nome;
+   - fixado: 216 px que empurram o painel para o lado.
+   Título e traço ocupam a mesma altura, então nada sobe ou desce ao abrir.
+   A preferência de fixar vive em `html[data-qoro-rail='pinned']`, aplicada pelo
+   script de antes da pintura no layout raiz — sem salto na hidratação. */
+[data-qoro-shell='tenant'].qoro-app {
+  display: flex;
+  gap: var(--shell-gap);
+  min-height: 100dvh;
+  padding: var(--shell-gap);
+  background: var(--shell-bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+[data-qoro-shell='tenant'] .qoro-rail {
+  --rail-label-opacity: 0;
+  position: sticky;
+  top: var(--shell-gap);
+  /* Acima dos cabeçalhos sticky do painel (z-sticky), abaixo de menus e gavetas. */
+  z-index: calc(var(--z-sticky) + 10);
+  flex: none;
+  align-self: flex-start;
+  width: var(--rail-w);
+  height: calc(100dvh - 2 * var(--shell-gap));
+  transition: width 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
+  width: var(--rail-pin-w);
+}
+[data-qoro-shell='tenant'] .qoro-rail-inner {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  width: var(--rail-w);
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+  border-radius: var(--card-radius);
+  background: transparent;
+  transition:
+    width 0.18s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.18s ease,
+    background-color 0.18s ease,
+    padding 0.18s cubic-bezier(0.2, 0.8, 0.2, 1),
+    margin 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* Abre por cima: no hover, no foco por teclado e enquanto o menu da conta
+   estiver aberto (o conteúdo dele vai para um portal e o foco sai do trilho).
+   `:focus-visible`, e não `:focus-within`: o clique do mouse não prende o trilho. */
+@media (min-width: 721px) {
+  html:not([data-qoro-rail='pinned'])
+    [data-qoro-shell='tenant']
+    .qoro-rail:is(:hover, :has(:focus-visible), :has([data-state='open'])):not([data-peek='off'])
+    .qoro-rail-inner {
+    width: var(--rail-peek-w);
+    /* Abre 6 px para cada lado: a marca fica à mesma distância do topo e da esquerda. */
+    margin: -6px 0 -6px -6px;
+    padding: 6px;
+    /* O mesmo cinza do trilho: o item ativo, branco, se destaca aberto ou não. */
+    background: var(--shell-bg);
+    box-shadow: var(--elev-overlay);
+  }
+}
+/* Intenção: cruzar a borda com o mouse a caminho de outro lugar não abre o
+   menu por cima da tela. Só o hover espera; o foco por teclado abre na hora e
+   fechar é sempre imediato (a espera some junto com o :hover). */
+@media (min-width: 721px) and (hover: hover) {
+  html:not([data-qoro-rail='pinned']) [data-qoro-shell='tenant'] .qoro-rail:hover .qoro-rail-inner,
+  html:not([data-qoro-rail='pinned']) [data-qoro-shell='tenant'] .qoro-rail:hover .qoro-rail-label,
+  html:not([data-qoro-rail='pinned']) [data-qoro-shell='tenant'] .qoro-rail:hover .qoro-rail-dot,
+  html:not([data-qoro-rail='pinned'])
+    [data-qoro-shell='tenant']
+    .qoro-rail:hover
+    .qoro-rail-user
+    [data-slot='sidebar-user']
+    > :not(:first-child) {
+    transition-delay: 0.12s;
+  }
+}
+html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail-inner {
+  width: var(--rail-pin-w);
+}
+[data-qoro-shell='tenant']
+  .qoro-rail:is(:hover, :has(:focus-visible), :has([data-state='open'])):not([data-peek='off']),
+html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
+  --rail-label-opacity: 1;
+}
+[data-qoro-shell='tenant'] .qoro-rail-label {
+  opacity: var(--rail-label-opacity);
+  white-space: nowrap;
+  transition: opacity 0.14s ease;
+}
+[data-qoro-shell='tenant'] .qoro-rail-top {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: var(--rail-top-gap);
+  padding: var(--rail-logo-inset) var(--rail-logo-inset) 0;
+}
+[data-qoro-shell='tenant'] .qoro-rail-clinic {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 10px;
+  height: var(--rail-logo);
+  border-radius: var(--btn-radius);
+  color: var(--text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+[data-qoro-shell='tenant'] .qoro-rail-mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--rail-logo);
+  height: var(--rail-logo);
+  border-radius: var(--card-radius);
+  background: var(--primary);
+  /* Um brilho interno de 1 px dá volume à marca sem sombra externa. */
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18);
+  color: var(--primary-foreground);
+}
+[data-qoro-shell='tenant'] .qoro-rail-mark svg {
+  width: 18px;
+  height: 18px;
+}
+[data-qoro-shell='tenant'] .qoro-rail-clinic-name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+}
+[data-qoro-shell='tenant'] .qoro-rail-nav {
+  display: flex;
+  min-height: 0;
+  flex: 0 1 auto;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+[data-qoro-shell='tenant'] .qoro-rail-nav::-webkit-scrollbar {
+  display: none;
+}
+[data-qoro-shell='tenant'] .qoro-rail-group {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--rail-item-gap);
+}
+[data-qoro-shell='tenant'] .qoro-rail-group + .qoro-rail-group {
+  margin-top: var(--rail-group-gap);
+}
+/* Título do grupo. Aberto: o nome, alinhado ao ícone. Recolhido: um traço
+   curto no mesmo espaço (o primeiro grupo dispensa o traço, a marca já separa). */
+[data-qoro-shell='tenant'] .qoro-rail-heading {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: flex-end;
+  height: var(--rail-heading-h);
+  padding: 0 8px 4px var(--rail-icon-inset);
+}
+[data-qoro-shell='tenant'] .qoro-rail-heading-text {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  /* Altura de linha folgada: com 1, o `overflow` cortava o til e o acento das
+     maiúsculas ("OPERAÇÃO" saía "OPERAÇAO"). */
+  line-height: 16px;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+}
+[data-qoro-shell='tenant'] .qoro-rail-item {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 14px;
+  width: calc(100% - 2 * var(--rail-pill-inset));
+  height: var(--rail-item-h);
+  margin: 0 var(--rail-pill-inset);
+  padding: 0 calc(var(--rail-icon-inset) - var(--rail-pill-inset));
+  border: 0;
+  border-radius: var(--rail-pill-radius);
+  background: transparent;
+  color: var(--nav-link-fg);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+[data-qoro-shell='tenant'] .qoro-rail-item > svg {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+/* O desenho da biblioteca ocupa 24 de 32 unidades: a margem negativa o deixa com
+   a mesma área dos ícones estáticos. */
+[data-qoro-shell='tenant'] .qoro-rail-item > [data-useanimations] {
+  flex: none;
+  margin: -3.5px;
+}
+[data-qoro-shell='tenant'] .qoro-rail-item > [data-useanimations]:empty {
+  position: absolute;
+}
+[data-qoro-shell='tenant'] .qoro-rail-item > [data-useanimations]:not(:empty) + svg {
+  display: none;
+}
+[data-qoro-shell='tenant'] .qoro-rail-item:hover {
+  background: var(--rail-hover);
+  color: var(--text);
+}
+/* Item ativo: bloco branco sobre o cinza do menu, sem borda nem barra, texto
+   escuro e peso maior (referência visual do founder, 10/11). Forma, elevação e
+   peso dizem "você está aqui" sem depender só da cor. */
+[data-qoro-shell='tenant'] .qoro-rail-item[aria-current='page'],
+[data-qoro-shell='tenant'] .qoro-rail-item[aria-current='page']:hover {
+  background: var(--card);
+  box-shadow: var(--elev-1);
+  color: var(--text);
+  font-weight: 600;
+}
+[data-qoro-shell='tenant'] .qoro-rail-item[data-pressed='true'] {
+  background: var(--rail-pressed);
+  color: var(--text);
+}
+[data-qoro-shell='tenant'] .qoro-rail :is(.qoro-rail-item, .qoro-rail-clinic):focus-visible {
+  outline-offset: -2px;
+}
+/* Carregando: a troca de tela começou e a rota ainda não respondeu. Uma linha
+   fina na base do item, que corre; com movimento reduzido, fica parada. */
+[data-qoro-shell='tenant'] .qoro-rail-pending {
+  position: absolute;
+  right: 10px;
+  bottom: 3px;
+  left: 10px;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  pointer-events: none;
+}
+[data-qoro-shell='tenant'] .qoro-rail-pending::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40%;
+  border-radius: inherit;
+  background: var(--primary);
+  animation: qoro-rail-pending 0.9s ease-in-out infinite;
+}
+@keyframes qoro-rail-pending {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-qoro-shell='tenant'] .qoro-rail-pending::after {
+    width: 100%;
+    opacity: 0.6;
+    animation: none;
+  }
+}
+/* Contador: ponto sobre o ícone no trilho recolhido, etiqueta ao lado do nome
+   quando o menu abre. É UM número só; o ponto é a cópia visual, sem leitura. */
+[data-qoro-shell='tenant'] .qoro-rail-count {
+  min-width: 20px;
+  height: 20px;
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: var(--tag-radius);
+  background: var(--tone-blue-bg);
+  color: var(--tone-blue-fg);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+[data-qoro-shell='tenant'] .qoro-rail-dot {
+  position: absolute;
+  top: 4px;
+  left: calc(var(--rail-icon-inset) - var(--rail-pill-inset) + 14px);
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--primary);
+  box-shadow: 0 0 0 2px var(--shell-bg);
+  color: var(--primary-foreground);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  opacity: calc(1 - var(--rail-label-opacity));
+  transition: opacity 0.14s ease;
+}
+[data-qoro-shell='tenant'] .qoro-rail-spacer {
+  flex: 1 1 auto;
+  min-height: var(--rail-foot-gap);
+}
+/* Fixar, tema e Sair: lista com nome, como os destinos, igual ao canvas. O
+   founder desfez a linha de ícones em 10/11. Recolhido, só o ícone aparece. */
+[data-qoro-shell='tenant'] .qoro-rail-foot {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--rail-item-gap);
+  padding-top: 12px;
+}
+/* Ações secundárias (Fixar, tema, Sair): 4 px mais baixas que os destinos (hierarquia e espaço
+   para a lista caber em 1440 × 900). Só com mouse: no toque o alvo segue o tamanho do item. */
+@media (pointer: fine) {
+  [data-qoro-shell='tenant'] .qoro-rail-foot .qoro-rail-item {
+    height: calc(var(--rail-item-h) - 4px);
+  }
+}
+/* Ações secundárias separadas da navegação por um filete curto, não por caixa. */
+[data-qoro-shell='tenant'] .qoro-rail-foot::before {
+  position: absolute;
+  top: 0;
+  right: calc(var(--rail-pill-inset) + 4px);
+  left: calc(var(--rail-pill-inset) + 4px);
+  height: 1px;
+  background: var(--rail-sep);
+  content: '';
+}
+/* Tablet com toque: Sair encerra a sessão na hora, então fica só no menu da
+   conta, logo abaixo, longe de um toque por engano. */
+@media (pointer: coarse) and (min-width: 721px) {
+  [data-qoro-shell='tenant'] .qoro-rail-foot [form='painel-logout'] {
+    display: none;
+  }
+}
+[data-qoro-shell='tenant'] .qoro-rail-user {
+  display: flex;
+  flex: none;
+  align-items: center;
+  height: 52px;
+  margin-top: 12px;
+  white-space: nowrap;
+}
+[data-qoro-shell='tenant'] .qoro-rail-user [data-slot='sidebar-user'] {
+  width: calc(100% - 2 * var(--rail-pill-inset));
+  min-height: 44px;
+  gap: 10px;
+  margin: 0 var(--rail-pill-inset);
+  padding: 0 calc((var(--rail-w) - 32px) / 2 - var(--rail-pill-inset));
+  border-radius: var(--rail-pill-radius);
+}
+[data-qoro-shell='tenant'] .qoro-rail-user [data-slot='sidebar-user']:hover {
+  background: var(--rail-hover);
+}
+[data-qoro-shell='tenant'] .qoro-rail-user [data-slot='sidebar-user'] > span:first-child {
+  width: 32px;
+  height: 32px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 12px;
+  font-weight: 600;
+}
+[data-qoro-shell='tenant'] .qoro-rail-user [data-slot='sidebar-user'] > :not(:first-child) {
+  opacity: var(--rail-label-opacity);
+  transition: opacity 0.14s ease;
+}
+[data-qoro-shell='tenant']
+  .qoro-rail-user
+  [data-slot='sidebar-user']
+  > span:nth-child(2)
+  > span:first-child {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+[data-qoro-shell='tenant']
+  .qoro-rail-user
+  [data-slot='sidebar-user']
+  > span:nth-child(2)
+  > span
+  + span {
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.3;
+}
+[data-qoro-shell='tenant'] .qoro-rail-toggle,
+[data-qoro-shell='tenant'] .qoro-rail-close,
+[data-qoro-shell='tenant'] .qoro-rail-scrim {
+  display: none;
+}
+
+/* Painel de conteúdo: branco, borda fina e raio 16, ao lado do menu. Sem
+   `overflow: hidden` — os cabeçalhos `sticky` das telas precisam vazar dele. */
+[data-qoro-shell='tenant'] .qoro-panel {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 0;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+  background: var(--background);
+}
 [data-qoro-shell='tenant'] main {
   max-width: none;
   outline: none;
 }
-[data-qoro-shell='tenant'] [data-slot='shell-sidebar'] {
-  gap: 18px;
-  padding-top: 20px;
+
+/* Telas baixas (founder, 18/11): o espaço entre itens e grupos diminui um degrau, mas os itens
+   não passam de 36 px para baixo; quando não cabe, a lista rola. Antes os itens chegavam a 28 px
+   e os títulos sumiam para caber tudo, e o menu parecia espremido. */
+@media (min-width: 721px) and (max-height: 960px) {
+  body:has([data-qoro-shell='tenant']) {
+    --rail-item-h: 36px;
+    --rail-heading-h: 26px;
+    --rail-group-gap: 12px;
+    --rail-top-gap: 12px;
+    --rail-foot-gap: 12px;
+  }
 }
-[data-qoro-shell='tenant'] [data-slot='wordmark'] {
-  min-height: 24px;
-  padding-inline: 18px;
+/* Abaixo de 800 px a lista rola em vez de espremer os itens (respiro > caber tudo). Os títulos
+   seguem visíveis; rodapé e conta ficam fora da lista e sempre ao alcance, e o destino atual é
+   rolado para a vista (painel-shell). */
+@media (min-width: 721px) and (max-height: 800px) {
+  body:has([data-qoro-shell='tenant']) {
+    --rail-heading-h: 24px;
+    --rail-group-gap: 10px;
+    --rail-top-gap: 10px;
+    --rail-foot-gap: 10px;
+  }
+  [data-qoro-shell='tenant'] .qoro-rail-user {
+    height: 48px;
+    margin-top: 8px;
+  }
 }
-[data-qoro-shell='tenant'] [data-slot='wordmark'] svg {
-  width: 74px;
-  height: auto;
+/* Lista mais alta que o espaço: um esmaecido no fim avisa que há mais itens; some ao chegar ao
+   fim (rolagem dirigida por CSS onde houver suporte; sem suporte, a lista só rola). */
+@supports (animation-timeline: scroll()) {
+  [data-qoro-shell='tenant'] .qoro-rail-nav {
+    animation: qoro-rail-nav-fade linear both;
+    animation-timeline: scroll(self);
+  }
+  @keyframes qoro-rail-nav-fade {
+    from {
+      mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+    }
+    99% {
+      mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+    }
+    to {
+      mask-image: none;
+    }
+  }
 }
-[data-qoro-shell='tenant'] nav[aria-label='Navegação principal'] {
-  padding-inline: 10px;
+[data-qoro-shell='tenant']
+  .qoro-rail:is(:hover, :has(:focus-visible), :has([data-state='open'])):not([data-peek='off'])
+  .qoro-rail-nav,
+html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail-nav {
+  scrollbar-width: thin;
 }
-[data-qoro-shell='tenant'] nav[aria-label='Navegação principal'] > div {
-  margin-top: 15px;
+
+@media (max-width: 900px) {
+  body:has([data-qoro-shell='tenant']) {
+    --page-px: 16px;
+  }
 }
-[data-qoro-shell='tenant'] nav[aria-label='Navegação principal'] > div:first-child {
-  margin-top: 0;
+
+/* Celular: a barra do topo é a marca, o nome da clínica e o botão "Menu", com o
+   contador de conversas quando houver. A navegação inteira — títulos dos
+   grupos, tema, conta e Sair — abre numa gaveta que desliza da esquerda. Uma
+   faixa só de ícones obrigava a adivinhar cada destino e escondia os últimos
+   fora da tela. */
+@media (max-width: 720px) {
+  [data-qoro-shell='tenant'].qoro-app {
+    display: block;
+    padding: 0 var(--shell-gap) var(--shell-gap);
+  }
+  [data-qoro-shell='tenant'] .qoro-rail,
+  html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail {
+    --rail-label-opacity: 1;
+    position: relative;
+    top: auto;
+    display: flex;
+    width: auto;
+    height: 60px;
+    align-items: center;
+    gap: 8px;
+    padding: 0;
+    background: var(--shell-bg);
+    transition: none;
+  }
+  [data-qoro-shell='tenant'] .qoro-rail .qoro-rail-inner,
+  html[data-qoro-rail='pinned'] [data-qoro-shell='tenant'] .qoro-rail-inner {
+    position: static;
+    width: auto;
+    min-width: 0;
+    height: auto;
+    flex: 1 1 auto;
+    flex-direction: row;
+    align-items: center;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  [data-qoro-shell='tenant'] .qoro-rail-top {
+    min-width: 0;
+    flex: 1 1 auto;
+    margin: 0;
+    padding: 0;
+  }
+  [data-qoro-shell='tenant']
+    .qoro-rail
+    :is(.qoro-rail-nav, .qoro-rail-spacer, .qoro-rail-foot, .qoro-rail-user) {
+    display: none;
+  }
+  [data-qoro-shell='tenant'] .qoro-rail-toggle {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    height: 40px;
+    padding: 0 14px 0 11px;
+    border: 1px solid var(--border);
+    border-radius: var(--btn-radius);
+    background: var(--card);
+    box-shadow: var(--elev-1);
+    color: var(--text-body);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
+  }
+  [data-qoro-shell='tenant'] .qoro-rail-toggle-count {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--primary);
+    box-shadow: 0 0 0 2px var(--shell-bg);
+    color: var(--primary-foreground);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Gaveta: a navegação inteira, com nomes, títulos, tema, conta e Sair. */
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail {
+    z-index: var(--z-drawer);
+    /* A barra fica acima da máscara para a gaveta (filha dela) ficar também;
+       transparente, ela deixa a máscara escurecer o topo junto com o resto. */
+    background: transparent;
+  }
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail .qoro-rail-inner {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: var(--z-drawer);
+    width: min(320px, 88vw);
+    height: auto;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 14px 12px 12px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-radius: 0 var(--panel-radius) var(--panel-radius) 0;
+    background: var(--shell-bg);
+    box-shadow: var(--elev-modal);
+    animation: qoro-drawer-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-top {
+    flex: none;
+    margin: 0 0 6px;
+  }
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-nav {
+    display: flex;
+    flex: none;
+    overflow: visible;
+  }
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-heading {
+    padding-left: 12px;
+  }
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-item {
+    width: 100%;
+    margin: 0;
+    padding: 0 12px;
+  }
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-dot {
+    opacity: 0;
+  }
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-spacer {
+    display: block;
+    min-height: 16px;
+  }
+  /* Tema e Sair na gaveta: a mesma lista dos destinos. */
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-foot {
+    display: flex;
+  }
+  /* No celular o menu é gaveta, não trilho: não há o que fixar. */
+  [data-qoro-shell='tenant'] .qoro-rail-foot > [data-pressed] {
+    display: none;
+  }
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-user {
+    display: flex;
+  }
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-user [data-slot='sidebar-user'] {
+    width: 100%;
+    margin: 0;
+    padding: 0 12px;
+  }
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-close {
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    width: var(--hit-target);
+    height: var(--hit-target);
+    border: 0;
+    border-radius: var(--btn-radius);
+    background: transparent;
+    color: var(--text-body);
+  }
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-close:hover {
+    background: var(--rail-hover);
+  }
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-toggle {
+    visibility: hidden;
+  }
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--z-drawer) - 1);
+    display: block;
+    background: rgb(10 12 37 / 0.42);
+    animation: qoro-scrim-in 0.22s ease;
+  }
+  [data-qoro-shell='tenant'] .qoro-panel {
+    min-height: calc(100dvh - 72px);
+  }
 }
-[data-qoro-shell='tenant'] [data-slot='nav-group-label'] {
-  margin-bottom: 7px;
-  padding-inline: 8px;
-  color: var(--text-2);
-  font-size: 12.5px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  text-transform: none;
+@keyframes qoro-drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: none;
+  }
 }
-[data-qoro-shell='tenant'] [data-slot='nav-link'] {
-  min-height: 38px;
-  gap: 9px;
-  padding: 0 8px;
-  border-radius: 6px;
-  font-size: 13.5px;
-  font-weight: 500;
-  color: var(--nav-link-fg);
+@keyframes qoro-scrim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
-[data-qoro-shell='tenant'] [data-slot='nav-link'] svg {
-  width: 16px;
-  height: 16px;
-  color: currentColor;
-}
-/* Administração é a única faixa que a referência desenha mais leve (peso 400)
-   em TODAS as 12 telas. Não é descuido: configurar a clínica é tarefa de
-   exceção, e igualar o peso a Dashboard/Agenda faria a lista inteira competir
-   pela mesma atenção o dia todo. A COR já é `--text-2` herdada da regra base;
-   só o peso cai. O item ativo volta ao peso cheio pela regra abaixo. */
-[data-qoro-shell='tenant'] [data-nav-group='Administração'] [data-slot='nav-link'] {
-  font-weight: 400;
-}
-[data-qoro-shell='tenant'] [data-slot='nav-link'][aria-current='page'] {
-  background: var(--sidebar-accent);
-  color: var(--text);
-  font-weight: 600;
-}
-[data-qoro-shell='tenant'] [data-slot='nav-link'][aria-current='page'] svg {
-  color: var(--primary);
-}
-[data-qoro-shell='tenant'] .qoro-handoff-badge {
-  border: 1px solid var(--ai-border);
-  border-radius: 5px;
-  background: var(--ai-soft);
-  color: var(--ai);
-  font: 600 11.5px/1.5 var(--font-mono);
-}
-[data-qoro-shell='tenant'] .qoro-sidebar-footer {
-  margin: auto 10px 14px;
-  padding: 12px 0 0;
-}
-[data-qoro-shell='tenant'] [data-slot='sidebar-user'] {
-  padding-inline: 8px;
-  min-height: 44px;
-}
-[data-qoro-shell='tenant'] [data-slot='sidebar-user'] > span:first-child {
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  font-size: 12px;
-}
-[data-qoro-shell='tenant'] .qoro-sidebar-actions {
-  display: flex;
-  gap: 6px;
-  margin-top: 6px;
-}
-[data-qoro-shell='tenant'] .qoro-sidebar-actions > button:first-child {
-  flex: 1;
-  padding-inline: 6px;
-  font-size: 12px;
+/* Toque no celular: itens da gaveta e botão de menu no alvo de toque. */
+@media (max-width: 720px) and (pointer: coarse) {
+  [data-qoro-shell='tenant'][data-nav-open='true'] .qoro-rail-item {
+    height: var(--hit-target);
+  }
+  [data-qoro-shell='tenant'] .qoro-rail-toggle {
+    height: var(--hit-target);
+  }
 }
 /* Faixa de alerta acionável — Dashboard, Agenda e Caixa usam a MESMA peça.
    Cada linha é um destino: cor diz o domínio, texto carrega para onde o clique
@@ -442,68 +1387,116 @@ body:has([data-qoro-tokens='qorov2']) {
    (Governança de UI, regra 5). `data-tone` escolhe a família de cor. */
 [data-qoro-shell='tenant'] .qoro-alert-row {
   display: flex;
-  min-height: 44px;
+  min-height: 48px;
   align-items: center;
-  gap: 10px;
-  padding: 0 14px;
-  border: 1px solid;
-  border-radius: 8px;
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  line-height: 1.35;
+  gap: 8px 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--alert-border);
+  border-radius: var(--card-radius);
+  background: var(--alert-bg);
+  color: var(--alert-fg);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
   text-decoration: none;
   transition: border-color var(--dur-fast) ease;
 }
 [data-qoro-shell='tenant'] .qoro-alert-row > svg {
   flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--alert-icon);
+}
+[data-qoro-shell='tenant'] .qoro-alert-row > svg:last-child {
   width: 16px;
   height: 16px;
 }
-[data-qoro-shell='tenant'] .qoro-alert-row > svg:last-child {
-  width: 15px;
-  height: 15px;
-}
 [data-qoro-shell='tenant'] .qoro-alert-row-text {
-  flex: 1;
+  flex: 1 1 200px;
   min-width: 0;
   text-wrap: pretty;
 }
 [data-qoro-shell='tenant'] .qoro-alert-row-cta {
   flex: none;
-  font-size: var(--fs-caption);
+  color: var(--text-link);
+  font-size: 13px;
+  font-weight: 500;
+}
+[data-qoro-shell='tenant'] .qoro-alert-row:hover .qoro-alert-row-cta {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 [data-qoro-shell='tenant'] .qoro-alert-row[data-tone='warning'] {
-  border-color: var(--warning-200);
-  background: var(--warning-50);
-  color: var(--warning-700);
-}
-[data-qoro-shell='tenant'] .qoro-alert-row[data-tone='warning']:hover {
-  border-color: var(--warning-600);
-}
-[data-qoro-shell='tenant'] .qoro-alert-row[data-tone='warning'] > svg {
-  color: var(--warning-600);
+  --alert-bg: var(--alert-amber-bg);
+  --alert-border: var(--alert-amber-border);
+  --alert-fg: var(--alert-amber-fg);
+  --alert-icon: var(--alert-amber-icon);
 }
 [data-qoro-shell='tenant'] .qoro-alert-row[data-tone='danger'] {
-  border-color: var(--danger-200);
-  background: var(--danger-50);
-  color: var(--danger-700);
-}
-[data-qoro-shell='tenant'] .qoro-alert-row[data-tone='danger']:hover {
-  border-color: var(--danger-500);
-}
-[data-qoro-shell='tenant'] .qoro-alert-row[data-tone='danger'] > svg {
-  color: var(--danger-500);
+  --alert-bg: var(--alert-red-bg);
+  --alert-border: var(--alert-red-border);
+  --alert-fg: var(--alert-red-fg);
+  --alert-icon: var(--alert-red-icon);
 }
 [data-qoro-shell='tenant'] .qoro-alert-row[data-tone='ai'] {
-  border-color: var(--ai-border);
-  background: var(--ai-soft);
-  color: var(--ai);
+  --alert-bg: var(--alert-blue-bg);
+  --alert-border: var(--alert-blue-border);
+  --alert-fg: var(--alert-blue-fg);
+  --alert-icon: var(--alert-blue-icon);
 }
-[data-qoro-shell='tenant'] .qoro-alert-row[data-tone='ai']:hover {
-  border-color: var(--brand-accent-500);
+[data-qoro-shell='tenant'] .qoro-alert-row:hover {
+  border-color: var(--alert-icon);
 }
-[data-qoro-shell='tenant'] .qoro-alert-row[data-tone='ai'] > svg {
-  color: var(--brand-accent-500);
+
+/* Alert (aviso dentro da tela): borda fina, raio 12, ícone na cor do tom. */
+:is(body:has([data-qoro-shell='tenant']), body:has([data-qoro-tokens='app-v5']))
+  [data-slot='alert'] {
+  gap: 12px;
+  padding: 12px 16px;
+  border-color: var(--alert-border);
+  border-radius: var(--card-radius);
+  background: var(--alert-bg);
+  color: var(--alert-fg);
+  --alert-ic: var(--alert-icon);
+}
+:is(body:has([data-qoro-shell='tenant']), body:has([data-qoro-tokens='app-v5']))
+  [data-slot='alert']
+  :is(b, div) {
+  color: inherit;
+}
+:is(body:has([data-qoro-shell='tenant']), body:has([data-qoro-tokens='app-v5']))
+  [data-slot='alert']
+  > svg {
+  width: 18px;
+  height: 18px;
+}
+:is(body:has([data-qoro-shell='tenant']), body:has([data-qoro-tokens='app-v5']))
+  [data-slot='alert'][data-variant='info'] {
+  --alert-bg: var(--alert-blue-bg);
+  --alert-border: var(--alert-blue-border);
+  --alert-fg: var(--alert-blue-fg);
+  --alert-icon: var(--alert-blue-icon);
+}
+:is(body:has([data-qoro-shell='tenant']), body:has([data-qoro-tokens='app-v5']))
+  [data-slot='alert'][data-variant='warning'] {
+  --alert-bg: var(--alert-amber-bg);
+  --alert-border: var(--alert-amber-border);
+  --alert-fg: var(--alert-amber-fg);
+  --alert-icon: var(--alert-amber-icon);
+}
+:is(body:has([data-qoro-shell='tenant']), body:has([data-qoro-tokens='app-v5']))
+  [data-slot='alert'][data-variant='danger'] {
+  --alert-bg: var(--alert-red-bg);
+  --alert-border: var(--alert-red-border);
+  --alert-fg: var(--alert-red-fg);
+  --alert-icon: var(--alert-red-icon);
+}
+:is(body:has([data-qoro-shell='tenant']), body:has([data-qoro-tokens='app-v5']))
+  [data-slot='alert'][data-variant='success'] {
+  --alert-bg: var(--tone-green-bg);
+  --alert-border: var(--success-200);
+  --alert-fg: var(--tone-green-fg);
+  --alert-icon: var(--success-600);
 }
 
 [data-qoro-shell='tenant'] .qoro-skip-link {
@@ -512,70 +1505,189 @@ body:has([data-qoro-tokens='qorov2']) {
   left: 8px;
   z-index: var(--z-command);
   padding: 12px;
-  border-radius: 6px;
-  background: var(--surface);
+  border-radius: var(--btn-radius);
+  background: var(--card);
+  box-shadow: var(--elev-overlay);
   color: var(--text-link);
   transform: translateY(-200%);
 }
 [data-qoro-shell='tenant'] .qoro-skip-link:focus {
   transform: translateY(0);
-  box-shadow: var(--focus-ring);
 }
 
+/* Cabeçalho de página v5 em duas faixas, sem mudar o markup do PageHeader
+   (que o /admin também usa):
+   1. faixa superior de 60 px com divisória: trilha da página à esquerda e
+      ações à direita;
+   2. faixa de título: h1 em Manrope 24 e o subtítulo embaixo.
+   A divisória é o ::before, que vira item da grade na primeira linha. */
 [data-qoro-shell='tenant'] [data-slot='page-header'] {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  min-height: 68px;
-  align-content: center;
-  gap: 6px;
-  margin: 0 calc(-1 * var(--page-px)) 16px;
-  padding: 12px var(--page-px);
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 10px;
+  margin: 0 calc(-1 * var(--page-px)) 20px;
+  padding: 0 var(--page-px);
 }
+[data-qoro-shell='tenant'] [data-slot='page-header']::before {
+  content: '';
+  grid-row: 1;
+  grid-column: 1 / -1;
+  align-self: stretch;
+  min-height: 60px;
+  margin-inline: calc(-1 * var(--page-px));
+  border-bottom: 1px solid var(--border-soft);
+  pointer-events: none;
+}
+/* Sem trilha nem ações a faixa ficaria vazia: some, e o título sobe. */
+[data-qoro-shell='tenant']
+  [data-slot='page-header']:not(
+    :has(
+      > nav,
+      > :first-child:not([data-slot]),
+      [data-slot='page-header-screen'],
+      [data-slot='page-header-actions']
+    )
+  )::before {
+  display: none;
+}
+[data-qoro-shell='tenant'] [data-slot='page-header'] > nav,
 [data-qoro-shell='tenant'] [data-slot='page-header'] > :first-child:not([data-slot]) {
+  grid-row: 1;
   grid-column: 1;
-  margin-bottom: 0;
-  font-size: 12px;
+  min-width: 0;
+  margin: 0;
+  padding-block: 10px;
+}
+[data-qoro-shell='tenant'] [data-slot='page-header'] > nav ol {
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 500;
+}
+[data-qoro-shell='tenant'] [data-slot='page-header'] > nav li {
+  gap: 8px;
+}
+[data-qoro-shell='tenant'] [data-slot='page-header'] > nav li > span[aria-hidden='true'] {
+  color: var(--text-faint);
+  font-weight: 400;
+}
+[data-qoro-shell='tenant'] [data-slot='page-header'] > nav a {
+  color: var(--text-2);
+}
+[data-qoro-shell='tenant'] [data-slot='page-header'] > nav a:hover {
+  color: var(--text);
+}
+[data-qoro-shell='tenant'] [data-slot='page-header'] > nav [aria-current='page'] {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-weight: 600;
+}
+[data-qoro-shell='tenant'] [data-slot='page-header'] > nav svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--text-2);
+}
+[data-qoro-shell='tenant'] [data-slot='page-header-screen'] {
+  grid-row: 1;
+  grid-column: 1;
+  min-width: 0;
+  padding-block: 10px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+[data-qoro-shell='tenant'] [data-slot='page-header-screen'] svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--text-2);
+}
+[data-qoro-shell='tenant'] [data-slot='page-header-search'] {
+  grid-row: 1;
+  grid-column: 2;
+  width: 100%;
+  max-width: 440px;
+  margin-left: 12px;
+  padding-block: 10px;
+}
+[data-qoro-shell='tenant'] [data-slot='page-header-controls'] {
+  grid-row: 2;
+  grid-column: 3;
+  align-self: end;
+  justify-self: end;
+  padding-top: 24px;
 }
 [data-qoro-shell='tenant'] [data-slot='page-header-row'] {
   display: contents;
 }
 [data-qoro-shell='tenant'] [data-slot='page-header-copy'] {
-  grid-column: 1;
+  grid-row: 2;
+  grid-column: 1 / -1;
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px 10px;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 24px;
 }
-[data-qoro-shell='tenant'] [data-slot='page-header-copy'] h1 {
+[data-qoro-shell='tenant']
+  [data-slot='page-header']:has(> [data-slot='page-header-controls'])
+  [data-slot='page-header-copy'] {
+  grid-column: 1 / 3;
+}
+[data-qoro-shell='tenant']
+  [data-slot='page-header-copy']
+  :is(h1, [data-slot='page-header-headline']) {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-page);
   line-height: 1.2;
-  letter-spacing: -0.022em;
+  letter-spacing: -0.02em;
 }
 [data-qoro-shell='tenant'] [data-slot='page-header-copy'] p {
   margin: 0;
-  font-size: 13px;
-  line-height: 1.4;
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.5;
 }
-/* O filete é o que permite a métrica encostar no título sem virar legenda dele:
-   separa sem afastar. Mono + tabular-nums porque é sempre número contado. */
 [data-qoro-shell='tenant'] [data-slot='page-header-meta'] {
-  display: inline-flex;
-  align-items: center;
+  display: block;
   margin: 0;
-  padding-left: 10px;
-  border-left: 1px solid var(--border);
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  font-weight: 500;
-  line-height: 1;
+  color: var(--text-2);
+  font-family: var(--font-sans);
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+}
+/* Ficha: o título vira um bloco com avatar, situação e subtítulo. */
+[data-qoro-shell='tenant']
+  [data-slot='page-header'][data-hero='true']
+  [data-slot='page-header-copy'] {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 28px;
+  row-gap: 8px;
+  align-items: center;
+  margin-top: 16px;
+  padding: 28px 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+  background: var(--card);
+}
+[data-qoro-shell='tenant'] [data-slot='page-header-leading'] {
+  grid-row: 1 / span 3;
 }
 [data-qoro-shell='tenant'] [data-slot='page-header-actions'] {
-  grid-column: 2;
-  grid-row: 1 / span 2;
-  align-self: center;
+  grid-row: 1;
+  grid-column: 3;
+  justify-self: end;
+  padding-block: 10px;
+}
+[data-qoro-shell='tenant'] [data-slot='page-header-actions'] > div {
   gap: 8px;
 }
 [data-qoro-shell='tenant'] .qoro-toolbar {
@@ -584,12 +1696,32 @@ body:has([data-qoro-tokens='qorov2']) {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin: -16px calc(-1 * var(--page-px)) 16px;
+  margin: 0 calc(-1 * var(--page-px)) 16px;
   padding: 8px var(--page-px);
-  border-bottom: 1px solid var(--border);
+  border-block: 1px solid var(--border-soft);
+  background: transparent;
+}
+[data-qoro-shell='tenant'] .qoro-checkin {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
   background: var(--surface);
 }
-[data-qoro-shell='tenant'] .qoro-toolbar span:has(> select) {
+[data-qoro-shell='tenant'] .qoro-checkin-title {
+  margin: 0 6px 0 4px;
+  color: var(--text-body);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+[data-qoro-shell='tenant']
+  :is(.qoro-toolbar, [data-slot='page-header-controls'])
+  span:has(> select) {
   width: auto;
   max-width: 100%;
 }
@@ -602,31 +1734,138 @@ body:has([data-qoro-tokens='qorov2']) {
 [data-qoro-shell='tenant'] .qoro-section {
   min-width: 0;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--card-radius);
   background: var(--surface);
 }
 [data-qoro-shell='tenant'] .qoro-section-header {
   display: flex;
-  min-height: 44px;
+  min-height: 52px;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 8px 16px;
-  border-bottom: 1px solid var(--border);
-  font-size: 13.5px;
+  gap: 6px 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border-soft);
+  font-family: var(--font-display);
+  font-size: var(--fs-section);
   font-weight: 600;
+  letter-spacing: -0.01em;
+}
+[data-qoro-shell='tenant'] .qoro-section-header > h2 {
+  margin: 0;
+  font: inherit;
+  letter-spacing: inherit;
+}
+[data-qoro-shell='tenant'] .qoro-section-header > span {
+  color: var(--text-2);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
 }
 body:has([data-qoro-shell='tenant']) [data-slot='card'],
 body:has([data-qoro-shell='tenant']) [data-slot='panel-card'],
 body:has([data-qoro-shell='tenant']) [data-slot='stat-card'] {
   box-shadow: none;
 }
+/* Faixa de indicadores: juntos numa borda só, separados por linhas finas. */
+body:has([data-qoro-shell='tenant'])
+  [data-slot='metric-strip'][data-variant='joined']
+  > [data-slot='stat-card'] {
+  box-shadow:
+    1px 0 0 var(--border-soft),
+    0 1px 0 var(--border-soft);
+}
+/* Contador ao lado de um título ("Próximos na agenda 4"). */
+[data-qoro-shell='tenant'] .qoro-count {
+  display: inline-flex;
+  min-width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: var(--tag-radius);
+  background: var(--tone-navy-bg);
+  color: var(--text-body);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+[data-qoro-shell='tenant'] .qoro-count[data-tone='danger'] {
+  background: var(--tone-red-bg);
+  color: var(--tone-red-fg);
+}
+
+/* Cartão com cabeçalho de 52 px e conteúdo em lista. */
+[data-qoro-shell='tenant'] [data-slot='panel-card'] {
+  padding: var(--card-pad);
+}
 [data-qoro-shell='tenant'] [data-slot='panel-header'] {
-  min-height: 44px;
-  margin: var(--panel-header-margin, -16px -16px 12px);
-  padding: 8px 16px;
-  border-bottom: 1px solid var(--border);
+  min-height: 52px;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin: var(--panel-header-margin, calc(-1 * var(--card-pad)) calc(-1 * var(--card-pad)) 16px);
+  padding: 12px var(--card-pad);
+  border-bottom: 1px solid var(--border-soft);
+}
+[data-qoro-shell='tenant'] [data-slot='panel-header']:last-child {
+  border-bottom: 0;
+}
+[data-qoro-shell='tenant'] [data-slot='panel-header'] :is(h2, h3, h4) {
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: var(--fs-section);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+[data-qoro-shell='tenant'] [data-slot='panel-header'] > span:not([data-slot]) {
+  color: var(--text-2);
+  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+[data-qoro-shell='tenant'] [data-slot='panel-header'] > a {
+  color: var(--text-link);
+  font-size: 13px;
+  font-weight: 500;
+}
+[data-qoro-shell='tenant'] [data-slot='panel-header'] > a:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* Alvo mínimo de 24 px também com mouse (WCAG 2.5.8; varredura de 17/11/2026: 20 px). A margem
+   negativa dá o alvo ao link sem mudar a altura do cabeçalho; no toque ele vai a --hit-target. */
+[data-qoro-shell='tenant'] [data-slot='panel-header'] > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  margin-block: -2px;
+}
+@media (pointer: coarse) {
+  [data-qoro-shell='tenant'] [data-slot='panel-header'] > a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--hit-target);
+    margin-block: calc((var(--hit-target) - 20px) / -2);
+  }
+}
+[data-qoro-shell='tenant'] [data-slot='panel-card'][data-flush='true'] {
+  padding: 0;
+}
+[data-qoro-shell='tenant']
+  [data-slot='panel-card'][data-flush='true']
+  > [data-slot='panel-header'] {
+  margin: 0;
+}
+
+/* Indicador: rótulo 13 · valor em Manrope 24 · apoio 13. Nada em caixa alta. */
+[data-qoro-shell='tenant'] [data-slot='stat-card'] {
+  gap: 4px;
+  padding: 16px 20px;
 }
 [data-qoro-shell='tenant'] [data-slot='stat-label'] {
   flex-direction: row-reverse;
@@ -636,7 +1875,7 @@ body:has([data-qoro-shell='tenant']) [data-slot='stat-card'] {
 }
 [data-qoro-shell='tenant'] [data-slot='stat-label'] > span:first-child {
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
@@ -644,59 +1883,282 @@ body:has([data-qoro-shell='tenant']) [data-slot='stat-card'] {
 [data-qoro-shell='tenant'] [data-slot='stat-label'] svg {
   width: 14px;
   height: 14px;
+  color: var(--text-3);
 }
 [data-qoro-shell='tenant'] [data-slot='stat-value'] {
-  font-family: var(--font-mono);
-  font-size: var(--stat-value-size, 24px);
-  font-weight: 500;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: var(--stat-value-size, clamp(20px, 2.2vw, 24px));
+  font-weight: 600;
   line-height: 1.2;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
 }
-[data-qoro-shell='tenant'] .qoro-grouped-metric [data-slot='stat-value'] {
-  overflow-wrap: anywhere;
-  font-size: 22px;
+[data-qoro-shell='tenant'] [data-slot='stat-value'].text-warning-700 {
+  color: var(--warning-700);
 }
-[data-qoro-shell='tenant'] [data-slot='avatar'] {
-  border-radius: 6px;
+[data-qoro-shell='tenant'] [data-slot='stat-value'].text-success-700 {
+  color: var(--success-600);
 }
-[data-qoro-shell='tenant'] [data-slot='table-wrap'] thead th {
-  height: 38px;
-  padding-block: 8px;
+[data-qoro-shell='tenant'] [data-slot='stat-value'] small {
+  margin-left: 2px;
+  color: var(--text-2);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+[data-qoro-shell='tenant'] [data-slot='stat-hint'] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+[data-qoro-shell='tenant'] a[data-slot='stat-card']:hover {
+  background: var(--surface-hover);
+}
+[data-qoro-shell='tenant'] a[data-slot='stat-card']:focus-visible {
+  outline-offset: -2px;
+}
+
+/* Status: ponto + texto em fundo neutro; fundo colorido só no que pede
+   atenção. Etiqueta (sem ponto) marca característica, como encaixe. */
+body:has([data-qoro-shell='tenant'])
+  [data-slot='badge']:is(
+    [data-tone='gray'],
+    [data-tone='green'],
+    [data-tone='blue'],
+    [data-tone='navy'],
+    [data-tone='amber'],
+    [data-tone='orange'],
+    [data-tone='red'],
+    [data-tone='line']
+  ) {
+  height: 20px;
+  gap: 4px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--tag-radius);
+  background: var(--badge-bg);
+  box-shadow: none;
+  color: var(--badge-fg);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+body:has([data-qoro-shell='tenant']) [data-slot='badge'][data-tone='gray'] {
+  --badge-dot: var(--tone-gray-dot);
+  --badge-bg: var(--tone-gray-bg);
+  --badge-fg: var(--tone-gray-fg);
+}
+body:has([data-qoro-shell='tenant']) [data-slot='badge'][data-tone='green'] {
+  --badge-dot: var(--tone-green-dot);
+  --badge-bg: var(--tone-green-bg);
+  --badge-fg: var(--tone-green-fg);
+}
+body:has([data-qoro-shell='tenant']) [data-slot='badge'][data-tone='blue'] {
+  --badge-dot: var(--tone-blue-dot);
+  --badge-bg: var(--tone-blue-bg);
+  --badge-fg: var(--tone-blue-fg);
+}
+body:has([data-qoro-shell='tenant']) [data-slot='badge'][data-tone='navy'] {
+  --badge-dot: var(--tone-navy-dot);
+  --badge-bg: var(--tone-navy-bg);
+  --badge-fg: var(--tone-navy-fg);
+}
+body:has([data-qoro-shell='tenant']) [data-slot='badge'][data-tone='amber'] {
+  --badge-dot: var(--tone-amber-dot);
+  --badge-bg: var(--tone-amber-bg);
+  --badge-fg: var(--tone-amber-fg);
+}
+body:has([data-qoro-shell='tenant']) [data-slot='badge'][data-tone='orange'] {
+  --badge-dot: var(--tone-orange-dot);
+  --badge-bg: var(--tone-orange-bg);
+  --badge-fg: var(--tone-orange-fg);
+}
+body:has([data-qoro-shell='tenant']) [data-slot='badge'][data-tone='red'] {
+  --badge-dot: var(--tone-red-dot);
+  --badge-bg: var(--tone-red-bg);
+  --badge-fg: var(--tone-red-fg);
+}
+body:has([data-qoro-shell='tenant']) [data-slot='badge'][data-tone='line'] {
+  --badge-dot: transparent;
+  --badge-bg: var(--card);
+  --badge-fg: var(--text-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+body:has([data-qoro-shell='tenant'])
+  [data-slot='badge'][data-dot='true']:is(
+    [data-tone='gray'],
+    [data-tone='green'],
+    [data-tone='blue'],
+    [data-tone='navy']
+  ) {
+  background: var(--pill-bg);
+  color: var(--pill-fg);
+  font-weight: 500;
+}
+body:has([data-qoro-shell='tenant']) [data-slot='badge'][data-dot='true'] {
+  height: 22px;
+  gap: 6px;
+  padding: 0 8px;
   font-size: 12px;
 }
-[data-qoro-shell='tenant'] [data-slot='table-foot'] {
-  min-height: 48px;
-  padding-block: 6px;
-  background: var(--surface);
+body:has([data-qoro-shell='tenant'])
+  [data-slot='badge'][data-dot='true']
+  > span[aria-hidden='true'] {
+  background: var(--badge-dot);
 }
-body:has([data-qoro-shell='tenant']) :is(button, a, input, select, textarea):focus-visible {
-  outline: 2px solid var(--primary);
+body:has([data-qoro-shell='tenant'])
+  [data-slot='badge'][data-tone='line']
+  > span[aria-hidden='true'] {
+  display: none;
+}
+
+/* Vazio: ícone num quadrado branco com contorno, título e o que fazer. */
+body:has([data-qoro-shell='tenant']) [data-slot='empty-state'] > span[aria-hidden='true'] {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 4px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow:
+    0 0 0 1px var(--border),
+    var(--elev-1);
+  color: var(--text-2);
+}
+body:has([data-qoro-shell='tenant']) [data-slot='empty-state'] > span[aria-hidden='true'] > svg {
+  width: 20px;
+  height: 20px;
+}
+body:has([data-qoro-shell='tenant']) [data-slot='empty-state'] > b {
+  font-size: 14px;
+}
+body:has([data-qoro-shell='tenant']) [data-slot='empty-state'] > p {
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+[data-qoro-shell='tenant'] [data-slot='avatar'] {
+  border-radius: 999px;
+}
+[data-qoro-shell='tenant'] [data-slot='table-wrap'] {
+  border-radius: var(--card-radius);
+}
+[data-qoro-shell='tenant'] :is([data-slot='table-wrap'], .qoro-section) :is(th, td) {
+  border-color: var(--border-soft);
+}
+[data-qoro-shell='tenant'] :is([data-slot='table-wrap'], .qoro-section) :is(th, td):first-child {
+  padding-left: 20px;
+}
+[data-qoro-shell='tenant'] :is([data-slot='table-wrap'], .qoro-section) :is(th, td):last-child {
+  padding-right: 20px;
+}
+[data-qoro-shell='tenant'] [data-slot='table-wrap'] td.p-0:first-child {
+  padding-left: 0;
+}
+[data-qoro-shell='tenant'] [data-slot='table-wrap'] td.p-0:first-child > a {
+  padding-left: 20px;
+}
+[data-qoro-shell='tenant'] [data-slot='table-wrap'] tbody tr:hover {
+  background: var(--surface-head);
+}
+[data-qoro-shell='tenant'] [data-slot='table-head'] {
+  display: flex;
+  min-height: 52px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border-soft);
+}
+[data-qoro-shell='tenant'] [data-slot='table-head'] h2 {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: var(--fs-section);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+[data-qoro-shell='tenant'] [data-slot='table-head'] p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 13px;
+}
+[data-qoro-shell='tenant'] [data-slot='table-wrap'] thead th {
+  height: 36px;
+  padding-block: 8px;
+  background: var(--table-header-bg);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+[data-qoro-shell='tenant'] [data-slot='table-foot'] {
+  min-height: 44px;
+  padding-inline: 20px;
+  padding-block: 6px;
+  border-color: var(--border-soft);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 13px;
+}
+:is(body:has([data-qoro-shell='tenant']), body:has([data-qoro-tokens='app-v5']))
+  :is(button, a, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--text-link);
   outline-offset: 2px;
 }
-@media (min-width: 900px) {
+@media (max-width: 720px) {
   [data-qoro-shell='tenant'] [data-slot='page-header'] {
-    position: relative;
-    padding-right: var(--page-px);
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 8px;
   }
-}
-@media (max-width: 899px) {
-  [data-qoro-shell='tenant'] [data-slot='shell-sidebar'][data-open='false'] {
-    visibility: hidden;
+  [data-qoro-shell='tenant'] [data-slot='page-header']::before {
+    order: 3;
+    flex: 0 0 calc(100% + 2 * var(--page-px));
+    min-height: 0;
   }
-  body:has([data-qoro-shell='tenant']) {
-    --page-px: 16px;
-    --page-pt-mobile: 0px;
+  [data-qoro-shell='tenant'] [data-slot='page-header'] > nav,
+  [data-qoro-shell='tenant'] [data-slot='page-header'] > :first-child:not([data-slot]),
+  [data-qoro-shell='tenant'] [data-slot='page-header-screen'] {
+    order: 1;
+    margin-right: auto;
   }
-  [data-qoro-shell='tenant'] main {
-    padding-top: 0;
+  [data-qoro-shell='tenant'] [data-slot='page-header-search'] {
+    order: 2;
+    flex: 1 0 100%;
+    max-width: none;
+    margin-left: 0;
+    padding-block: 0 10px;
   }
-  [data-qoro-shell='tenant'] [data-slot='page-header'] {
-    min-height: 68px;
-    padding-left: 64px;
-  }
+  /* UX-021 (17/11/2026): as ações sobem para a linha do nome da tela. Com `order: 2` elas
+     vinham depois da busca, que ocupa a linha inteira, e ganhavam uma linha só delas
+     (Conversas e Documentos chegavam a 342–406 px de cabeçalho a 320–375 px). Se não
+     couberem ao lado do nome, quebram para a linha seguinte, ainda antes da busca. */
   [data-qoro-shell='tenant'] [data-slot='page-header-actions'] {
-    grid-column: 1 / -1;
-    grid-row: auto;
-    width: 100%;
+    order: 1;
+    max-width: 100%;
+  }
+  [data-qoro-shell='tenant'] [data-slot='page-header-copy'] {
+    order: 4;
+    flex: 1 0 100%;
+    padding-top: 20px;
+  }
+  [data-qoro-shell='tenant'] [data-slot='page-header-controls'] {
+    order: 5;
+    flex: 1 0 100%;
+    justify-self: start;
+    padding-top: 12px;
+  }
+  [data-qoro-shell='tenant']
+    [data-slot='page-header-copy']
+    :is(h1, [data-slot='page-header-headline']) {
+    font-size: 20px;
   }
   [data-qoro-shell='tenant'] [data-slot='page-header-actions'] > div {
     flex-wrap: wrap;
@@ -712,6 +2174,231 @@ body:has([data-qoro-shell='tenant']) :is(button, a, input, select, textarea):foc
     scroll-behavior: auto;
     transition-duration: 0s;
     animation-duration: 0s;
+  }
+}
+
+/* =========================================================================
+   Microanimação dos ícones — app da clínica e login (novembro/2026).
+
+   Cada ícone se mexe uma vez quando alguém passa o mouse ou foca pelo teclado
+   no controle que o contém, ou no próprio ícone/caixa dele. A animação combina
+   com o que o ícone É (atualizar gira, seta avança, sino balança, lixeira
+   treme); o que não tem família própria faz um "pop". Lucide marca cada SVG com
+   `lucide-<nome>`, então nenhum componente precisou mudar.
+
+   Duram menos de meio segundo, rodam uma vez, só usam `transform`/`opacity` e
+   somem com "reduzir movimento". Ícone que já gira (carregando) fica de fora.
+   ========================================================================= */
+svg.lucide,
+.qoro-rail-mark svg {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+svg:is(.lucide-refresh-cw, .lucide-refresh-ccw) {
+  --icon-motion: qoro-icon-spin;
+  --icon-motion-time: 0.5s;
+}
+svg.lucide-rotate-ccw {
+  --icon-motion: qoro-icon-spin-back;
+  --icon-motion-time: 0.5s;
+}
+svg:is(.lucide-settings, .lucide-sun, .lucide-sliders-horizontal) {
+  --icon-motion: qoro-icon-turn;
+}
+svg:is(.lucide-chevron-right, .lucide-arrow-right, .lucide-log-out, .lucide-log-in, .lucide-truck) {
+  --icon-motion: qoro-icon-right;
+}
+svg:is(.lucide-chevron-left, .lucide-arrow-left, .lucide-panel-left) {
+  --icon-motion: qoro-icon-left;
+}
+svg:is(.lucide-chevron-down, .lucide-download, .lucide-list-filter, .lucide-funnel) {
+  --icon-motion: qoro-icon-down;
+}
+svg:is(.lucide-chevron-up, .lucide-upload, .lucide-rocket, .lucide-map-pin) {
+  --icon-motion: qoro-icon-up;
+}
+svg:is(.lucide-arrow-up-right, .lucide-external-link, .lucide-send, .lucide-share-2) {
+  --icon-motion: qoro-icon-launch;
+}
+svg.lucide-arrow-down-left {
+  --icon-motion: qoro-icon-land;
+}
+svg:is(
+  .lucide-bell,
+  .lucide-triangle-alert,
+  .lucide-circle-alert,
+  .lucide-siren,
+  .lucide-shield-alert,
+  .lucide-message-circle-warning,
+  .lucide-mail-warning,
+  .lucide-phone
+) {
+  --icon-motion: qoro-icon-ring;
+}
+svg:is(.lucide-trash-2, .lucide-ban, .lucide-user-x, .lucide-wifi-off, .lucide-shield-off) {
+  --icon-motion: qoro-icon-shake;
+}
+svg:is(
+  .lucide-moon,
+  .lucide-pen-line,
+  .lucide-pencil,
+  .lucide-key-round,
+  .lucide-stethoscope,
+  .lucide-pill,
+  .lucide-flask-conical,
+  .lucide-test-tube,
+  .lucide-scale,
+  .lucide-lightbulb
+),
+.qoro-rail-mark svg {
+  --icon-motion: qoro-icon-tilt;
+}
+svg:is(.lucide-eye, .lucide-eye-off) {
+  --icon-motion: qoro-icon-blink;
+}
+svg:is(.lucide-sparkles, .lucide-star) {
+  --icon-motion: qoro-icon-twinkle;
+}
+svg:is(.lucide-clock, .lucide-clock-3, .lucide-timer, .lucide-calendar-clock) {
+  --icon-motion: qoro-icon-tick;
+}
+svg:is(
+  .lucide-chart-column,
+  .lucide-trending-up,
+  .lucide-trending-down,
+  .lucide-wallet,
+  .lucide-banknote,
+  .lucide-house,
+  .lucide-calendar,
+  .lucide-calendar-days,
+  .lucide-building-2,
+  .lucide-users,
+  .lucide-user-round,
+  .lucide-user-plus,
+  .lucide-message-circle,
+  .lucide-messages-square,
+  .lucide-mail,
+  .lucide-mail-check
+) {
+  --icon-motion: qoro-icon-hop;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :is(body:has([data-qoro-shell='tenant']), body:has([data-qoro-tokens='app-v5']))
+    :is(
+      :is(
+          a,
+          button,
+          summary,
+          label,
+          [role='button'],
+          [role='menuitem'],
+          [role='tab'],
+          [role='option']
+        ):is(:hover, :focus-visible):not(:disabled, [aria-disabled='true'])
+        :is(svg.lucide, .qoro-rail-mark svg),
+      :hover > svg.lucide
+    ):not(.animate-spin, [class*='lucide-loader']) {
+    animation: var(--icon-motion, qoro-icon-pop) var(--icon-motion-time, 0.36s)
+      cubic-bezier(0.34, 1.4, 0.64, 1);
+  }
+}
+@keyframes qoro-icon-pop {
+  45% {
+    transform: scale(1.18);
+  }
+}
+@keyframes qoro-icon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes qoro-icon-spin-back {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+@keyframes qoro-icon-turn {
+  to {
+    transform: rotate(90deg);
+  }
+}
+@keyframes qoro-icon-right {
+  45% {
+    transform: translateX(3px);
+  }
+}
+@keyframes qoro-icon-left {
+  45% {
+    transform: translateX(-3px);
+  }
+}
+@keyframes qoro-icon-down {
+  45% {
+    transform: translateY(3px);
+  }
+}
+@keyframes qoro-icon-up {
+  45% {
+    transform: translateY(-3px);
+  }
+}
+@keyframes qoro-icon-launch {
+  45% {
+    transform: translate(2px, -2px);
+  }
+}
+@keyframes qoro-icon-land {
+  45% {
+    transform: translate(-2px, 2px);
+  }
+}
+@keyframes qoro-icon-ring {
+  20% {
+    transform: rotate(12deg);
+  }
+  45% {
+    transform: rotate(-10deg);
+  }
+  70% {
+    transform: rotate(6deg);
+  }
+}
+@keyframes qoro-icon-shake {
+  25% {
+    transform: translateX(-2px);
+  }
+  50% {
+    transform: translateX(2px);
+  }
+  75% {
+    transform: translateX(-1px);
+  }
+}
+@keyframes qoro-icon-tilt {
+  45% {
+    transform: rotate(-12deg) scale(1.06);
+  }
+}
+@keyframes qoro-icon-blink {
+  45% {
+    transform: scaleY(0.2);
+  }
+}
+@keyframes qoro-icon-twinkle {
+  40% {
+    opacity: 0.6;
+    transform: scale(1.22) rotate(12deg);
+  }
+}
+@keyframes qoro-icon-tick {
+  to {
+    transform: rotate(30deg);
+  }
+}
+@keyframes qoro-icon-hop {
+  45% {
+    transform: translateY(-2px) scale(1.06);
   }
 }
 
@@ -768,7 +2455,8 @@ body:has([data-qoro-shell='tenant']) :is(button, a, input, select, textarea):foc
   --warning-200: oklch(0.896 0.094 78);
   --warning-500: oklch(0.778 0.13 75);
   --warning-600: oklch(0.7 0.13 66);
-  --warning-700: oklch(0.56 0.11 58);
+  /* 0.54 (era 0.56): sobre --warning-50 dava 4,45:1, abaixo do AA de texto pequeno (ciclo 3, A-01). */
+  --warning-700: oklch(0.54 0.11 58);
 
   /* Danger (hue 27) */
   --danger-50: oklch(0.966 0.016 27);
@@ -1021,6 +2709,27 @@ body:has([data-qoro-shell='tenant']) :is(button, a, input, select, textarea):foc
   --card-radius: var(--r-lg);
   --table-header-bg: var(--surface-2);
   --table-stripe: color-mix(in oklch, var(--neutral-100) 55%, transparent);
+
+  /* Ganchos dos primitivos para o app v5. Aqui ficam os valores que os
+     primitivos já usavam — admin e telas públicas não mudam; só o bloco do
+     tenant (Qoro App v5, acima) os redefine. */
+  --border-soft: var(--border);
+  --surface-head: var(--surface-2);
+  --text-body: var(--text);
+  --text-faint: var(--text-3);
+  --tag-radius: var(--r-sm);
+  --elev-1: var(--elev-raised);
+  --btn-border: var(--field-border);
+  --btn-border-hover: var(--field-border);
+  --btn-ghost-fg: var(--text-2);
+  --btn-primary-shadow: 0 1px 2px oklch(0.4 0.1 264 / 0.25), inset 0 1px 0 oklch(1 0 0 / 0.12);
+  --btn-danger-bg: var(--danger-600);
+  --btn-danger-bg-hover: var(--danger-700);
+  --btn-danger-fg: oklch(0.99 0.01 27);
+  --btn-danger-border: transparent;
+  --btn-danger-border-hover: transparent;
+  --btn-danger-shadow: 0 1px 2px oklch(0.5 0.2 27 / 0.25), inset 0 1px 0 oklch(1 0 0 / 0.12);
+  --btn-sm-fs: var(--fs-xs);
 
   /* Layout */
   --sidebar-w: 256px;

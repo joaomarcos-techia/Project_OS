@@ -16,6 +16,7 @@ import { Select } from '@/components/ui/select';
 import { formatBRL } from '@/lib/format';
 
 import { outstandingBalance } from './caixa-money';
+import { cashItemTitle } from './cash-item-identity';
 
 export interface RefundInput {
   paymentId: string;
@@ -28,9 +29,24 @@ export interface RefundInput {
 /** Código do catálogo para dinheiro — o mesmo que o servidor sempre aceita. */
 const CASH_METHOD = catalogPaymentMethodForCommercial('cash');
 
-/** Rótulo da ação de dinheiro: com parte já paga (o sinal, por exemplo), é o restante. */
+/**
+ * UX-015 (aprovado pelo fundador em 15/11/2026) — o rótulo diz o que o clique
+ * REGISTRA no livro da clínica. Nenhuma destas ações cobra alguém ou move
+ * dinheiro: elas abrem a conferência e registram o que já aconteceu. Antes:
+ * "Confirmar pagamento" (soava como confirmar um pagamento on-line, como os do
+ * link do Asaas, que entram sozinhos), "Receber saldo" e "Pagar".
+ */
+export function registerActionLabel(item: Pick<CaixaItem, 'tipo' | 'status'>): string {
+  if (item.tipo === 'pagar') return 'Registrar pagamento';
+  return item.status === 'parcial' ? 'Registrar o restante' : 'Registrar recebimento';
+}
+
+/**
+ * Atalho do dinheiro na recepção: com parte já paga (o sinal, por exemplo), é o
+ * restante. Antes: "Pagou em dinheiro" / "Pagou o restante em dinheiro".
+ */
 export function cashActionLabel(item: CaixaItem): string {
-  return item.valorPago > 0 ? 'Pagou o restante em dinheiro' : 'Pagou em dinheiro';
+  return item.valorPago > 0 ? 'Restante em dinheiro' : 'Recebido em dinheiro';
 }
 
 /** O botão de dinheiro só existe para recebível em aberto e com dinheiro no catálogo. */
@@ -54,7 +70,7 @@ export function ConfirmPaymentPanel({
   item: CaixaItem;
   methods: PaymentMethodDTO[];
   pending: boolean;
-  /** "Pagou em dinheiro": só dinheiro, saldo inteiro pré-preenchido. */
+  /** "Recebido em dinheiro": só dinheiro, saldo inteiro pré-preenchido. */
   cashOnly?: boolean;
   onClose?: () => void;
   /** Ausente quando o perfil nao pode operar o caixa — ai o botao nao existe. */
@@ -81,18 +97,17 @@ export function ConfirmPaymentPanel({
     availableMethods.some((paymentMethod) => paymentMethod.code === method) &&
     valorNum > 0 &&
     valorNum <= outstandingBalance(item) + 1e-9;
-  const actionLabel = item.tipo === 'pagar' ? 'Pagar' : 'Receber';
 
   return (
     <div className="grid gap-3 rounded-(--r-md) border border-border bg-surface p-3 sm:grid-cols-3">
       <div className="sm:col-span-3">
         <p className="font-medium text-fg">
-          {cashOnly ? cashActionLabel(item) : `${actionLabel} lançamento`}
+          {cashOnly ? cashActionLabel(item) : registerActionLabel(item)}
         </p>
         <p className="text-pretty text-(length:--fs-xs) text-fg-muted">
           {cashOnly
             ? 'Registra o dinheiro recebido na recepção. Se o link do restante já foi enviado ao paciente, ele deixa de valer. '
-            : 'Confira valor e forma de pagamento antes de confirmar. '}
+            : 'Confira valor e forma de pagamento antes de registrar. '}
           Saldo atual:{' '}
           <span className="font-medium tabular-nums">{formatBRL(outstandingBalance(item))}</span>.
         </p>
@@ -142,7 +157,8 @@ export function ConfirmPaymentPanel({
           onClick={() => onSubmit(Math.round(valorNum * 100) / 100, method, comprovante)}
         >
           <Check aria-hidden="true" className="size-4" />
-          {actionLabel} {formatBRL(valorNum || 0)}
+          {/* O título do painel já diz o quê; o botão final diz o valor. */}
+          Registrar {formatBRL(valorNum || 0)}
         </Button>
         {onClose ? (
           <Button
@@ -162,7 +178,7 @@ export function ConfirmPaymentPanel({
             size="sm"
             variant="ghost"
             className="ml-auto min-h-(--hit-target) text-danger-700"
-            aria-label={`Cancelar ${item.tipo === 'pagar' ? 'conta' : 'cobrança'} de ${item.tipo === 'pagar' ? item.descricao : (item.pacienteNome ?? 'Walk-in')}`}
+            aria-label={`Cancelar ${item.tipo === 'pagar' ? 'conta' : 'cobrança'} de ${cashItemTitle(item)}`}
             onClick={onRequestCancel}
             disabled={pending}
           >

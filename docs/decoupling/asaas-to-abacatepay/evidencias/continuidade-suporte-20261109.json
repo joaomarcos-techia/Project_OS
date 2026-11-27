@@ -1,0 +1,228 @@
+{
+  "observedAt": "2026-11-09T14:17:25.235Z",
+  "baselineSha": "14d7f9d4a749b257bb4e7a2f8d6ae0a8f6382fa6",
+  "scope": "local synthetic resilience and support preparation; no Production readiness",
+  "support": {
+    "prepared": true,
+    "presentedInChat": true,
+    "sent": false,
+    "responseReceived": false
+  },
+  "postgres": {
+    "observedAt": "2026-11-09T14:16:12.595Z",
+    "environment": "loopback_synthetic",
+    "migrations": 142,
+    "results": [
+      {
+        "name": "REN-001 verified renewal records a second invoice and advances the original calendar once",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-002/020 duplicate event and charge do not extend the same period twice",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-003/004/018 older distinct charge keeps financial evidence without regressing the current period",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-005 unknown event or subscription cannot create a financial effect",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-006 authenticated references cannot be rebound to another tenant",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-007 gateway/environment/store mismatch is rejected before writes",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-008 cancellation intent wins over automatic renewal access and keeps paid evidence",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-009/010 API outage remains retryable, then the same legitimate event regularizes once",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-011 transaction rollback preserves state and permits a later successful replay",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-012 twelve concurrent applications produce one invoice and paid cycle",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-013/014/015 database calendar checks reject a shifted month even under another timezone",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-016 unsupported annual readback does not create a new annual sale or advance access",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-017 changed product or partial amount is reviewed before duplicate acknowledgement",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-019 absent renewal references are not invented from the initial PAID checkout",
+        "status": "PASS"
+      },
+      {
+        "name": "real receiver + HMAC + inbox + HTTP readback + DB application survives duplicate and concurrent reconcile",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-003/004 late earlier cycle records its own invoice without resetting the current access",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-017 a local price change does not grant the pending plan from the old payment",
+        "status": "PASS"
+      },
+      {
+        "name": "failure/refund/dispute after success stays in review without undoing paid access",
+        "status": "PASS"
+      },
+      {
+        "name": "L3 negative event already bound to another tenant cannot be rebound by remote identifiers",
+        "status": "PASS"
+      },
+      {
+        "name": "L1 an expired worker lease recovers the same renewal after process interruption",
+        "status": "PASS"
+      },
+      {
+        "name": "L6 interruption of the final lease moves to review without an eleventh provider read",
+        "status": "PASS"
+      },
+      {
+        "name": "L3 a negative-event worker that loses its lease cannot commit an audit or grace change",
+        "status": "PASS"
+      },
+      {
+        "name": "L3 negative-event audit failure rolls back access policy and inbox, then replay commits once",
+        "status": "PASS"
+      },
+      {
+        "name": "L3 a negative notification in the Asaas namespace cannot affect AbacatePay or trigger remote reads",
+        "status": "PASS"
+      },
+      {
+        "name": "H2 full/partial refund observations are idempotent and never cancel access or alter the paid invoice",
+        "status": "PASS"
+      },
+      {
+        "name": "H2 a verified refund of an older cycle cannot shorten a newer paid cycle",
+        "status": "PASS"
+      },
+      {
+        "name": "H2 a reversal is recorded as ambiguous rather than a won dispute or restored payment",
+        "status": "PASS"
+      },
+      {
+        "name": "H4 extra doctor is scheduled once under concurrency and released only by its full paid renewal",
+        "status": "PASS"
+      },
+      {
+        "name": "H4 Consultorio to Clinica upgrade keeps the original plan until full next-cycle payment",
+        "status": "PASS"
+      },
+      {
+        "name": "H4 downgrade reserves target capacity and applies only its lower fully paid cycle",
+        "status": "PASS"
+      },
+      {
+        "name": "L2 cancellation during a plan command preserves paid evidence without releasing the target quota",
+        "status": "PASS"
+      },
+      {
+        "name": "H4 lost plan-change response retains one obligation and never overwrites it with another POST",
+        "status": "PASS"
+      },
+      {
+        "name": "H4 another tenant, stale generation and cancelled contract cannot submit a plan command",
+        "status": "PASS"
+      },
+      {
+        "name": "H4 old amount, partial payment and early target payment cannot release the new plan",
+        "status": "PASS"
+      },
+      {
+        "name": "H4 rollback keeps both plan and pending intent before a successful payment replay",
+        "status": "PASS"
+      },
+      {
+        "name": "schema is private, FORCE RLS, service_role read/insert only",
+        "status": "PASS"
+      },
+      {
+        "name": "financial and access snapshots are immutable",
+        "status": "PASS"
+      },
+      {
+        "name": "H4 pending plan snapshots are immutable, private and deny destructive service privileges",
+        "status": "PASS"
+      },
+      {
+        "name": "paid period cannot reference an invoice belonging to another tenant",
+        "status": "PASS"
+      },
+      {
+        "name": "anon/authenticated cannot read private financial evidence, and service cannot update it",
+        "status": "PASS"
+      }
+    ],
+    "networkCalls": 0,
+    "fixtureHttpCalls": 140,
+    "productionWrites": 0,
+    "status": "PASS"
+  },
+  "focused": {
+    "files": 20,
+    "testsPassed": 435,
+    "exitCode": 0,
+    "log": "dist/support-focused.log"
+  },
+  "newUnitCases": 9,
+  "newPostgresChecks": 7,
+  "remoteEffects": {
+    "newAccounts": 0,
+    "newProducts": 0,
+    "newCheckouts": 0,
+    "newPayments": 0,
+    "paidFixtureChanged": false,
+    "devMigrations": 0,
+    "productionWrites": 0
+  },
+  "historical": {
+    "unitTests": 6695,
+    "postgresChecks": 88,
+    "publicE2E": {
+      "pass": 8,
+      "skip": 2
+    },
+    "ciRun": 42617193661
+  },
+  "externalGates": {
+    "E1": "BLOCKED",
+    "E2": "BLOCKED",
+    "E3": "BLOCKED",
+    "E4": "BLOCKED"
+  },
+  "readiness": "NO-GO",
+  "localChecks": {
+    "typecheckExitCode": 0,
+    "fullLintExitCode": 0,
+    "inventoryExitCode": 0,
+    "formatExitCode": 0,
+    "diffCheckExitCode": 0
+  },
+  "verifiedFileHashes": {
+    "src/contexts/billing/internal/abacatepay-negative-events.ts": "0a51444c85613af2c45d140760dc3f26d46087313e17f2770ee9f9b25d5e0b9e",
+    "src/contexts/billing/internal/abacatepay-period.test.ts": "84215d8e6a87d20d4bb6d271852b2c2021bfde324c4499a17d02a0eb2e1d01bb",
+    "src/contexts/billing/internal/abacatepay-renewal-period.test.ts": "09fc1c72cbc38ebaff8ee100a21dc110ffe4beb057f4ea714e802b7388ba9367",
+    "scripts/security/abacatepay-renewal-db.ts": "5a07f2712170639dbf846467e258850bcf7f91fc644f96d78d1f5e6e6b032359"
+  }
+}

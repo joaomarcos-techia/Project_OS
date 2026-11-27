@@ -1,9 +1,6 @@
-import { ChevronRight, MessageCircleWarning } from 'lucide-react';
-import Link from 'next/link';
+import { MessageCircleWarning } from 'lucide-react';
 
-import { cn } from '@/lib/ui/cn';
-
-import styles from '../dashboard.module.css';
+import { PendingItem } from './pending-item';
 
 /**
  * A única faixa do painel sobre mensagens automáticas do WhatsApp que não estão
@@ -55,19 +52,16 @@ export function WhatsappSendAlert({ account, refusals }: WhatsappSendAlertData) 
       ? `${account.headline} · ${refusalsSuffix(refused)}`
       : account.headline
     : refusalsLabel(refused!);
+  // Vermelho quando a Meta bloqueia os envios, âmbar quando limita ou quando
+  // só algumas mensagens não chegaram. O texto diz qual é; a cor só reforça.
   return (
-    <Link
+    <PendingItem
       href={account ? '/configuracoes/whatsapp' : '/agenda'}
-      className={cn(
-        styles.alert,
-        account?.state === 'blocked' ? styles.alertDanger : styles.alertWarning,
-      )}
+      tone={account?.state === 'blocked' ? 'danger' : 'warning'}
+      icon={<MessageCircleWarning />}
+      title={text}
+      cta={account ? 'Ver o que fazer' : 'Ver na Agenda'}
       data-whatsapp-send-alert={account?.state ?? 'refusals'}
-    >
-      <MessageCircleWarning aria-hidden="true" />
-      <span className={styles.alertText ?? ''}>{text}</span>
-      <span className={styles.alertCta ?? ''}>{account ? 'Ver o que fazer' : 'Ver na Agenda'}</span>
-      <ChevronRight aria-hidden="true" />
-    </Link>
+    />
   );
 }

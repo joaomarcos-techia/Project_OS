@@ -3,15 +3,7 @@
  * Server component — navegação por URL (`?view=&date=`), sem estado cliente.
  * Cancelados aparecem esmaecidos (decisão do founder), não somem.
  */
-import {
-  ChevronLeft,
-  ChevronRight,
-  CircleCheck,
-  Clock3,
-  Siren,
-  Stethoscope,
-  UserX,
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock3, Siren, Stethoscope } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
@@ -19,6 +11,9 @@ import { AppointmentStatusBadge, DepositStatusBadge } from '@/components/ui/stat
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
+import { LinkSegmented } from '@/components/ui/link-segmented';
+import { MetricStrip } from '@/components/ui/metric-strip';
+import { StatCard } from '@/components/ui/stat-card';
 import { buttonVariants } from '@/components/ui/button';
 import {
   Table,
@@ -88,7 +83,7 @@ function MonthView({ data }: { data: AgendaData }) {
 
   return (
     <Card className="overflow-hidden p-0">
-      <div className="grid grid-cols-7 border-b border-border bg-surface-inset/40">
+      <div className="grid grid-cols-7 gap-0 border-b border-border bg-surface-inset/40">
         {WEEKDAYS.map((w) => (
           <div
             key={w}
@@ -98,7 +93,7 @@ function MonthView({ data }: { data: AgendaData }) {
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7">
+      <div className="grid grid-cols-7 gap-0">
         {weeks.flat().map((ymd) => {
           const dayNum = Number(ymd.split('-')[2]);
           const inMonth = ymd.startsWith(monthPrefix);
@@ -298,17 +293,22 @@ function DayView({ data }: { data: AgendaData }) {
   return (
     <>
       {waiting > 0 ? (
-        <Link href="/consultorio" className={styles.waitingNotice ?? ''}>
-          <Clock3 aria-hidden="true" className="size-4 shrink-0" />
-          <span className="flex-1 font-medium">
-            {waiting} paciente{waiting === 1 ? '' : 's'} na sala de espera
+        <Link href="/consultorio" className="qoro-alert-row mb-4" data-tone="warning">
+          <Clock3 aria-hidden="true" />
+          <span className="qoro-alert-row-text">
+            <b className="font-semibold">
+              {waiting} paciente{waiting === 1 ? '' : 's'} na sala de espera
+            </b>
             {maiorEspera ? ` · maior espera ${maiorEspera}` : ''}
           </span>
-          <span className="font-semibold">Abrir no Consultório</span>
-          <ChevronRight aria-hidden="true" className="size-4 shrink-0" />
+          <span className="qoro-alert-row-cta">Abrir no Consultório</span>
         </Link>
       ) : null}
       <div className={cn('qoro-section', styles.day)}>
+        <div className="qoro-section-header">
+          <h2>Atendimentos do dia</h2>
+          <span>Faltas e cancelamentos continuam visíveis no histórico do dia</span>
+        </div>
         <Table>
           <TableHeader>
             <TableRow>
@@ -439,45 +439,37 @@ function DayView({ data }: { data: AgendaData }) {
   );
 }
 
-/** Cabeçalho de navegação: alterna visão + prev/próximo/hoje. */
-export function AgendaNav({ data, actions }: { data: AgendaData; actions?: ReactNode }) {
-  const { view, ymd, tz } = data;
+/** Título do período visível: mês, intervalo da semana ou o dia por extenso. */
+export function agendaPeriodLabel(data: AgendaData): string {
+  const { view, ymd } = data;
   const [y, m] = ymd.split('-').map(Number);
-  let label: string;
-  if (view === 'month') label = `${MONTHS[m! - 1]} de ${y}`;
-  else if (view === 'week') {
+  if (view === 'month') {
+    const mes = MONTHS[m! - 1]!;
+    return `${mes.charAt(0).toUpperCase()}${mes.slice(1)} de ${y}`;
+  }
+  if (view === 'week') {
     const days = weekDays(ymd);
     const a = days[0]!.split('-');
     const b = days[6]!.split('-');
-    label = `${Number(a[2])}/${a[1]} – ${Number(b[2])}/${b[1]}/${b[0]}`;
-  } else {
-    // "-feira" sai porque a referencia escreve "Segunda, 7 de setembro de 2026";
-    // o Intl devolve "segunda-feira, 07 de setembro de 2026".
-    label = new Date(`${ymd}T12:00:00Z`)
-      .toLocaleDateString('pt-BR', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-        timeZone: 'UTC',
-      })
-      .replace('-feira', '');
+    return `${Number(a[2])}/${a[1]} – ${Number(b[2])}/${b[1]}/${b[0]}`;
   }
+  // "-feira" sai porque a referencia escreve "Segunda, 7 de setembro de 2026";
+  // o Intl devolve "segunda-feira, 07 de setembro de 2026".
+  const dia = new Date(`${ymd}T12:00:00Z`)
+    .toLocaleDateString('pt-BR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    })
+    .replace('-feira', '');
+  return dia.charAt(0).toUpperCase() + dia.slice(1);
+}
 
-  const tab = (v: 'month' | 'week' | 'day', txt: string) => (
-    <Link
-      href={href(v, ymd)}
-      aria-current={view === v ? 'page' : undefined}
-      className={cn(
-        'inline-flex min-h-(--hit-target) items-center rounded-(--r-sm) px-3 text-(length:--fs-sm) font-medium transition-colors',
-        view === v
-          ? 'bg-surface font-semibold text-fg shadow-xs'
-          : 'text-fg-muted hover:bg-surface-hover',
-      )}
-    >
-      {txt}
-    </Link>
-  );
+/** Faixa de título: anterior/hoje/próximo e a troca entre mês, semana e dia. */
+export function AgendaControls({ data }: { data: AgendaData }) {
+  const { view, ymd, tz } = data;
 
   // Prev/next continuam URLs determinísticas, calculadas no servidor para preservar o fuso.
   const nav = (dir: -1 | 1, icon: ReactNode, aria: string) => {
@@ -486,65 +478,66 @@ export function AgendaNav({ data, actions }: { data: AgendaData; actions?: React
       <Link
         href={href(view, target)}
         aria-label={aria}
-        className="inline-flex size-(--hit-target) items-center justify-center rounded-(--r-sm) text-fg-muted transition-colors hover:bg-surface-hover"
+        className={cn(buttonVariants({ variant: 'secondary', icon: true }), 'size-(--hit-target)')}
       >
         {icon}
       </Link>
     );
   };
 
-  const count = (status: AppointmentStatusDTO) =>
-    data.appointments.filter((item) => item.status === status).length;
-
   return (
-    <section
-      aria-label="Controles da agenda"
-      className="qoro-toolbar mb-4 flex flex-wrap items-center justify-between gap-3"
-    >
-      <nav aria-label="Navegação por data" className="flex min-w-0 flex-wrap items-center gap-1">
+    <>
+      <nav aria-label="Navegação por data" className="flex items-center gap-2">
         {nav(-1, <ChevronLeft aria-hidden="true" className="size-4" />, 'Anterior')}
         <Link href={href(view, todayYmd(tz))} className={buttonVariants({ variant: 'secondary' })}>
           Hoje
         </Link>
         {nav(1, <ChevronRight aria-hidden="true" className="size-4" />, 'Próximo')}
-        <span className="ml-2 min-w-0 text-balance text-(length:--fs-sm) font-semibold first-letter:uppercase">
-          {label}
-        </span>
       </nav>
+      <LinkSegmented
+        landmark
+        label="Visualização da agenda"
+        items={[
+          { label: 'Mês', value: 'month' as const },
+          { label: 'Semana', value: 'week' as const },
+          { label: 'Dia', value: 'day' as const },
+        ].map((option) => ({
+          label: option.label,
+          href: href(option.value, ymd),
+          active: view === option.value,
+        }))}
+      />
+    </>
+  );
+}
 
-      <div className={styles.summary ?? ''} aria-label="Resumo dos atendimentos">
-        <span>
-          <CircleCheck aria-hidden="true" className="size-3.5 text-fg-subtle" />
-          {count('atendido')} finalizadas
-        </span>
-        <span className="font-semibold text-warning-700">
-          <Clock3 aria-hidden="true" className="size-3.5 text-warning-600" />
-          {count('chegou')} aguardando
-        </span>
-        <span className="font-semibold text-(--primary-active)">
-          <Stethoscope aria-hidden="true" className="size-3.5 text-primary" />
-          {count('em_atendimento')} em atendimento
-        </span>
-        {/* Falta e cancelamento andam juntos: os dois são vaga perdida, e
-            separá-los em dois contadores diluía o número que importa. */}
-        <span>
-          <UserX aria-hidden="true" className="size-3.5 text-fg-subtle" />
-          {count('faltou')} falta{count('faltou') === 1 ? '' : 's'} · {count('cancelado')} cancelada
-          {count('cancelado') === 1 ? '' : 's'}
-        </span>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-        <nav
-          aria-label="Visualização da agenda"
-          className="flex items-center gap-1 rounded-(--r-md) bg-surface-inset p-0.5"
-        >
-          {tab('month', 'Mês')}
-          {tab('week', 'Semana')}
-          {tab('day', 'Dia')}
-        </nav>
-        {actions}
-      </div>
-    </section>
+/** Indicadores do período, numa faixa só: um número por desfecho. */
+export function AgendaSummary({ data }: { data: AgendaData }) {
+  const count = (status: AppointmentStatusDTO) =>
+    data.appointments.filter((item) => item.status === status).length;
+  const items = [
+    { label: 'Finalizadas', status: 'atendido' as const, dot: styles.dotDone },
+    {
+      label: 'Aguardando',
+      status: 'chegou' as const,
+      dot: styles.dotWaiting,
+      tone: 'warning' as const,
+    },
+    { label: 'Em atendimento', status: 'em_atendimento' as const, dot: styles.dotNow },
+    { label: 'Faltas', status: 'faltou' as const, dot: styles.dotMissed },
+    { label: 'Canceladas', status: 'cancelado' as const, dot: styles.dotCancelled },
+  ];
+  return (
+    <MetricStrip variant="joined" aria-label="Resumo dos atendimentos" className={styles.summary}>
+      {items.map((item) => (
+        <StatCard
+          key={item.status}
+          label={item.label}
+          value={count(item.status)}
+          icon={<span className={cn(styles.dot, item.dot)} />}
+          {...(item.tone ? { valueTone: item.tone } : {})}
+        />
+      ))}
+    </MetricStrip>
   );
 }

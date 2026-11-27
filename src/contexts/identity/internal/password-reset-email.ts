@@ -6,7 +6,10 @@ import { createAdminClient } from '@/lib/auth/supabase-admin';
 import { sendTransactionalEmail } from '@/lib/email/resend';
 import { renderPasswordResetEmail } from '@/lib/email/templates/password-reset';
 import { env } from '@/lib/env';
-import { createPasswordResetConfirmationUrl } from '@/lib/http/application-url';
+import {
+  createPasswordResetConfirmationUrl,
+  resolveAuthLinkOrigin,
+} from '@/lib/http/application-url';
 import { logger } from '@/lib/observability/logger';
 import { metrics } from '@/lib/observability/metrics';
 
@@ -82,7 +85,7 @@ export async function sendPasswordResetEmail(email: string): Promise<PasswordRes
   try {
     const conteudo = renderPasswordResetEmail({
       resetUrl: createPasswordResetConfirmationUrl(tokenHash),
-      expectedOrigin: env.APP_BASE_URL ?? '',
+      expectedOrigin: resolveAuthLinkOrigin() ?? '',
     });
     await sendTransactionalEmail({
       to: email,

@@ -9,6 +9,7 @@ import {
   Drawer,
   DrawerBody,
   DrawerContent,
+  DrawerDescription,
   DrawerHeader,
   DrawerTitle,
   DrawerTrigger,
@@ -53,6 +54,7 @@ export function NewPatientDrawer({
       <DrawerContent size="lg">
         <DrawerHeader>
           <DrawerTitle>Novo paciente</DrawerTitle>
+          <DrawerDescription>Os campos com * são obrigatórios.</DrawerDescription>
         </DrawerHeader>
         <DrawerBody>
           <PatientForm

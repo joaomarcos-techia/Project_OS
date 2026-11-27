@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   env: {
+    SIGNUP_ENABLED: true,
     SIGNUP_AUTH_ENABLED: true,
     SIGNUP_IDENTITY_ENABLED: true,
     APP_BASE_URL: 'https://app.qoro.test',
@@ -16,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   reconcile: vi.fn(),
   readBilling: vi.fn(),
   getCustomer: vi.fn(),
+  deferred: vi.fn(),
+  freeTrial: vi.fn(),
 }));
 vi.mock('@/lib/env', () => ({ env: mocks.env }));
 vi.mock('@/lib/auth/signup-user-hash', () => ({ hashSignupUserId: mocks.hashUser }));
@@ -30,6 +33,11 @@ vi.mock('@/contexts/onboarding', () => ({
   reconcileSignupSubscription: mocks.reconcile,
   readSignupBilling: mocks.readBilling,
   resolveReadyOwnedSignupOnboarding: mocks.resolve,
+  provisionFreeSignupTrial: mocks.freeTrial,
+}));
+vi.mock(import('@/lib/payments/saas/acquisition'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  deferredSaasSignupEnabled: mocks.deferred,
 }));
 vi.mock('@/lib/payments/asaas', () => ({
   asaasProvider: { getCustomer: mocks.getCustomer },
@@ -56,8 +64,11 @@ function request(init: { origin?: string; site?: string; body?: string } = {}): 
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.env.SIGNUP_ENABLED = true;
   mocks.env.SIGNUP_AUTH_ENABLED = true;
   mocks.env.SIGNUP_IDENTITY_ENABLED = true;
+  mocks.deferred.mockReturnValue(false);
+  mocks.freeTrial.mockResolvedValue({ ok: true, clinicId: 'internal-only', state: 'provisioned' });
   mocks.hashUser.mockReturnValue('user-hmac');
   mocks.writeLimit.mockResolvedValue({ ok: true });
   mocks.resolve.mockResolvedValue({
@@ -82,6 +93,65 @@ beforeEach(() => {
 });
 
 describe('POST /api/signup/checkout', () => {
+  it.each([false, true])(
+    'blocks an existing signup session while acquisition is closed (deferred=%s)',
+    async (deferred) => {
+      mocks.env.SIGNUP_ENABLED = false;
+      mocks.deferred.mockReturnValue(deferred);
+
+      const response = await POST(request());
+
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({ error: 'unavailable' });
+      expect(mocks.resolve).not.toHaveBeenCalled();
+      expect(mocks.writeLimit).not.toHaveBeenCalled();
+      expect(mocks.start).not.toHaveBeenCalled();
+      expect(mocks.freeTrial).not.toHaveBeenCalled();
+      expect(mocks.getCustomer).not.toHaveBeenCalled();
+    },
+  );
+
+  it('starts the explicit free-trial journey without invoking either financial provider', async () => {
+    mocks.deferred.mockReturnValue(true);
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ state: 'provisioned' });
+    expect(mocks.freeTrial).toHaveBeenCalledWith({ userId: USER_ID, verifiedEmail: EMAIL });
+    expect(mocks.start).not.toHaveBeenCalled();
+    expect(mocks.getCustomer).not.toHaveBeenCalled();
+  });
+  it.each([
+    ['unavailable', 503],
+    ['forbidden', 403],
+    ['gone', 410],
+    ['no_plan', 409],
+    ['invalid_plan', 409],
+    ['trial_used', 409],
+    ['slug_unavailable', 409],
+  ])(
+    'does not fall back to a financial checkout when the free trial fails: %s',
+    async (reason, status) => {
+      mocks.deferred.mockReturnValue(true);
+      mocks.freeTrial.mockResolvedValue({ ok: false, reason });
+      const response = await POST(request());
+      expect(response.status).toBe(status);
+      expect(await response.json()).toEqual({ error: reason });
+      expect(mocks.start).not.toHaveBeenCalled();
+    },
+  );
+  it('keeps an already-started Asaas draft on its original recovery journey', async () => {
+    mocks.deferred.mockReturnValue(true);
+    mocks.freeTrial.mockResolvedValue({ ok: false, reason: 'legacy_checkout' });
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    expect(mocks.start).toHaveBeenCalledOnce();
+  });
+  it('does not start a trial without the same origin and an authenticated owner draft', async () => {
+    mocks.deferred.mockReturnValue(true);
+    const response = await POST(request({ origin: 'https://untrusted.invalid' }));
+    expect(response.status).toBe(403);
+    expect(mocks.freeTrial).not.toHaveBeenCalled();
+  });
   it('cria o Checkout hospedado e não provisiona antes do retorno do Asaas', async () => {
     const res = await POST(request());
 

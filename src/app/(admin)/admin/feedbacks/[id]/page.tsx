@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 
@@ -9,6 +10,8 @@ import { FeedbackManager } from '../feedback-manager';
 import { guardAdminAccess } from '../../_lib/guard';
 import { formatDateTime } from '../../_lib/format';
 import { getFeedbackDetail } from '../../_lib/repositories/feedback.repo';
+
+export const metadata: Metadata = { title: 'Feedback' };
 
 const STATUS_LABEL: Record<string, string> = {
   received: 'Recebido',

@@ -1,0 +1,51 @@
+{
+  "observedAt": "2026-11-09T23:41:53.563Z",
+  "deployment": "dpl_2gHasgxKuWkFY8ct1w56VLeHDhQP",
+  "sha": "5620a0987ec53db7d7358728eb7d457d9d373df3",
+  "checks": [
+    {
+      "name": "public GET /login",
+      "status": "PASS"
+    },
+    {
+      "name": "public GET /cadastro",
+      "status": "PASS"
+    },
+    {
+      "name": "public GET /cadastro/retomar",
+      "status": "PASS"
+    },
+    {
+      "name": "protected GET /configuracoes/assinatura",
+      "status": "PASS"
+    },
+    {
+      "name": "protected GET /documentacao",
+      "status": "PASS"
+    },
+    {
+      "name": "protected GET /documenta%C3%A7%C3%A3o",
+      "status": "PASS"
+    },
+    {
+      "name": "email correction rejects cross-origin before storage",
+      "status": "PASS"
+    },
+    {
+      "name": "email correction rejects absent cookie before storage",
+      "status": "PASS"
+    },
+    {
+      "name": "deployed signup assets contain correction and delivery state",
+      "status": "PASS"
+    }
+  ],
+  "pass": 9,
+  "fail": 0,
+  "accountsCreated": 0,
+  "emailsSent": 0,
+  "payments": 0,
+  "migrations": 0,
+  "applicationDataWrites": 0,
+  "limit": "public HTTP/assets and unauthenticated guards; no end-to-end real signup or inbox proof"
+}

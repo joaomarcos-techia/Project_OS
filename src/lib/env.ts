@@ -121,6 +121,63 @@ const EnvSchema = z
         .transform((v) => v === 'true'),
     ),
 
+    // Candidate acquisition only; never reroutes existing obligations.
+    SAAS_SIGNUP_PROVIDER: z.preprocess(
+      emptyToUndefined,
+      z.enum(['asaas', 'abacatepay_sandbox', 'abacatepay_production']).default('asaas'),
+    ),
+    ABACATEPAY_API_KEY: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    ABACATEPAY_ENVIRONMENT: z.preprocess(
+      emptyToUndefined,
+      z.enum(['sandbox', 'production']).optional(),
+    ),
+    ABACATEPAY_PLAN_PRODUCTS: z.preprocess(emptyToUndefined, z.string().max(4096).optional()),
+    // Optional bounded rotation window; JSON is validated by the receiver.
+    ABACATEPAY_WEBHOOK_PREVIOUS_SECRET: z.preprocess(
+      emptyToUndefined,
+      z.string().max(2048).optional(),
+    ),
+    // Acquisition only; never stops webhooks, reconciliation or cancellation.
+    ABACATEPAY_NEW_CHECKOUTS_ENABLED: z.preprocess(
+      emptyToUndefined,
+      z
+        .enum(['true', 'false'])
+        .optional()
+        .transform((v) => (v === undefined ? undefined : v === 'true')),
+    ),
+    // An explicitly empty cohort must fail closed, not become an omitted cohort.
+    ABACATEPAY_CHECKOUT_CLINIC_IDS: z.string().max(4096).optional(),
+    // Independent admission gate: enabling billing must never open account creation.
+    ABACATEPAY_PILOT_PROVISIONING_ENABLED: z.preprocess(
+      emptyToUndefined,
+      z
+        .enum(['true', 'false'])
+        .default('false')
+        .transform((value) => value === 'true'),
+    ),
+    ABACATEPAY_STORE_ID: z.preprocess(
+      emptyToUndefined,
+      z
+        .string()
+        .regex(/^store_[A-Za-z0-9_-]+$/)
+        .optional(),
+    ),
+    ABACATEPAY_SANDBOX_PROBE_PRODUCT_ID: z.preprocess(
+      emptyToUndefined,
+      z
+        .string()
+        .regex(/^prod_[A-Za-z0-9_-]+$/)
+        .optional(),
+    ),
+    ABACATEPAY_SANDBOX_PLAN_PRODUCTS: z.preprocess(
+      emptyToUndefined,
+      z.string().max(4096).optional(),
+    ),
+    ABACATEPAY_WEBHOOK_SECRET: z.preprocess(
+      emptyToUndefined,
+      z.string().min(32).max(1024).regex(/^\S+$/).optional(),
+    ),
+
     // --- Operational ---
     // Explicit opt-in for prod-targeting scripts (db:migrate:prod, db:backup:prod).
     // Default unset; only set in the operator's shell session right before a prod operation.
@@ -369,6 +426,11 @@ const EnvSchema = z
     // process.env nos arquivos sentry.*.config.ts (rodam em edge/client e não
     // podem importar este módulo). Ausente → usa o DSN baked-in do wizard.
     NEXT_PUBLIC_SENTRY_DSN: z.preprocess(emptyToUndefined, z.string().url().optional()),
+    // Public framework metadata supplied automatically by Vercel at build time.
+    NEXT_PUBLIC_VERCEL_ENV: z.preprocess(
+      emptyToUndefined,
+      z.enum(['development', 'preview', 'production']).optional(),
+    ),
     // Token de upload de source maps (build-time, server-only, SECRET). Vive em
     // .env.sentry-build-plugin (gitignored). Ausente → build sem upload de maps.
     SENTRY_AUTH_TOKEN: z.preprocess(emptyToUndefined, z.string().min(1).optional()),

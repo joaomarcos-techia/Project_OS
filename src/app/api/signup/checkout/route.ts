@@ -1,11 +1,11 @@
 /**
- * POST /api/signup/checkout — cria uma jornada recorrente hospedada no Asaas.
+ * POST /api/signup/checkout — inicia o trial Qoro ou o Checkout Asaas legado.
  *
  * O browser não escolhe nem envia dados de cobrança. Plano, preço, ciclo,
- * trial, tenant e papel continuam resolvidos no servidor, e o Asaas coleta os
- * dados do pagador na página hospedada. Um 200 desta rota
- * significa apenas "Checkout criado"; o tenant nasce somente na rota de status,
- * depois do readback autoritativo da assinatura.
+ * trial, tenant e papel continuam resolvidos no servidor. Na candidata AbacatePay,
+ * provisiona apenas a avaliação, sem cobrança ou cartão; a contratação posterior
+ * usa /api/billing/checkout. No ramo Asaas, 200/checkout_pending só informa criação
+ * do Checkout; o tenant depende da conciliação autoritativa na rota de status.
  */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -13,6 +13,7 @@ import { z } from 'zod';
 import {
   completeSignupHostedCheckout,
   provisionTenantFromSignup,
+  provisionFreeSignupTrial,
   readSignupBilling,
   reconcileSignupSubscription,
   resolveReadyOwnedSignupOnboarding,
@@ -25,6 +26,7 @@ import { env } from '@/lib/env';
 import { resolveTrustedApplicationOrigin } from '@/lib/http/application-url';
 import { readWebhookBodyCapped } from '@/lib/http/webhook-body';
 import { asaasProvider } from '@/lib/payments/asaas';
+import { deferredSaasSignupEnabled } from '@/lib/payments/saas/acquisition';
 import { parseDocument } from '@/lib/validation/document';
 
 export const runtime = 'nodejs';
@@ -105,7 +107,9 @@ async function provisionLegacyActiveDraft(input: {
 }
 
 export async function POST(req: Request): Promise<Response> {
-  if (!env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED) {
+  // Close new acquisition for sessions created before the kill switch too.
+  // Payment status/webhooks remain available to reconcile existing obligations.
+  if (!env.SIGNUP_ENABLED || !env.SIGNUP_AUTH_ENABLED || !env.SIGNUP_IDENTITY_ENABLED) {
     return json({ error: 'unavailable' }, 503);
   }
 
@@ -140,6 +144,26 @@ export async function POST(req: Request): Promise<Response> {
     }
     const body = checkoutBodySchema.safeParse(parsed);
     if (!body.success) return json({ error: 'invalid_body' }, 400);
+
+    if (deferredSaasSignupEnabled()) {
+      const trial = await provisionFreeSignupTrial({
+        userId: onboarding.userId,
+        verifiedEmail: onboarding.email,
+      });
+      if (trial.ok) return json({ state: trial.state });
+      if (trial.reason !== 'legacy_checkout') {
+        return json(
+          { error: trial.reason },
+          trial.reason === 'unavailable'
+            ? 503
+            : trial.reason === 'forbidden'
+              ? 403
+              : trial.reason === 'gone'
+                ? 410
+                : 409,
+        );
+      }
+    }
 
     const checkout = await startSignupHostedCheckout({
       userId: onboarding.userId,

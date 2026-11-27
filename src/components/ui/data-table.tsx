@@ -26,6 +26,8 @@ export function DataTable({
   hrefFor,
   empty,
   hint,
+  title,
+  description,
   className,
 }: {
   children: ReactNode;
@@ -40,10 +42,26 @@ export function DataTable({
   empty?: ReactNode;
   /** Texto de apoio no rodapé, à direita da contagem (ex.: como refinar a busca). */
   hint?: ReactNode;
+  /** Cabeçalho de cartão acima da tabela (app v5). */
+  title?: ReactNode;
+  /** Apoio à direita do cabeçalho (ex.: contagem e ordenação). */
+  description?: ReactNode;
   className?: string;
 }) {
+  const head = title ? (
+    <div data-slot="table-head">
+      <h2>{title}</h2>
+      {description ? <p>{description}</p> : null}
+    </div>
+  ) : null;
+
   if (total === 0 && empty) {
-    return <TableWrap className={className}>{empty}</TableWrap>;
+    return (
+      <TableWrap className={className}>
+        {head}
+        {empty}
+      </TableWrap>
+    );
   }
 
   const first = total === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -51,6 +69,7 @@ export function DataTable({
 
   return (
     <TableWrap className={className}>
+      {head}
       <TableScroll>
         <Table>{children}</Table>
       </TableScroll>

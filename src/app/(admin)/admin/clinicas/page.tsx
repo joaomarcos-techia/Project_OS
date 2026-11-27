@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { Eye, Search } from 'lucide-react';
 import Link from 'next/link';
 import { Suspense } from 'react';
@@ -34,6 +35,8 @@ import { invitesRepository } from '../_lib/repositories/invites.repo';
 import { InvitesTable } from './invites-table';
 import { NewClinicModal } from './new-clinic-modal';
 import { SignupAccounts, SignupAccountsLoading } from './signup-accounts';
+
+export const metadata: Metadata = { title: 'Clínicas' };
 
 export const dynamic = 'force-dynamic';
 

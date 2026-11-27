@@ -110,6 +110,17 @@ export interface AgendaData {
   selfDoctorId: string | null;
   canEditAgenda: boolean;
   canManageAvailability: boolean;
+  /**
+   * UX-007 — com o catálogo vazio, quem pode cadastrar procedimentos recebe o
+   * atalho; quem não pode, a orientação de pedir a quem administra. Opcional:
+   * ausente = sem permissão.
+   */
+  canManageProcedures?: boolean;
+  /**
+   * UX-006 — cadastro rápido de paciente dentro do novo agendamento. Espelha a
+   * permissão que o domínio exige (`create:patient`); o servidor confere de novo.
+   */
+  canCreatePatient?: boolean;
   appointments: AgendaAppt[];
   /** UX-003 — séries recorrentes presentes na faixa exibida. */
   recurrenceSeries: RecurrenceSeriesSummary[];
@@ -286,7 +297,7 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
     doctorId: a.doctorId,
     horario: a.scheduledAt,
     pacienteNome: a.patientId ? (nameOf.get(a.patientId) ?? 'Paciente') : 'Encaixe',
-    pacienteIdade: ageFromBirthdate(a.patientId ? (birthOf.get(a.patientId) ?? null) : null),
+    pacienteIdade: ageFromBirthdate(a.patientId ? (birthOf.get(a.patientId) ?? null) : null, tz),
     medicoNome: doctorNameOf.get(a.doctorId) ?? a.snapshotDoctorNome,
     procedimento: a.snapshotProcedureName,
     duracaoMin: a.durationMin,
@@ -319,6 +330,8 @@ export async function getAgendaData(query: AgendaQuery = { view: 'day' }): Promi
     selfDoctorId: isPractitioner ? user.userId : null,
     canEditAgenda: user.permissions.includes(PERMISSIONS.EDIT_AGENDA),
     canManageAvailability: user.permissions.includes(PERMISSIONS.MANAGE_AVAILABILITY),
+    canManageProcedures: user.permissions.includes(PERMISSIONS.MANAGE_PROCEDURES),
+    canCreatePatient: user.permissions.includes(PERMISSIONS.CREATE_PATIENT),
     appointments,
     recurrenceSeries,
     procedures,

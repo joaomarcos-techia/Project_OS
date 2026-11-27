@@ -1,0 +1,187 @@
+name: Billing renewal — isolated financial qualification
+
+on:
+  push:
+    branches: [feat/billing-abacatepay-20261107]
+    paths:
+      - .github/workflows/billing-renewal.yml
+      - scripts/security/abacatepay-renewal-db.ts
+      - scripts/security/abacatepay-operational-proof.ts
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: billing-renewal-synthetic
+  cancel-in-progress: false
+
+jobs:
+  qualification:
+    if: github.repository == 'joaomarcos-techia/Project_OS' && github.ref == 'refs/heads/feat/billing-abacatepay-20261107'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.4
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Record exact source and runner; no repository secrets
+        run: |
+          mkdir -p dist/renewal-qualification
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs';
+          import { execFileSync } from 'node:child_process';
+          const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim();
+          writeFileSync('dist/renewal-qualification/source.json', JSON.stringify({
+            startedAt: new Date().toISOString(),
+            sha: git('rev-parse', 'HEAD'),
+            applicationTree: git('rev-parse', 'HEAD:src'),
+            migrationTree: git('rev-parse', 'HEAD:drizzle'),
+            node: process.version,
+            pnpm: execFileSync('pnpm', ['--version'], { encoding: 'utf8' }).trim(),
+            environment: 'disposable_loopback_synthetic',
+            repositorySecretsProvided: false,
+            sharedDatabaseWrites: 0,
+            providerMutations: 0
+          }, null, 2));
+          NODE
+      - name: Renewal, invoices, calendar, plans, replay and tenant isolation
+        run: |
+          export SECURITY_PG_BIN="$(pg_config --bindir)"
+          node --conditions=react-server --import tsx scripts/security/abacatepay-renewal-db.ts
+          cp dist/abacatepay-renewal-db.json dist/renewal-qualification/
+      - name: Actual HTTP receiver, Redis leases, worker, outages and recovery
+        env:
+          QORO_ABACATEPAY_OPERATIONAL: '1'
+          QORO_ABACATEPAY_OPERATIONAL_PROFILE: pilot
+        run: |
+          export SECURITY_PG_BIN="$(pg_config --bindir)"
+          node --conditions=react-server --import tsx scripts/security/abacatepay-renewal-db.ts
+          cp dist/abacatepay-pilot-http.json dist/renewal-qualification/
+      - name: Trial provisioning, verified payment and operational module gates
+        if: ${{ !cancelled() }}
+        run: |
+          export SECURITY_PG_BIN="$(pg_config --bindir)"
+          node --conditions=react-server --import tsx scripts/security/signup-free-trial-db.ts
+          cp dist/signup-free-trial-db.json dist/renewal-qualification/
+      - name: Nine trial limits, payment release and permanent plan capacity
+        if: ${{ !cancelled() }}
+        env:
+          # Static trial-access imports validate env; all SQL uses the owned scratch cluster.
+          NODE_ENV: test
+          DATABASE_URL: postgres://synthetic:synthetic@127.0.0.1:1/unused?sslmode=require
+          NEXT_PUBLIC_SUPABASE_URL: https://synthetic.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_synthetic
+        run: |
+          export SECURITY_PG_BIN="$(pg_config --bindir)"
+          node --conditions=react-server --import tsx scripts/security/trial-resource-limits.ts
+          cp dist/trial-resource-limits.json dist/renewal-qualification/
+      - name: Checkout concurrency, ambiguous responses and payment recovery
+        if: ${{ !cancelled() }}
+        run: |
+          export SECURITY_PG_BIN="$(pg_config --bindir)"
+          node --conditions=react-server --import tsx scripts/security/abacatepay-checkout-recovery-db.ts
+          cp dist/abacatepay-checkout-recovery-db.json dist/renewal-qualification/
+      - name: Exact frozen 160-entry schema; no functional TISS code
+        id: composed
+        if: ${{ !cancelled() }}
+        run: |
+          export SECURITY_PG_BIN="$(pg_config --bindir)"
+          export QORO_TISS_REF=4d0ed1d5c8a81ab9f66e026f4f36c6e4520a7269
+          export QORO_TISS_WORKTREE="$RUNNER_TEMP/qoro-frozen-schema-input"
+          git worktree add --detach "$QORO_TISS_WORKTREE" "$QORO_TISS_REF"
+          node --import tsx scripts/security/abacatepay-tiss-composition.ts
+          # This harness explicitly tests N-1 before applying 0159 in its own cluster.
+          # Its native immutable-input mode starts at 159 entries and tests the
+          # transition to the exact 160-entry schema; do not preload 0159 twice.
+          node --conditions=react-server --import tsx scripts/security/abacatepay-renewal-db.ts
+          cp dist/abacatepay-renewal-tiss-0158-db.json dist/renewal-qualification/renewal-schema-transition160.json
+          target="$RUNNER_TEMP/qoro-financial-schema160"
+          mkdir "$target"
+          git archive HEAD | tar -xf - -C "$target"
+          test "$target" = "$RUNNER_TEMP/qoro-financial-schema160"
+          rm -r "$target/drizzle/migrations"
+          cp -R dist/abacatepay-tiss-release-158-4d0ed1d5/drizzle/migrations "$target/drizzle/"
+          ln -s "$GITHUB_WORKSPACE/node_modules" "$target/node_modules"
+          unset QORO_TISS_REF QORO_TISS_WORKTREE
+          (
+            cd "$target"
+            node --conditions=react-server --import tsx scripts/security/signup-free-trial-db.ts --shared-schema
+            node --conditions=react-server --import tsx scripts/security/legacy-cancellation-db.ts candidate-160
+          )
+          cp "$target/dist/signup-free-trial-db.json" dist/renewal-qualification/trial-schema160.json
+          cp "$target/dist/cancellation-candidate-160.json" dist/renewal-qualification/
+          cp dist/abacatepay-tiss-composition.json dist/renewal-qualification/schema-composition.json
+      - name: Build the exact exported financial source with the frozen composed schema
+        if: ${{ !cancelled() && steps.composed.outcome == 'success' }}
+        run: |
+          node --import tsx --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { spawnSync, execFileSync } from 'node:child_process';
+          import { createHash } from 'node:crypto';
+          import { readFileSync, mkdtempSync, writeFileSync } from 'node:fs';
+          import { freemem, totalmem } from 'node:os';
+          import path from 'node:path';
+          import { syntheticBuildEnvironment } from './scripts/gate-b-composed-build.ts';
+          import { readFrozenRelease } from './scripts/abacatepay-release-validation.ts';
+          const target = path.join(process.env.RUNNER_TEMP, 'qoro-financial-schema160');
+          const sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+          const plan = await readFrozenRelease(path.join(target, 'drizzle/migrations'), sha);
+          assert.equal(plan.migrations.length, 160);
+          const records = execFileSync('git', ['ls-tree', '-rz', 'HEAD', '--', 'src', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'next.config.ts'], { encoding: 'utf8', maxBuffer: 16 << 20 });
+          const sources = [];
+          for (const record of records.split('\0').filter(Boolean)) {
+            const match = /^\d+ blob ([a-f0-9]{40})\t(.+)$/su.exec(record);
+            assert.ok(match);
+            const file = match[2];
+            const content = readFileSync(path.join(target, file));
+            const blob = createHash('sha1').update(`blob ${content.length}\0`).update(content).digest('hex');
+            assert.equal(blob, match[1], `Export differs: ${file}`);
+            sources.push({ file, sha256: createHash('sha256').update(content).digest('hex') });
+          }
+          const home = mkdtempSync(path.join(process.env.RUNNER_TEMP, 'qoro-build-home-'));
+          const buildHeapMiB = 4096; // Same bound as gate-b-composed-build.ts, cloud runner only.
+          const memoryBefore = { freeBytes: freemem(), totalBytes: totalmem(), buildHeapMiB };
+          assert.ok(memoryBefore.freeBytes >= buildHeapMiB * 1024 * 1024, 'Insufficient runner memory');
+          const startedAt = new Date().toISOString();
+          const result = spawnSync(process.execPath, [`--max-old-space-size=${buildHeapMiB}`, 'node_modules/next/dist/bin/next', 'build'], {
+            cwd: target, env: syntheticBuildEnvironment(process.env, home), stdio: 'inherit', timeout: 600000
+          });
+          const proof = { status: result.status === 0 && !result.error ? 'PASS' : 'FAIL', sha,
+            startedAt, finishedAt: new Date().toISOString(), exitCode: result.status,
+            scope: 'Exact current financial source exported by git archive plus frozen 160-entry SQL composition; not a build of the historical C2 TAR',
+            sourceFiles: sources.length,
+            sourceManifestSha256: createHash('sha256').update(JSON.stringify(sources)).digest('hex'),
+            memoryBefore,
+            sqlCount: plan.migrations.length, lastMigration: plan.migrations.at(-1).tag,
+            build: 'next build', transformedApplicationSources: false, syntheticEnvironmentOnly: true,
+            productionWrites: 0, deploys: 0 };
+          writeFileSync('dist/renewal-qualification/composed-build.json', JSON.stringify(proof, null, 2));
+          assert.equal(proof.status, 'PASS');
+          NODE
+      - name: Preserve synthetic evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: billing-renewal-${{ github.sha }}
+          path: |
+            dist/renewal-qualification/*.json
+            dist/abacatepay-renewal-db.json
+            dist/abacatepay-renewal-tiss-0158-db.json
+            dist/abacatepay-operational*.json
+            dist/abacatepay-pilot*.json
+            dist/signup-free-trial-db.json
+            dist/trial-resource-limits.json
+            dist/abacatepay-checkout-recovery-db.json
+            dist/cancellation-candidate-160.json
+          retention-days: 7
+          if-no-files-found: error

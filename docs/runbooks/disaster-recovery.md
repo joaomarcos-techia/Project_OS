@@ -1,5 +1,88 @@
 # Recuperação de banco — Qoro
 
+## Decisão vigente — B1-B adiado com risco aceito, 16/11/2026
+
+Classificação obrigatória: **DEFERRED / RISK ACCEPTED / NOT VERIFIED**. Não reabrir pedido de AWS/Linux/cofre para B1-B; não processar dados reais nem executar restore. O aceite não autoriza desativar a rotina atual, perder históricos ou ocultar falha atual de backup.
+
+Revisão administrativa07:48UTC:7físicosCOMPLETED09–15/11,último2273462739 em15/11 09:14:14.727UTC;PITRoff,plano/retenção contratual não retornados. db-backup.yml ativo,agenda06UTC,último run43719455568 SUCCESS/artifact15/11 13:32:24UTC;30artifacts/retencão30dias,sete sucessos/uma falha entre8runs. Somente metadados: nenhum conteúdo/log/artifact aberto ou backup disparado. Agenda não garante horário efetivo nem RPO; houve atraso/falha de scheduler já documentados.
+
+**BACKUP OPERACIONAL ATUAL: NÃO COMPROVADO para recuperação integral.** Continuidade do banco por metadados confirmada, com risco residual; SQL inclui public/auth, não bináriosStorage nem configAuthgerenciada. A prova sintética e a presença de backups não comprovam recuperação real/RTO. Substituto cifrado/alerta/retencão preparado, não ativado. Menor mitigação disponível agora: preservar cobertura existente, conferir status/freshness antes de DDL e interromper em falha atual; Storage/Auth exigem continuidade operacional própria, não coberta por este aceite de adiamento.
+
+A proposta B3 pode usar revisão explícita de metadata gerenciada e do aceite, sem alegar restore/checksum de conteúdo. Exige observação≤30min,último físicoCOMPLETED≤26h,margem operacional nãoRPOcontratado,arquivo privado/hash e GO B3 separado. A via de backupcifrado/restoreestrito continua preservada. Procedimento de implantação/rollback somente no [checklist único de Gate B](../decoupling/asaas-to-abacatepay/GATE-B-DEPLOY-CONTROLADO.md#checkpoint-prevalente--reta-final-e-contenção-16112026).
+
+## Continuidade prevalente — 16/11/2026
+
+A anotação administrativa do check132455944005 esclareceu a falha43597806257: o GitHub não iniciou o job por pagamento recente da conta ou limite de gastos. Não distingue qual das duas causas; nenhum step de dump executou. Não foram baixados logs/artifacts reais. O workflow antigo continua ativo e inalterado: a nova orientação não permite removê-lo antes de comprovar/aprovar a continuidade substituta.
+
+### Substituto recorrente implementado, não instalado
+
+`scripts/recovery-scheduled-backup.ts` é um operador separado, sem dotenv/pool da aplicação. Linux protegido fora de Actions, identidade Production explícita, CA/verify-full/read-only, pg_dump real por stream para GPG AES256, segredo por FD3 e keyring temporário exclusivo. Diretório0700/cifra0600, lock de execução, interrupção/timeout, verificação autenticada/rodapé/hash e manifesto publicado atomicamente. Não mantém SQL em claro em arquivo. Retenção7dias, mínimo2 cópias verificadas; arquivos alheios não são candidatos. Manifesto não afirma cobertura de Storage binário/configuração gerenciada de Auth.
+
+Templates em `ops/recovery`: backup diário09:30UTC, health horário (atraso26h ou hash inválido falha), OnFailure para notificação Sentry sanitizada. Credenciais via `LoadCredentialEncrypted`, nunca EnvironmentFile/argv: database-url, recovery-passphrase, database-ca e sentry-dsn. `recovery-backup-alert.ts` envia envelope oficial HTTPS com até3 tentativas e um mesmo event ID; 2xx comprova ingestão, não notificação recebida. Falha permanece não zero/journal sanitizado. Antes de instalar, validar versions/path Node/tsx, unit files, permissions e dependências no host designado.
+
+**Ensaio somente sintético:** `scripts/security/scheduled-backup-db.ts` no runner Linux próprio, PostgreSQL real e conexão TLS, pg_dump/GPG/psql reais; restaura em segundo banco e compara UTF8, verifica lock, indisponibilidade, cancelamento real/sem parcial, adulteração, retenção/freshness. Resultados efetivos ficam na evidência da rodada. Nunca executar esse PostgreSQL no notebook ou usar credenciais Production na CI.
+
+### Cutover futuro — pontos de parada
+
+1. Aprovar host permanente ou agenda durável equivalente; VM de recuperação que será destruída não substitui a rotina diária. Definir região, proteção do volume/swap/hibernação, rede/TLS, responsável e custo total.
+2. Guardar a chave recuperável também em cofre independente do host/TPM/perfil. `systemd-creds` cifrado só para a máquina não garante reconstrução em outro host. Não imprimir ou copiar segredos para chat/Git/Actions.
+3. Revisar escopo, retenção e descarte; testar Storage e inventário Auth separadamente. Conferir plano/retenção gerenciada Supabase por acesso administrativo, sem inferir de oito backups.
+4. Após autorização específica para dados reais, instalar/verificar units, criar uma cifra real no destino aprovado e comprovar restore/integridade/tempo e recuperação da chave. Testar cancelamento/retentativa com sintéticos, sem destruir backups históricos.
+5. Comprovar execução agendada, health e recebimento do alerta no canal responsável; registrar primeiro/segundo backup saudáveis, RPO/RTO observados e rollback da rotina.
+6. Somente após continuidade e aprovação documentadas, desabilitar o workflow antigo. Preservar artifacts/secrets históricos; sua remoção exige análise/autorização própria. Se falhar o cutover, manter a rotina anterior e tratar a falha, sem afirmar migração concluída.
+
+B2-A já passou em16/11 somente catálogos/histórico com TLS direto verificado. Não equivale ao B1-B real, que continua BLOCKED por host/cofre/roles/tratamento de dados. Sem dados reais transferidos, backup Production gerado ou infraestrutura contratada nesta rodada.
+
+## Auditoria efetiva da rotina antiga e plano de continuidade — 15/11
+
+Consulta somente de metadados GitHub em16/11 01:01UTC (15/11 Brasília), sem logs/artefatos/dados/valores de secrets: workflow305661908 **active**, definição main idêntica à branch; agenda06:00UTC e workflow_dispatch. Repositório privado; YAML sem permissions explícitas, default_workflow_permissions=read; nenhum environment de aprovação no job. Nomes DATABASE_URL_PROD e BACKUP_PASSPHRASE presentes; não é leitura dos seus valores. Escopo: pg_dump de public/auth e demais schemas não excluídos; exclui storage/realtime/extensions/graphql/graphql_public/vault/supabase_functions/\_realtime/\_analytics/pgsodium/pgsodium_masks/pgbouncer. Inclui usuários Auth/hashes e dados clínicos/financeiros do banco; não inclui Storage binário, raiz Vault e todas as configurações gerenciadas.
+
+**Execução efetiva comprovada por metadados, não só configuração:** oito runs recentes,7 success/1 failure. Último agendado [43719455568](https://github.com/joaomarcos-techia/Project_OS/actions/runs/43719455568),15/11 13:31:40–13:32:27UTC, success; artifact14163123648,921.422bytes, expira15/12 13:32:23UTC.14/11 run43597806257 failure, sem causa inferida pois logs não foram lidos. Trinta artifacts db-backup visíveis em metadados; nenhum baixado/decifrado. Intervalo de47h30 entre artifacts de13 e15/11; isso limita a cópia lógica independente, **não prova perda equivalente no backup físico diário**. Horário de cron não garante hora de execução observada. Sucesso do job/bytes não prova restaurabilidade.
+
+O SQL passa por pipe ao GPG AES256; a cifra é artifact privado por30dias. O runner processa SQL em claro em memória e recebe credenciais reais, e a URL está em argv do pg_dump; o modo TLS configurado é require, não prova verify-full. Chave GPG fica em secret separado do artifact, mas ambos pertencem ao controle de acesso GitHub e não há prova de cofre independente atual. Falhas notificadas pelo GitHub não equivalem ao canal operacional de backup comprovado. **Desenho incompatível com a nova proibição de dados reais no Actions. Não foi executado, desabilitado ou modificado por esta rodada.** Não apagar os30 artifacts nem secrets sem autorização própria; outros usos de credenciais precisam ser avaliados antes de remoção.
+
+### Substituição preparada, sem instalação ou ativação
+
+Usar os helpers existentes db-backup-prod.ts/prod-encrypted-backup.ts **em host protegido aprovado fora de Actions/notebook**: conta operacional mínima, diretório privado0700/cifra0600, GPG AES256 em stream, PGSSLMODE=verify-full e CA explícita, chave recuperável separada e sem URI/senha em argv. Carregar credenciais por cofre/credencial efêmera cifrada do SO, não por .env aberto. Proposta Linux: serviço oneshot com usuário dedicado, UMask0077, StateDirectoryMode0700, ProtectSystem=strict, ProtectHome=yes, NoNewPrivileges=yes, PrivateTmp=yes, LimitCORE=0, credenciais LoadCredentialEncrypted e rede restrita ao banco/cofre necessários. Timer diário06:00UTC e prazo/lock exclusivo, somente se o host persistente e a recorrência forem aprovados. Esses parâmetros são um desenho a validar no host, **não serviço instalado/testado**; não usar flag de B1-B como autorização de agenda recorrente.
+
+Comando de aplicação já existente, futuramente no diretório privado aprovado, com OPS_ROOT validado e credenciais somente no processo:
+
+```bash
+# NÃO EXECUTADO; requer autorização específica para dados/rotina e host aprovado.
+node --import "$OPS_ROOT/node_modules/tsx/dist/loader.mjs" "$OPS_ROOT/scripts/db-backup-prod.ts"
+```
+
+O cwd privado não deve conter .env.local; o helper legado o procura, portanto não executá-lo na pasta de um projeto com secrets misturados. Confirmar origem/ref/host no manifesto antes, versões e CA; registrar UTC do snapshot, exits, SHA256/bytes, chave/cofre, retenção e restore periódico. Ter marker final de dump não basta. Alertar run falho e ausência de snapshot dentro da janela aprovada sem conteúdo sensível; teste de notificação do novo backup será sintético e requer canal aprovado. Não reaproveitar a confirmação de alerta Sentry de billing como prova dessa agenda.
+
+**Corte sem proteção presumida:** (1) aprovar cobertura transitória e responsável; físicos existentes continuam intocados, plano/retenção atuais ainda devem ser confirmados; (2) aprovar host/rotina/dados/chave/destino/retencão; (3) obter cópia e restore real revisados, depois observar o agendamento novo e teste de alerta; (4) só após autorização desabilitar exclusivamente workflow305661908 e conferir state=disabled_manually; preservar artifacts existentes até decisão de exportação/descarte em host aprovado. Não manter sobreposição processando dados reais no Actions por suposição: se for necessária, exige exceção transitória explícita, com prazo. Alternativa para interromper essa exposição antes de existir substituto: o titular autoriza desativar somente a rotina antiga e aceita temporariamente depender dos físicos para o banco, sem alegar cópia independente diária. Nenhuma opção foi automaticamente aceita.
+
+**Decisão urgente consolidada:** escolher cobertura transitória e autorizar o corte; não há autorização atual de desativação. A VM de drill24h não mantém um timer diário após ser descartada. Para backup independente recorrente será preciso host existente aprovado ou serviço duradouro com custo próprio, ou aceitar frequência manual menor como política explícita. Não contratar nada silenciosamente. Storage/Auth/cofre/RTO continuam escopos próprios; oito físicos08–15/11 observados pelo titular/PITRoff não provam recuperação física ou retenção contratual.
+
+## Procedimento vigente — ambiente alternativo aprovado
+
+**15/11/2026 — DECISÃO DO RESPONSÁVEL: NOTEBOOK ATUAL DESCARTADO PARA RESTAURAÇÃO E BUILD PESADO.** Nenhum dump, download, decifragem, restore real ou build pesado deve ocorrer neste notebook. Não iniciar Docker nem exigir BitLocker/pagefile/WSL deste Windows para viabilizar B1-B. Os ensaios de outubro abaixo permanecem evidência histórica; não são autorização para repetir operações aqui. Não ler/copiar/exportar os arquivos históricos DPAPI neste ciclo.
+
+Restore sintético Linux PASS20 e build composto exato PASS foram aceitos no [run43768247372](https://github.com/joaomarcos-techia/Project_OS/actions/runs/43768247372); CI43769394816 do HEADd3f27452 GREEN (7.270 testes,22 E2E,zero SKIP). Não repetidos. Não comprovam recuperação física gerenciada, snapshot atual ou serviço completo. Financeiro94f6da4a/TAR3902f200…/160SQL/0136–0159 congelados,0160/0161 excluídas. Documentação tem checks no novo HEAD, não herda aprovação da CI anterior.
+
+**GitHub Actions não é destino/operador para dados reais de Production**, mesmo cifrados: não baixar/restaurar/armazenar dumps, processar pacientes, copiar segredos, clonar bancos, aplicar migrations ou publicar. O workflow sintético permanece separado e inalterado. O desenho antigo db-backup.yml abaixo inclui dump real agendado e artifact: incompatibilidade documental/operacional identificada, sem execução ou alteração nesta rodada e sem prova de que a agenda esteja ativa no default branch. O responsável deve aprovar substituição/retirada dessa dependência preservando cobertura; não desligar backup existente por iniciativa própria.
+
+O [plano B1-B prevalente](../decoupling/asaas-to-abacatepay/GATE-B-DEPLOY-CONTROLADO.md#notebook-excluído-e-b1-b-em-ambiente-alternativo--15112026) compara A (outra máquina aprovada, se existir), B (VM Linux privada temporária recomendada sob condições) e C (clone gerenciado com risco de jobs antes da contenção). Nenhum destino foi aprovado. Reserva de planejamento B US$5–20/até24h, não cotação/contratação. Plano atual/retenção Supabase não foram confirmados: Pro observado em outubro não vale como conferência atual. B1-A dos oito físicos COMPLETED/PITRoff permanece encerrado; não relistar nem usar Restore.
+
+Sequência futura, **não autorizada agora**:
+
+1. Aprovar host/região/controles/custos/responsáveis e preparar/quarentenar esse host com dados sintéticos. Sem novo recurso externo por este documento. Operador roda no host aprovado; não usar Docker remoto do notebook ou Actions. Cifragem de disco, acesso/MFA/cofre, RAM/swap/temporários, isolamento e política de retenção devem ser comprovados ali, sem alterações globais neste notebook.
+2. Obter autorização B1-B **específica dos dados e operações**, não apenas da infraestrutura. Conferir projeto, CA/host/usuário/certificado e PGSSLMODE=verify-full durante essa janela; não houve conexão real neste ciclo. Credenciais só em processo protegido no host aprovado, sem argv, logs, .env Production copiado ou notebook.
+3. Usar helpers de backup/restore aprovados, GPG AES256 em stream, cifra fora do pacote e SHA256/manifesto. Provar pg_dump/GPG/psql zero e paridade de schema/dados/journal/relacionamentos/índices/constraints no mesmo snapshot, sem mascarar falhas. Conter cron/egress antes da decifragem; contêiner network none, sem portas/logs, tmpfs e limites ensaiados. Sem aplicação, workers, gateways ou migrations.
+4. Separar escopos: dump lógico não contém Storage binário, schema vault/chave-raiz nem todas as permissões e configurações gerenciadas. Uma raiz Vault não se recupera apenas instalando supabase_vault; não prometer leitura de conteúdo cifrado sem as chaves corretas. Verificar cofre portátil e snapshots Storage/Auth no host aprovado, sob escopo específico, sem depender de decifrar DPAPI neste notebook. Provas sintéticas/históricas de Storage/Auth não garantem cópia atual nem RPO futuro.
+5. Registrar UTC/origem/tipo/bytes/SHA256/versões/IDs/saídas/inventário/duração/descarte em evidência privada sanitizada, nunca conteúdo do dump ou secrets. Aguardar revisão do manifesto antes de aceitar B1-B. Falha de TLS/isolamento/capacidade/saída/paridade interrompe sem alterar Production.
+6. Aprovar previamente retenção e descarte: proposta VM24h, janela4h e cifra7dias após drill em cofre independente; não é política já aceita. Decifrado só em memória temporária protegida; remover apenas recursos identificados e autorizados, conferir processos/volumes/snapshots/custos, preservar o original. Não propor DOWN ou restore sobre ativo como rollback automático.
+
+**B1-B REAL NÃO APTO/NÃO AUTORIZADO; B2-A/B2-B/B3/C/D/E não autorizados; R1–R4 PARTIAL sem aceite; Production NO-GO.** A duração histórica de um restore não é RTO de todo o serviço. TLS real, plano/retenção, segurança/identidade do novo host, responsabilidades e autorização dos dados continuam pendentes. Nenhuma dessas pendências exige nova tentativa pesada no notebook.
+
+## Histórico de recuperação — outubro de 2026
+
+As seções seguintes descrevem implementação e evidências daquela época. Afirmações de plano, destino local e GitHub como segundo backup não representam a política vigente de15/11. Comandos de recuperação nesta estação foram retirados do procedimento ativo; o histórico Git preserva a versão anterior.
+
 ## Alcance do backup
 
 O workflow `db-backup.yml` deve produzir diariamente um único snapshot lógico cifrado de `public` **e** `auth`. Tabelas de `public` referenciam `auth.users`; um dump sem Auth falha no restore estrito. O artifact de 26/10/2026 (483.259 bytes) excluía Auth: a tentativa local com PostgreSQL/Supabase 17.11 e `ON_ERROR_STOP=1` falhou por FK em `appointment_corrections`. Ele continua preservado como evidência, mas **não é um backup restaurável da aplicação**.
@@ -18,16 +101,9 @@ Este snapshot **não** inclui objetos do Supabase Storage, nem substitui as conf
 
 **Limite da prova:** recuperação lógica de `public`+`auth` e compatibilidade das migrations. Não houve restauração de objetos Storage, configuração completa do serviço ou recuperação da Produção ativa.
 
-## Repetição segura do drill
+## Repetição do drill — roteiro antigo substituído
 
-1. Em estação autorizada, obtenha o artifact `.sql.gpg` e a senha do cofre. Confirme hash, origem, data, espaço livre, Docker e versão do PostgreSQL. Não extraia `.sql` para a pasta do projeto.
-2. Inicie **um contêiner novo**, com nome exclusivo, imagem Supabase PostgreSQL compatível, `--network none`, sem `-p`, `--log-driver none`, `--memory 2g --memory-swap 2g`, `--tmpfs /var/lib/postgresql/data:rw,nosuid,size=1g` e `--tmpfs /tmp:rw,nosuid,size=128m`. Verifique `docker inspect`: rede `none`, `PortBindings={}`, `Tmpfs` nos dois caminhos e log `none`. Não use Production nem DEV compartilhado.
-3. Verifique o servidor e a extensão dentro do contêiner com `psql -U supabase_admin -d postgres -X -Atqc "select current_setting('server_version'),(select extversion from pg_extension where extname='supabase_vault')"`.
-4. Em Bash com `set -o pipefail`, leia a senha de forma oculta (`read -rs BACKUP_PASSPHRASE`), envie-a apenas ao stdin do GPG, e faça pipe do SQL decifrado diretamente para `docker exec -i NOME psql -X -w -q -v ON_ERROR_STOP=1 -U supabase_admin -d postgres`. Exemplo para o trecho GPG: `printf '%s\n' "$BACKUP_PASSPHRASE" | gpg --batch --quiet --no-tty --pinentry-mode loopback --passphrase-fd 0 --decrypt "$BACKUP"`. Desfaça a variável após a execução. **Ambos** os códigos de saída e qualquer erro SQL devem ser verificados; não use `ON_ERROR_STOP=0`.
-5. Conte tabelas public/auth, `auth.users`, clínicas, profiles, assinaturas, pacientes, agendamentos, eventos, FKs, políticas, constraints não validadas e migrations. Compare com a origem do **mesmo snapshot** ou com contagens tomadas na janela de backup; contagens de outro dia não provam paridade. Teste consultas essenciais sem expor dados pessoais.
-6. Para migrations, restaure **outra** instância isolada do mesmo arquivo. Aplique as migrations pendentes em ordem e transações individuais, verificando código de saída e readback. Preserve a primeira instância até a comparação. Destrua somente os contêineres identificados após a prova; nunca execute limpeza recursiva em caminho genérico.
-
-`pnpm restore:test` ainda aceita arquivo SQL e URL local e **não** deve ser usado para decifrar o artifact nem para declarar recuperação de Auth/Storage por conta própria. O comando de Production `pnpm db:migrate:prod` continua proibido até autorização da janela de rollout; backup pré-migration não substitui restore testado.
+O roteiro local desta seção foi substituído pelo procedimento vigente acima e pelo formulário B1-B. Não executar o dump/restore nem abrir dados reais neste notebook. As evidências históricas, incluindo seus limites e contagens, estão preservadas; o histórico Git mantém os comandos anteriores. Não reutilizar restore:test com SQL aberto ou a autorização histórica de uma pasta Windows como aprovação do novo host. Nenhuma repetição de dados reais está autorizada.
 
 ## Estratégia sem PITR, em 28/10/2026
 
@@ -75,28 +151,9 @@ Após autorização explícita para criar a pasta e utilizá-la, o helper baixou
 
 O novo `scripts/storage-local-restore-drill.ts` restaura **somente** em contêineres novos e identificados. Usa imagens oficiais Supabase PostgreSQL 17.11.0.006/Storage API v1.81.0, rede Docker `internal`, nenhuma porta publicada, logs desativados, bancos e binários em `tmpfs` e memória/swap limitados. O cliente usa tokens sintéticos locais; corpos entram/saem por pipes em memória. A prova restaurou os cinco buckets e os 42 arquivos pela Storage API, conferiu **42 hashes**, **38 negativas de acesso privado anônimo** e **4 leituras públicas com hash**. Contêineres e rede foram removidos no `finally`; a ausência foi conferida. A primeira tentativa com porta de host falhou ambientalmente; a execução via pipe passou. Não restaura políticas RLS originais nem transforma isso em prova de todo o serviço Auth.
 
-Para repetir **apenas quando necessário**, em PowerShell no worktree da oferta, com Docker iniciado e esta cópia ainda disponível:
+O comando PowerShell de decifragem DPAPI e repetição neste notebook foi retirado do roteiro ativo pela decisão de15/11. A prova histórica e a cifra original permanecem preservadas; não foram abertas, exportadas ou removidas. Um novo drill exige destino alternativo, cofre portátil e autorização específica.
 
-```powershell
-Add-Type -AssemblyName System.Security
-$keyPath = Join-Path $env:LOCALAPPDATA 'Qoro\RecoveryKeys\storage-20261029.dpapi'
-$keyBytes = [System.Security.Cryptography.ProtectedData]::Unprotect(
-  [IO.File]::ReadAllBytes($keyPath), $null,
-  [System.Security.Cryptography.DataProtectionScope]::CurrentUser
-)
-$env:BACKUP_PASSPHRASE = [Text.Encoding]::UTF8.GetString($keyBytes)
-$env:STORAGE_ARCHIVE_DIR = Join-Path $env:LOCALAPPDATA 'Qoro\Recovery\storage-20261029\qoro-storage-S0upJf'
-$env:STORAGE_RESTORE_LOCAL = 'approved'
-try {
-  pnpm exec tsx scripts/storage-local-restore-drill.ts
-  if ($LASTEXITCODE -ne 0) { throw 'Drill não concluiu; não marcar PASS' }
-} finally {
-  Remove-Item Env:BACKUP_PASSPHRASE,Env:STORAGE_ARCHIVE_DIR,Env:STORAGE_RESTORE_LOCAL -ErrorAction SilentlyContinue
-  $keyBytes = $null
-}
-```
-
-**Ainda pendente:** definir cópia e chave recuperáveis fora desta máquina/perfil e uma rotina supervisionada de snapshots/retentativa/retencão. DPAPI CurrentUser protege o segredo em repouso, mas não é cofre portátil; perder o perfil pode perder acesso à chave. Uma tentativa de envelope portátil com a senha existente de backup foi recusada pelo requisito de comprimento do novo envelope, sem escrever arquivo nem alterar a credencial. Preparar a exportação somente para um cofre aprovado, sem expor a chave em terminal/chat. Não apagar snapshots automaticamente; a retenção operacional será definida com o destino aprovado. A restauração passou para este snapshot, mas não dá RPO futuro sem agendamento. Guardar o arquivo cifrado localmente também não constitui uma cópia independente contra perda do computador.
+**Ainda pendente:** definir cópia e chave recuperáveis fora desta máquina/perfil e uma rotina supervisionada de snapshots/retentativa/retenção. DPAPI CurrentUser protege o segredo em repouso, mas não é cofre portátil; perder o perfil pode perder acesso à chave. Uma tentativa de envelope portátil com a senha existente de backup foi recusada pelo requisito de comprimento do novo envelope, sem escrever arquivo nem alterar a credencial. Preparar a exportação somente para um cofre aprovado, sem expor a chave em terminal/chat. Não apagar snapshots automaticamente; a retenção operacional será definida com o destino aprovado. A restauração passou para este snapshot, mas não dá RPO futuro sem agendamento. Guardar o arquivo cifrado localmente também não constitui uma cópia independente contra perda do computador.
 
 **Auth em 29/10:** leitura pública `/auth/v1/settings` respondeu 200 e mostrou somente e-mail habilitado, `disable_signup=false` e `mailer_autoconfirm=false`. Não comprova SMTP, URLs, MFA ou hooks. A Management API oficial de configuração respondeu 401 com o acesso disponível, e a CLI Supabase não tinha sessão administrativa. Completar pelo painel/cofre ou autenticação legítima da CLI; não compartilhar PAT por chat.
 
@@ -120,7 +177,7 @@ O snapshot recupera as configurações retornadas pela API, **não** chaves JWT/
 
 1. Em incidente autorizado, preservar o banco atual e conter jobs/webhooks. Escolher destino isolado e obter aprovações de custo antes de criar projeto hospedado. Não apontar app público para ele durante a preparação.
 2. Restaurar `public+auth` pelo procedimento aprovado e conferir função de claims, RLS, usuários e relacionamentos. Restaurar Storage por API e aplicar as políticas autorizadas; a prova dos bytes não recria automaticamente todas as políticas do serviço gerenciado.
-3. Recuperar o snapshot Auth no perfil Windows autorizado: `ProtectedData.Unprotect` sobre o arquivo `.dpapi`, mantendo JSON somente em memória. Sem esse perfil, será necessária a cópia portátil guardada no cofre; ela **ainda não foi preparada**. Não imprimir o JSON nem colocá-lo em Git/artifact.
+3. No futuro host alternativo aprovado, recuperar a configuração por cópia portátil/cofre comprovado, com JSON somente em memória protegida. O caminho DPAPI histórico deste notebook não é dependência executável permitida. A disponibilidade atual da cópia portátil não foi comprovada; se faltar, interromper e aprovar recuperação específica fora deste procedimento, sem abrir secrets aqui. Não imprimir JSON nem colocá-lo em Git/artifact.
 4. Revisar cada campo contra o [contrato oficial de atualização Auth](https://supabase.com/docs/reference/api/v1-update-auth-service-config). Não enviar cegamente toda a resposta GET para PATCH, pois pode conter campos não editáveis. Reconfigurar somente o projeto de destino explicitamente aprovado; adaptar URLs ao destino, sem remover confirmação, MFA ou validação para facilitar o teste. Recriar o hook apontando para a função restaurada.
 5. Manter SMTP e integrações externas sem saída durante o drill; usar destinatários sintéticos e ambiente de e-mail isolado antes de habilitar entrega real. Não usar a senha SMTP real em um teste que possa enviar a pacientes. Reaplicar credenciais específicas do projeto recuperado e fazer novo deployment da aplicação autorizada.
 6. Provar com contas sintéticas: login, confirmação, recuperação de senha, convite, claims/tenant, refresh, sessão expirada, revogação, redirects, MFA e logout. Mudança de chaves de assinatura pode invalidar sessões; exigir novo login controlado em vez de reaproveitar cookies de DEV. Se fatores MFA não puderem ser recuperados com segurança, seguir recuperação aprovada pelo provedor, sem desativar MFA como atalho.

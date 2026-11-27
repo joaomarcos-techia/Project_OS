@@ -204,6 +204,7 @@ export const ConfirmPaymentSchema = z.object({
   lancamentoId: uuid,
   paymentMethod: z.string().min(1).max(40),
   valorPago: money,
+  valorPagoEsperado: z.number().finite().nonnegative().max(99_999_999.99),
   comprovante: z
     .object({
       type: z.enum(['comprovante', 'nota_fiscal', 'outro']),
