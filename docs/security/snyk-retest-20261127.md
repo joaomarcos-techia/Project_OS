@@ -1,5 +1,15 @@
 # Snyk: reteste e reconciliação de 27/11/2026
 
+## Complemento: triagem do candidato PR #68
+
+A matriz [snyk-current-reconciliation-20261127.csv](snyk-current-reconciliation-20261127.csv) inventaria individualmente os **614 resultados** do SARIF do SHA `c1d657a50c0a99be1d4a81808299ff79057d4394`: 606 ativos (47 altos, 340 médios, 219 baixos) e 8 exceções preexistentes. Registra fingerprint, origem, destino do fluxo, arquivo, linha, classificação e fundamento ou próxima verificação. O SARIF original está fora do repositório em `C:\dev\qoro-snyk-audit-20261127\code-c1d657a5.json`, SHA256 `09160403E0C74CEE594F6F580F1FB3ABDAFCFC8788746BA2848417CEBF62337F`.
+
+Os 7 SQLi altos terminam em `sql` parametrizado do Drizzle nos cinco destinos indicados pela matriz. A regressão dirigida de `connection-store` confirma que até um identificador externo com caracteres SQL permanece no parâmetro `$1`, sem entrar no texto da consulta. Os 36 alertas altos de segredo não criptográfico apontam para valores de ensaio sintético ou duas chaves de armazenamento do navegador. Os 4 de segredo apontam para a chave HMAC pública da AbacatePay, que não substitui o segredo de autenticação do webhook. Essa classificação é técnica; o Snyk ainda apresenta os resultados e não recebeu ignores novos.
+
+Entre os médios, o destino do convite piloto foi fixado em `/cadastro/piloto`, com preservação dos parâmetros de campanha. O teste com caminho inicial inesperado passou. O reteste Snyk dessa mudança continua pendente: a CLI local retornou `requires an authenticated account` em 27/11, e o check integrado do PR continua bloqueado pela classificação incorreta de cota privada. Não foi criada outra conta, projeto Snyk ou exceção. A matriz mantém 331 médios de grupos de SQL/transporte/path como `TRIAGED_REVIEW_PENDING`, seis médios sem revisão individual e o risco de SRI do Turnstile como `RESIDUAL_REVIEW`; nenhum deles foi silenciosamente aceito para Production. Os 219 baixos também requerem revisão por grupo/fluxo. **Snyk Code e gate de segurança: PARTIAL; release: NO-GO neste checkpoint.**
+
+Validação local deste complemento: 73 testes dirigidos PASS; ESLint dos três arquivos alterados PASS; `git diff --check` PASS. O `pnpm typecheck` local terminou com `JavaScript heap out of memory` no limite de 2 GiB do Node, sem resultado de tipos. Typecheck, build e suíte completa precisam passar na CI do novo SHA; não se transfere a aprovação de `c1d657a5` ao próximo commit.
+
 ## Escopo e fontes
 
 - Histórico: relatório local `Relatório de Vulnerabilidades Snyk — Project_OS.md`, referente a `5620a0987ec53db7d7358728eb7d457d9d373df3`. Ele registra **424 abertos**: 15 Open Source e 409 Code; mais 12 Code ignorados.

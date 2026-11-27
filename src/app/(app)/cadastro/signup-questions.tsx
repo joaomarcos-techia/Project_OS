@@ -283,11 +283,7 @@ export function SignupQuestions({
         if (pilot && !pilotToken.current) {
           pilotToken.current = readOnboardingInviteToken(window.location.hash);
           if (window.location.hash)
-            window.history.replaceState(
-              null,
-              '',
-              window.location.pathname + window.location.search,
-            );
+            window.history.replaceState(null, '', '/cadastro/piloto' + window.location.search);
         }
         if (!pilot) {
           const current = await fetch('/api/signup/sessions/me', { cache: 'no-store' });
@@ -323,7 +319,7 @@ export function SignupQuestions({
               // The invite has become a Secure/HttpOnly cookie. Start from a
               // clean document so the router cannot restore its initial hash.
               pilotToken.current = null;
-              window.location.replace(window.location.pathname + window.location.search);
+              window.location.replace('/cadastro/piloto' + window.location.search);
               return;
             }
             const identity = createdBody?.identity;
