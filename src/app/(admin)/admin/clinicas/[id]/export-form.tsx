@@ -31,12 +31,12 @@ function maskBrDate(v: string): string {
  * Allowlist de esquema p/ usar uma URL num `href` sem risco de DOM XSS
  * (`javascript:`/`data:` executariam ao clicar). A signedUrl vem do servidor
  * (Supabase Storage = https), mas validamos aqui no cliente como defesa em
- * profundidade: só http/https passa; qualquer outra coisa → null (não renderiza).
+ * profundidade: somente HTTPS passa; qualquer outra coisa → null (não renderiza).
  */
 function safeHttpUrl(raw: string): string | null {
   try {
     const u = new URL(raw);
-    return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : null;
+    return u.protocol === 'https:' ? u.href : null;
   } catch {
     return null;
   }

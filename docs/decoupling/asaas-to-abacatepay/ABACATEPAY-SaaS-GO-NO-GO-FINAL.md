@@ -1,5 +1,13 @@
 # AbacatePay SaaS — decisão final de release e piloto
 
+## 27/11/2026 — composição comercial e segurança em validação
+
+O PR #64 (`74823d64`) e o PR #67 (`f74e1a37`) continuam em draft. O PR draft [#68](https://github.com/joaomarcos-techia/Project_OS/pull/68) compõe Next 16, as correções de segurança do #67 e o hotfix de retenção de login por 186 dias (`079754d8`). Nenhum merge, deploy Production, migration ou pagamento foi executado nesta rodada. A [CI oficial 46002485158](https://github.com/joaomarcos-techia/Project_OS/actions/runs/46002485158) passou no SHA composto `e39f64822660b405604836d011112622dcf79282` com 7.853 testes, 28 E2E públicos, build, lint, typecheck e isolamento. Semgrep e Preview passaram nesse SHA; o check de PR do Snyk falhou por cota privada antes de analisar o código.
+
+O reteste Snyk Open Source concluiu com **zero vulnerabilidades** tanto no #67 quanto na composição inicial. O Snyk Code executou, mas ainda reporta achados: 406 abertos no #67 e 606 na composição inicial. A reconciliação dos 424 abertos históricos, as distinções entre alertas reais e falso positivo, os novos achados do código comercial e os limites da prova estão em [snyk-retest-20261127.md](../../security/snyk-retest-20261127.md). O inventário por fingerprint está no CSV adjacente. O `pnpm audit` do lockfile composto completo passou após remover a dependência transitiva vulnerável de `autocannon`.
+
+**Estado do release:** em validação; Production e TISS permanecem NO-GO nesta rodada. O Preview teve 24 recargas da página pública de login sem erro de hidratação. A tela autenticada de assinatura e o fluxo Pix assistido ainda não foram testados no SHA composto com sessão real. O commit documental posterior a `e39f6482` também requer seus próprios checks.
+
 ## 27/11/2026 — candidato Next 16 e dependências, antes da CI oficial
 
 O ensaio isolado do PR #64 partiu do SHA remoto `92363ef11906a90783558dc5ff0be4d68d38820d`. A alteração validada está no commit local `e5dd20e4ef56bffd0d77650cbcb6ff27d924b64d` e foi composta na branch de integração como `600419a3a3f1f7d409f1d44338390286656d4c87`. O PR remoto ainda não contém esses commits neste checkpoint; **a CI verde anterior não os valida**. Não houve merge, deployment, migration, mudança de flags ou pagamento.

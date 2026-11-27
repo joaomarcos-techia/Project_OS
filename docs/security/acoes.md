@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 298 actions (0 inline); 76 métodos em 72 handlers; 96 props com referência de action; 1149 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
+Contagem: 298 actions (0 inline); 76 métodos em 72 handlers; 96 props com referência de action; 1152 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -1527,6 +1527,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/signup-provision-db.ts:95`                         | `CRYPTO_LOOKUP_SALT`                   | `process.env.CRYPTO_LOOKUP_SALT`                                            |
 | `scripts/security/signup-provision-db.ts:96`                         | `LOG_LEVEL`                            | `process.env.LOG_LEVEL`                                                     |
 | `scripts/security/signup-provision-db.ts:803`                        | `<object>`                             | `process.env`                                                               |
+| `scripts/security/signup-redis-fixture.mjs:4`                        | `SIGNUP_REDIS_FIXTURE_PORT`            | `process.env.SIGNUP_REDIS_FIXTURE_PORT`                                     |
 | `scripts/security/signup-regression.ts:19`                           | `SECURITY_PG_BIN`                      | `process.env.SECURITY_PG_BIN`                                               |
 | `scripts/security/signup-regression.ts:35`                           | `<object>`                             | `process.env`                                                               |
 | `scripts/security/signup-regression.ts:35`                           | `<dynamic>`                            | `process.env[key]`                                                          |
@@ -1594,6 +1595,7 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/seed-clinic-user.ts:47`                                     | `SEED_CLINIC_CNES`                     | `process.env.SEED_CLINIC_CNES`                                              |
 | `scripts/seed-clinic-user.ts:48`                                     | `SEED_CLINIC_PRIMARY_COLOR`            | `process.env.SEED_CLINIC_PRIMARY_COLOR`                                     |
 | `scripts/seed-clinic-user.ts:49`                                     | `SEED_CLINIC_LOGO_URL`                 | `process.env.SEED_CLINIC_LOGO_URL`                                          |
+| `scripts/seed-dev-clinic.ts:31`                                      | `SEED_DEV_PASSWORD`                    | `process.env.SEED_DEV_PASSWORD`                                             |
 | `scripts/seed-super-admin-mfa.ts:44`                                 | `SUPER_ADMIN_EMAIL_DEV`                | `process.env.SUPER_ADMIN_EMAIL_DEV`                                         |
 | `scripts/seed-super-admin-mfa.ts:45`                                 | `SUPER_ADMIN_PASSWORD_DEV`             | `process.env.SUPER_ADMIN_PASSWORD_DEV`                                      |
 | `scripts/seed-super-admin-mfa.ts:90`                                 | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
@@ -1603,22 +1605,23 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/seed-super-admin.ts:39`                                     | `SUPER_ADMIN_PASSWORD`                 | `process.env.SUPER_ADMIN_PASSWORD`                                          |
 | `scripts/smoke-ai-usage-preview-dev.ts:32`                           | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
 | `scripts/smoke-ai-usage-preview-dev.ts:267`                          | `E2E_RESEND_INBOX_ADDRESS`             | `process.env.E2E_RESEND_INBOX_ADDRESS`                                      |
-| `scripts/smoke-c3-manual.ts:39`                                      | `LOGIN_HASH_PEPPER`                    | `process.env.LOGIN_HASH_PEPPER`                                             |
-| `scripts/smoke-c3-manual.ts:48`                                      | `UPSTASH_REDIS_REST_URL`               | `process.env.UPSTASH_REDIS_REST_URL`                                        |
-| `scripts/smoke-c3-manual.ts:49`                                      | `UPSTASH_REDIS_REST_TOKEN`             | `process.env.UPSTASH_REDIS_REST_TOKEN`                                      |
-| `scripts/smoke-c3-manual.ts:72`                                      | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
-| `scripts/smoke-c3-manual.ts:74`                                      | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
-| `scripts/smoke-c3-manual.ts:74`                                      | `NEXT_PUBLIC_SUPABASE_ANON_KEY`        | `process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY`                                 |
+| `scripts/smoke-c3-manual.ts:41`                                      | `LOGIN_HASH_PEPPER`                    | `process.env.LOGIN_HASH_PEPPER`                                             |
+| `scripts/smoke-c3-manual.ts:50`                                      | `UPSTASH_REDIS_REST_URL`               | `process.env.UPSTASH_REDIS_REST_URL`                                        |
+| `scripts/smoke-c3-manual.ts:51`                                      | `UPSTASH_REDIS_REST_TOKEN`             | `process.env.UPSTASH_REDIS_REST_TOKEN`                                      |
+| `scripts/smoke-c3-manual.ts:74`                                      | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
+| `scripts/smoke-c3-manual.ts:76`                                      | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
+| `scripts/smoke-c3-manual.ts:76`                                      | `NEXT_PUBLIC_SUPABASE_ANON_KEY`        | `process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY`                                 |
 | `scripts/smoke-c4.ts:742`                                            | `CRON_SECRET`                          | `process.env.CRON_SECRET`                                                   |
 | `scripts/smoke-c4.ts:742`                                            | `CRON_SECRET`                          | `process.env.CRON_SECRET`                                                   |
 | `scripts/smoke-c4.ts:754`                                            | `CRON_SECRET`                          | `process.env.CRON_SECRET`                                                   |
 | `scripts/smoke-c4.ts:1027`                                           | `CRON_SECRET`                          | `process.env.CRON_SECRET`                                                   |
 | `scripts/smoke-c4.ts:1075`                                           | `OUTBOX_IDEMPOTENCY_LOCK_TIMEOUT_MS`   | `process.env.OUTBOX_IDEMPOTENCY_LOCK_TIMEOUT_MS`                            |
-| `scripts/smoke-login.ts:31`                                          | `SMOKE_USER_EMAIL`                     | `process.env.SMOKE_USER_EMAIL`                                              |
-| `scripts/smoke-login.ts:32`                                          | `SMOKE_USER_PASSWORD`                  | `process.env.SMOKE_USER_PASSWORD`                                           |
-| `scripts/smoke-login.ts:35`                                          | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
-| `scripts/smoke-login.ts:37`                                          | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
-| `scripts/smoke-login.ts:37`                                          | `NEXT_PUBLIC_SUPABASE_ANON_KEY`        | `process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY`                                 |
+| `scripts/smoke-login.ts:34`                                          | `SMOKE_USER_EMAIL`                     | `process.env.SMOKE_USER_EMAIL`                                              |
+| `scripts/smoke-login.ts:35`                                          | `SMOKE_USER_PASSWORD`                  | `process.env.SMOKE_USER_PASSWORD`                                           |
+| `scripts/smoke-login.ts:36`                                          | `SMOKE_USER_PASSWORD`                  | `process.env.SMOKE_USER_PASSWORD`                                           |
+| `scripts/smoke-login.ts:40`                                          | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
+| `scripts/smoke-login.ts:42`                                          | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
+| `scripts/smoke-login.ts:42`                                          | `NEXT_PUBLIC_SUPABASE_ANON_KEY`        | `process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY`                                 |
 | `scripts/smoke-payment-account-pause-race-db.ts:180`                 | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
 | `scripts/smoke-payment-account-pause-race-db.ts:181`                 | `SUPABASE_SECRET_KEY`                  | `process.env.SUPABASE_SECRET_KEY`                                           |
 | `scripts/smoke-payment-account-pause-race-db.ts:301`                 | `<object>`                             | `process.env`                                                               |
