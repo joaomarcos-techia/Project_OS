@@ -1,0 +1,24 @@
+{
+ "lido_em": "2026-11-27T04:57:08.920Z",
+ "read_only": true,
+ "subscriptions": {
+  "linhas": 6,
+  "md5": "a4839985a38f7299"
+ },
+ "invoices": {
+  "linhas": 18,
+  "md5": "386ad2b8b9e13b18"
+ },
+ "plans": {
+  "linhas": 8,
+  "md5": "5c5bca53ef1ef835"
+ },
+ "prices": {
+  "linhas": 22,
+  "md5": "9fae6bf7df4ee1e3"
+ },
+ "login_attempts": {
+  "linhas": 228,
+  "md5": "9da18d1ade9061a5"
+ }
+}
