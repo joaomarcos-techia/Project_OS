@@ -1,5 +1,11 @@
 # AbacatePay SaaS — decisão final de release e piloto
 
+## 27/11/2026 — checkpoint do PR #68 após autenticação Snyk
+
+O candidato `0d44775f884fb682a12be0a0e1e9b9956a4493ba` passou [CI oficial 46012948947](https://github.com/joaomarcos-techia/Project_OS/actions/runs/46012948947), Semgrep e build do Preview. A correção localizada do convite piloto fixa o destino em `/cadastro/piloto` e possui teste de regressão. O novo Snyk Code CLI executou e deixou de apontar esse open redirect, mas ainda reporta 613 resultados; oito supressões antigas não foram transferidas para o novo scan. A triagem e os limites de comparação estão em [snyk-retest-20261127.md](../../security/snyk-retest-20261127.md). O check Snyk integrado do PR permanece ERROR por cota privada.
+
+O E2E autenticado inicial do Preview #68 revelou que a tela de assinatura não carregava o trial sintético do DEV, embora Auth, vínculo e assinatura persistidos estivessem corretos. A branch Preview não recebia as variáveis Sandbox da branch #64. `ABACATEPAY_STORE_ID`, `ABACATEPAY_ENVIRONMENT=sandbox` e `ABACATEPAY_NEW_CHECKOUTS_ENABLED=false` foram configuradas só para a branch Preview #68; o próximo deployment e a repetição do E2E ainda são necessários. Não houve mutation de contrato, checkout, pagamento, migration ou configuração de Production. **Production: NO-GO** até o E2E autenticado e os gates de segurança no SHA final.
+
 ## 27/11/2026 — composição comercial e segurança em validação
 
 O PR #64 (`74823d64`) e o PR #67 (`f74e1a37`) continuam em draft. O PR draft [#68](https://github.com/joaomarcos-techia/Project_OS/pull/68) compõe Next 16, as correções de segurança do #67 e o hotfix de retenção de login por 186 dias (`079754d8`). Nenhum merge, deploy Production, migration ou pagamento foi executado nesta rodada. A [CI oficial 46002485158](https://github.com/joaomarcos-techia/Project_OS/actions/runs/46002485158) passou no SHA composto `e39f64822660b405604836d011112622dcf79282` com 7.853 testes, 28 E2E públicos, build, lint, typecheck e isolamento. Semgrep e Preview passaram nesse SHA; o check de PR do Snyk falhou por cota privada antes de analisar o código.

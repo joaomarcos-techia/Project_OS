@@ -41,6 +41,7 @@ type ContinuationCredentials = { email: string };
 const EMPTY_DRAFT: Draft = {};
 const QUESTION_COUNT = 4;
 const CONFIRMATION_POLL_INTERVAL_MS = 20_000;
+const PILOT_SIGNUP_PATH = '/cadastro/piloto';
 const LOCAL_DRAFT_KEY = 'qoro-signup-answers-v1';
 const LOCAL_DRAFT_TTL_MS = 60 * 60 * 1_000;
 
@@ -283,7 +284,7 @@ export function SignupQuestions({
         if (pilot && !pilotToken.current) {
           pilotToken.current = readOnboardingInviteToken(window.location.hash);
           if (window.location.hash)
-            window.history.replaceState(null, '', '/cadastro/piloto' + window.location.search);
+            window.history.replaceState(null, '', PILOT_SIGNUP_PATH + window.location.search);
         }
         if (!pilot) {
           const current = await fetch('/api/signup/sessions/me', { cache: 'no-store' });
@@ -319,7 +320,7 @@ export function SignupQuestions({
               // The invite has become a Secure/HttpOnly cookie. Start from a
               // clean document so the router cannot restore its initial hash.
               pilotToken.current = null;
-              window.location.replace('/cadastro/piloto' + window.location.search);
+              window.location.replace(PILOT_SIGNUP_PATH + window.location.search);
               return;
             }
             const identity = createdBody?.identity;
