@@ -10,6 +10,11 @@ export const SUPABASE_SESSION_SELECTOR_MAX_AGE = 400 * 24 * 60 * 60;
 
 type CookieEntry = { name: string; value: string };
 
+function isCookieChunk(name: string, prefix: string): boolean {
+  const chunkPrefix = `${prefix}.`;
+  return name.startsWith(chunkPrefix) && /^\d+$/.test(name.slice(chunkPrefix.length));
+}
+
 function supabaseProjectRef(url: string | undefined): string | null {
   if (!url) return null;
   try {
@@ -61,15 +66,13 @@ export function supabaseVersionedAuthCookies(
     (cookie) =>
       cookie.name === prefix ||
       cookie.name.startsWith(`${prefix}-`) ||
-      new RegExp(`^${prefix}\\.[0-9]+$`).test(cookie.name),
+      isCookieChunk(cookie.name, prefix),
   );
 }
 
 /** Inclui o cookie inteiro ou todos os fragmentos `.0`, `.1`, ... do mesmo projeto. */
 export function supabaseAuthCookies(cookies: readonly CookieEntry[], name: string): CookieEntry[] {
-  return cookies.filter(
-    (cookie) => cookie.name === name || new RegExp(`^${name}\\.[0-9]+$`).test(cookie.name),
-  );
+  return cookies.filter((cookie) => cookie.name === name || isCookieChunk(cookie.name, name));
 }
 
 /**

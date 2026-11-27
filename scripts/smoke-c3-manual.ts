@@ -33,6 +33,8 @@ import { sql } from 'drizzle-orm';
 import { dbAdmin } from '@/lib/db';
 import { createAdminClient } from '@/lib/auth/supabase-admin';
 
+import { randomSyntheticPassword } from './security/synthetic-password';
+
 // Reimplementação local de hashEmail / assertLoginAllowed para evitar
 // importar src/lib/auth/email-hash e rate-limit que marcam server-only
 // (lançam quando carregados por tsx fora do bundle Next).
@@ -78,7 +80,7 @@ const CLINIC_B = 'bbbbbbb2-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 const GESTOR_A_EMAIL = 'smoke-gestor-a@clinicaos.dev';
 const GESTOR_B_EMAIL = 'smoke-gestor-b@clinicaos.dev';
 const DOCTOR_EMAIL = 'smoke-doctor@clinicaos.dev';
-const PASSWORD = 'smoke-passwd-min-12-chars';
+const PASSWORD = randomSyntheticPassword();
 
 const admin = createAdminClient();
 let failed = 0;
