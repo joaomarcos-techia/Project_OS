@@ -31,6 +31,26 @@ const copied = [
   // Núcleo da carga TUSS (só módulos do Node): o harness de desempenho da P14.4, em
   // scripts/security, o importa, e a checagem de tipos do build o precisa na cópia.
   'scripts/tiss/terminology/load-core.ts',
+  // Next 16 type-checks imports in src tests copied into this isolated build.
+  'scripts/delete-test-clinics-prod.ts',
+  'scripts/check-migration-safety.ts',
+  'scripts/prod-encrypted-backup.ts',
+  'scripts/restore-test-result.ts',
+  'scripts/load-test-guards.ts',
+  'scripts/_local-bin.ts',
+  'scripts/_env.ts',
+  'scripts/reset-prod-data.ts',
+  'scripts/abacatepay-live-catalog.ts',
+  'scripts/release-archive.ts',
+  'scripts/abacatepay-renewal-observation.ts',
+  'scripts/abacatepay-sandbox-journal.ts',
+  'scripts/abacatepay-vercel-env-audit.ts',
+  'scripts/gate-b-composed-build.ts',
+  'scripts/gate-b-synthetic-ci.ts',
+  'scripts/gate-b-isolated-restore.ts',
+  'scripts/run-signup-confirmation-e2e.ts',
+  'e2e/preview-dev-runtime.ts',
+  'e2e/vercel-bypass.ts',
   'package.json',
   'tsconfig.json',
   'next.config.ts',
@@ -153,7 +173,7 @@ const log: string[] = [];
 const buildNodeArgs = process.env.CI === 'true' ? [`--max-old-space-size=${CI_BUILD_HEAP_MB}`] : [];
 const proc = spawn(
   process.execPath,
-  [...buildNodeArgs, path.join(root, 'node_modules/next/dist/bin/next'), 'build'],
+  [...buildNodeArgs, path.join(root, 'node_modules/next/dist/bin/next'), 'build', '--webpack'],
   {
     cwd: target,
     env: childEnv,

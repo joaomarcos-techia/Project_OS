@@ -1,6 +1,6 @@
 // ESLint flat config (ESLint 9).
 // Composes:
-//   - next/core-web-vitals (via FlatCompat — eslint-config-next is still legacy)
+//   - Next.js Core Web Vitals and TypeScript flat configs
 //   - eslint-plugin-boundaries (cross-context isolation — see docs/CONVENTIONS.md)
 //   - eslint-config-prettier (turn off formatting rules — Prettier owns those)
 //
@@ -12,24 +12,10 @@
 //
 // Override pontual permitido com:
 //   // eslint-disable-next-line boundaries/element-types -- razão obrigatória
-import { FlatCompat } from '@eslint/eslintrc';
+import nextVitals from 'eslint-config-next/core-web-vitals';
+import nextTs from 'eslint-config-next/typescript';
 import boundaries from 'eslint-plugin-boundaries';
 import prettierConfig from 'eslint-config-prettier';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-  // pnpm mantém os plugins como dependências do eslint-config-next.
-  // Resolve também no lint iniciado pelo next build em uma cópia do checkout.
-  resolvePluginsRelativeTo: path.dirname(
-    createRequire(import.meta.url).resolve('eslint-config-next/package.json'),
-  ),
-});
 
 const config = [
   {
@@ -49,7 +35,33 @@ const config = [
     ],
   },
 
-  ...compat.extends('next/core-web-vitals', 'next/typescript'),
+  ...nextVitals,
+  ...nextTs,
+
+  // Preserve the React Hooks lint policy enforced before the Next 16 trial.
+  // The new preset enables React Compiler rules across unchanged application code;
+  // adopting those rules requires a separate, broader refactor.
+  {
+    rules: {
+      // Existing flows deliberately force a full navigation after auth/payment.
+      // This Next 16 rule was not part of the prior lint baseline.
+      '@next/next/no-location-assign-relative-destination': 'off',
+      'react-hooks/static-components': 'off',
+      'react-hooks/use-memo': 'off',
+      'react-hooks/preserve-manual-memoization': 'off',
+      'react-hooks/incompatible-library': 'off',
+      'react-hooks/immutability': 'off',
+      'react-hooks/globals': 'off',
+      'react-hooks/refs': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/error-boundaries': 'off',
+      'react-hooks/purity': 'off',
+      'react-hooks/set-state-in-render': 'off',
+      'react-hooks/unsupported-syntax': 'off',
+      'react-hooks/config': 'off',
+      'react-hooks/gating': 'off',
+    },
+  },
 
   {
     plugins: { boundaries },

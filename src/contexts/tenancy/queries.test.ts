@@ -49,6 +49,6 @@ describe('clinic settings cache', () => {
     );
 
     revalidateClinicSettings('clinic-1');
-    expect(revalidateTag).toHaveBeenCalledWith('clinic-settings:clinic-1');
+    expect(revalidateTag).toHaveBeenCalledWith('clinic-settings:clinic-1', { expire: 0 });
   });
 });

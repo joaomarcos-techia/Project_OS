@@ -563,10 +563,10 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `next.config.ts:29`                                                  | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
 | `next.config.ts:34`                                                  | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
 | `next.config.ts:34`                                                  | `E2E_SIGNUP_WRITE`                     | `process.env.E2E_SIGNUP_WRITE`                                              |
-| `next.config.ts:108`                                                 | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
-| `next.config.ts:109`                                                 | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
-| `next.config.ts:110`                                                 | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
-| `next.config.ts:166`                                                 | `CI`                                   | `process.env.CI`                                                            |
+| `next.config.ts:109`                                                 | `VERCEL_ENV`                           | `process.env.VERCEL_ENV`                                                    |
+| `next.config.ts:110`                                                 | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
+| `next.config.ts:111`                                                 | `NODE_ENV`                             | `process.env.NODE_ENV`                                                      |
+| `next.config.ts:167`                                                 | `CI`                                   | `process.env.CI`                                                            |
 | `playwright.ci.config.ts:40`                                         | `E2E_ARTIFACTS`                        | `process.env.E2E_ARTIFACTS`                                                 |
 | `playwright.ci.config.ts:68`                                         | `NEXT_PUBLIC_TURNSTILE_SITE_KEY`       | `process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY`                                |
 | `playwright.ci.config.ts:69`                                         | `TURNSTILE_SECRET_KEY`                 | `process.env.TURNSTILE_SECRET_KEY`                                          |
@@ -1348,9 +1348,9 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/hi-xsd-queue-bench.ts:19`                          | `POOL`                                 | `process.env.POOL`                                                          |
 | `scripts/security/legacy-cancellation-db.ts:21`                      | `<object>`                             | `process.env`                                                               |
 | `scripts/security/legacy-cancellation-db.ts:37`                      | `DATABASE_URL_PROD`                    | `process.env.DATABASE_URL_PROD`                                             |
-| `scripts/security/local-build.ts:123`                                | `<dynamic>`                            | `process.env[key]`                                                          |
-| `scripts/security/local-build.ts:123`                                | `<dynamic>`                            | `process.env[key]`                                                          |
-| `scripts/security/local-build.ts:153`                                | `CI`                                   | `process.env.CI`                                                            |
+| `scripts/security/local-build.ts:143`                                | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/security/local-build.ts:143`                                | `<dynamic>`                            | `process.env[key]`                                                          |
+| `scripts/security/local-build.ts:173`                                | `CI`                                   | `process.env.CI`                                                            |
 | `scripts/security/login-attempts-retention-db.ts:22`                 | `PORT`                                 | `process.env.PORT`                                                          |
 | `scripts/security/login-attempts-retention-db.ts:27`                 | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/login-attempts-retention-db.ts:28`                 | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |

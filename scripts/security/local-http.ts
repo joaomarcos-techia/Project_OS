@@ -62,6 +62,7 @@ interface Observation {
   type: string;
   bytes: number;
   body: string;
+  loginPage: boolean;
   location: string;
   cors: string;
   /** Cabeçalhos de segurança observados na resposta (item 10 da auditoria). */
@@ -99,6 +100,7 @@ async function request(
             type: String(res.headers['content-type'] ?? ''),
             bytes: Buffer.byteLength(text),
             body: text.slice(0, 700),
+            loginPage: text.includes('Entrar · Qoro'),
             location: String(res.headers.location ?? ''),
             cors: String(res.headers['access-control-allow-origin'] ?? ''),
             csp: String(res.headers['content-security-policy'] ?? ''),
@@ -149,8 +151,17 @@ try {
     ['router-state', { 'Next-Router-State-Tree': encodeURIComponent(JSON.stringify(['', {}])) }],
   ] as const) {
     const response = await request(`health:${name}`, '/api/health', 'GET', headers);
-    assert.equal(response.status, 401, `health:${name}`);
-    assert.match(response.body, /unauthorized/);
+    // Next 16 canonicalizes RSC requests before the route handler. The
+    // canonical URL must remain the same protected endpoint and deny access.
+    if (name === 'rsc' && response.status === 307) {
+      assert.equal(response.location, '/api/health?_rsc');
+      const canonical = await request('health:rsc:canonical', response.location, 'GET', headers);
+      assert.equal(canonical.status, 401, 'health:rsc:canonical');
+      assert.match(canonical.body, /unauthorized/);
+    } else {
+      assert.equal(response.status, 401, `health:${name}`);
+      assert.match(response.body, /unauthorized/);
+    }
   }
   for (const route of [
     '/api/health/',
@@ -305,7 +316,16 @@ try {
   const failures = observations.filter(
     (item) => item.test.startsWith('action:') && item.status === 200,
   );
+  const loginRedirects = failures.filter(
+    (item) => item.test.endsWith(':switchAccountAction') && item.loginPage,
+  );
   for (const item of failures) {
+    // This action deliberately clears the local MFA session and redirects to
+    // login. Next 16 renders that destination as a 200 RSC response.
+    if (loginRedirects.includes(item)) {
+      assert.equal(item.type, 'text/x-component');
+      continue;
+    }
     const line = item.body.split('\n').find((part) => part.startsWith('1:'));
     assert.ok(line, `200 sem envelope reconhecido: ${item.test}`);
     const result: unknown = JSON.parse(line.slice(2));
@@ -330,7 +350,8 @@ try {
         tissXsd: { engine: xsdReport.engine, validMs: xsdReport.ms.valid, totalMs: xsdReport.ms.total, rssMb: xsdReport.rssMb, tracedFiles: 6, limitsLargeBatchMs: limitsReport.limits.ms.largeBatch, limitsTotalMs: limitsReport.limits.ms.total },
         actions: Object.keys(manifest.node).length,
         actionRequests: observations.filter((item) => item.test.startsWith('action:')).length,
-        action200WithExplicitDenial: failures.length,
+        action200WithExplicitDenial: failures.length - loginRedirects.length,
+        action200LoginRedirect: loginRedirects.length,
         csrfNativeRejected: true,
         cspEnforced: Boolean(page.csp) && page.cspReportOnly === '',
         cspDirectives: cspDirectives.size,

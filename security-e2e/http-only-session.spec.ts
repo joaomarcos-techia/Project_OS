@@ -108,11 +108,15 @@ function collectBrowserPayloads(page: Page): {
   page.on('request', (request) => requests.push(request.url()));
   page.on('response', (response) => {
     const request = response.request();
+    const responseUrl = new URL(response.url());
+    const isPrefetch = request.headers()['next-router-prefetch'] === '1';
     const redirectedFrom = request.redirectedFrom();
     const redirectedFromBridge =
       request.resourceType() === 'fetch' &&
       redirectedFrom !== null &&
       new URL(redirectedFrom.url()).pathname === '/auth/confirm';
+    // Only Qoro responses can contain a server-rendered auth session. The
+    // Turnstile test widget may keep a third-party challenge response open.
     // Redirects e 204 não têm corpo disponível no protocolo do navegador.
     // A ponte usa `fetch(..., redirect: 'follow')` só para descobrir o destino
     // same-origin e então navega para ele. Essa primeira cópia do destino é
@@ -120,6 +124,7 @@ function collectBrowserPayloads(page: Page): {
     // a resposta document subsequente da MESMA URL continua sendo inspecionada.
     if (
       ['document', 'fetch', 'xhr'].includes(request.resourceType()) &&
+      responseUrl.origin === PUBLIC_ORIGIN &&
       !redirectedFromBridge &&
       !(response.status() >= 300 && response.status() < 400) &&
       response.status() !== 204
@@ -127,9 +132,22 @@ function collectBrowserPayloads(page: Page): {
       bodies.push(
         response.text().then(
           (body) => ({ body }),
-          (error: unknown) => ({
-            readError: `Não foi possível inspecionar ${new URL(response.url()).pathname}: ${error instanceof Error ? error.message : 'erro desconhecido'}`,
-          }),
+          (error: unknown) => {
+            // A Next prefetch cancelled by navigation never delivers a body to
+            // application JavaScript. Keep rejecting unreadable real responses.
+            if (
+              isPrefetch &&
+              error instanceof Error &&
+              /No resource with given identifier|navigated away from|Target page, context or browser has been closed/u.test(
+                error.message,
+              )
+            ) {
+              return { body: '' };
+            }
+            return {
+              readError: `Não foi possível inspecionar ${responseUrl.pathname}: ${error instanceof Error ? error.message : 'erro desconhecido'}`,
+            };
+          },
         ),
       );
     }
@@ -143,6 +161,13 @@ async function confirmInviteThroughBridge(page: Page): Promise<void> {
   );
   expect(bridge?.status()).toBe(200);
   await page.waitForURL((url) => url.pathname === '/reset-password');
+}
+
+async function openLogin(page: Page): Promise<void> {
+  // Next 16 may keep prefetch connections active, so networkidle does not
+  // describe when this page is ready. Wait for the actual login screen.
+  await page.goto('/login', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'Entrar na Qoro' })).toBeVisible();
 }
 
 async function expectNoBearerInBrowser(
@@ -327,10 +352,7 @@ test.afterAll(async () => {
 });
 
 test('cookie legado legível é apagado e exige uma autenticação nova', async ({ page, context }) => {
-  // Completa também o prefetch RSC de /cadastro antes de iniciar outra
-  // navegação. Chromium invalida o corpo pendente quando a página é trocada.
-  // Os testes continuam reprovando TODO corpo ilegível durante o fluxo medido.
-  await page.goto('/login', { waitUntil: 'networkidle' });
+  await openLogin(page);
   const origin = new URL(page.url()).origin;
   const value = encodedSession(TOKENS.legacyAccess, TOKENS.legacyRefresh, 3600);
   const splitAt = Math.floor(value.length / 2);
@@ -365,7 +387,7 @@ test('confirmação server-side cria geração HttpOnly sem expor bearer ao brow
   page,
   context,
 }) => {
-  await page.goto('/login', { waitUntil: 'networkidle' });
+  await openLogin(page);
   const origin = new URL(page.url()).origin;
   const observed = collectBrowserPayloads(page);
   const before = verifications;
@@ -402,7 +424,7 @@ test('token na janela crítica é rotacionado uma vez sem loop nem troca de gera
   page,
   context,
 }) => {
-  await page.goto('/login', { waitUntil: 'networkidle' });
+  await openLogin(page);
   const origin = new URL(page.url()).origin;
   const value = encodedSession(TOKENS.expiringAccess, TOKENS.expiringRefresh, 100);
   await context.addCookies([
@@ -451,7 +473,7 @@ for (const outcome of ['success', 'failure'] as const) {
     page,
     context,
   }) => {
-    await page.goto('/login', { waitUntil: 'networkidle' });
+    await openLogin(page);
     const origin = new URL(page.url()).origin;
     await context.addCookies([
       {
@@ -540,7 +562,7 @@ for (const outcome of ['success', 'failure'] as const) {
 test('validador detecta sessão base64 em registro IndexedDB genérico e passa após limpeza', async ({
   page,
 }) => {
-  await page.goto('/login', { waitUntil: 'networkidle' });
+  await openLogin(page);
   const databaseName = 'security-detector-positive-control';
   await page.evaluate(
     async ({ name, value }) => {
@@ -585,7 +607,7 @@ test('validador detecta sessão base64 em registro IndexedDB genérico e passa a
 });
 
 test('validador reprova bearer no payload e corpo que não pôde ser lido', async ({ page }) => {
-  await page.goto('/login', { waitUntil: 'networkidle' });
+  await openLogin(page);
   const leaked = encodedSession(TOKENS.legacyAccess, TOKENS.legacyRefresh, 3600);
   await expect(expectNoBearerInBrowser(page, [Promise.resolve({ body: leaked })])).rejects.toThrow(
     TOKENS.legacyAccess,

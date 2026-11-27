@@ -54,7 +54,7 @@ export async function getClinicTimezone(clinicId: string): Promise<string> {
 }
 
 export function revalidateClinicSettings(clinicId: string): void {
-  revalidateTag(clinicSettingsTag(clinicId));
+  revalidateTag(clinicSettingsTag(clinicId), { expire: 0 });
 }
 
 /**
