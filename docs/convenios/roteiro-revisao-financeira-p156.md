@@ -142,3 +142,5 @@ caminho do dinheiro mudou desde a pré-auditoria; sem ressalva material. **Recom
 nenhum arquivo. O único que casa no filtro por nome é o handler do agente (`inbound-received.ts`), que não toca valores. A
 P11.1 grava a cobertura do agendamento pelo agente como automação; coparticipação, recebível e livro seguem o mesmo
 caminho já provado. A evidência 13/13 continua válida; o campo de aceite continua na seção 7.
+
+**Validade em 28/11/2026 (noite):** o mesmo filtro, de `022063b0` até o HEAD do #55, continua sem nenhum arquivo dos caminhos do dinheiro. O endurecimento da P11 desta noite muda só QUANDO o agente prepara uma marcação: ele pergunta "convênio ou particular?" antes, e o resumo do particular diz "como particular". Não muda valor, sinal, cobrança, recebível nem livro. A evidência 13/13 continua válida, e a seção 7 segue pronta para a sua marcação.

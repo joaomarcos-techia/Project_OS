@@ -93,6 +93,7 @@ O R54 não precisa de decisão nova: o GO "SIM, TUDO" vale, e a próxima tentati
 - **Risco sem a decisão:** falha da manutenção TISS sem alerta ativo.
 - **Bloqueia:** produção.
 - **Depois:** o agente provoca uma falha sintética controlada no Preview, confere o evento, a regra e a entrega, e marca a P12.6.
+- **Pronto para um comando (28/11, noite):** `scripts/ops/sentry-convenios-alert.ts` cria a regra pelo nome (organização `qoro-1v`, projeto `qoro`; primeira ocorrência, tag `flow` começando por `cron.insurance-maintenance`, e-mail aos responsáveis), envia UM evento sintético e espera até 3 min o disparo (`lastTriggered`). Ele lê o token só de `SENTRY_ALERTS_TOKEN`, segredo do processo, com os escopos `alerts:write`, `project:read` e `org:read`. O DSN só envia o evento e nunca vale como token. Com 401/403, para sem contornar. Sem as variáveis, recusa e não faz nada (conferido). A entrega do e-mail fica para o destinatário confirmar.
 
 ## B5 — operadora e clínica piloto (homologação real da P9.4)
 
