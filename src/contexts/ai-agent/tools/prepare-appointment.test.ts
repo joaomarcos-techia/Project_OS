@@ -285,8 +285,14 @@ describe('com o sinal ligado exige o cadastro (decisão de 08/10/2026)', () => {
   });
 });
 
+/** O paciente escreveu a operadora no turno (a regra da P11: a que só o modelo propõe não vale). */
+const insuranceContext: ToolContext = {
+  ...registeredPatientContext,
+  currentMessage: 'quero marcar uma consulta pela Unimed Sintética',
+};
+
 describe('P11 — prepare_appointment pelo convênio', () => {
-  const prepare = (input: Record<string, unknown>, ctx: ToolContext = registeredPatientContext) =>
+  const prepare = (input: Record<string, unknown>, ctx: ToolContext = insuranceContext) =>
     getTool('prepare_appointment')!.handler(input as never, ctx);
 
   it('jornada 2: operadora ativa → prepara convênio sem sinal, com o aviso da carteirinha e sem pedir o número', async () => {
@@ -312,6 +318,10 @@ describe('P11 — prepare_appointment pelo convênio', () => {
       },
     });
     expect(args.payload).not.toHaveProperty('depositAmount');
+    expect(args.payload.insuranceSource).toEqual({
+      insurer: 'patient_text',
+      plan: 'single_active',
+    });
     expect(args.summary).toContain('pelo convênio Unimed Sintética (plano Enfermaria)');
     expect(args.summary).toContain('A recepção da clínica vai conferir a sua carteirinha');
     expect(args.summary).not.toMatch(/R\$|sinal|link|número/i);
@@ -355,6 +365,10 @@ describe('P11 — prepare_appointment pelo convênio', () => {
       planId: PLAN_ID,
       membershipId: MEMBERSHIP_ID,
       guideType: 'consulta',
+    });
+    expect((args.payload as { insuranceSource?: unknown }).insuranceSource).toEqual({
+      insurer: 'patient_text',
+      plan: 'card',
     });
     expect(args.summary).not.toContain('1234');
   });
@@ -456,9 +470,213 @@ describe('P11 — prepare_appointment pelo convênio', () => {
     expect(mocks.getSchedulingInsuranceOptions).not.toHaveBeenCalled();
   });
 
-  it('sem insurer_name o particular não muda: nenhuma consulta ao Convênios', async () => {
+  it('sem insurer_name e sem as falas do turno (chamada direta): o particular não muda, nenhuma consulta ao Convênios', async () => {
     await prepare({});
     expect(mocks.getSchedulingInsuranceOptions).not.toHaveBeenCalled();
     expect(mocks.previewDepositForBooking).toHaveBeenCalled();
+  });
+});
+
+describe('P11 (endurecimento) — a operadora precisa ter sido dita pelo paciente', () => {
+  const prepare = (input: Record<string, unknown>, ctx: ToolContext) =>
+    getTool('prepare_appointment')!.handler(input as never, ctx);
+  const summaryOf = () =>
+    (mocks.proposePendingAction.mock.calls[0]![1] as { summary: string }).summary;
+  const payloadOf = () =>
+    (mocks.proposePendingAction.mock.calls[0]![1] as { payload: Record<string, unknown> }).payload;
+  const twoPlans = () =>
+    mocks.getSchedulingInsuranceOptions.mockResolvedValue({
+      enabled: true,
+      insurers: [
+        {
+          id: INSURER_ID,
+          name: 'Unimed Sintética',
+          plans: [
+            { id: PLAN_ID, name: 'Enfermaria' },
+            { id: MEMBERSHIP_ID, name: 'Apartamento' },
+          ],
+        },
+        { id: OTHER_INSURER_ID, name: 'Saúde Bem', plans: [] },
+      ],
+    });
+
+  it('operadora que só o modelo propôs (o paciente não falou de convênio): pergunta convênio ou particular, nada preparado', async () => {
+    const response = await prepare({ insurer_name: 'Unimed Sintética' }, registeredPatientContext);
+    expect(response).toEqual({
+      status: 'appointment_information_required',
+      patient_message:
+        'Você quer agendar pelo convênio ou como particular? Se for pelo convênio, me diga o nome dele, por favor.',
+    });
+    expect(mocks.checkSchedulingChoice).not.toHaveBeenCalled();
+    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
+  });
+
+  it('indução: o paciente diz "qualquer convênio serve", o modelo escolhe um: nada preparado', async () => {
+    const response = await prepare(
+      { insurer_name: 'Saúde Bem' },
+      { ...registeredPatientContext, currentMessage: 'pode marcar pelo convênio que você quiser' },
+    );
+    expect(response).toMatchObject({ status: 'appointment_information_required' });
+    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
+  });
+
+  it('operadora dita numa fala anterior vale (a de agora só traz a data)', async () => {
+    const response = await prepare(
+      { insurer_name: 'Unimed Sintética' },
+      {
+        ...registeredPatientContext,
+        recentPatientTexts: ['oi, tenho Unimed Sintética', 'é uma consulta'],
+        currentMessage: 'pode marcar, por favor',
+      },
+    );
+    expect(response).toMatchObject({ status: 'appointment_prepared' });
+    expect(payloadOf().insuranceSource).toEqual({ insurer: 'patient_text', plan: 'single_active' });
+  });
+
+  it('"particular" depois da operadora: o modelo insistir no convênio não prepara', async () => {
+    const response = await prepare(
+      { insurer_name: 'Unimed Sintética' },
+      {
+        ...registeredPatientContext,
+        recentPatientTexts: ['tenho Unimed Sintética'],
+        currentMessage: 'melhor fazer particular',
+      },
+    );
+    expect(response).toMatchObject({ status: 'appointment_information_required' });
+    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
+  });
+
+  it('operadora e "particular" na mesma frase: pergunta, com o nome que o paciente disse', async () => {
+    const response = await prepare(
+      { insurer_name: 'Unimed Sintética' },
+      {
+        ...registeredPatientContext,
+        currentMessage: 'não quero particular, é pela Unimed Sintética',
+      },
+    );
+    expect(response).toEqual({
+      status: 'appointment_information_required',
+      patient_message: 'Você quer agendar pelo convênio Unimed Sintética ou como particular?',
+    });
+  });
+
+  it('nomes parecidos: "Unimed Sintética Plus" casa só com ela; a operadora mais curta não', async () => {
+    mocks.getSchedulingInsuranceOptions.mockResolvedValue({
+      enabled: true,
+      insurers: [
+        { id: INSURER_ID, name: 'Unimed Sintética', plans: [] },
+        { id: OTHER_INSURER_ID, name: 'Unimed Sintética Plus', plans: [] },
+      ],
+    });
+    const ctx = { ...registeredPatientContext, currentMessage: 'pela Unimed Sintética Plus' };
+    await expect(prepare({ insurer_name: 'Unimed Sintética Plus' }, ctx)).resolves.toMatchObject({
+      status: 'appointment_prepared',
+    });
+    expect((payloadOf().insurance as { insurerId: string }).insurerId).toBe(OTHER_INSURER_ID);
+    mocks.proposePendingAction.mockClear();
+    await expect(prepare({ insurer_name: 'Unimed Sintética' }, ctx)).resolves.toMatchObject({
+      status: 'appointment_information_required',
+    });
+    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
+  });
+
+  it('plano que só o modelo propôs não vale: sem plano único nem carteirinha, fica para a recepção', async () => {
+    twoPlans();
+    await prepare(
+      { insurer_name: 'Unimed Sintética', plan_name: 'Apartamento' },
+      { ...registeredPatientContext, currentMessage: 'pela Unimed Sintética' },
+    );
+    expect(payloadOf().insurance).toMatchObject({ planId: null });
+    expect(payloadOf().insuranceSource).toEqual({ insurer: 'patient_text', plan: 'none' });
+    expect(summaryOf()).not.toContain('Apartamento');
+  });
+
+  it('plano dito pelo paciente vale', async () => {
+    twoPlans();
+    await prepare(
+      { insurer_name: 'Unimed Sintética', plan_name: 'Apartamento' },
+      { ...registeredPatientContext, currentMessage: 'pela Unimed Sintética, plano Apartamento' },
+    );
+    expect(payloadOf().insurance).toMatchObject({ planId: MEMBERSHIP_ID });
+    expect(payloadOf().insuranceSource).toEqual({ insurer: 'patient_text', plan: 'patient_text' });
+    expect(summaryOf()).toContain('(plano Apartamento)');
+  });
+
+  it('cadastro inconsistente: a carteirinha de outra operadora não é usada', async () => {
+    mocks.listPatientCardsForScheduling.mockResolvedValue([
+      {
+        id: MEMBERSHIP_ID,
+        insurerId: OTHER_INSURER_ID,
+        planId: null,
+        last4: '9876',
+        validUntil: null,
+        preferred: true,
+      },
+    ]);
+    await prepare({ insurer_name: 'Unimed Sintética' }, insuranceContext);
+    expect(payloadOf().insurance).toMatchObject({ insurerId: INSURER_ID, membershipId: null });
+    expect(summaryOf()).not.toContain('9876');
+  });
+});
+
+describe('P11 (endurecimento) — o inverso: o paciente disse o convênio e o modelo preparou particular', () => {
+  const prepare = (ctx: ToolContext) => getTool('prepare_appointment')!.handler({} as never, ctx);
+  const summaryOf = () =>
+    (mocks.proposePendingAction.mock.calls[0]![1] as { summary: string }).summary;
+
+  it('operadora ativa citada e sem "particular" depois: pergunta convênio ou particular, sem sinal nem resumo', async () => {
+    const response = await prepare({
+      ...registeredPatientContext,
+      recentPatientTexts: ['quero marcar pela Unimed Sintética'],
+      currentMessage: 'pode marcar, por favor',
+    });
+    expect(response).toEqual({
+      status: 'appointment_information_required',
+      patient_message: 'Você quer agendar pelo convênio Unimed Sintética ou como particular?',
+    });
+    expect(mocks.previewDepositForBooking).not.toHaveBeenCalled();
+    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
+  });
+
+  it('"particular" depois da operadora: prepara particular, com o sinal como antes e o resumo dizendo "como particular"', async () => {
+    const response = await prepare({
+      ...registeredPatientContext,
+      recentPatientTexts: ['tenho Unimed Sintética', 'vou fazer particular'],
+      currentMessage: 'pode marcar, por favor',
+    });
+    expect(response).toMatchObject({ status: 'appointment_prepared' });
+    expect(mocks.previewDepositForBooking).toHaveBeenCalled();
+    expect(summaryOf()).toContain('como particular');
+  });
+
+  it('paciente que nunca citou convênio: particular normal, com "como particular" no resumo', async () => {
+    await prepare({
+      ...registeredPatientContext,
+      recentPatientTexts: ['oi', 'quero uma consulta'],
+      currentMessage: 'pode marcar, por favor',
+    });
+    expect(summaryOf()).toContain('como particular');
+    expect(summaryOf()).not.toMatch(/convênio/);
+  });
+
+  it('módulo desligado: o resumo do particular fica exatamente como antes', async () => {
+    mocks.getSchedulingInsuranceOptions.mockResolvedValue({ enabled: false, insurers: [] });
+    await prepare({
+      ...registeredPatientContext,
+      recentPatientTexts: ['tenho Unimed Sintética'],
+      currentMessage: 'pode marcar, por favor',
+    });
+    expect(summaryOf()).not.toContain('particular');
+  });
+
+  it('falha ao consultar o Convênios: o particular segue como antes (a guarda não derruba o fluxo)', async () => {
+    mocks.getSchedulingInsuranceOptions.mockRejectedValue(new Error('timeout'));
+    const response = await prepare({
+      ...registeredPatientContext,
+      recentPatientTexts: ['tenho Unimed Sintética'],
+      currentMessage: 'pode marcar, por favor',
+    });
+    expect(response).toMatchObject({ status: 'appointment_prepared' });
+    expect(summaryOf()).not.toContain('particular');
   });
 });

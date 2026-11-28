@@ -18,7 +18,11 @@
  *      operadora/recepção) e registra a falha; nada preparado nem criado;
  *   5. procedimento com autorização: o resumo avisa o aval da operadora; "SIM" → convênio SP/SADT pelo contrato, sem
  *      dizer que está autorizado; a pendência fica com a recepção (cobertura sem carteirinha);
- *   6. em todas as mensagens enviadas: nada afirma cobertura, autorização, elegibilidade ou valor, nem pede o número da
+ *   6. operadora que só o MODELO propôs (o paciente não falou de convênio): pergunta convênio ou particular, nada
+ *      preparado; quando o paciente diz o nome, vale, e a origem da escolha fica gravada na ação preparada;
+ *   7. o inverso: o paciente citou a operadora e o modelo preparou particular: pergunta antes (sem resumo nem sinal);
+ *      com "particular", o resumo diz "como particular";
+ *   8. em todas as mensagens enviadas: nada afirma cobertura, autorização, elegibilidade ou valor, nem pede o número da
  *      carteirinha; o que foi ao WhatsApp é o que ficou gravado; nenhuma rede externa.
  *
  *   SECURITY_PG_BIN=... PORT=55644 NODE_OPTIONS=--conditions=react-server npx tsx scripts/security/agent-insurance-conversation-db.ts
@@ -255,6 +259,19 @@ async function clinic(
     return ap as { id: string; billing_mode: string; via: string; procedure: string } | undefined;
   };
 
+  /** O payload cifrado da última ação preparada da conversa. */
+  const pendingPayload = async (conversationId: string) => {
+    const [row] = await sql`select payload_encrypted from public.ai_pending_actions
+      where clinic_id = ${clinicId}::uuid and conversation_id = ${conversationId}::uuid
+      order by created_at desc limit 1`;
+    return row
+      ? (JSON.parse(await decryptForTenant(clinicId, String(row.payload_encrypted))) as Record<
+          string,
+          unknown
+        >)
+      : null;
+  };
+
   return {
     clinicId,
     consulta,
@@ -265,6 +282,7 @@ async function clinic(
     say,
     counts,
     lastAppointment,
+    pendingPayload,
   };
 }
 
@@ -310,6 +328,8 @@ try {
     ]);
     assert.match(first.reply, /Responda SIM para confirmar\./u, first.reply);
     assert.doesNotMatch(first.reply, /convênio|carteirinha|operadora/iu, first.reply);
+    // Clínica com o módulo ligado: o "SIM" é contextual ("como particular").
+    assert.match(first.reply, / como particular/u, first.reply);
     const done = await A.say(p.phone, 'SIM', [toolCall('confirm_pending_action')]);
     assert.match(done.reply, /^Pronto! Consulta agendada/u, done.reply);
     assert.doesNotMatch(done.reply, /convênio|carteirinha|operadora/iu, done.reply);
@@ -500,23 +520,76 @@ try {
     );
   }
 
-  // ── 6. nada indevido em nenhuma mensagem enviada ──────────────────────────────
+  // ── 6. operadora que só o modelo propôs ──────────────────────────────────────
   {
-    assert.ok(sentToWhatsApp.length >= 9, `mensagens enviadas: ${sentToWhatsApp.length}`);
+    const p = await A.contact('Paciente Sintético Sem Convênio Dito');
+    const before = await A.counts();
+    const r = await A.say(p.phone, 'quero marcar uma consulta sintética', [
+      toolCall('prepare_appointment', {
+        insurer_name: 'Unimed Sintética',
+        procedure_name: 'Consulta Sintética',
+      }),
+    ]);
+    assert.equal(r.reply, AGENT_INSURANCE_TEXT.insurerNotDeclared);
+    assert.deepEqual(await A.counts(), before, 'nada preparado nem criado');
+    const named = await A.say(p.phone, 'é pela Unimed Sintética', [
+      toolCall('prepare_appointment', {
+        insurer_name: 'Unimed Sintética',
+        procedure_name: 'Consulta Sintética',
+      }),
+    ]);
+    assert.match(named.reply, /pelo convênio Unimed Sintética \(plano Enfermaria\)/u, named.reply);
+    const payload = await A.pendingPayload(named.conversationId);
+    assert.deepEqual(payload?.insuranceSource, { insurer: 'patient_text', plan: 'single_active' });
+    const done = await A.say(p.phone, 'SIM', [toolCall('confirm_pending_action')]);
+    assert.ok(done.reply.endsWith(AGENT_INSURANCE_TEXT.receptionChecksCard), done.reply);
+    assert.equal((await A.lastAppointment(p.patientId))?.billing_mode, 'convenio');
+    pass(
+      6,
+      'operadora que só o modelo propôs: "convênio ou particular?" e nada preparado; com o nome dito pelo paciente, convênio, com a origem da escolha gravada na ação preparada',
+    );
+  }
+
+  // ── 7. o inverso: o paciente citou o convênio e o modelo preparou particular ────
+  {
+    const p = await A.contact('Paciente Sintético Inverso');
+    await A.say(p.phone, 'oi, tenho Unimed Sintética', [
+      text('Olá! Qual atendimento você quer marcar?'),
+    ]);
+    const before = await A.counts();
+    const r = await A.say(p.phone, 'quero marcar uma consulta sintética', [
+      toolCall('prepare_appointment', { procedure_name: 'Consulta Sintética' }),
+    ]);
+    assert.equal(r.reply, 'Você quer agendar pelo convênio Unimed Sintética ou como particular?');
+    assert.deepEqual(await A.counts(), before, 'nada preparado (nem resumo com sinal)');
+    const priv = await A.say(p.phone, 'particular', [
+      toolCall('prepare_appointment', { procedure_name: 'Consulta Sintética' }),
+    ]);
+    assert.match(priv.reply, / como particular/u, priv.reply);
+    assert.equal((await A.pendingPayload(priv.conversationId))?.insurance, undefined);
+    pass(
+      7,
+      'o inverso: o paciente citou a operadora e o modelo preparou particular → pergunta antes, sem resumo nem sinal; com "particular", o resumo diz "como particular"',
+    );
+  }
+
+  // ── 8. nada indevido em nenhuma mensagem enviada ──────────────────────────────
+  {
+    assert.ok(sentToWhatsApp.length >= 15, `mensagens enviadas: ${sentToWhatsApp.length}`);
     for (const t of sentToWhatsApp) assert.deepEqual(findUnsafeAgentClaims(t), [], t);
     const [guides] = await sql`select count(*)::int as n from public.hi_guides`;
     const [charges] = await sql`select count(*)::int as n from public.patient_charges`;
     assert.deepEqual({ guides: guides!.n, charges: charges!.n }, { guides: 0, charges: 0 });
     assert.equal(externalCalls, 0, 'nenhuma rede externa');
-    assert.ok(modelCalls >= 7, `chamadas ao modelo roteirizado: ${modelCalls}`);
+    assert.ok(modelCalls >= 12, `chamadas ao modelo roteirizado: ${modelCalls}`);
     pass(
-      6,
+      8,
       `nenhuma das ${sentToWhatsApp.length} mensagens enviadas afirma cobertura, autorização, elegibilidade ou valor, nem pede a carteirinha; nenhuma guia nem cobrança; nenhuma rede externa`,
     );
   }
 
-  console.log(`\nagent-insurance-conversation-db: ${passed}/6 PASS`);
-  assert.equal(passed, 6);
+  console.log(`\nagent-insurance-conversation-db: ${passed}/8 PASS`);
+  assert.equal(passed, 8);
 } finally {
   GeminiProvider.prototype.generateWithTools = originalGenerate;
   globalThis.fetch = originalFetch;

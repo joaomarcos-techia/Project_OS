@@ -14,6 +14,9 @@ import {
   planNotRecognizedReply,
   resolveInsurerFromPatientText,
   resolvePlanFromPatientText,
+  insurerOrPrivateReply,
+  patientInsuranceIntent,
+  plansSaidByPatient,
 } from './agent-insurance';
 
 const OPTIONS = {
@@ -220,5 +223,85 @@ describe('guarda de saída (findUnsafeAgentClaims / insuranceReplyGuard)', () =>
     ).toEqual({
       safe: true,
     });
+  });
+});
+
+describe('P11 (endurecimento) — o que o paciente disse, e não o que o modelo propôs', () => {
+  const opts = {
+    kind: 'options' as const,
+    insurers: [
+      {
+        id: 'u',
+        name: 'Unimed Sintética',
+        plans: [
+          { id: 'e', name: 'Enfermaria' },
+          { id: 'a', name: 'Apartamento' },
+        ],
+      },
+      { id: 'p', name: 'Unimed Sintética Plus', plans: [] },
+      { id: 's', name: 'Saúde Bem', plans: [] },
+    ],
+  };
+
+  it('nunca citou operadora: none (mesmo falando "convênio")', () => {
+    expect(patientInsuranceIntent(opts, ['oi', 'quero pelo convênio'])).toEqual({ kind: 'none' });
+  });
+
+  it('a última menção vale; "particular" depois vira private', () => {
+    expect(patientInsuranceIntent(opts, ['tenho saude bem', 'amanhã'])).toEqual({
+      kind: 'insurer',
+      insurers: [{ id: 's', name: 'Saúde Bem' }],
+    });
+    expect(patientInsuranceIntent(opts, ['tenho Saúde Bem', 'prefiro particular'])).toEqual({
+      kind: 'private',
+    });
+    expect(patientInsuranceIntent(opts, ['particular', 'não, pela Saúde Bem'])).toMatchObject({
+      kind: 'insurer',
+    });
+    expect(patientInsuranceIntent(opts, ['sem convênio'])).toEqual({ kind: 'private' });
+  });
+
+  it('operadora e "particular" na mesma frase: unclear', () => {
+    expect(patientInsuranceIntent(opts, ['não quero particular, é Saúde Bem'])).toMatchObject({
+      kind: 'unclear',
+    });
+  });
+
+  it('nome mais longo vence o contido nele; os dois ditos separados ficam os dois', () => {
+    expect(patientInsuranceIntent(opts, ['pela Unimed Sintética Plus'])).toEqual({
+      kind: 'insurer',
+      insurers: [{ id: 'p', name: 'Unimed Sintética Plus' }],
+    });
+    const both = patientInsuranceIntent(opts, ['tenho Unimed Sintética Plus e a Unimed Sintética']);
+    expect(both.kind === 'insurer' && both.insurers.map((i) => i.id).sort()).toEqual(['p', 'u']);
+    expect(resolveInsurerFromPatientText(opts, 'Unimed Sintética Plus')).toEqual({
+      kind: 'match',
+      insurer: { id: 'p', name: 'Unimed Sintética Plus' },
+    });
+    expect(resolveInsurerFromPatientText(opts, 'Unimed Sintética')).toMatchObject({
+      kind: 'match',
+      insurer: { id: 'u' },
+    });
+  });
+
+  it('planos ditos pelo paciente, só da operadora escolhida', () => {
+    expect(plansSaidByPatient(opts, 'u', ['é o apartamento'])).toEqual([
+      { id: 'a', name: 'Apartamento' },
+    ]);
+    expect(plansSaidByPatient(opts, 'u', ['amanhã'])).toEqual([]);
+    expect(plansSaidByPatient(opts, 's', ['apartamento'])).toEqual([]);
+  });
+
+  it('a pergunta "convênio ou particular" não afirma nada indevido', () => {
+    for (const t of [
+      insurerOrPrivateReply([{ name: 'Saúde Bem' }, { name: 'Saúde Bem' }]),
+      insurerOrPrivateReply([]),
+      AGENT_INSURANCE_TEXT.insurerNotDeclared,
+    ]) {
+      expect(findUnsafeAgentClaims(t)).toEqual([]);
+    }
+    expect(insurerOrPrivateReply([{ name: 'Saúde Bem' }, { name: 'Saúde Bem' }])).toBe(
+      'Você quer agendar pelo convênio Saúde Bem ou como particular?',
+    );
   });
 });
