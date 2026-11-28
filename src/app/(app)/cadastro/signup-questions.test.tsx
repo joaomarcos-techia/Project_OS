@@ -122,7 +122,12 @@ afterEach(() => {
 describe('cadastro — quatro perguntas impessoais', () => {
   it('synchronizes the private fragment removal without reusing Next internal history state', async () => {
     const path = window.location.pathname + window.location.search;
-    window.history.replaceState({ __NA: true }, '', path + '#invite=' + 'a'.repeat(64));
+    const pilotPath = '/cadastro/piloto?utm_source=invite';
+    window.history.replaceState(
+      { __NA: true },
+      '',
+      '/unexpected/path?utm_source=invite#invite=' + 'a'.repeat(64),
+    );
     const replace = vi.spyOn(window.history, 'replaceState');
     const navigate = vi.spyOn(window.location, 'replace').mockImplementation(() => undefined);
     fetchMock.mockResolvedValueOnce(
@@ -138,8 +143,8 @@ describe('cadastro — quatro perguntas impessoais', () => {
     );
     try {
       render(<SignupQuestions identityEnabled pilot />);
-      await waitFor(() => expect(navigate).toHaveBeenCalledWith(path));
-      expect(replace).toHaveBeenCalledWith(null, '', path);
+      await waitFor(() => expect(navigate).toHaveBeenCalledWith(pilotPath));
+      expect(replace).toHaveBeenCalledWith(null, '', pilotPath);
       expect(window.location.hash).toBe('');
       expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['/api/signup/pilot']);
     } finally {

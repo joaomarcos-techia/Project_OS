@@ -6,6 +6,7 @@
  * saúde justamente no cenário que o alerta existe para pegar.
  */
 import { describe, expect, it } from 'vitest';
+import { PgDialect } from 'drizzle-orm/pg-core';
 
 import {
   buildPurgeStatement,
@@ -40,6 +41,9 @@ describe('retention-policy — registro é a fonte única', () => {
     expect(p.days).toBeGreaterThanOrEqual(180);
     // Minimização: não é guarda indefinida.
     expect(p.days).toBeLessThanOrEqual(200);
+    const query = new PgDialect().sqlToQuery(buildPurgeStatement(p, 5000));
+    expect(query.sql).toContain('attempted_at < now() - make_interval(days => $1)');
+    expect(query.params).toEqual([186, 5000]);
   });
 
   it('não tem tabela duplicada', () => {

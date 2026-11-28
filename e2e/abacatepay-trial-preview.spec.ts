@@ -314,65 +314,91 @@ test('confirmed identity -> free trial -> server quota gates -> optional hosted 
           (SELECT count(*)::int FROM billing_gateway.operations WHERE subscription_id=${contract.subscription_id}::uuid AND kind='create_checkout') checkout_count`;
         expect(before?.payment_method).toBe('PIX');
         await page.goto(new URL('/configuracoes/assinatura', origin.origin).toString());
-        await expect(
-          page.getByRole('heading', { name: 'Pedido assistido de troca' }),
-        ).toBeVisible();
-        const targetPlanId = await page
-          .locator('#pix-replacement-plan option')
-          .nth(1)
-          .getAttribute('value');
-        expect(targetPlanId).toMatch(/^[a-f0-9-]{36}$/);
-        if (!targetPlanId) throw new Error('Pix replacement target unavailable');
-        await page.locator('#pix-replacement-plan').selectOption(targetPlanId);
-        await page.getByRole('checkbox', { name: /Entendi que este pedido/ }).check();
-        const requestedResponse = page.waitForResponse(
-          (response) =>
-            response.url().endsWith('/api/billing/pix-replacement-intent') &&
-            response.request().method() === 'POST',
-          { timeout: 60_000 },
-        );
-        await page.getByRole('button', { name: 'Solicitar análise da troca' }).click();
-        expect((await requestedResponse).status()).toBe(200);
-        await expect(page.getByText('Pedido registrado, sem troca financeira')).toBeVisible({
-          timeout: 15_000,
-        });
-        const [requested] = await sql<
-          { id: string; state: string; to_plan_id: string; count: number }[]
-        >`SELECT id::text,state,to_plan_id::text,
+        if (input.E2E_ABACATEPAY_EXPECT_CHECKOUT_UNAVAILABLE === 'true') {
+          await expect(
+            page.getByRole('heading', { name: 'Pedido assistido de troca' }),
+          ).toHaveCount(0);
+          await expect(page.getByText(/A troca está temporariamente indisponível/)).toBeVisible();
+          const [closed] = await sql<{ invoice_count: number; checkout_count: number }[]>`SELECT
+            (SELECT count(*)::int FROM public.invoices WHERE subscription_id=${contract.subscription_id}::uuid) invoice_count,
+            (SELECT count(*)::int FROM billing_gateway.operations WHERE subscription_id=${contract.subscription_id}::uuid AND kind='create_checkout') checkout_count`;
+          expect(closed).toEqual({
+            invoice_count: before?.invoice_count,
+            checkout_count: before?.checkout_count,
+          });
+          stages.push('pix_replacement_hidden_by_acquisition_kill_switch');
+        } else {
+          await expect(
+            page.getByRole('heading', { name: 'Pedido assistido de troca' }),
+          ).toBeVisible();
+          const targetPlanId = await page
+            .locator('#pix-replacement-plan option')
+            .nth(1)
+            .getAttribute('value');
+          expect(targetPlanId).toMatch(/^[a-f0-9-]{36}$/);
+          if (!targetPlanId) throw new Error('Pix replacement target unavailable');
+          await page.locator('#pix-replacement-plan').selectOption(targetPlanId);
+          await page.getByRole('checkbox', { name: /Entendi que este pedido/ }).check();
+          const requestedResponse = page.waitForResponse(
+            (response) =>
+              response.url().endsWith('/api/billing/pix-replacement-intent') &&
+              response.request().method() === 'POST',
+            { timeout: 60_000 },
+          );
+          await page.getByRole('button', { name: 'Solicitar análise da troca' }).click();
+          expect((await requestedResponse).status()).toBe(200);
+          await expect(page.getByText('Pedido registrado, sem troca financeira')).toBeVisible({
+            timeout: 15_000,
+          });
+          const [requested] = await sql<
+            { id: string; state: string; to_plan_id: string; count: number }[]
+          >`SELECT id::text,state,to_plan_id::text,
           (SELECT count(*)::int FROM billing_gateway.pix_replacement_intents WHERE subscription_id=${contract.subscription_id}::uuid AND state='requested') count
           FROM billing_gateway.pix_replacement_intents
           WHERE subscription_id=${contract.subscription_id}::uuid AND state='requested'`;
-        expect(requested).toMatchObject({ state: 'requested', to_plan_id: targetPlanId, count: 1 });
-        if (!requested) throw new Error('Pix replacement request not persisted');
-        const cancelledResponse = page.waitForResponse(
-          (response) =>
-            response.url().endsWith('/api/billing/pix-replacement-intent') &&
-            response.request().method() === 'POST',
-          { timeout: 60_000 },
-        );
-        await page.getByRole('button', { name: 'Cancelar somente o pedido de troca' }).click();
-        expect((await cancelledResponse).status()).toBe(200);
-        await expect(page.getByRole('heading', { name: 'Pedido assistido de troca' })).toBeVisible({
-          timeout: 15_000,
-        });
-        await expect(page.getByText('Pedido registrado, sem troca financeira')).toHaveCount(0, {
-          timeout: 15_000,
-        });
-        const [after] = await sql<
-          { state: string; invoice_count: number; checkout_count: number; billing_status: string }[]
-        >`SELECT i.state,s.billing_status,
+          expect(requested).toMatchObject({
+            state: 'requested',
+            to_plan_id: targetPlanId,
+            count: 1,
+          });
+          if (!requested) throw new Error('Pix replacement request not persisted');
+          const cancelledResponse = page.waitForResponse(
+            (response) =>
+              response.url().endsWith('/api/billing/pix-replacement-intent') &&
+              response.request().method() === 'POST',
+            { timeout: 60_000 },
+          );
+          await page.getByRole('button', { name: 'Cancelar somente o pedido de troca' }).click();
+          expect((await cancelledResponse).status()).toBe(200);
+          await expect(
+            page.getByRole('heading', { name: 'Pedido assistido de troca' }),
+          ).toBeVisible({
+            timeout: 15_000,
+          });
+          await expect(page.getByText('Pedido registrado, sem troca financeira')).toHaveCount(0, {
+            timeout: 15_000,
+          });
+          const [after] = await sql<
+            {
+              state: string;
+              invoice_count: number;
+              checkout_count: number;
+              billing_status: string;
+            }[]
+          >`SELECT i.state,s.billing_status,
           (SELECT count(*)::int FROM public.invoices WHERE subscription_id=s.id) invoice_count,
           (SELECT count(*)::int FROM billing_gateway.operations WHERE subscription_id=s.id AND kind='create_checkout') checkout_count
           FROM billing_gateway.pix_replacement_intents i
           JOIN public.subscriptions s ON s.id=i.subscription_id
           WHERE i.id=${requested.id}::uuid`;
-        expect(after).toMatchObject({
-          state: 'cancelled',
-          invoice_count: before?.invoice_count,
-          checkout_count: before?.checkout_count,
-          billing_status: 'active',
-        });
-        stages.push('pix_replacement_request_and_cancel_without_financial_action');
+          expect(after).toMatchObject({
+            state: 'cancelled',
+            invoice_count: before?.invoice_count,
+            checkout_count: before?.checkout_count,
+            billing_status: 'active',
+          });
+          stages.push('pix_replacement_request_and_cancel_without_financial_action');
+        }
       }
       stages.push('real_sandbox_webhook_invoice_receipt_and_paid_ui');
       stages.push('paid_checkout_repeat_denied_and_integration_invite_gates_released');

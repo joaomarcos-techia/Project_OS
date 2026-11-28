@@ -9,12 +9,13 @@ import path from 'node:path';
 import type { Route } from '@playwright/test';
 import postgres from 'postgres';
 import selfsigned from 'selfsigned';
+import { randomSyntheticPassword } from './synthetic-password';
 
 const root = process.cwd();
 const SELF_SERVICE_PLAN_ID = 'aaaaaaaa-1111-4111-8111-111111111111';
 const SELF_SERVICE_OTHER_PLAN_ID = 'bbbbbbbb-2222-4222-8222-222222222222';
 const SELF_SERVICE_INACTIVE_PLAN_ID = 'cccccccc-3333-4333-8333-333333333333';
-const SYNTHETIC_PASSWORD = 'QoroSynthetic2026A7-9f2c6b8e';
+const SYNTHETIC_PASSWORD = `Qoro1-${randomSyntheticPassword()}`;
 const bin =
   process.env.SECURITY_PG_BIN ??
   (process.platform === 'win32'

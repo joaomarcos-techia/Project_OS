@@ -22,6 +22,7 @@ vi.mock('@/lib/audit/log', () => ({ logAudit: vi.fn(async () => 'audit-1') }));
 import { logAudit } from '@/lib/audit/log';
 
 import {
+  deactivateConnectionsForRemovedPartner,
   deactivateTenantConnection,
   listConnectionsDueForMessagingHealth,
   loadConnectionForMessagingHealth,
@@ -61,6 +62,29 @@ const baseInput: UpsertTenantConnectionInput = {
 };
 
 beforeEach(() => vi.clearAllMocks());
+
+describe('partner removal SQL boundary', () => {
+  it('binds the external WABA ID as a parameter', async () => {
+    const { tx } = makeTx([[]]);
+    runWithTx(tx);
+    const wabaId = "waba' OR true --";
+
+    await expect(
+      deactivateConnectionsForRemovedPartner({
+        wabaId,
+        reason: null,
+        initiatedBy: null,
+        requestContext: ctx,
+      }),
+    ).resolves.toEqual({ deactivated: 0 });
+
+    const query = dialect.sqlToQuery(tx.execute.mock.calls[0]![0] as SQL);
+    expect(query.sql).toMatch(/meta_business_id = \$1 AND active = true/);
+    expect(query.sql).not.toContain(wabaId);
+    expect(query.params).toEqual([wabaId]);
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+});
 
 describe('upsertTenantConnection (Caso 4)', () => {
   it('trial denies persistence without changing an existing connection', async () => {
