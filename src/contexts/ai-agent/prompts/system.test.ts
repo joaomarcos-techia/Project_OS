@@ -187,6 +187,15 @@ describe('versionamento (G8/R6)', () => {
     expect(prompt).toContain('NUNCA deduza que uma lista vazia');
   });
 
+  it('P11 (v18): marcar pelo convênio sem afirmar cobertura, autorização, elegibilidade ou valor', () => {
+    const prompt = buildSystemPrompt(makeCtx());
+    expect(prompt).toContain('passe em prepare_appointment o insurer_name');
+    expect(prompt).toContain('use list_insurance_options');
+    expect(prompt).toContain('NUNCA peça o número da carteirinha');
+    expect(prompt).toContain('convênio não tem sinal nem link de pagamento');
+    expect(PROMPT_VERSION).toBe('2026-11-28-v18');
+  });
+
   it('só inicia cadastro depois de a agenda informar que ele é necessário', () => {
     const prompt = buildSystemPrompt(
       makeCtx({

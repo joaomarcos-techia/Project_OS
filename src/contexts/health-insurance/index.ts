@@ -63,7 +63,10 @@ export { readClinicTissFootprint } from './security-footprint';
 // seguras (handoff-agente-p11.md). Nenhum agente aqui; as ferramentas são do registro do agente.
 export {
   getSchedulingInsuranceOptions,
+  listPatientCardsForScheduling,
   procedureRequiresAuthorization,
+  schedulingTermsForProcedure,
+  type SchedulingCard,
   type SchedulingInsuranceOptions,
 } from './config-queries';
 export {
@@ -77,7 +80,15 @@ export {
   agentInsuranceOptions,
   coverageQuestionReply,
   findUnsafeAgentClaims,
+  insuranceReplyGuard,
+  insurerNotRecognizedReply,
+  isInsuranceTalk,
   matchInsurerFromPatientText,
+  pickAgentMembership,
+  planNotRecognizedReply,
+  resolveInsurerFromPatientText,
+  resolvePlanFromPatientText,
   type AgentChoiceVerdict,
   type AgentInsuranceOptions,
+  type InsurerResolution,
 } from './agent-insurance';

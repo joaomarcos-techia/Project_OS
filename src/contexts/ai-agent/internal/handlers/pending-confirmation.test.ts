@@ -70,6 +70,27 @@ describe('pendingConfirmationFailureReply — falha explicada, nunca sucesso inv
   it('falha desconhecida → null (o handler cai no fallback operacional)', () => {
     expect(pendingConfirmationFailureReply(new Error('connection reset'))).toBeNull();
   });
+
+  it('P11: convênio desativado entre o resumo e o SIM → frase segura, sem o motivo técnico', () => {
+    const reply = pendingConfirmationFailureReply(
+      new Error('o convênio escolhido não está mais disponível para agendamento'),
+    );
+    expect(reply).toContain('não está entre os que a clínica agenda por aqui');
+    expect(reply).toMatch(/particular/);
+  });
+});
+
+describe('P11 — confirmação de marcação pelo convênio', () => {
+  it('sem sinal nem link: só o aviso de que a recepção confere a carteirinha', () => {
+    const reply = pendingConfirmationReply(
+      { action: 'schedule_appointment', scheduledAt: AT, billingMode: 'convenio' },
+      TZ,
+    );
+    expect(reply).toBe(
+      'Pronto! Consulta agendada para 12/10/2026 às 10:00. A recepção da clínica vai conferir a sua carteirinha antes do atendimento.',
+    );
+    expect(reply).not.toMatch(/sinal|link|R\$/);
+  });
 });
 
 describe('o handler decide pela pendência + confirmação explícita, sem o modelo', () => {

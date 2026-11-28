@@ -6,14 +6,29 @@ import {
   agentInsuranceOptions,
   coverageQuestionReply,
   findUnsafeAgentClaims,
+  insuranceReplyGuard,
+  insurerNotRecognizedReply,
+  isInsuranceTalk,
   matchInsurerFromPatientText,
+  pickAgentMembership,
+  planNotRecognizedReply,
+  resolveInsurerFromPatientText,
+  resolvePlanFromPatientText,
 } from './agent-insurance';
 
 const OPTIONS = {
   enabled: true,
   insurers: [
-    { id: 'ins-unimed', name: 'Unimed Sintética', plans: [{ id: 'pl-1', name: 'Enfermaria' }] },
-    { id: 'ins-saude', name: 'Saúde Bem', plans: [] },
+    {
+      id: 'ins-unimed',
+      name: 'Unimed Sintética',
+      plans: [
+        { id: 'pl-1', name: 'Enfermaria' },
+        { id: 'pl-2', name: 'Apartamento' },
+      ],
+    },
+    { id: 'ins-saude', name: 'Saúde Bem', plans: [{ id: 'pl-3', name: 'Único' }] },
+    { id: 'ins-vida', name: 'Vida Plena', plans: [] },
   ],
 };
 
@@ -22,6 +37,8 @@ describe('P11 — Convênios para o agente de IA (jornadas do handoff)', () => {
     expect(findUnsafeAgentClaims('Tenho horário amanhã às 10h. Posso reservar para você?')).toEqual(
       [],
     );
+    // preço do PARTICULAR não é convênio: a guarda do texto livre não age
+    expect(insuranceReplyGuard('A consulta particular custa R$ 250,00.')).toEqual({ safe: true });
   });
 
   it('jornada 2 (convênio aceito): só operadoras e planos ativos da clínica; nasce convênio com o aviso da carteirinha', () => {
@@ -46,13 +63,14 @@ describe('P11 — Convênios para o agente de IA (jornadas do handoff)', () => {
       expect(n.toLowerCase()).not.toContain('número');
   });
 
-  it('jornada 3 (não aceito): módulo desligado, sem schema ou sem operadora ativa = a clínica não atende convênio', () => {
+  it('jornada 3 (sem convênio por aqui): módulo desligado, sem schema ou sem operadora ativa = agendamento pela recepção, sem "recusar"', () => {
     for (const o of [null, { enabled: false, insurers: [] }, { enabled: true, insurers: [] }]) {
       expect(agentInsuranceOptions(o)).toEqual({
         kind: 'not_available',
-        reply: AGENT_INSURANCE_TEXT.notAccepted,
+        reply: AGENT_INSURANCE_TEXT.managedByReception,
       });
     }
+    expect(AGENT_INSURANCE_TEXT.managedByReception).not.toMatch(/não atende|não aceita/i);
     // operadora não cadastrada não casa (nada de "parecido")
     expect(matchInsurerFromPatientText(agentInsuranceOptions(OPTIONS), 'tenho Amil')).toBeNull();
     // a recusa da agenda (texto para a recepção) não vai para o paciente: fica para o handoff
@@ -88,11 +106,78 @@ describe('P11 — Convênios para o agente de IA (jornadas do handoff)', () => {
       ],
     });
     expect(matchInsurerFromPatientText(twin, 'tenho vida')).toBeNull();
+    expect(resolveInsurerFromPatientText(twin, 'tenho vida')).toEqual({ kind: 'ambiguous' });
     expect(matchInsurerFromPatientText(twin, 'tenho ab')).toBeNull();
+    expect(resolveInsurerFromPatientText(twin, 'tenho ab')).toEqual({ kind: 'none' });
   });
 });
 
-describe('guarda de saída (findUnsafeAgentClaims)', () => {
+describe('resolução no servidor (P11.1)', () => {
+  const options = agentInsuranceOptions(OPTIONS);
+
+  it('operadora não reconhecida: mostra só os nomes das ativas e oferece particular/recepção', () => {
+    const reply = insurerNotRecognizedReply(options, false);
+    expect(reply).toContain('Unimed Sintética, Saúde Bem, Vida Plena');
+    expect(reply).toMatch(/particular/);
+    expect(insurerNotRecognizedReply(options, true)).toMatch(/mais de um convênio/);
+    expect(findUnsafeAgentClaims(reply)).toEqual([]);
+    expect(insurerNotRecognizedReply(agentInsuranceOptions(null), false)).toBe(
+      AGENT_INSURANCE_TEXT.managedByReception,
+    );
+  });
+
+  it('plano: o dito entre os ativos; sem fala, o único; fala que não casa = perguntar de novo', () => {
+    expect(resolvePlanFromPatientText(options, 'ins-unimed', 'é o apartamento')).toEqual({
+      id: 'pl-2',
+      name: 'Apartamento',
+    });
+    expect(resolvePlanFromPatientText(options, 'ins-unimed', undefined)).toBeNull();
+    expect(resolvePlanFromPatientText(options, 'ins-saude', '')).toEqual({
+      id: 'pl-3',
+      name: 'Único',
+    });
+    expect(resolvePlanFromPatientText(options, 'ins-unimed', 'ouro master')).toBeUndefined();
+    expect(resolvePlanFromPatientText(options, 'ins-de-outra-clinica', undefined)).toBeUndefined();
+    expect(planNotRecognizedReply(options, 'ins-unimed')).toContain('Enfermaria, Apartamento');
+    expect(planNotRecognizedReply(options, 'ins-vida')).toBe(AGENT_INSURANCE_TEXT.notAccepted);
+  });
+
+  it('carteirinha já cadastrada: só o id, uma só ou a preferida; dúvida = pendência da recepção', () => {
+    const card = (id: string, insurerId: string, planId: string | null, preferred = false) => ({
+      id,
+      insurerId,
+      planId,
+      preferred,
+    });
+    expect(pickAgentMembership([card('m1', 'ins-unimed', 'pl-1')], 'ins-unimed', null)).toEqual({
+      membershipId: 'm1',
+      planId: 'pl-1',
+    });
+    // plano escolhido diferente do da carteirinha: não usa
+    expect(
+      pickAgentMembership([card('m1', 'ins-unimed', 'pl-1')], 'ins-unimed', 'pl-2'),
+    ).toBeNull();
+    // duas carteirinhas sem preferida: dúvida
+    expect(
+      pickAgentMembership(
+        [card('m1', 'ins-unimed', 'pl-1'), card('m2', 'ins-unimed', 'pl-2')],
+        'ins-unimed',
+        null,
+      ),
+    ).toBeNull();
+    expect(
+      pickAgentMembership(
+        [card('m1', 'ins-unimed', 'pl-1'), card('m2', 'ins-unimed', 'pl-2', true)],
+        'ins-unimed',
+        null,
+      ),
+    ).toEqual({ membershipId: 'm2', planId: 'pl-2' });
+    // carteirinha de outra operadora nunca serve
+    expect(pickAgentMembership([card('m3', 'ins-saude', null)], 'ins-unimed', null)).toBeNull();
+  });
+});
+
+describe('guarda de saída (findUnsafeAgentClaims / insuranceReplyGuard)', () => {
   it('os textos que o próprio Convênios entrega passam limpos', () => {
     for (const t of Object.values(AGENT_INSURANCE_TEXT))
       expect(findUnsafeAgentClaims(t)).toEqual([]);
@@ -110,5 +195,30 @@ describe('guarda de saída (findUnsafeAgentClaims)', () => {
     ['Me passa o número da sua carteirinha?', 'pede o número da carteirinha'],
   ])('acusa: %s', (text, label) => {
     expect(findUnsafeAgentClaims(text)).toContain(label);
+  });
+
+  it.each([
+    'Seu plano cobre esse exame, pode vir!',
+    'Pelo convênio, a consulta fica R$ 30,00 de coparticipação.',
+    'Me passa o número da sua carteirinha do convênio?',
+    'Sim, a operadora já está autorizada para esse exame.',
+    'Com o seu plano você é elegível.',
+  ])('troca pela frase segura no texto livre: %s', (text) => {
+    expect(isInsuranceTalk(text)).toBe(true);
+    expect(insuranceReplyGuard(text)).toEqual({
+      safe: false,
+      labels: expect.any(Array),
+      replacement: AGENT_INSURANCE_TEXT.coverageQuestion,
+    });
+  });
+
+  it('sem assunto de convênio, nada muda (o resumo de sinal do particular é do servidor)', () => {
+    expect(isInsuranceTalk('Seu horário é amanhã às 10h.')).toBe(false);
+    expect(insuranceReplyGuard('O sinal é de R$ 50,00 pelo link.')).toEqual({ safe: true });
+    expect(
+      insuranceReplyGuard('Atendemos pelo convênio Unimed; a recepção confere a carteirinha.'),
+    ).toEqual({
+      safe: true,
+    });
   });
 });

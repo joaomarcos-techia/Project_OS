@@ -17,6 +17,10 @@ const mocks = vi.hoisted(() => ({
   getDepositPolicy: vi.fn(),
   previewDepositForBooking: vi.fn(),
   proposePendingAction: vi.fn(),
+  getSchedulingInsuranceOptions: vi.fn(),
+  listPatientCardsForScheduling: vi.fn(),
+  schedulingTermsForProcedure: vi.fn(),
+  checkSchedulingChoice: vi.fn(),
 }));
 
 vi.mock('@/contexts/scheduling', () => ({
@@ -25,6 +29,14 @@ vi.mock('@/contexts/scheduling', () => ({
 vi.mock('@/contexts/payments', () => ({
   getDepositPolicy: mocks.getDepositPolicy,
   paymentsApiV1: { previewDepositForBooking: mocks.previewDepositForBooking },
+}));
+// P11 — funções puras reais do Convênios; só as consultas ao banco são trocadas.
+vi.mock('@/contexts/health-insurance', async () => ({
+  ...(await vi.importActual<object>('@/contexts/health-insurance/agent-insurance')),
+  getSchedulingInsuranceOptions: mocks.getSchedulingInsuranceOptions,
+  listPatientCardsForScheduling: mocks.listPatientCardsForScheduling,
+  schedulingTermsForProcedure: mocks.schedulingTermsForProcedure,
+  checkSchedulingChoice: mocks.checkSchedulingChoice,
 }));
 vi.mock('../internal/pending-action', async (importOriginal) => ({
   ...(await importOriginal<typeof PendingActionModule>()),
@@ -37,6 +49,10 @@ const dermato = { descricao: 'Consulta Dermatológica', categoria: 'consulta' };
 const PROCEDURE_ID = '55555555-5555-5555-5555-555555555555';
 const DOCTOR_ID = '66666666-6666-6666-6666-666666666666';
 const APPOINTMENT_ACTION_ID = '88888888-8888-8888-8888-888888888888';
+const INSURER_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const OTHER_INSURER_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const PLAN_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const MEMBERSHIP_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 
 const unregisteredPatientContext: ToolContext = {
   tx: {} as Tx,
@@ -82,6 +98,23 @@ beforeEach(() => {
     summary: args.summary,
     expiresAt: new Date(Date.now() + 600_000).toISOString(),
   }));
+  mocks.getSchedulingInsuranceOptions.mockResolvedValue({
+    enabled: true,
+    insurers: [
+      {
+        id: INSURER_ID,
+        name: 'Unimed Sintética',
+        plans: [{ id: PLAN_ID, name: 'Enfermaria' }],
+      },
+      { id: OTHER_INSURER_ID, name: 'Saúde Bem', plans: [] },
+    ],
+  });
+  mocks.listPatientCardsForScheduling.mockResolvedValue([]);
+  mocks.schedulingTermsForProcedure.mockResolvedValue({
+    guideType: 'consulta',
+    requiresAuthorization: false,
+  });
+  mocks.checkSchedulingChoice.mockResolvedValue(null);
 });
 
 describe('prepare_appointment com preço único', () => {
@@ -249,5 +282,183 @@ describe('com o sinal ligado exige o cadastro (decisão de 08/10/2026)', () => {
       ),
     ).rejects.toThrow('mais de um paciente');
     expect(mocks.proposePendingAction).not.toHaveBeenCalled();
+  });
+});
+
+describe('P11 — prepare_appointment pelo convênio', () => {
+  const prepare = (input: Record<string, unknown>, ctx: ToolContext = registeredPatientContext) =>
+    getTool('prepare_appointment')!.handler(input as never, ctx);
+
+  it('jornada 2: operadora ativa → prepara convênio sem sinal, com o aviso da carteirinha e sem pedir o número', async () => {
+    const response = await prepare({ insurer_name: 'Unimed Sintética' });
+    expect(response).toMatchObject({ status: 'appointment_prepared' });
+    expect(mocks.previewDepositForBooking).not.toHaveBeenCalled();
+    expect(mocks.checkSchedulingChoice).toHaveBeenCalledWith(
+      registeredPatientContext.clinicId,
+      registeredPatientContext.patientId,
+      { insurerId: INSURER_ID, planId: PLAN_ID, membershipId: null, guideType: 'consulta' },
+    );
+    const args = mocks.proposePendingAction.mock.calls[0]![1] as {
+      payload: Record<string, unknown>;
+      summary: string;
+    };
+    expect(args.payload).toMatchObject({
+      type: 'schedule_appointment',
+      insurance: {
+        insurerId: INSURER_ID,
+        planId: PLAN_ID,
+        membershipId: null,
+        guideType: 'consulta',
+      },
+    });
+    expect(args.payload).not.toHaveProperty('depositAmount');
+    expect(args.summary).toContain('pelo convênio Unimed Sintética (plano Enfermaria)');
+    expect(args.summary).toContain('A recepção da clínica vai conferir a sua carteirinha');
+    expect(args.summary).not.toMatch(/R\$|sinal|link|número/i);
+  });
+
+  it('usa a carteirinha que a recepção já cadastrou (só o id) e o plano dela', async () => {
+    mocks.getSchedulingInsuranceOptions.mockResolvedValue({
+      enabled: true,
+      insurers: [
+        {
+          id: INSURER_ID,
+          name: 'Unimed Sintética',
+          plans: [
+            { id: PLAN_ID, name: 'Enfermaria' },
+            { id: OTHER_INSURER_ID, name: 'Apartamento' },
+          ],
+        },
+      ],
+    });
+    mocks.listPatientCardsForScheduling.mockResolvedValue([
+      {
+        id: MEMBERSHIP_ID,
+        insurerId: INSURER_ID,
+        planId: PLAN_ID,
+        last4: '1234',
+        validUntil: null,
+        preferred: true,
+      },
+    ]);
+    await prepare({ insurer_name: 'unimed sintetica' });
+    expect(mocks.listPatientCardsForScheduling).toHaveBeenCalledWith(
+      registeredPatientContext.clinicId,
+      registeredPatientContext.patientId,
+    );
+    const args = mocks.proposePendingAction.mock.calls[0]![1] as {
+      payload: { insurance: unknown };
+      summary: string;
+    };
+    expect(args.payload.insurance).toEqual({
+      insurerId: INSURER_ID,
+      planId: PLAN_ID,
+      membershipId: MEMBERSHIP_ID,
+      guideType: 'consulta',
+    });
+    expect(args.summary).not.toContain('1234');
+  });
+
+  it('jornada 5: contrato exige autorização → avisa o aval da operadora sem afirmar autorização', async () => {
+    mocks.schedulingTermsForProcedure.mockResolvedValue({
+      guideType: 'sp_sadt',
+      requiresAuthorization: true,
+    });
+    await prepare({ insurer_name: 'Unimed Sintética' });
+    const args = mocks.proposePendingAction.mock.calls[0]![1] as {
+      payload: { insurance: { guideType: string } };
+      summary: string;
+    };
+    expect(args.payload.insurance.guideType).toBe('sp_sadt');
+    expect(args.summary).toContain('precisa do aval da operadora');
+    expect(args.summary).not.toMatch(/está autorizad|foi autorizad/i);
+  });
+
+  it('jornada 3: operadora inativa (recusa da agenda) → nada preparado; o motivo técnico não vai ao paciente', async () => {
+    mocks.checkSchedulingChoice.mockResolvedValue(
+      'A operadora não está ativa no cadastro da clínica.',
+    );
+    const response = await prepare({ insurer_name: 'Unimed Sintética' });
+    expect(response).toEqual({
+      status: 'appointment_unavailable',
+      patient_message: expect.stringContaining('não está entre os que a clínica agenda por aqui'),
+    });
+    expect(JSON.stringify(response)).not.toContain('cadastro da clínica');
+    expect(mocks.listSlots).not.toHaveBeenCalled();
+    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
+  });
+
+  it('operadora inexistente (ou de outra clínica): mostra só as ativas desta clínica e não prepara', async () => {
+    const response = await prepare({ insurer_name: 'Amil' });
+    expect(response).toEqual({
+      status: 'appointment_information_required',
+      patient_message: expect.stringContaining('Unimed Sintética, Saúde Bem'),
+    });
+    expect(mocks.checkSchedulingChoice).not.toHaveBeenCalled();
+    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
+  });
+
+  it('nome ambíguo: pergunta de novo, sem escolher por conta própria', async () => {
+    mocks.getSchedulingInsuranceOptions.mockResolvedValue({
+      enabled: true,
+      insurers: [
+        { id: INSURER_ID, name: 'Vida', plans: [] },
+        { id: OTHER_INSURER_ID, name: 'Vida', plans: [] },
+      ],
+    });
+    const response = await prepare({ insurer_name: 'Vida' });
+    expect(response).toMatchObject({ status: 'appointment_information_required' });
+    expect((response as { patient_message: string }).patient_message).toMatch(
+      /mais de um convênio/,
+    );
+    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
+  });
+
+  it('plano dito que não é da operadora: pergunta de novo, sem chutar', async () => {
+    const response = await prepare({ insurer_name: 'Unimed Sintética', plan_name: 'Ouro Master' });
+    expect(response).toEqual({
+      status: 'appointment_information_required',
+      patient_message: expect.stringContaining('Enfermaria'),
+    });
+    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
+  });
+
+  it('módulo desligado: "é com a recepção" (sem recusar convênio) e nada preparado', async () => {
+    mocks.getSchedulingInsuranceOptions.mockResolvedValue({ enabled: false, insurers: [] });
+    const response = await prepare({ insurer_name: 'Unimed Sintética' });
+    expect(response).toEqual({
+      status: 'appointment_unavailable',
+      patient_message: expect.stringContaining('feito pela recepção'),
+    });
+    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
+  });
+
+  it('indisponibilidade do Convênios: fail-closed, nada preparado nem afirmado', async () => {
+    mocks.getSchedulingInsuranceOptions.mockRejectedValue(new Error('timeout'));
+    const response = await prepare({ insurer_name: 'Unimed Sintética' });
+    expect(response).toEqual({
+      status: 'appointment_unavailable',
+      patient_message: expect.stringContaining('Não consegui consultar os convênios'),
+    });
+    expect(mocks.proposePendingAction).not.toHaveBeenCalled();
+  });
+
+  it('contato sem cadastro: convênio exige o cadastro antes, mesmo com marcação anônima permitida', async () => {
+    mocks.getDepositPolicy.mockResolvedValue({ enabled: false });
+    const response = await prepare(
+      { insurer_name: 'Unimed Sintética' },
+      { ...unregisteredPatientContext, canScheduleAnonymous: true },
+    );
+    expect(response).toEqual({
+      status: 'patient_registration_required',
+      required_fields: ['nome', 'cpf', 'motivo'],
+    });
+    expect(mocks.getSchedulingInsuranceOptions).not.toHaveBeenCalled();
+  });
+
+  it('sem insurer_name o particular não muda: nenhuma consulta ao Convênios', async () => {
+    await prepare({});
+    expect(mocks.getSchedulingInsuranceOptions).not.toHaveBeenCalled();
+    expect(mocks.previewDepositForBooking).toHaveBeenCalled();
   });
 });

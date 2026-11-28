@@ -95,3 +95,46 @@ Tudo pela superfície pública `@/contexts/health-insurance` (o agente é outro 
 **O que continua com a frente do agente (P11.1/P11.2 BLOCKED só por isso):** ligar essas funções às três ferramentas do
 registro existente (`src/contexts/ai-agent/tools/`), depois do rebase do #28 sobre o comercial e o #55, e o E2E da
 conversa no Preview. Nenhum agente novo.
+
+## 28/11/2026 (tarde) — P11.1 ligada às ferramentas reais do agente (no #55)
+
+**Por que no #55 e não no #28:** as ferramentas do agente moram no código da `main` (`src/contexts/ai-agent/tools/`),
+que o #55 já contém. O #28 (`28279c0d`) é só a correção da assinatura de pensamento do Gemini, numa base de 05/10, e
+toca outros arquivos (`src/lib/ai/*` e 9 linhas do `inbound-received.ts`). A branch do #28 **não foi alterada**.
+Nenhum agente novo: a ligação é no registro existente, com a mesma whitelist (G9) e a mesma porta (`validateAndExecute`).
+
+**Correção do mapeamento deste documento:** quem CRIA o atendimento não é o `confirm_appointment` (que confirma presença
+numa consulta que já existe), e sim a ação preparada executada por `confirm_pending_action` (`executePendingAction` →
+`schedulingApiV1.scheduleAsAgent`). É ali que o convênio entra.
+
+| Ferramenta | O que mudou |
+| --- | --- |
+| `list_insurance_options` (nova, só leitura; 16ª da whitelist) | só NOMES das operadoras e planos ativos da clínica do contexto (nunca ids, nunca de outra clínica); módulo desligado ou sem operadora ativa = "o agendamento pelo convênio nesta clínica é feito pela recepção" (nunca "não atendemos": a clínica pode atender convênio fora do sistema); falha de banco = frase segura (fail-closed) |
+| `prepare_appointment` | ganhou `insurer_name` e `plan_name` (texto do paciente). O servidor resolve a operadora ATIVA pelo nome inteiro (ambíguo = pergunta de novo; não reconhecido = mostra as ativas), o plano, a carteirinha que a recepção já cadastrou (só o id; o número e os últimos dígitos nunca vão à conversa), o tipo de guia e a autorização pelos contratos vigentes (`schedulingTermsForProcedure`) e confere com `checkSchedulingChoice`. Convênio exige paciente cadastrado. Sem prévia de sinal; o resumo só avisa a carteirinha (e o aval da operadora, se o contrato exigir) |
+| `confirm_pending_action` (execução) | o payload cifrado carrega `insurance`; no "SIM" a escolha é **conferida de novo** (operadora suspensa, módulo desligado ou assinatura encerrada entre os turnos = recusa e nada criado); o atendimento nasce `billingMode: 'convenio'` e a cobertura é registrada logo depois, como **automação** (`recordSchedulingCoverage` com `userId: null`; o agente não tem pessoa na sessão). A resposta do servidor não fala de sinal |
+| guarda de saída (`inbound-received.ts`) | só no texto LIVRE do modelo (os textos do servidor são seguros por construção) e só quando a frase fala de convênio: afirmar cobertura, autorização, elegibilidade ou valor, ou pedir o número da carteirinha, troca a resposta inteira pela frase segura, com registro em `ai_failures` (`stage: guard`) e métrica `ai_agent.insurance_guard.blocked` |
+| prompt (`PROMPT_VERSION` v18) | regra de marcar pelo convênio; a regra v13 (convênios informativos por `provide_clinic_info`) fica igual |
+
+**Efeito em Production quando o #55 for integrado (registrado para o release):** com o módulo desligado em todas as
+clínicas reais, a única mudança visível é que um paciente que pedir para marcar pelo convênio recebe "o agendamento
+pelo convênio nesta clínica é feito pela recepção…" em vez de o modelo improvisar. Nenhuma ativação de TISS, nenhuma
+escrita de Convênios.
+
+**Provas:**
+- unitários: `agent-insurance.test.ts` 25/25, `list-insurance-options.test.ts` 6/6, `prepare-appointment.test.ts` 24/24
+  (11 de convênio), `pending-action-insurance.test.ts` 6/6, `pending-confirmation.test.ts` 14/14, `register.test.ts`
+  4/4, `system.test.ts` 26/26; suítes inteiras de `ai-agent` e `health-insurance` sem regressão (as 3 falhas locais são
+  o `xmllint-wasm` ausente no `node_modules` do notebook, conhecidas; no CI ele existe);
+- banco: `scripts/security/agent-insurance-tools-db.ts` (porta 55642, 10 provas) roda as ferramentas REAIS pelo registro,
+  com as migrations todas: isolamento, módulo desligado, jornada 2 ponta a ponta (atendimento `ai_agent` convênio,
+  cobertura `automation` sem usuário, auditoria, fora do sinal/saldo, nenhuma guia nem cobrança), carteirinha
+  cadastrada, jornada 5 com SP/SADT, operadora suspensa entre o resumo e o "SIM", contato sem cadastro, particular
+  intacto e nenhuma frase indevida. Entra no workflow sintético e no gate de cobertura (43 harnesses).
+
+**O que fica para a P11.2:** o E2E da conversa com o modelo de verdade (Gemini) no Preview. Ele gasta tokens do provedor
+e depende de WhatsApp/Preview do agente, então só roda com autorização de custo; o roteiro é o das cinco jornadas acima,
+com `scripts/gemini-live-check.ts` e dados sintéticos.
+
+**Conflito previsto com o #28 no rebase dele:** só o `inbound-received.ts` (ele muda 9 linhas no tratamento do
+provedor; aqui entram o import, a variável `modelFreeText` e o bloco da guarda depois do pós-guard clínico). Resolução
+mecânica, sem sobreposição de linhas.

@@ -65,6 +65,9 @@ import { agentIdemKey } from '@/lib/agent/actor';
 /* eslint-disable boundaries/element-types -- patientApiV1 é a API interna pública (M14), mesma exceção das tools. */
 import { patientApiV1 } from '@/contexts/patient';
 /* eslint-enable boundaries/element-types */
+/* eslint-disable boundaries/element-types -- P11: frases seguras e guarda de saída do Convênios (superfície pública). */
+import { AGENT_INSURANCE_TEXT, insuranceReplyGuard } from '@/contexts/health-insurance';
+/* eslint-enable boundaries/element-types */
 
 import { AI_AGENT_EVENTS } from '../../events';
 import {
@@ -366,7 +369,10 @@ async function runRegistrationTurnServerSide(args: {
  * (08/10/2026). Data e hora no fuso da clínica, como no resumo que ele leu.
  */
 export function pendingConfirmationReply(
-  result: Pick<PendingActionExecutionResult, 'action' | 'scheduledAt' | 'depositAmount'>,
+  result: Pick<
+    PendingActionExecutionResult,
+    'action' | 'scheduledAt' | 'depositAmount' | 'billingMode'
+  >,
   timeZone: string,
 ): string {
   const when = result.scheduledAt ? appointmentTimeForPatient(result.scheduledAt, timeZone) : null;
@@ -376,6 +382,10 @@ export function pendingConfirmationReply(
       const booked = when
         ? `Pronto! Consulta agendada para ${when}.`
         : 'Pronto! Consulta agendada.';
+      // P11 — convênio: sem sinal nem link; a recepção confere a carteirinha.
+      if (result.billingMode === 'convenio') {
+        return `${booked} ${AGENT_INSURANCE_TEXT.receptionChecksCard}`;
+      }
       // 08/10/2026 — com sinal, o horário só se confirma com o pagamento pelo link.
       return result.depositAmount
         ? `${booked} Para confirmar o horário, pague o sinal de ${brlForReply(result.depositAmount)} pelo link que vou te enviar por aqui. O horário fica reservado por até 24 horas.`
@@ -405,6 +415,9 @@ export function pendingConfirmationFailureReply(err: unknown): string | null {
   }
   if (name === 'SchedulingConflictError') {
     return 'Esse horário acabou de ser ocupado. Me diga outro dia ou horário que eu verifico a agenda.';
+  }
+  if (message.includes('convênio escolhido não está mais disponível')) {
+    return AGENT_INSURANCE_TEXT.notAccepted;
   }
   if (message.includes('identidade do contato mudou') || message.includes('cadastre/identifique')) {
     return 'Não consegui confirmar com os dados atuais do seu cadastro. Me diga de novo o que deseja e preparo um novo resumo.';
@@ -881,6 +894,9 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
   let toolCallsRecord: ToolCallRecord[] | null = null;
   let snapshot: string | null = null;
   let alreadyPersisted = false;
+  // P11 — a resposta é texto livre do modelo (e não do servidor): só ela passa pela
+  // guarda de convênio (o resumo de sinal do particular, com valor, é do servidor).
+  let modelFreeText = false;
 
   // R4 — teto de custo. A consulta só roda se a cadeia de ramos chegar até ela
   // (replay, pré-filtro clínico e kill-switch já responderam sem provider e sem
@@ -1462,6 +1478,7 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
     } else {
       responseText = result.text;
       outcome = handoffExecuted ? 'handoff' : 'replied';
+      modelFreeText = true;
     }
 
     // C12 — intent canônico do turno (1ª tool) + reset de fallback no sucesso.
@@ -1497,6 +1514,28 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
         matched: post.matched,
       });
       responseText = CLINICAL_FALLBACK;
+    } else if (modelFreeText) {
+      // P11 — guarda de convênio no texto LIVRE do modelo (os textos do servidor já são
+      // seguros por construção): afirmar cobertura, autorização, elegibilidade ou valor,
+      // ou pedir o número da carteirinha, troca a resposta pela frase segura.
+      const insurance = insuranceReplyGuard(responseText);
+      if (!insurance.safe) {
+        await recordFailure({
+          clinicId,
+          conversationId: conversation.id,
+          eventId,
+          aiRequestId,
+          stage: 'guard',
+          error: new Error(`insurance guard: ${insurance.labels.join(', ')}`),
+          model: model ?? undefined,
+        });
+        metrics.emit('ai_agent.insurance_guard.blocked', {
+          clinicId,
+          aiRequestId,
+          matched: insurance.labels.join(','),
+        });
+        responseText = insurance.replacement;
+      }
     }
 
     snapshot = await buildSnapshot(clinicId, eventId, systemPrompt, messages, toolResults);
