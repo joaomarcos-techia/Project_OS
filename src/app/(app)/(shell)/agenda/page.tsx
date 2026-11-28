@@ -1,17 +1,29 @@
+import type { Metadata } from 'next';
 /**
  * /agenda — visões Mês / Semana / Dia (item 12). Navegação por URL
  * (`?view=&date=`); o servidor resolve a faixa (range.ts) e busca os
  * atendimentos. "Novo atendimento" segue o fluxo walk-in do C6.
  */
+import { Calendar } from 'lucide-react';
+
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
 import { PageNoAccess } from '@/components/shared/page-no-access';
 
-import { AgendaCalendar, AgendaNav } from './agenda-calendar';
+import {
+  AgendaCalendar,
+  AgendaControls,
+  agendaPeriodLabel,
+  AgendaSummary,
+} from './agenda-calendar';
 import { AgendaPageActions } from './agenda-page-actions';
 import { getAgendaData } from './data';
 import { DeliveryFailureStrip } from './delivery-failure-strip';
+// P3.3/P5.2 (24/11): convênios de hoje com as pendências pré-consulta (bloco do TISS, só leitura).
+import { AgendaInsuranceStrip } from '../convenios/_lib/agenda-insurance-strip';
 import { isAgendaView } from './range';
+
+export const metadata: Metadata = { title: 'Agenda' };
 
 export const dynamic = 'force-dynamic';
 
@@ -49,15 +61,16 @@ export default async function AgendaPage({
   return (
     <>
       <PageHeader
-        crumbs={[{ label: 'Operação' }, { label: 'Agenda' }]}
+        icon={<Calendar aria-hidden="true" />}
         title="Agenda"
-        description="Consultas, encaixes e correções do dia."
-        meta={`${data.appointments.length} atendimento${data.appointments.length === 1 ? '' : 's'}`}
+        headline={agendaPeriodLabel(data)}
+        description={`${data.appointments.length} atendimento${data.appointments.length === 1 ? '' : 's'} no período`}
         actions={<AgendaPageActions data={data} />}
+        controls={<AgendaControls data={data} />}
       />
 
-      <AgendaNav data={data} />
-      <div className="qoro-page-content">
+      <AgendaSummary data={data} />
+      <div className="qoro-page-content mt-4">
         {/* EC-32 — em todas as visões: o sinal de uma consulta de outro dia
             vence antes de alguém abrir aquele dia. */}
         <DeliveryFailureStrip
@@ -66,6 +79,8 @@ export default async function AgendaPage({
           tz={data.tz}
           canCopyLink={data.canEditAgenda}
         />
+        {/* P3.3/P5.2: some para quem não vê Convênios ou sem convênio no dia. */}
+        <AgendaInsuranceStrip />
         <AgendaCalendar data={data} />
       </div>
     </>

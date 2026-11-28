@@ -1,0 +1,21 @@
+{
+ "alvo": "DATABASE_URL",
+ "lido_em": "2026-11-28T05:02:37.326Z",
+ "read_only": true,
+ "ledger": {
+  "n": 169,
+  "ultima_when": "1795814573857",
+  "ultimo_hash": "844cf2f2592edba659bbcc84fa2d9ab3b265b7e688ce60112307db5815be2520"
+ },
+ "candidatas_presentes": {
+  "c0169": false,
+  "c0170": false,
+  "c0171": false,
+  "c59": false
+ },
+ "tabelas_expostas_sem_rls": [],
+ "transacoes_longas": 0,
+ "locks_esperando": 0,
+ "indices_invalidos": 0,
+ "constraints_nao_validadas": 1
+}

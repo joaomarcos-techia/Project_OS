@@ -9,6 +9,7 @@
  *
  * Server-only por transitividade (só importado por Server Actions).
  */
+import { trialAccessErrorFrom } from '@/lib/trial-access/policy';
 import {
   CrmConflictError,
   EmailAlreadyMemberError,
@@ -37,6 +38,8 @@ const KNOWN_ERRORS = [
 ] as const;
 
 export function mapIdentityError(err: unknown): string {
+  const trialError = trialAccessErrorFrom(err);
+  if (trialError) return trialError.message;
   const dbError = err instanceof Error ? (err.cause ?? err) : err;
   if (
     dbError != null &&

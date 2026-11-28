@@ -1,0 +1,617 @@
+{"ts":"2026-11-12T15:55:55.232Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:55.235Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:55.237Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:55.239Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:55.244Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:55.247Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:55.248Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:55.249Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:55.311Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:55.318Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:55.324Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:55.325Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:55.419Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:55.424Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:55.428Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:55.437Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:56.642Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:55:56.642Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:55:56.645Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:55:56.645Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:55:57.440Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:55:57.441Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:55:57.442Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:55:57.443Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:55:57.562Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:57.565Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:57.574Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:57.581Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:57.590Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:57.596Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:57.606Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:57.609Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:58.365Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:55:58.366Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:55:59.254Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:55:59.255Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:55:59.269Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:55:59.270Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:55:59.290Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:59.296Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:59.390Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:59.393Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:59.425Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:59.433Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:59.461Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:55:59.466Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:00.462Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:00.462Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:00.465Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:00.465Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:01.776Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:01.777Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:01.795Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:01.795Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:01.910Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:01.914Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:01.922Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:01.927Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:01.941Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:01.949Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:01.954Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:01.961Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:02.778Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:02.778Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:02.780Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:02.781Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:03.661Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:03.661Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:03.662Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:03.663Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:03.783Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:03.785Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:03.788Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:03.789Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:03.821Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:03.828Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:03.833Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:03.838Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:04.606Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:04.606Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:04.623Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:04.624Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:05.425Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:05.425Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:05.426Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:05.426Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:05.511Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:05.517Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:05.524Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:05.528Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:05.539Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:05.545Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:05.554Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:05.558Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:06.623Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:06.623Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:06.624Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:06.624Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:07.865Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:07.865Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:07.867Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:07.868Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:07.971Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:07.973Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:07.976Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:07.977Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:07.998Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:08.000Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:08.005Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:08.006Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:08.847Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:08.848Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:08.852Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:08.852Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:10.119Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:10.120Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:10.121Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:10.121Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:10.207Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:10.217Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:10.234Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:10.244Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:10.258Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:10.264Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:10.277Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:10.282Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:11.249Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:11.250Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:11.250Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:11.251Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:12.324Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:12.324Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:12.326Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:12.327Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:12.484Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:12.486Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:12.489Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:12.490Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:12.515Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:12.519Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:12.526Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:12.529Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:13.207Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:13.207Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:13.208Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:13.208Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:13.981Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:13.981Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:13.981Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:13.981Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:14.067Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:14.069Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:14.071Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:14.072Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:14.094Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:14.096Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:14.100Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:14.101Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:14.690Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:14.691Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:14.691Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:14.692Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:15.511Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:15.512Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:15.513Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:15.514Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:15.637Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:15.644Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:15.646Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:15.650Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:15.672Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:15.680Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:15.682Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:15.687Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:16.418Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:16.418Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:16.420Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:16.420Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:17.306Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:17.306Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:17.317Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:17.317Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:17.449Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:17.453Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:17.456Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:17.457Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:17.493Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:17.497Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:17.500Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:17.501Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:18.219Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:18.219Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:18.221Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:18.221Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:19.171Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:19.172Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:19.172Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:19.172Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:19.313Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:19.315Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:19.325Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:19.326Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:19.364Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:19.368Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:19.376Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:19.387Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:20.225Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:20.225Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:20.231Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:20.231Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:21.187Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:21.187Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:21.188Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:21.188Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:21.258Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:21.260Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:21.263Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:21.264Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:21.301Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:21.306Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:21.312Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:21.313Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:21.972Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:21.972Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:21.973Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:21.973Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:22.802Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:22.802Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:22.829Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:22.833Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:22.859Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:22.867Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:22.897Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:22.903Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:23.619Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:23.619Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:23.620Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:23.620Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:23.640Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:23.645Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:24.722Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:24.723Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:24.741Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:24.742Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:24.754Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:24.759Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:24.768Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:24.771Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:25.484Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:25.484Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:25.485Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:25.485Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:25.512Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:25.514Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:25.519Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:25.520Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:26.229Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:26.230Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:26.230Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:26.230Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:26.254Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:26.255Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:26.257Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:26.258Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:27.068Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:27.069Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:27.092Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:27.098Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:27.100Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:27.101Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:27.118Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:27.122Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:28.080Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:28.080Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:28.114Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:28.116Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:28.116Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:28.119Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:28.149Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:28.152Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:29.020Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:29.021Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:29.038Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:29.039Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:29.059Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:29.063Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:29.073Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:29.078Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:29.920Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:29.920Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:29.921Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:29.921Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:29.946Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:29.949Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:29.955Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:29.956Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:30.707Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:30.707Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:30.707Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:30.707Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:30.731Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:30.733Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:30.736Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:30.737Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:31.500Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:31.500Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:31.501Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:31.501Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:31.527Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:31.528Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:31.532Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:31.534Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:32.353Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:32.354Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:32.360Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:32.360Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:32.375Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:32.388Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:32.389Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:32.394Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:33.190Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:33.191Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:33.193Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:33.193Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:33.210Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:33.211Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:33.214Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:33.215Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:33.898Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:33.898Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:33.906Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:33.907Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:33.922Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:33.928Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:33.931Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:33.937Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:34.754Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:34.754Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:34.755Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:34.755Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:34.771Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:34.778Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:34.782Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:34.791Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:35.662Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:35.662Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:35.663Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:35.663Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:35.680Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:35.681Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:35.687Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:35.688Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:36.629Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:36.629Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:36.655Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:36.660Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:36.685Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:36.691Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:36.700Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:36.700Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:37.784Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:37.784Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:37.785Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:37.785Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:37.808Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:37.814Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:37.894Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:37.902Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:37.927Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:37.931Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:37.950Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:37.954Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:38.930Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:38.930Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:38.931Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:38.931Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:39.806Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:39.806Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:39.832Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:39.837Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:39.870Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:39.875Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:39.898Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:39.905Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:40.897Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:40.897Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:40.903Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:40.903Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:40.930Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:40.938Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:41.892Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:41.893Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:41.893Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:41.893Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:41.917Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:41.921Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T15:56:42.748Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:42.748Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:42.751Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:42.752Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:43.476Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:43.476Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:43.660Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:43.660Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:44.125Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T15:56:44.125Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+{"ts":"2026-11-12T15:56:46.146Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.149Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.150Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.150Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.151Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.151Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.218Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.219Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.224Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.227Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.229Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.231Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.289Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.290Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.291Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.292Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.296Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.302Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.350Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.355Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.356Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.356Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.365Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.376Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.401Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.411Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.417Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.418Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.426Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.432Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.456Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.479Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.484Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.486Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.494Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.503Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.509Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.530Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.531Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.538Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.552Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.554Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.561Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.582Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.583Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.589Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.604Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.608Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.612Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.630Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.635Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.638Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.652Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.658Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.665Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.690Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.692Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.700Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.709Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.710Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.720Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.753Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.760Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.761Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.777Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.777Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.786Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.804Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.813Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.818Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.832Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.833Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.836Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.851Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.866Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.868Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.875Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.880Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.885Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.894Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.917Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.927Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.932Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.944Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.951Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.957Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.972Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.984Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.987Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:46.999Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:47.012Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:47.017Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:47.037Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:47.039Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:47.044Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:47.060Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:47.068Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:47.072Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:47.087Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{"ts":"2026-11-12T15:56:47.088Z","kind":"metric","event":"insurance.payment.recorded","source":"manual"}
+{
+  "scenario": {
+    "clinics": 100,
+    "guidesPerClinic": 2,
+    "concurrency": 8,
+    "storageFailRate": 0.05
+  },
+  "totalSeconds": 69.9,
+  "throughput": {
+    "guidesPerSecond": 2.9
+  },
+  "opsMs": {
+    "clinica_setup": {
+      "n": 100,
+      "p50": 60.6,
+      "p95": 419.1,
+      "p99": 457.5,
+      "max": 457.5,
+      "errors": 0
+    },
+    "guia_emitida": {
+      "n": 200,
+      "p50": 565.5,
+      "p95": 1070.1,
+      "p99": 1436.8,
+      "max": 1440.6,
+      "errors": 0
+    },
+    "lote_criado": {
+      "n": 100,
+      "p50": 96.7,
+      "p95": 1286.2,
+      "p99": 1385.7,
+      "max": 1385.7,
+      "errors": 0
+    },
+    "lote_exportado_xsd": {
+      "n": 103,
+      "p50": 3347.3,
+      "p95": 4315.7,
+      "p99": 4622.2,
+      "max": 4628.9,
+      "errors": 3
+    },
+    "envio_protocolo_analise": {
+      "n": 100,
+      "p50": 139.1,
+      "p95": 257.5,
+      "p99": 289,
+      "max": 289,
+      "errors": 0
+    },
+    "pagamento_rateio_livro": {
+      "n": 100,
+      "p50": 77.3,
+      "p95": 132.1,
+      "p99": 205.7,
+      "max": 205.7,
+      "errors": 0
+    },
+    "painel": {
+      "n": 100,
+      "p50": 54.2,
+      "p95": 77.4,
+      "p99": 119.9,
+      "max": 119.9,
+      "errors": 0
+    },
+    "lista_guias": {
+      "n": 100,
+      "p50": 29.1,
+      "p95": 47.4,
+      "p99": 53.8,
+      "max": 53.8,
+      "errors": 0
+    },
+    "detalhe_lote": {
+      "n": 100,
+      "p50": 41.9,
+      "p95": 58,
+      "p99": 65.4,
+      "max": 65.4,
+      "errors": 0
+    }
+  },
+  "failures": {
+    "storageInjected": 3,
+    "exportRetries": 3,
+    "recoveredAfterFailureMs": {
+      "n": 3,
+      "p50": 7034.2,
+      "p95": 7627.8
+    }
+  },
+  "database": {
+    "maxConnections": 16,
+    "maxWaitingLocks": 0,
+    "size": "27 MB"
+  },
+  "process": {
+    "maxRssMb": 226
+  },
+  "integrity": {
+    "paidGuides": 200,
+    "paidReceivables": 200,
+    "ledgerDrift": 0,
+    "xmlFiles": 100
+  }
+}
+
+OK — 100 clínicas × 2 guias: ciclo completo íntegro (livro = conta, sem duplicidade) com 3 falhas de armazenamento injetadas e recuperadas.

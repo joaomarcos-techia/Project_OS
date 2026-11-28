@@ -28,6 +28,7 @@ import { TableToolbar, TableToolbarSpacer } from '@/components/ui/table-toolbar'
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { getCurrentUser } from '@/lib/auth/tenant-context';
 import { cn } from '@/lib/ui/cn';
+import { loadTrialAccessForRequest } from '../_painel/trial-access-request';
 
 import { InviteDrawer } from './invite-drawer';
 import { InviteRowActions } from './invite-row-actions';
@@ -46,10 +47,13 @@ const ROLE_META: Record<Role, { label: string; tone: BadgeTone }> = {
   doctor: { label: 'Médico', tone: 'teal' },
   financial: { label: 'Financeiro', tone: 'amber' },
   attendant: { label: 'Recepção', tone: 'gray' },
-  super_admin: { label: 'Super admin', tone: 'red' },
+  // Papel da plataforma, não da clínica (UX-014): só aparece se um dia vier numa
+  // linha; o resumo por papel não o lista (ver a nota sob o resumo).
+  super_admin: { label: 'Suporte Qoro', tone: 'red' },
 };
 
-const ROLE_ORDER: Role[] = ['owner', 'gestor', 'doctor', 'financial', 'attendant', 'super_admin'];
+/** Papéis da clínica. O suporte do Qoro não é da equipe: fica na nota do resumo. */
+const ROLE_ORDER: Role[] = ['owner', 'gestor', 'doctor', 'financial', 'attendant'];
 
 /**
  * A nota sob cada contagem diz POR QUE ela é essa — é o que transforma um
@@ -61,7 +65,7 @@ function notaDoPapel(
   employees: { role: Role; nome: string; ativo: boolean; crm: string | null }[],
 ): string {
   const doPapel = employees.filter((e) => e.role === role);
-  if (doPapel.length === 0) return role === 'super_admin' ? 'fora do tenant' : 'nenhum';
+  if (doPapel.length === 0) return 'nenhum';
   const inativos = doPapel.filter((e) => !e.ativo).length;
   const semCredencial = doPapel.filter((e) => isPractitioner(e) && e.crm == null).length;
   if (inativos > 0) return `${inativos} inativo${inativos === 1 ? '' : 's'}`;
@@ -121,12 +125,14 @@ export default async function EquipePage({
     );
   }
 
-  const [employees, limits, granularPermissionsEnabled] = await Promise.all([
+  // P-11: o trial entra no mesmo lote (antes esperava as outras três leituras terminarem).
+  const [employees, limits, granularPermissionsEnabled, trial] = await Promise.all([
     listEmployees(user.clinicId),
     billingApiV1.getPlanLimits(user.clinicId),
     user.permissions.includes(PERMISSIONS.MANAGE_PERMISSIONS)
       ? billingApiV1.hasGranularPermissions(user.clinicId)
       : Promise.resolve(false),
+    loadTrialAccessForRequest(user.clinicId),
   ]);
   const { q: qRaw, filtro: filtroRaw } = await searchParams;
   const q = (qRaw ?? '').trim();
@@ -182,7 +188,11 @@ export default async function EquipePage({
                 {seatLimit - ativos === 1 ? '' : 's'} no plano
               </span>
             ) : null}
-            <InviteDrawer ativos={ativos} seatLimit={seatLimit} />
+            {trial?.restricted ? (
+              <span>Convites disponíveis após o pagamento</span>
+            ) : (
+              <InviteDrawer ativos={ativos} seatLimit={seatLimit} />
+            )}
           </>
         }
       />
@@ -205,6 +215,19 @@ export default async function EquipePage({
           </small>
         </div>
       </section>
+      {/* UX-014 — era um cartão "Super admin 0 · fora do tenant". O acesso especial
+          continua dito, sem jargão e só com o que o código garante (revisto em 15/11):
+          a sessão de suporte (impersonação, C15) exige TOTP a cada início
+          (startImpersonationAction), expira em 1 hora (IMPERSONATION_TTL_SECONDS) e o
+          início é gravado na auditoria da plataforma na mesma transação
+          (`impersonate_start`). NÃO dizer que "toda alteração" fica na auditoria nem que
+          a sessão é o único acesso: nem toda mutação passa pelo caminho auditado, e o
+          console da plataforma lê conversas da IA fora de sessão (docs/otimização_ui_final.md, 33). */}
+      <p className="mb-(--sp-4) text-(length:--fs-xs) text-fg-muted">
+        O suporte do Qoro não faz parte desta equipe. Para entrar na conta da clínica, ele abre uma
+        sessão de suporte, que exige verificação em duas etapas e dura no máximo 1 hora; o início de
+        cada sessão fica registrado na auditoria do Qoro.
+      </p>
 
       <FilterBar className="qoro-toolbar">
         <form className="flex w-full min-w-0 items-center gap-(--sp-2) sm:w-68" role="search">

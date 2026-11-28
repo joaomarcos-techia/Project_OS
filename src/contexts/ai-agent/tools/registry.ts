@@ -20,6 +20,7 @@ import { z } from 'zod';
 
 import type { AIToolDeclaration, ToolCall } from '@/lib/ai/provider';
 import type { Tx } from '@/lib/db';
+import { assertOperationalModuleAccessTx } from '@/lib/entitlements';
 import { metrics } from '@/lib/observability/metrics';
 
 export type ToolContext = {
@@ -39,6 +40,9 @@ export type ToolContext = {
   // Texto ORIGINAL do turno. Gates server-side (ex.: confirmação explícita)
   // nunca confiam em um argumento que o próprio LLM poderia fabricar.
   currentMessage: string;
+  // P11 — as falas do PACIENTE nas últimas mensagens da conversa (em ordem, sem a do turno). Com elas o servidor
+  // separa a operadora que o paciente disse da que o modelo propôs. Ausente (chamada direta da ferramenta) = só o turno.
+  recentPatientTexts?: readonly string[];
   // Configuração autoritativa usada pelas tools, não apenas pelo prompt.
   canScheduleAnonymous: boolean;
   maxDaysAhead: number;
@@ -277,6 +281,8 @@ export async function validateAndExecute(
 
   let raw: unknown;
   try {
+    // Recheck within the mutation transaction; the turn may outlive its paid period.
+    await assertOperationalModuleAccessTx(ctx.tx, ctx.clinicId, 'ai_agents');
     raw = await tool.handler(parsedInput.data, ctx);
   } catch (err) {
     metrics.emit('ai_agent.tool.handler_error', {

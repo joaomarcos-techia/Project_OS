@@ -226,6 +226,17 @@ export function collectInventory(root: string): Inventory {
       guard: 'public-local-session-clear',
       call: 'supabase.auth.signOut',
     },
+    // S2 (requisito 83): renova só o registro de atividade da PRÓPRIA sessão, depois da porta única (sessão
+    // bloqueada continua bloqueada); não lê nem escreve dado de clínica.
+    'src/app/(app)/_lib/session-activity-actions.ts#registerSessionActivityAction': {
+      guard: 'authenticate-own-session-activity-cookie',
+      call: 'authenticate',
+    },
+    // S2: encerra a sessão local depois do bloqueio por inatividade (mesmo contrato do switchAccountAction).
+    'src/app/(app)/_lib/session-activity-actions.ts#lockSessionAction': {
+      guard: 'public-local-session-clear',
+      call: 'supabase.auth.signOut',
+    },
     'src/app/(app)/auth/confirm/route.ts#GET': {
       guard: 'public-static-confirmation-bridge',
       call: 'bridgeHtml',
@@ -247,12 +258,23 @@ export function collectInventory(root: string): Inventory {
       call: 'requestSignupRecovery',
     },
     'src/app/api/signup/sessions/destination/route.ts#GET': {
-      guard: 'same-origin-short-browser-cookie-own-destination-read-limit',
-      call: 'readSignupCodeDestination',
+      guard: 'same-origin-limit-uniform-gone-no-account-read',
+      call: 'assertSignupReadAllowed',
     },
     'src/app/api/signup/sessions/verify/route.ts#POST': {
       guard: 'origin-limit-cookie-email-code-expiry-attempts-cas',
       call: 'confirmSignupEmailCode',
+    },
+    // Pre-tenant admission is not requireUser(): the email/code proof happens
+    // before a tenant exists. Route rejection tests and the real Auth/SQL
+    // harness verify these exact services; never grant a generic signup bypass.
+    'src/app/api/signup/pilot/route.ts#POST': {
+      guard: 'private-flag-origin-limit-invitation-expiry-and-single-browser-session',
+      call: 'bootstrapPilotSignup',
+    },
+    'src/app/api/signup/pilot/provision/route.ts#POST': {
+      guard: 'private-flag-origin-limit-cookie-verified-auth-bound-identity-and-transaction',
+      call: 'provisionPilotSignup',
     },
     'src/app/api/webhooks/resend/route.ts#POST': {
       guard: 'svix-hmac-expiry-body-cap-and-event-deduplication',
@@ -346,6 +368,10 @@ export function collectInventory(root: string): Inventory {
     'src/app/api/webhooks/asaas/route.ts#POST': {
       guard: 'asaas-shared-token',
       call: 'asaasProvider.validateWebhookToken',
+    },
+    'src/app/api/webhooks/abacatepay/route.ts#POST': {
+      guard: 'abacatepay-secret-hmac-durable-inbox',
+      call: 'createAbacatePayWebhookHandler',
     },
     'src/app/api/webhooks/asaas/patient/[ref]/route.ts#POST': {
       guard: 'asaas-tenant-token',

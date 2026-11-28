@@ -31,7 +31,7 @@ export function ChecklistDismiss() {
         })
       }
     >
-      Dispensar
+      Não mostrar mais
     </button>
   );
 }

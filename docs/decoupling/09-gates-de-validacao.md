@@ -1,0 +1,31 @@
+# Gates e decisões de avanço
+
+**Estado atual:** análise/documentação e caracterização local concluídas. Nenhum gate de substituição abaixo recebeu PASS nesta rodada. Os resultados históricos permanecem evidência do seu SHA/ambiente, não dos adapters ainda inexistentes.
+
+| Gate              | Entregas / dependências            | Critérios mensuráveis                                                                                                           | Prova e aprovador                                                     | Estado atual                                         |
+| ----------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------- |
+| G0                | B00 + O02 para operação com dados  | Snapshot/escopo/keys identificados; restore relevante e riscos conhecidos; nenhum destino sensível sem autorização              | Manifestos, restore e metadados atuais; segurança/DBA/founder         | PENDENTE operacional; inventário estático disponível |
+| G1                | B02                                | Contratos/capabilities, decisões, nomes/unidades e aprovações aceitos; nenhuma dependência crítica oculta sem owner             | ADRs, diff e matriz; tech lead/segurança/founder                      | PENDENTE aprovação                                   |
+| G2                | B01/O01, O02 antes de restore real | Cenários críticos atuais caracterizados; fixtures, alertas e cleanup exercitados                                                | Suites + efeito no DB + entrega de alerta; QA/SRE                     | Evidência local parcial; gate completo PENDENTE      |
+| G3 por capacidade | H01/S01/F01/I01/O03                | Domínio/casos migrados sem import proprietário; fachada compatível; contrato e arquitetura verdes                               | AST/imports, testes de equivalência; tech lead/QA                     | PENDENTE                                             |
+| G4                | F01–F06 + X02                      | Fluxos suportados do segundo gateway; zero dupla cobrança/benefício; zero divergência não resolvida; contratos antigos intactos | Sandbox, webhook/readback/DB/UI, reconciliação; backend/financeiro/QA | PENDENTE                                             |
+| G5S               | S01–S04                            | 100% objetos elegíveis com hash/tamanho, ACL e referências; delete/delta/rollback sem ressurreição                              | Manifesto/restore/suite real; segurança/SRE                           | PENDENTE                                             |
+| G5I               | I01–I05                            | 100% identidade interna mapeada no cohort; nenhuma elevação de AAL/papel; sessão/recovery/MFA e revogação demonstrados          | Contract + DB + browser; segurança/QA                                 | PENDENTE                                             |
+| G6                | D01–D04 + I05                      | Postgres alternativo do zero e de snapshot; FKs/policies/roles/crypto/queries e isolamento equivalentes                         | SQL, restore e E2E; DBA/segurança                                     | PENDENTE                                             |
+| G7                | H01–H04/O04/X01                    | App/landing fora Vercel, 21 schedules em paridade, headers/callbacks/PDF/secrets/capacidade e retorno provados                  | Build/runtime/E2E/alerta e manifest; SRE/QA                           | PENDENTE                                             |
+| G8                | X04 após exercícios A/B/C          | Falhas compostas C01–C07; RPO/RTO/rollback medidos e metas aprovadas; sem inconsistência P0/P1                                  | Execuções e incident drill; tech lead/segurança/financeiro            | PENDENTE                                             |
+| G9                | X05                                | Runbooks reproduzidos por outro operador, limitações/obrigações antigas e retenção aprovadas                                    | Checklist e aceite operacional; founder/operação                      | PENDENTE                                             |
+
+Use status terminal somente após execução: **PASS** prova suficiente; **FAIL** requisito executado e reprovado; **BLOCKED** dependência específica impede execução; **CONDITIONAL** exceção com responsável, prazo e autorização formal. PENDENTE não é exceção aprovada. G2 tem evidência parcial, não se concede PASS pela soma de mocks.
+
+## Ficha obrigatória de cada decisão
+
+### Recorte AbacatePay — continuidade com suporte pendente
+
+Os gates globais acima não mudam por um PASS local. A [matriz S1/L1–L7/E1–E4](asaas-to-abacatepay/MATRIZ-CENARIOS-E-TESTES.md#continuidade-aguardando-suporte--gates-s1-l1l7-e-e1e4) registra implementação, tipo de teste e dependência. S1 comprova somente mensagem preparada/entregue, não envio/resposta. L4 comprova proteção das operações Qoro, não uso único garantido no checkout hospedado. E1–E4 continuam BLOCKED até orientação/provas oficiais suficientes; não retirar esses critérios. O [registro final do incremento](asaas-to-abacatepay/RELATORIO-HOMOLOGACAO-FINAL.md#26-continuidade-enquanto-o-suporte-não-responde--09112026) contém os resultados dos gates afetados e do novo SHA.
+
+Registrar gate + SHA/release/ambiente + critérios/metas aprovados + comandos/resultados + links de evidência + falhas + risco residual + ação corretiva + aprovador/data + GO/NO-GO. Em falha: congelar a capacidade afetada e continuar trabalho independente seguro. Não prosseguir para cutover financeiro com efeito incerto ou autorização multi-tenant sem prova.
+
+## Regras de interrupção
+
+Qualquer acesso cruzado, exposição de segredo/arquivo privado, valor/período/benefício indevido, falta de hash no lote migrado, perda de evento/escrita sem reconciliação, scheduler duplo, origem de callback errada ou rollback inviável é **NO-GO da capacidade**. Manter writer autoritativo, preservar evidência e acionar responsável. O risco financeiro não pode ser aceito por simples timeout do teste.

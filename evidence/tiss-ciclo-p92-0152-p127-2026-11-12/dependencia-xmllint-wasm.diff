@@ -1,0 +1,50 @@
+diff --git a/package.json b/package.json
+index a5d4ae39..d927fc41 100644
+--- a/package.json
++++ b/package.json
+@@ -147,6 +147,7 @@
+     "safe-stable-stringify": "2.5.0",
+     "server-only": "0.0.1",
+     "tailwind-merge": "3.6.0",
++    "xmllint-wasm": "5.3.0",
+     "zod": "^4.6.6"
+   },
+   "devDependencies": {
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index b72f460e..4489132d 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -95,6 +95,9 @@ importers:
+       tailwind-merge:
+         specifier: 3.6.0
+         version: 3.6.0
++      xmllint-wasm:
++        specifier: 5.3.0
++        version: 5.3.0(@types/node@22.19.19)
+       zod:
+         specifier: ^4.6.6
+         version: 4.6.6
+@@ -5080,6 +5083,12 @@ packages:
+       utf-8-validate:
+         optional: true
+ 
++  xmllint-wasm@5.3.0:
++    resolution: {integrity: sha512-sEgRXdf2t13eYCFCURmCE6h2hwleEOIS9VL/jOh9JJJnez2YXIooi2Ghm05/JZEPXyPawN8sMASPVZlmh8Sd6A==}
++    engines: {node: '>=16'}
++    peerDependencies:
++      '@types/node': '>=16'
++
+   y18n@4.0.3:
+     resolution: {integrity: sha512-JKhqTOwSrqNA1NY5lSztJ1GrBiUodLMmIZuLiDaMRJ+itFd+ABVE8XBjOvIWL+rSqNDC74LCSFmlb/U4UZ4hJQ==}
+ 
+@@ -10185,6 +10194,10 @@ snapshots:
+ 
+   ws@8.21.0: {}
+ 
++  xmllint-wasm@5.3.0(@types/node@22.19.19):
++    dependencies:
++      '@types/node': 22.19.19
++
+   y18n@4.0.3: {}
+ 
+   yallist@3.1.1: {}

@@ -1,0 +1,17 @@
+PASS     3s  Prod dependency audit gate (high+)
+PASS    72s  Typecheck
+PASS    82s  Lint
+PASS    19s  Arch check (madge — circular deps)
+PASS     7s  Arch DB check (AST connection-origin guard)
+PASS     2s  Migration safety gate (anti-destructive)
+PASS     2s  Observability drift gate (docs ⇔ vercel.json ⇔ eventos)
+PASS    10s  Handler registry gate (catalog ⇔ registry)
+PASS   377s  Test + coverage gate
+FAIL    27s  Security inventory (AST and explicit guard review)
+PASS    10s  Two-tenant isolation (temporary local Postgres)
+PASS     7s  Convênios — isolamento de todas as tabelas do módulo (temporary local Postgres, P12.1)
+FAIL    89s  Build
+FAIL     2s  Client bundle secrets and local HTTP boundaries
+FAIL     6s  E2E gate (superfície pública, sem credencial)
+
+11 PASS, 4 FAIL, 2 SKIPPED em 716s → evidence\local-2026-11-25\ci

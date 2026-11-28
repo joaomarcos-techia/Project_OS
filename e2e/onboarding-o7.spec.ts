@@ -44,9 +44,9 @@ test.describe('O-7 — onboarding operacional autenticado', () => {
     const { erros } = vigiar(page);
     await authenticate(page);
     await expect(page).toHaveURL(/\/dashboard(?:\?|$)/u);
-    // O `<h1>` do dashboard é a saudação; basta existir para provar que o RSC
+    // O `<h1>` do dashboard é o nome da tela (UX-011); vê-lo prova que o RSC
     // renderizou em vez de cair no error boundary.
-    await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible();
     expect(erros, erros.join(' | ')).toEqual([]);
   });
 

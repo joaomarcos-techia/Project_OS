@@ -27,7 +27,7 @@ Baseline: `main` em `534995b0a41d3b856fa0310e9e4359245a44589a`. Worktree exclusi
 | Lint, inventário e CI | Registrar resultado final abaixo; não herdar PASS do baseline. |
 | Interface desktop/mobile | Spec preparada em 1440/390 px, com respostas HTTP sintéticas. Não prova entrega no provedor, Auth ou banco remoto. Resultado de execução no registro final. |
 
-Comandos específicos: `node node_modules/vitest/vitest.mjs run` com os sete arquivos afetados; `node --conditions=react-server node_modules/tsx/dist/cli.mjs scripts/security/signup-email-correction-db.ts`; `node node_modules/typescript/bin/tsc --noEmit`. Logs/JSON locais ficam em `dist`, ignorado pelo Git.
+Comandos específicos: `node node_modules/vitest/vitest.mjs run` com os sete arquivos afetados; PowerShell: `$env:NODE_OPTIONS='--conditions=react-server'` seguido de `node node_modules/tsx/dist/cli.mjs scripts/security/signup-email-correction-db.ts`; `node node_modules/typescript/bin/tsc --noEmit`. Logs/JSON locais ficam em `dist`, ignorado pelo Git.
 
 Um teste antigo de UI exigia repetir os nomes salvos; foi ajustado para exigir a preservação e a edição explícita, sem remover a cobertura. O ensaio de banco inicialmente reutilizava o mesmo e-mail entre fixtures e sofreu interferência entre casos; passou após usar identidades únicas, mantendo as asserções. O inventário inicialmente sinalizou a nova rota para revisão; o guard foi cadastrado explicitamente após os testes, sem relaxar o checker.
 
@@ -42,3 +42,13 @@ Ainda depende do novo Preview/CI e de autorização específica para publicar em
 Lint integral, TypeScript final, Prettier dos arquivos executáveis alterados, `git diff --check` e inventário de segurança passaram. O inventário contém 196 ações, 62 métodos HTTP, zero guard sem revisão, zero drift de env pública e zero teste de rota ausente/regredido. Não houve alteração do checker para aceitar a rota: o registro descreve o guard testado.
 
 O Preview e a CI serão registrados após executar o novo SHA. Nenhum resultado remoto é herdado do código anterior. Sem novas escritas remotas de dados ou envios de e-mail.
+
+## Publicação específica do cadastro — 09/11/2026
+
+O founder autorizou expressamente publicar o PR #54, commit revisado `6da701b7`. A CI 42719828614 passou **6.186/6.186** em 581 arquivos, build, TypeScript/lint, segurança e isolamento. E2E público: **8 PASS/2 SKIP**, somente os caminhos Turnstile sem chaves no build isolado. Os 2/2 testes novos de interface passaram em Preview (HTTP sintético, sem envio/Auth/DB remoto).
+
+Merge em `main`: `5620a0987ec53db7d7358728eb7d457d9d373df3`. As árvores Git do merge e do commit revisado são idênticas. Deployment `dpl_2gHasgxKuWkFY8ct1w56VLeHDhQP`, alias `app.qoro.dev`, READY às 23:38 UTC. Referência de rollback: `dpl_xkGHcr1ZF1WtsLN3MgkRvWDE8cBU`/`534995b0`; sem alteração de schema ou env.
+
+Smoke Production final **9/9**: login/cadastro/retomada públicos, assinatura/documentação protegidas, CSRF e cookie obrigatório na correção, assets com o novo fluxo. O primeiro harness esperava documentação pública; confirmou-se o contrato protegido no código e HTTP 307. A expectativa do harness foi corrigida, sem mudar o produto. A amostra de logs de 23:38–23:42 UTC não encontrou erro/fatal nem requests 5xx, sem persistir mensagens sensíveis. Não é garantia de todo o tráfego ou da saúde futura.
+
+Nenhuma conta, e-mail, cobrança ou migration foi criada por esses testes. O smoke HTTP/assets não substitui um cadastro real ou prova de caixa de entrada. A campanha não foi reativada. O PR #53 financeiro continua separado/draft; publicar o cadastro não ativa AbacatePay.

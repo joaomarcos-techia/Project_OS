@@ -1,0 +1,56 @@
+[
+ {
+  "tag": "0033_messaging_connection_status",
+  "idx": 33,
+  "appliedHash": "62ee45d29883c7c6902fff1263dfb11fb0a2eea3c58d42b6cc1d1ee673e09533",
+  "fileHashLf": "5d4adf2be3846b99a9c1ad551464b38716cfb2b813ccdc4ced3bf0fce30aa5a8",
+  "tipo": "só quebra de linha (aplicado com CRLF; conteúdo idêntico)",
+  "versaoAplicadaNoGit": null,
+  "ultimoCommit": "42cbef41 2026-06-27 feat(clinical): receituário de controle especial (Fase 1) + endereço do paciente"
+ },
+ {
+  "tag": "0037_profiles_invite_and_crm",
+  "idx": 37,
+  "appliedHash": "2c534ae3507d76b1f2719f906c5b5c16fecb02e143fcc27822d72c5058ddbcc0",
+  "fileHashLf": "9846484ad215d659463bc0ce17c383e0170df06fbae1d34381c099da5619a983",
+  "tipo": "só quebra de linha (aplicado com CRLF; conteúdo idêntico)",
+  "versaoAplicadaNoGit": null,
+  "ultimoCommit": "2dda2c6e 2026-07-05 feat(identity): convite de equipe — nucleo \"Convidar\" (ADR-032 Fase 2, sub-fase 1)"
+ },
+ {
+  "tag": "0051_ai_conversations_panel",
+  "idx": 51,
+  "appliedHash": "69152b982938ae92519104adfe0b1e2902ebb0c2845085b61156070d40fd5f04",
+  "fileHashLf": "ea9e22ba96c1060546c58afe904f261d215adae69bf568381fc4c063784e6a47",
+  "tipo": "versão aplicada não encontrada no histórico do git",
+  "versaoAplicadaNoGit": null,
+  "ultimoCommit": "8f97f483 2026-07-20 feat(ai): implement AI conversations inbox and human handoff"
+ },
+ {
+  "tag": "0071_runtime_role_timeouts",
+  "idx": 71,
+  "appliedHash": "bad37d1e907b4ed642df3633db2be54343e4ae9273c78d0f8876f83f1d0a878b",
+  "fileHashLf": "da6e590bd926a0faeb163c315a1f78d638357a5dc16af43f7bbb5e697347c1f5",
+  "tipo": "só quebra de linha (aplicado com CRLF; conteúdo idêntico)",
+  "versaoAplicadaNoGit": null,
+  "ultimoCommit": "e4bd4d93 2026-07-25 fix(db): statement/lock timeout a nível de role (Supavisor não propaga connection.*)"
+ },
+ {
+  "tag": "0093_ai_clinic_config_convenios",
+  "idx": 93,
+  "appliedHash": "4e9c4587de28fcb0c7d9b9ff919f612c19ba69ddee5954ffa39f9e7b76e102b7",
+  "fileHashLf": "92c284c71d95f70378781297a8213c7213b78bbbfb741466f57ac6949ac7e8b3",
+  "tipo": "versão aplicada não encontrada no histórico do git",
+  "versaoAplicadaNoGit": null,
+  "ultimoCommit": "cff1d6e8 2026-08-30 feat(ai-agent): inform clinic insurance plans"
+ },
+ {
+  "tag": "0124_offer_2026_trial_deadline",
+  "idx": 124,
+  "appliedHash": "d924aa270afd13bd6528aaf200b1d53440f0a79e317755485458e6382e1a16d0",
+  "fileHashLf": "a354f71adc49266b36aa1c2a5a21915e3b6252fd8f8e9bad3fd8b4caed7ab689",
+  "tipo": "versão aplicada não encontrada no histórico do git",
+  "versaoAplicadaNoGit": null,
+  "ultimoCommit": "75aa875b 2026-10-19 Prepare 2026 offer seat limits and absolute trial in DEV"
+ }
+]

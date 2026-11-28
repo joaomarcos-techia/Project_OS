@@ -86,6 +86,8 @@ function transitionPayload(
           snapshotProcedureName: appt.snapshotProcedureName,
           snapshotDoctorNome: appt.snapshotDoctorNome,
           scheduledAt: (appt.scheduledAt as Date).toISOString(),
+          // Lida da linha travada nesta transação: o Financeiro decide por ela.
+          billingMode: appt.billingMode,
         },
       };
     case SCHEDULING_EVENTS.CANCELLED:
@@ -247,6 +249,29 @@ export async function applyTransition(tx: Tx, o: TransitionOpts): Promise<Appoin
     idempotencyKey: `${o.clientKey}:${o.target}`,
     correlationId: o.correlationId,
   });
+  // Convênio concluído: evento próprio para a guia automática (mesma transação,
+  // mesma chave de origem). O `completed` acima segue para o Financeiro, que não
+  // cria recebível cheio para convênio.
+  if (
+    eventType === SCHEDULING_EVENTS.COMPLETED &&
+    appt.billingMode === 'convenio' &&
+    appt.patientId
+  ) {
+    await publishEvent(tx, {
+      clinicId: o.clinicId,
+      eventType: SCHEDULING_EVENTS.INSURANCE_COMPLETED,
+      payload: {
+        appointmentId: appt.id,
+        clinicId: appt.clinicId,
+        patientId: appt.patientId,
+        doctorId: appt.doctorId,
+        procedureId: appt.procedureId,
+        scheduledAt: (appt.scheduledAt as Date).toISOString(),
+      },
+      idempotencyKey: `${o.clientKey}:${o.target}:convenio`,
+      correlationId: o.correlationId,
+    });
+  }
 
   return toAppointmentSummary(updated!);
 }
@@ -472,6 +497,7 @@ export async function insertScheduledAppointment(
         input.provenance?.createdVia ?? (actorType === 'ai_agent' ? 'ai_agent' : 'attendant'),
       urgencia: data.urgencia ?? false,
       observacoes: data.observacoes ?? null,
+      billingMode: data.billingMode ?? 'particular',
       recurrenceSeriesId: input.recurrence?.seriesId ?? null,
       recurrenceOccurrence: input.recurrence?.occurrence ?? null,
       importBatchId: input.provenance?.importBatchId ?? null,
@@ -700,6 +726,9 @@ export async function rescheduleCore(
             createdVia: actorType === 'ai_agent' ? 'ai_agent' : 'attendant',
             urgencia: old.urgencia,
             observacoes: old.observacoes,
+            // Remarcar não muda a forma de atendimento (convênio continua convênio; o banco
+            // confere a habilitação e o bloqueio comercial de novo).
+            billingMode: old.billingMode,
             createdBy: userId,
             rescheduledFromAppointmentId: old.id,
           })

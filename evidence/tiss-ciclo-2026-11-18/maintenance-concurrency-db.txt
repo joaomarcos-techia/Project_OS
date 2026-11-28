@@ -1,0 +1,7 @@
+PASS 1: quatro execuções simultâneas: cada senha vencida vence uma vez (um histórico), cada fato vira um aviso, um pedido de entrega por clínica; as contagens das execuções somam exatamente
+PASS 2: seis sincronizações simultâneas só de avisos: cada aviso uma vez, um lote e um pedido de entrega, sem impasse nem falha registrada
+PASS 3: linha presa por outra transação: a execução espera o lock_timeout (16 s), a clínica falha sem efeito parcial e a outra segue; solta a linha, a próxima execução recupera uma vez só
+PASS 4: conexão derrubada no meio da execução: a clínica falha sem efeito parcial, a outra segue, e a próxima execução recupera uma vez só
+PASS 5: falha parcial: a sincronização dos avisos falha (SQLSTATE na métrica, sem identificador) e o vencimento fica; devolvida a permissão, a próxima execução cria o aviso e pede a entrega uma vez; a seguinte não repete
+PASS 6: execuções simultâneas em clínicas diferentes não se bloqueiam nem se misturam
+6/6 provas de concorrência da manutenção de Convênios (P6.6/P12.6).

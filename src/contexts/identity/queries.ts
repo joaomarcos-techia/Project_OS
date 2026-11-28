@@ -117,7 +117,7 @@ export async function listEmployees(clinicId: string): Promise<EmployeeSummary[]
   });
 }
 
-export { listActiveOwnerEmails } from './internal/owner-contacts';
+export { listActiveMemberEmails, listActiveOwnerEmails } from './internal/owner-contacts';
 
 /**
  * Resolve nomes de funcionários por id (para enriquecer feeds que só têm

@@ -6,6 +6,7 @@
  * saúde justamente no cenário que o alerta existe para pegar.
  */
 import { describe, expect, it } from 'vitest';
+import { PgDialect } from 'drizzle-orm/pg-core';
 
 import {
   buildPurgeStatement,
@@ -31,6 +32,18 @@ describe('retention-policy — registro é a fonte única', () => {
     expect(tables).toContain('outbox');
     expect(tables).toContain('login_attempts');
     expect(tables).toContain('idempotency_keys');
+  });
+
+  it('login_attempts guarda o registro de acesso pelo piso legal: 6 meses (Marco Civil, art. 15) e 180 dias (ANS, req. 84)', () => {
+    const p = RETENTION_POLICIES.find((x) => x.table === 'login_attempts')!;
+    // O semestre mais longo tem 184 dias; abaixo disso a purga diária apagaria registro ainda obrigatório.
+    expect(p.days).toBeGreaterThanOrEqual(184);
+    expect(p.days).toBeGreaterThanOrEqual(180);
+    // Minimização: não é guarda indefinida.
+    expect(p.days).toBeLessThanOrEqual(200);
+    const query = new PgDialect().sqlToQuery(buildPurgeStatement(p, 5000));
+    expect(query.sql).toContain('attempted_at < now() - make_interval(days => $1)');
+    expect(query.params).toEqual([186, 5000]);
   });
 
   it('não tem tabela duplicada', () => {

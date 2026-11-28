@@ -18,6 +18,11 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
 vi.mock('./data', () => ({ getAgendaData }));
+// P3.3/P5.2 (#55): a faixa "Convênios de hoje" é um Server Component assíncrono que lê a sessão e o
+// banco; aqui ela é só o ponto de montagem (o comportamento dela tem teste próprio no #55).
+vi.mock('../convenios/_lib/agenda-insurance-strip', () => ({
+  AgendaInsuranceStrip: () => <div data-testid="agenda-insurance-strip" />,
+}));
 
 import AgendaPage from './page';
 
@@ -91,7 +96,7 @@ describe('AgendaPage', () => {
     expect(within(actions).getByRole('button', { name: 'Novo atendimento' }).className).toContain(
       'min-h-(--hit-target)',
     );
-    expect(within(actions).getByRole('button', { name: 'Mais opções' })).toBeTruthy();
+    expect(within(actions).getByRole('button', { name: 'Mais ações' })).toBeTruthy();
   });
 
   it('mantém a importação no menu e oferece ausências somente com manage:availability', async () => {
@@ -99,14 +104,31 @@ describe('AgendaPage', () => {
     expect(screen.getByRole('link', { name: 'Ausências médicas' }).getAttribute('href')).toBe(
       '/agenda/ausencias',
     );
+    // Antes de abrir o menu: com ele aberto, o resto da página fica oculto ao
+    // leitor de tela (menu modal do Radix).
+    expect(screen.getByRole('link', { name: 'Lista de espera' }).className).toContain(
+      'max-lg:hidden',
+    );
 
-    const menuTrigger = screen.getByRole('button', { name: 'Mais opções' });
+    const menuTrigger = screen.getByRole('button', { name: 'Mais ações' });
     menuTrigger.focus();
     fireEvent.keyDown(menuTrigger, { key: 'Enter' });
 
     expect(
       (await screen.findByRole('menuitem', { name: 'Importar histórico' })).getAttribute('href'),
     ).toBe('/agenda/importar');
+    // UX-012: abaixo de 1024 px os destinos do cabeçalho moram no mesmo menu
+    // (mesmo href); a partir daí esses itens somem e os botões ao lado continuam.
+    // A Agenda dobra em `lg`: a 768 px os quatro controles ainda ocupavam 2 linhas.
+    const espera = screen.getByRole('menuitem', { name: 'Lista de espera' });
+    expect(espera.getAttribute('href')).toBe('/agenda/lista-espera');
+    expect(espera.className).toContain('lg:hidden');
+    expect(screen.getByRole('menuitem', { name: 'Ausências médicas' }).className).toContain(
+      'lg:hidden',
+    );
+    expect(screen.getByRole('menuitem', { name: 'Importar histórico' }).className).not.toMatch(
+      /(?:^|\s)(?:md|lg):hidden/u,
+    );
 
     cleanup();
     getAgendaData.mockResolvedValue({
@@ -118,7 +140,7 @@ describe('AgendaPage', () => {
 
     expect(screen.queryByRole('button', { name: 'Novo atendimento' })).toBeNull();
     expect(screen.queryByRole('link', { name: 'Ausências médicas' })).toBeNull();
-    fireEvent.pointerDown(screen.getByRole('button', { name: 'Mais opções' }), {
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Mais ações' }), {
       button: 0,
       ctrlKey: false,
       pointerType: 'mouse',
@@ -132,6 +154,11 @@ describe('AgendaPage', () => {
     expect(getAgendaData).toHaveBeenLastCalledWith({ view: 'day' });
     await AgendaPage({ searchParams: Promise.resolve({ view: 'month', date: '2026-09-09' }) });
     expect(getAgendaData).toHaveBeenLastCalledWith({ view: 'month', date: '2026-09-09' });
+  });
+
+  it('P3.3/P5.2: monta a faixa "Convênios de hoje" do #55 uma vez, antes do calendário', async () => {
+    render(await AgendaPage({ searchParams: Promise.resolve({}) }));
+    expect(screen.getAllByTestId('agenda-insurance-strip')).toHaveLength(1);
   });
 
   it('mostra a faixa das mensagens que não chegaram, em qualquer visão', async () => {

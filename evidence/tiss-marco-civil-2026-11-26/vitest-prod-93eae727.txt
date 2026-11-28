@@ -1,0 +1,10 @@
+
+ RUN  v2.1.9 C:/dev/wt-mc-prod
+
+ ✓ src/lib/db/retention-policy.test.ts (17 tests) 20ms
+
+ Test Files  1 passed (1)
+      Tests  17 passed (17)
+   Start at  19:35:21
+   Duration  2.03s (transform 153ms, setup 0ms, collect 640ms, tests 20ms, environment 1ms, prepare 455ms)
+

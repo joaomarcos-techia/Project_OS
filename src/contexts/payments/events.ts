@@ -95,6 +95,18 @@ export const PAYMENTS_EVENTS = {
   EXCESS_REFUND_CONFIRMED: 'payments.patient_refund.confirmed',
   /** D27: estado financeiro autoritativo do chargeback/dinheiro desfeito. */
   PATIENT_PAYMENT_RISK_CHANGED: 'payments.patient_payment.risk_changed',
+  /**
+   * R54: devolução feita DIRETO no Asaas (sem intenção do Qoro), confirmada pela API do
+   * Asaas com a chave da clínica (estornos DONE em `GET /payments/{id}/refunds`). O
+   * Financial compensa a baixa original sem apagá-la.
+   */
+  EXTERNAL_REFUND_RECOGNIZED: 'payments.patient_refund.external_recognized',
+  /**
+   * R54: o Asaas mostra devolução que o Qoro não consegue atribuir com segurança (disputa,
+   * intenção ainda aberta, valor divergente). O Financial
+   * só abre a pendência para revisão humana; nada é compensado.
+   */
+  EXTERNAL_REFUND_REVIEW_REQUIRED: 'payments.patient_refund.external_review_required',
 } as const;
 
 const uuid = z.string().uuid();
@@ -287,6 +299,35 @@ export const PatientPaymentRiskChangedSchema = z.object({
 });
 export type PatientPaymentRiskChangedPayload = z.infer<typeof PatientPaymentRiskChangedSchema>;
 
+export const ExternalRefundRecognizedSchema = z.object({
+  clinicId: uuid,
+  appointmentId: uuid,
+  chargeId: uuid,
+  /** Linha de evidência (`patient_external_refunds`) que este evento compensa. */
+  externalRefundId: uuid,
+  /** O que este reconhecimento acrescentou ao estorno externo da cobrança. */
+  amount: z.number().positive(),
+  /** Patamar acumulado devolvido por fora do Qoro depois deste reconhecimento. */
+  externalTotal: z.number().positive(),
+  fullRefund: z.boolean(),
+  observedAt: z.string().datetime(),
+});
+export type ExternalRefundRecognizedPayload = z.infer<typeof ExternalRefundRecognizedSchema>;
+
+export const ExternalRefundReviewRequiredSchema = z.object({
+  clinicId: uuid,
+  appointmentId: uuid,
+  chargeId: uuid,
+  /** Valor devolvido no Asaas que ficou sem explicação automática. */
+  amount: z.number().positive(),
+  reason: z.enum(['dispute', 'open_refund_intent', 'amount_mismatch', 'amount_exceeds']),
+  // Sem horário de leitura: a mesma situação lida de novo (reentrega, varredura) tem de dar o
+  // MESMO payload, senão a chave idempotente do outbox recusaria a segunda entrega.
+});
+export type ExternalRefundReviewRequiredPayload = z.infer<
+  typeof ExternalRefundReviewRequiredSchema
+>;
+
 registerEventSchema(PAYMENTS_EVENTS.CHARGE_PAID, PatientChargePaidSchema);
 registerEventSchema(PAYMENTS_EVENTS.CREDIT_GRANTED, PatientCreditGrantedSchema);
 registerEventSchema(
@@ -303,4 +344,9 @@ registerEventSchema(PAYMENTS_EVENTS.CHARGE_CLOSED, PatientChargeClosedSchema);
 registerEventSchema(PAYMENTS_EVENTS.CHARGE_CREATED, PatientChargeCreatedSchema);
 registerEventSchema(PAYMENTS_EVENTS.CHARGE_FAILED, PatientChargeFailedSchema);
 registerEventSchema(PAYMENTS_EVENTS.EXCESS_REFUND_CONFIRMED, ExcessRefundConfirmedSchema);
+registerEventSchema(PAYMENTS_EVENTS.EXTERNAL_REFUND_RECOGNIZED, ExternalRefundRecognizedSchema);
+registerEventSchema(
+  PAYMENTS_EVENTS.EXTERNAL_REFUND_REVIEW_REQUIRED,
+  ExternalRefundReviewRequiredSchema,
+);
 registerEventSchema(PAYMENTS_EVENTS.PATIENT_PAYMENT_RISK_CHANGED, PatientPaymentRiskChangedSchema);

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -20,8 +21,11 @@ import {
   formatUSD,
 } from '../../_lib/format';
 import { clinicRepository } from '../../_lib/repositories/clinics.repo';
+import { ConveniosModuleSection } from './convenios-module-section';
 import { ExportAuditForm } from './export-form';
 import { ImpersonateForm } from './impersonate-form';
+
+export const metadata: Metadata = { title: 'Clínica' };
 
 export const dynamic = 'force-dynamic';
 
@@ -217,6 +221,14 @@ export default async function ClinicDetailPage({ params }: { params: Promise<{ i
             </Link>
             <ImpersonateForm clinicId={c.general.id} />
           </div>
+        </div>
+
+        {/* P1.13 — Convênios por clínica (desligado por padrão; motivo + TOTP a cada mudança). */}
+        <div
+          className="surface-card"
+          style={{ marginBottom: 'var(--sp-4)', padding: 'var(--sp-4)' }}
+        >
+          <ConveniosModuleSection clinicId={c.general.id} />
         </div>
 
         {c.billing.overdue > 0 ? (

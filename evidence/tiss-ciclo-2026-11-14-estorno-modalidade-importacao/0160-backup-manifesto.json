@@ -1,0 +1,29 @@
+{
+ "at": "2026-11-14T04:23:17.118Z",
+ "files": [
+  {
+   "file": "schema-public-drizzle.sql",
+   "bytes": 1019702,
+   "sha256": "66bad3a7311ae3721b4cb6454b4d5bb4121d10f5becf8c5b21d02dcd05c1ec1c",
+   "ms": 61219
+  },
+  {
+   "file": "data-0160-tables.sql",
+   "bytes": 13777,
+   "sha256": "19ff4da346e6754fbb3372d87fda87aa29fb2895fb05049c38267013d1de13e5",
+   "ms": 15687
+  },
+  {
+   "file": "data-drizzle-ledger.sql",
+   "bytes": 14054,
+   "sha256": "fc52bbd22c6550890d0e6356f558a5f4b1639fc4298e621bba8114a66e110aca",
+   "ms": 14098
+  }
+ ],
+ "schema_has": {
+  "validate_payment_transaction_insert": true,
+  "lancamentos_auto_origin_chk": true,
+  "patient_external_refunds": false,
+  "refund_checked_at": false
+ }
+}

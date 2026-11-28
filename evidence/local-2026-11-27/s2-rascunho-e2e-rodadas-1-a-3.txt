@@ -1,0 +1,18 @@
+# S2 — E2E do rascunho no Preview dedicado project-ct4ykc53k (SHA 03cba3f5, TISS_SECURITY_PROFILE_ENFORCE só nele, Auth/banco DEV)
+# rodada 1 (~11:58 UTC): R1–R5 PASS; R6 falhou só no spec (procurava sb-*-auth-token; o Qoro usa sb-<ref>-auth-token-v2)
+    ok 1 [chromium] › e2e\convenios-s2-rascunho-preview.spec.ts:211:1 › R1. aviso salva o rascunho no servidor mesmo após falha de rede; bloqueio; login novo recupera o texto (1.0m)
+    ok 2 [chromium] › e2e\convenios-s2-rascunho-preview.spec.ts:257:1 › R2. rede caída no aviso e no bloqueio: o login avisa que o salvamento não foi confirmado (29.6s)
+    ok 3 [chromium] › e2e\convenios-s2-rascunho-preview.spec.ts:283:1 › R3. duas abas no mesmo rascunho: a versão antiga recebe conflito e não sobrescreve a nova (30.6s)
+    ok 4 [chromium] › e2e\convenios-s2-rascunho-preview.spec.ts:310:1 › R4. duas abas e bloqueio simultâneo: o pendente da aba do editor vai ao servidor (44.1s)
+    ok 5 [chromium] › e2e\convenios-s2-rascunho-preview.spec.ts:334:1 › R5. outra clínica não abre o rascunho: tela 404 e a API com o token dela devolve zero linhas (11.9s)
+    1 failed
+    5 passed (3.1m)
+
+# rodada 2 (~12:03 UTC): R1 barrado no login — 'Muitas tentativas' (limite do S8: 5/e-mail, 10/IP em 15 min, janela deslizante do Upstash)
+
+# rodada 3 (12:21 UTC): R1, R2, R3 PASS; R4 barrado no login pelo mesmo limite (5º login da médica com a janela anterior ainda pesando)
+    ok 1 [chromium] › e2e\convenios-s2-rascunho-preview.spec.ts:220:1 › R1. aviso salva o rascunho no servidor mesmo após falha de rede; bloqueio; login novo recupera o texto (1.0m)
+    ok 2 [chromium] › e2e\convenios-s2-rascunho-preview.spec.ts:266:1 › R2. rede caída no aviso e no bloqueio: o login avisa que o salvamento não foi confirmado (32.7s)
+    ok 3 [chromium] › e2e\convenios-s2-rascunho-preview.spec.ts:292:1 › R3. duas abas no mesmo rascunho: a versão antiga recebe conflito e não sobrescreve a nova (34.3s)
+    1 failed
+    3 passed (3.2m)

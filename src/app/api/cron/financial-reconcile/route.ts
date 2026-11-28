@@ -19,13 +19,29 @@
 import { sql } from 'drizzle-orm';
 
 import { FINANCIAL_EVENTS, faturamentoPendencias } from '@/contexts/financial';
+import {
+  listBillingGapCandidates,
+  listCopaySyncCandidates,
+  reconcileCopayCharges,
+  reconcileInsuranceBilling,
+  runInsuranceMaintenance,
+  type CopaySyncSummary,
+  type InsuranceMaintenanceSummary,
+  type InsuranceReconcileSummary,
+} from '@/contexts/health-insurance';
 import { recordHeartbeat } from '@/lib/cron-heartbeat';
 import { dbAdmin } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
 import { withCron } from '@/lib/http/cron';
+import { captureBackgroundError } from '@/lib/observability/capture';
 import { metrics } from '@/lib/observability/metrics';
 import { publishEvent } from '@/lib/outbox/publish';
 
+import {
+  reconcileExternalRefundCandidates,
+  scanExternalRefundCandidates,
+  type ExternalRefundSweepSummary,
+} from './external-refund-sweep';
 import { ORPHAN_CREDIT_AGE_DAYS, scanOrphanCredits } from './orphan-credit-scan';
 import {
   reconcileQuarantinedPatientPayments,
@@ -46,6 +62,21 @@ const PAYMENT_ECONOMICS_LIMIT = 2;
 const PAYMENT_CORRECTION_LIMIT = 4;
 const PAYMENT_ANOMALY_LIMIT = 1;
 const PAYMENT_BACKSTOP_START_DEADLINE_MS = 30_000;
+// R54: estorno feito direto no Asaas com webhook perdido. Uma leitura por cobrança (duas
+// só quando há estorno DONE), cada uma com teto de 4 s, até o prazo abaixo.
+const EXTERNAL_REFUND_LIMIT = 10;
+const EXTERNAL_REFUND_START_DEADLINE_MS = 38_000;
+const EXTERNAL_REFUND_END_DEADLINE_MS = 44_000;
+// Convênio sem guia (P7.4): roda por último, só com orçamento sobrando, e nunca
+// derruba a obrigação primária deste cron (recebíveis do particular).
+const INSURANCE_LIMIT = 25;
+const COPAY_SYNC_LIMIT = 50;
+const INSURANCE_START_DEADLINE_MS = 45_000;
+const INSURANCE_END_DEADLINE_MS = 52_000;
+// P6.6/P12.6: manutenção de Convênios por ÚLTIMO, com o resto do orçamento (nunca antes das
+// obrigações acima; falha ou falta de tempo só adiam para a próxima execução de 15 min).
+const INSURANCE_MAINTENANCE_START_DEADLINE_MS = 53_000;
+const INSURANCE_MAINTENANCE_END_DEADLINE_MS = 56_000;
 const GRACE = "interval '15 minutes'";
 const MOTIVO = 'Atendimento concluído sem lançamento — verificar faturamento.';
 const TERMINAL_APPOINTMENT_STATUSES = new Set(['atendido', 'cancelado', 'faltou']);
@@ -77,6 +108,7 @@ export const GET = withCron(
                                                 FROM appointments a
                                                WHERE a.status = 'atendido'
                                                  AND a.faturamento_pendente = false
+                                                 AND a.billing_mode = 'particular'
                                                  AND a.updated_at < now() - ${sql.raw(GRACE)}
                                                  AND NOT EXISTS (SELECT 1 FROM lancamentos l WHERE l.appointment_id = a.id)
                                                ORDER BY a.updated_at ASC
@@ -215,8 +247,89 @@ export const GET = withCron(
         count: paymentEconomics.mismatched,
       });
     }
+    let externalRefunds: ExternalRefundSweepSummary | null = null;
+    let externalRefundsFailed = false;
+    if (Date.now() - startedAt < EXTERNAL_REFUND_START_DEADLINE_MS) {
+      try {
+        const candidates = await dbAdmin.transaction(async (tx) => {
+          // Mesmo bypass explícito das leituras acima: só identificadores, nada de valor.
+          await tx.execute(sql`RESET ROLE`);
+          return scanExternalRefundCandidates(tx, Math.min(limit, EXTERNAL_REFUND_LIMIT));
+        });
+        externalRefunds = await reconcileExternalRefundCandidates(candidates, {
+          deadlineAt: startedAt + EXTERNAL_REFUND_END_DEADLINE_MS,
+        });
+      } catch (error) {
+        externalRefundsFailed = true;
+        metrics.emit('financial.reconcile.external_refund_error', {
+          error: error instanceof Error ? error.name : 'unknown',
+        });
+      }
+    } else {
+      metrics.emit('financial.reconcile.external_refund_skipped_budget', {});
+    }
+    let insurance: InsuranceReconcileSummary | null = null;
+    let insuranceFailed = false;
+    if (Date.now() - startedAt < INSURANCE_START_DEADLINE_MS) {
+      try {
+        const candidates = await listBillingGapCandidates(INSURANCE_LIMIT);
+        insurance = await reconcileInsuranceBilling(candidates, {
+          deadlineAt: startedAt + INSURANCE_END_DEADLINE_MS,
+        });
+      } catch (error) {
+        insuranceFailed = true;
+        metrics.emit('insurance.reconcile.error', {
+          error: error instanceof Error ? error.name : 'unknown',
+        });
+      }
+    } else {
+      metrics.emit('insurance.reconcile.skipped_budget', {});
+    }
+    // P10.5: coparticipação atrás do dinheiro (o webhook sincroniza logo; isto é a garantia).
+    let copaySync: CopaySyncSummary | null = null;
+    let copaySyncFailed = false;
+    if (Date.now() - startedAt < INSURANCE_START_DEADLINE_MS) {
+      try {
+        copaySync = await reconcileCopayCharges(await listCopaySyncCandidates(COPAY_SYNC_LIMIT), {
+          deadlineAt: startedAt + INSURANCE_END_DEADLINE_MS,
+        });
+      } catch (error) {
+        copaySyncFailed = true;
+        metrics.emit('insurance.copay_sync.error', {
+          error: error instanceof Error ? error.name : 'unknown',
+        });
+      }
+    }
+    let insuranceMaintenance: InsuranceMaintenanceSummary | null = null;
+    let insuranceMaintenanceFailed = false;
+    if (Date.now() - startedAt < INSURANCE_MAINTENANCE_START_DEADLINE_MS) {
+      try {
+        insuranceMaintenance = await runInsuranceMaintenance({
+          deadlineAt: startedAt + INSURANCE_MAINTENANCE_END_DEADLINE_MS,
+        });
+      } catch (error) {
+        insuranceMaintenanceFailed = true;
+        metrics.emit('insurance.maintenance.error', {
+          error: error instanceof Error ? error.name : 'unknown',
+        });
+        // P12.6: a falha também vai ao Sentry (com stack, tag `flow`), onde a regra de alerta a vê.
+        captureBackgroundError(error, { flow: 'cron.insurance-maintenance' });
+      }
+    } else {
+      metrics.emit('insurance.maintenance.skipped_budget', {});
+    }
     const runFields = {
       opened,
+      insuranceCandidates: insurance?.candidates ?? 0,
+      insuranceGuideReady: insurance?.guideReady ?? 0,
+      insuranceGapOpen: insurance?.gapOpen ?? 0,
+      insuranceFailed,
+      copaySyncCandidates: copaySync?.candidates ?? 0,
+      copaySyncChanged: copaySync?.changed ?? 0,
+      copaySyncFailed: copaySyncFailed || (copaySync?.failed ?? 0) > 0,
+      insuranceMaintenanceExpired: insuranceMaintenance?.expired ?? 0,
+      insuranceMaintenanceDeferred: insuranceMaintenance?.deferred ?? 0,
+      insuranceMaintenanceFailed: insuranceMaintenanceFailed || (insuranceMaintenance?.failed ?? 0) > 0,
       clinics: byClinic.size,
       orphanCredits,
       orphanClinics: orphanClinicIds.size,
@@ -235,6 +348,12 @@ export const GET = withCron(
       paymentAnomalySkipped: paymentAnomalies.skipped,
       paymentAnomalyFailed: paymentAnomalies.failed,
       paymentBackstopSkippedForBudget,
+      externalRefundCandidates: externalRefunds?.candidates ?? 0,
+      externalRefundChecked: externalRefunds?.checked ?? 0,
+      externalRefundRecorded: externalRefunds?.recorded ?? 0,
+      externalRefundReview: externalRefunds?.review ?? 0,
+      externalRefundDeferred: externalRefunds?.deferred ?? 0,
+      externalRefundFailed: externalRefundsFailed || (externalRefunds?.failed ?? 0) > 0,
     };
     metrics.emit('financial.reconcile.run', runFields);
     await recordHeartbeat('financial-reconcile', 'success', runFields);

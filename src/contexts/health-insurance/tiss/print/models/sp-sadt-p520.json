@@ -1,0 +1,1191 @@
+{
+ "source": {
+  "document": "Padrão TISS — Componente de Conteúdo e Estrutura 202511",
+  "zipSha256": "6a720ed27da8397fef584e30d794aa56f18906d253ccdf460c30b1019a3a4d3b",
+  "pdfSha256": "d96ab600aa82e936738b81d18381305bde79b0aa5ede285b5b1cd6376c213d9a",
+  "page": 520
+ },
+ "title": "GUIA DE SERVIÇO PROFISSIONAL / SERVIÇO AUXILIAR DE DIAGNÓSTICO E TERAPIA - SP/SADT",
+ "width": 841.9,
+ "height": 595.3,
+ "labels": [
+  {
+   "text": "Logo da Empresa",
+   "x": 66.7,
+   "y": 20.4,
+   "size": 5.6
+  },
+  {
+   "text": "2- Nº",
+   "x": 618.8,
+   "y": 20.9,
+   "size": 4.7
+  },
+  {
+   "text": "Guia no Prestador",
+   "x": 630.7,
+   "y": 20.9,
+   "size": 4.7
+  },
+  {
+   "text": "12345678901234567890",
+   "x": 676.8,
+   "y": 20.9,
+   "size": 10.3
+  },
+  {
+   "text": "GUIA DE SERVIÇO PROFISSIONAL / SERVIÇO AUXILIAR DE",
+   "x": 274.9,
+   "y": 26.3,
+   "size": 8.5
+  },
+  {
+   "text": "DIAGNÓSTICO E TERAPIA - SP/SADT",
+   "x": 321.6,
+   "y": 35.8,
+   "size": 8.5
+  },
+  {
+   "text": "1 - Registro ANS",
+   "x": 59.8,
+   "y": 53,
+   "size": 4.7
+  },
+  {
+   "text": "3 – Número da Guia Principal",
+   "x": 126.8,
+   "y": 53,
+   "size": 4.7
+  },
+  {
+   "text": "4 - Data da Autorização",
+   "x": 61.1,
+   "y": 73.4,
+   "size": 4.7
+  },
+  {
+   "text": "5-Senha",
+   "x": 158.3,
+   "y": 73.4,
+   "size": 4.7
+  },
+  {
+   "text": "6 - Data de Validade da Senha",
+   "x": 356.9,
+   "y": 73.4,
+   "size": 4.7
+  },
+  {
+   "text": "7 - Número da Guia Atribuído pela Operadora",
+   "x": 451.4,
+   "y": 73.4,
+   "size": 4.7
+  },
+  {
+   "text": "Dados do Beneficiário",
+   "x": 59.8,
+   "y": 92.3,
+   "size": 4.7
+  },
+  {
+   "text": "8 - Número da Carteira",
+   "x": 60.7,
+   "y": 100.1,
+   "size": 4.7
+  },
+  {
+   "text": "9 - Validade da Carteira",
+   "x": 236.3,
+   "y": 100.6,
+   "size": 4.7
+  },
+  {
+   "text": "12 -Atendimento a RN",
+   "x": 724.3,
+   "y": 100.6,
+   "size": 4.7
+  },
+  {
+   "text": "89 - Nome Social",
+   "x": 329.4,
+   "y": 101,
+   "size": 5.2
+  },
+  {
+   "text": "10 - Nome",
+   "x": 60.7,
+   "y": 121.2,
+   "size": 4.7
+  },
+  {
+   "text": "Dados do Solicitante",
+   "x": 59.8,
+   "y": 142.4,
+   "size": 4.7
+  },
+  {
+   "text": "13 - Código na Operadora",
+   "x": 60.7,
+   "y": 148.7,
+   "size": 4.7
+  },
+  {
+   "text": "14 - Nome do Contratado",
+   "x": 201,
+   "y": 149.2,
+   "size": 4.7
+  },
+  {
+   "text": "15 - Nome do Profissional Solicitante",
+   "x": 60.2,
+   "y": 169.3,
+   "size": 4.7
+  },
+  {
+   "text": "20 - Assinatura do Profissional Solicitante",
+   "x": 552,
+   "y": 169.3,
+   "size": 4.7
+  },
+  {
+   "text": "16 - Conselho",
+   "x": 279.7,
+   "y": 169.8,
+   "size": 4.7
+  },
+  {
+   "text": "17 - Número no Conselho",
+   "x": 318.2,
+   "y": 169.8,
+   "size": 4.7
+  },
+  {
+   "text": "18 – UF",
+   "x": 463.4,
+   "y": 169.8,
+   "size": 4.7
+  },
+  {
+   "text": "19 - Código CBO",
+   "x": 490.2,
+   "y": 169.8,
+   "size": 4.7
+  },
+  {
+   "text": "Profissional",
+   "x": 279.7,
+   "y": 175.1,
+   "size": 4.7
+  },
+  {
+   "text": "'",
+   "x": 771.2,
+   "y": 179.8,
+   "size": 5.2
+  },
+  {
+   "text": "Dados da Solicitação / Procedimentos ou Itens Assistenciais Solicitados",
+   "x": 59.8,
+   "y": 190.1,
+   "size": 4.7
+  },
+  {
+   "text": "90 - Indicador de Cobertura Especial",
+   "x": 626.9,
+   "y": 197.4,
+   "size": 4.7
+  },
+  {
+   "text": "21 - Caráter do",
+   "x": 59.8,
+   "y": 197.6,
+   "size": 4.7
+  },
+  {
+   "text": "22 - Data da Solicitação",
+   "x": 98.9,
+   "y": 197.6,
+   "size": 4.7
+  },
+  {
+   "text": "23 - Indicação Clínica",
+   "x": 195.2,
+   "y": 197.6,
+   "size": 4.7
+  },
+  {
+   "text": "Atendimento",
+   "x": 59.8,
+   "y": 202.9,
+   "size": 4.7
+  },
+  {
+   "text": "24-Tabela",
+   "x": 59.8,
+   "y": 217.8,
+   "size": 4.2
+  },
+  {
+   "text": "25- Código do Procedimento",
+   "x": 90.8,
+   "y": 217.8,
+   "size": 4.2
+  },
+  {
+   "text": "26 - Descrição",
+   "x": 185,
+   "y": 217.8,
+   "size": 4.2
+  },
+  {
+   "text": "27-Qtde. Solic.",
+   "x": 665.3,
+   "y": 217.8,
+   "size": 4.2
+  },
+  {
+   "text": "28-Qtde. Aut.",
+   "x": 705.3,
+   "y": 217.8,
+   "size": 4.2
+  },
+  {
+   "text": "ou Item Assistencial",
+   "x": 98.6,
+   "y": 222.5,
+   "size": 4.2
+  },
+  {
+   "text": "1",
+   "x": 59.8,
+   "y": 227.6,
+   "size": 3.7
+  },
+  {
+   "text": "2",
+   "x": 59.8,
+   "y": 237.1,
+   "size": 3.7
+  },
+  {
+   "text": "3",
+   "x": 59.8,
+   "y": 246.6,
+   "size": 3.7
+  },
+  {
+   "text": "4",
+   "x": 59.8,
+   "y": 256.1,
+   "size": 3.7
+  },
+  {
+   "text": "5",
+   "x": 59.8,
+   "y": 265.4,
+   "size": 3.7
+  },
+  {
+   "text": "Dados do Contratado Executante",
+   "x": 59.8,
+   "y": 286.4,
+   "size": 4.7
+  },
+  {
+   "text": "29 - Código na Operadora",
+   "x": 59.8,
+   "y": 293.6,
+   "size": 4.7
+  },
+  {
+   "text": "30 - Nome do Contratado",
+   "x": 206.9,
+   "y": 294.1,
+   "size": 4.7
+  },
+  {
+   "text": "31 - Código CNES",
+   "x": 695.6,
+   "y": 294.1,
+   "size": 4.7
+  },
+  {
+   "text": "Dados do Atendimento",
+   "x": 59.8,
+   "y": 314.9,
+   "size": 4.7
+  },
+  {
+   "text": "32-Tipo de Atendimento",
+   "x": 59.8,
+   "y": 322.1,
+   "size": 4.7
+  },
+  {
+   "text": "33 - Indicação de Acidente (acidente ou doença relacionada)",
+   "x": 121.7,
+   "y": 322.1,
+   "size": 4.7
+  },
+  {
+   "text": "34 - Tipo de Consulta",
+   "x": 268.4,
+   "y": 322.1,
+   "size": 4.7
+  },
+  {
+   "text": "35 - Motivo de Encerramento do Atendimento",
+   "x": 325.7,
+   "y": 322.1,
+   "size": 4.7
+  },
+  {
+   "text": "91 - Regime de atendimento",
+   "x": 436.2,
+   "y": 322.2,
+   "size": 4.7
+  },
+  {
+   "text": "92 - Saúde Ocupacional",
+   "x": 514,
+   "y": 322.3,
+   "size": 4.7
+  },
+  {
+   "text": "Dados da Execução / Procedimentos e Exames Realizados",
+   "x": 59.8,
+   "y": 343.9,
+   "size": 4.7
+  },
+  {
+   "text": "36-Data",
+   "x": 63.7,
+   "y": 351.4,
+   "size": 4.7
+  },
+  {
+   "text": "37-Hora Inicial",
+   "x": 146,
+   "y": 351.4,
+   "size": 4.7
+  },
+  {
+   "text": "38-Hora Final 39-Tabela 40-Código do Procedimento",
+   "x": 183.5,
+   "y": 351.4,
+   "size": 4.7
+  },
+  {
+   "text": "41-Descrição",
+   "x": 307.8,
+   "y": 351.4,
+   "size": 4.7
+  },
+  {
+   "text": "42 - Qtde.",
+   "x": 475.8,
+   "y": 351.4,
+   "size": 4.7
+  },
+  {
+   "text": "43-Via 44-Tec. 45- Fator Red./Acresc.",
+   "x": 506.4,
+   "y": 351.4,
+   "size": 4.7
+  },
+  {
+   "text": "46-Valor Unitário (R$)",
+   "x": 596.2,
+   "y": 351.4,
+   "size": 4.7
+  },
+  {
+   "text": "47-Valor Total (R$)",
+   "x": 701.6,
+   "y": 351.4,
+   "size": 4.7
+  },
+  {
+   "text": "1",
+   "x": 59.8,
+   "y": 360.7,
+   "size": 3.7
+  },
+  {
+   "text": "2",
+   "x": 59.8,
+   "y": 370.2,
+   "size": 3.7
+  },
+  {
+   "text": "3",
+   "x": 59.8,
+   "y": 379.7,
+   "size": 3.7
+  },
+  {
+   "text": "4",
+   "x": 59.8,
+   "y": 390.2,
+   "size": 3.7
+  },
+  {
+   "text": "5",
+   "x": 59.8,
+   "y": 400.7,
+   "size": 3.7
+  },
+  {
+   "text": "Identificação do(s) Profissional(is) Executante(s)",
+   "x": 59.8,
+   "y": 415.2,
+   "size": 4.7
+  },
+  {
+   "text": "48-Seq.Ref 49-Grau Part. 50-Código na Operadora/CPF",
+   "x": 59.8,
+   "y": 421.7,
+   "size": 4.7
+  },
+  {
+   "text": "51-Nome do Profissional",
+   "x": 252.5,
+   "y": 421.7,
+   "size": 4.7
+  },
+  {
+   "text": "52-Conselho",
+   "x": 503.9,
+   "y": 421.7,
+   "size": 4.7
+  },
+  {
+   "text": "53-Número no Conselho",
+   "x": 536.1,
+   "y": 421.7,
+   "size": 4.7
+  },
+  {
+   "text": "54-UF",
+   "x": 676.8,
+   "y": 421.7,
+   "size": 4.7
+  },
+  {
+   "text": "55-Código CBO",
+   "x": 697.7,
+   "y": 421.7,
+   "size": 4.7
+  },
+  {
+   "text": "Profissional",
+   "x": 504.6,
+   "y": 425.9,
+   "size": 4.7
+  },
+  {
+   "text": "56-Data de Realização de Procedimentos em Série 57-Assinatura do Beneficiário ou Responsável",
+   "x": 59.8,
+   "y": 472,
+   "size": 4.7
+  },
+  {
+   "text": "1",
+   "x": 59.8,
+   "y": 481.4,
+   "size": 4.7
+  },
+  {
+   "text": "3",
+   "x": 204.2,
+   "y": 481.4,
+   "size": 4.7
+  },
+  {
+   "text": "5",
+   "x": 343.6,
+   "y": 481.4,
+   "size": 4.7
+  },
+  {
+   "text": "7",
+   "x": 472.3,
+   "y": 481.4,
+   "size": 4.7
+  },
+  {
+   "text": "9",
+   "x": 607.8,
+   "y": 481.4,
+   "size": 4.7
+  },
+  {
+   "text": "2",
+   "x": 59.8,
+   "y": 490.9,
+   "size": 4.7
+  },
+  {
+   "text": "4",
+   "x": 204.2,
+   "y": 490.9,
+   "size": 4.7
+  },
+  {
+   "text": "6 - |___|___|/|___|___|/|___|___|___|___| _______________",
+   "x": 343.6,
+   "y": 490.9,
+   "size": 4.7
+  },
+  {
+   "text": "8",
+   "x": 472.4,
+   "y": 490.9,
+   "size": 4.7
+  },
+  {
+   "text": "10 - |___|___|/|___|___|/|___|___|___|___| ________________",
+   "x": 606.5,
+   "y": 490.9,
+   "size": 4.7
+  },
+  {
+   "text": "58-Observação / Justificativa",
+   "x": 59.8,
+   "y": 510.1,
+   "size": 4.7
+  },
+  {
+   "text": "59 - Total de Procedimentos (R$)",
+   "x": 59.8,
+   "y": 538.4,
+   "size": 4.7
+  },
+  {
+   "text": "60 - Total de Taxas e Aluguéis (R$)",
+   "x": 163,
+   "y": 538.9,
+   "size": 4.7
+  },
+  {
+   "text": "61 - Total de Materiais (R$)",
+   "x": 266.8,
+   "y": 538.9,
+   "size": 4.7
+  },
+  {
+   "text": "62- Total de OPME (R$)",
+   "x": 370.2,
+   "y": 538.9,
+   "size": 4.7
+  },
+  {
+   "text": "63 - Total de Medicamentos (R$)",
+   "x": 472.6,
+   "y": 538.9,
+   "size": 4.7
+  },
+  {
+   "text": "64 - Total de Gases Medicinais (R$)",
+   "x": 573.5,
+   "y": 538.9,
+   "size": 4.7
+  },
+  {
+   "text": "65 - Total Geral (R$)",
+   "x": 677,
+   "y": 538.9,
+   "size": 4.7
+  },
+  {
+   "text": "66 - Assinatura do Responsável pela Autorização",
+   "x": 59.2,
+   "y": 559.7,
+   "size": 4.7
+  },
+  {
+   "text": "67 - Assinatura do Beneficiário ou Responsável",
+   "x": 307.2,
+   "y": 559.7,
+   "size": 4.7
+  },
+  {
+   "text": "68 - Assinatura do Contratado",
+   "x": 549,
+   "y": 559.7,
+   "size": 4.7
+  }
+ ],
+ "boxes": [
+  {
+   "x": 55,
+   "y": 7.7,
+   "w": 740.3,
+   "h": 579.2,
+   "paint": "fill",
+   "fill": "#ffffff",
+   "stroke": null,
+   "lineWidth": 1
+  },
+  {
+   "x": 239.9,
+   "y": 11.6,
+   "w": 314.6,
+   "h": 33.1,
+   "paint": "fill",
+   "fill": "#ffffff",
+   "stroke": null,
+   "lineWidth": 0.5
+  },
+  {
+   "x": 55,
+   "y": 26.9,
+   "w": 745,
+   "h": 561.2,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 58.9,
+   "y": 48,
+   "w": 63.4,
+   "h": 18.4,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 126,
+   "y": 48,
+   "w": 193.3,
+   "h": 18.4,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 58.8,
+   "y": 68.4,
+   "w": 91.4,
+   "h": 18,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 157.3,
+   "y": 68.4,
+   "w": 190.2,
+   "h": 18,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 356,
+   "y": 68.4,
+   "w": 88.6,
+   "h": 18,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 450.6,
+   "y": 68.4,
+   "w": 189.1,
+   "h": 18,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 58.9,
+   "y": 87.8,
+   "w": 715.7,
+   "h": 6,
+   "paint": "fill",
+   "fill": "#c0c0c0",
+   "stroke": null,
+   "lineWidth": 0.5
+  },
+  {
+   "x": 59.9,
+   "y": 95,
+   "w": 172.2,
+   "h": 18.4,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 235.3,
+   "y": 95.5,
+   "w": 90,
+   "h": 18.4,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 723.5,
+   "y": 95.5,
+   "w": 51.8,
+   "h": 17.6,
+   "paint": "stroke",
+   "fill": null,
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 328.6,
+   "y": 95.6,
+   "w": 390.6,
+   "h": 18.4,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 59.8,
+   "y": 116.2,
+   "w": 265.3,
+   "h": 18.4,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 58.9,
+   "y": 137.4,
+   "w": 715.7,
+   "h": 6,
+   "paint": "fill",
+   "fill": "#c0c0c0",
+   "stroke": null,
+   "lineWidth": 0.5
+  },
+  {
+   "x": 59.9,
+   "y": 143.6,
+   "w": 136.9,
+   "h": 18.6,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 200,
+   "y": 144.1,
+   "w": 576.2,
+   "h": 18.8,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 59.4,
+   "y": 164.3,
+   "w": 217.6,
+   "h": 18.5,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 551.2,
+   "y": 164.3,
+   "w": 226,
+   "h": 18.5,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 278.9,
+   "y": 164.9,
+   "w": 35.2,
+   "h": 18.4,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 317.4,
+   "y": 164.9,
+   "w": 141.8,
+   "h": 18.4,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 462.6,
+   "y": 164.9,
+   "w": 23.5,
+   "h": 18.4,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 489.2,
+   "y": 164.9,
+   "w": 59.2,
+   "h": 18.4,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 58.9,
+   "y": 185.2,
+   "w": 715.7,
+   "h": 6,
+   "paint": "fill",
+   "fill": "#c0c0c0",
+   "stroke": null,
+   "lineWidth": 0.5
+  },
+  {
+   "x": 623.8,
+   "y": 192.1,
+   "w": 92.2,
+   "h": 19.1,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 58.9,
+   "y": 192.7,
+   "w": 36.6,
+   "h": 18.5,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 98,
+   "y": 192.7,
+   "w": 92.4,
+   "h": 17.9,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 194.4,
+   "y": 192.7,
+   "w": 426,
+   "h": 18.2,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 58.9,
+   "y": 213.2,
+   "w": 715.7,
+   "h": 66.2,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 58.9,
+   "y": 281.4,
+   "w": 715.7,
+   "h": 6,
+   "paint": "fill",
+   "fill": "#c0c0c0",
+   "stroke": null,
+   "lineWidth": 0.5
+  },
+  {
+   "x": 58.8,
+   "y": 288.6,
+   "w": 143.3,
+   "h": 18.5,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 206,
+   "y": 289.2,
+   "w": 485.3,
+   "h": 18.4,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 694.7,
+   "y": 289.2,
+   "w": 79.1,
+   "h": 18.4,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 58.9,
+   "y": 310,
+   "w": 715.7,
+   "h": 6,
+   "paint": "fill",
+   "fill": "#c0c0c0",
+   "stroke": null,
+   "lineWidth": 0.5
+  },
+  {
+   "x": 58.8,
+   "y": 317,
+   "w": 57.8,
+   "h": 19.2,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 120.7,
+   "y": 317,
+   "w": 142.6,
+   "h": 19.2,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 267.5,
+   "y": 317,
+   "w": 53,
+   "h": 19.2,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 324.8,
+   "y": 317,
+   "w": 105.5,
+   "h": 19.2,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 433.7,
+   "y": 317.6,
+   "w": 73.8,
+   "h": 18.6,
+   "paint": "stroke",
+   "fill": null,
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 511.3,
+   "y": 317.6,
+   "w": 59.4,
+   "h": 18.6,
+   "paint": "stroke",
+   "fill": null,
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 58.9,
+   "y": 338.9,
+   "w": 715.7,
+   "h": 5.9,
+   "paint": "fill",
+   "fill": "#c0c0c0",
+   "stroke": null,
+   "lineWidth": 0.5
+  },
+  {
+   "x": 58.9,
+   "y": 346.3,
+   "w": 715.7,
+   "h": 62.3,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 58.9,
+   "y": 410.3,
+   "w": 715.7,
+   "h": 6,
+   "paint": "fill",
+   "fill": "#c0c0c0",
+   "stroke": null,
+   "lineWidth": 0.5
+  },
+  {
+   "x": 58.9,
+   "y": 417.6,
+   "w": 715.7,
+   "h": 48.4,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 58.9,
+   "y": 466.9,
+   "w": 715.7,
+   "h": 37.4,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 58.9,
+   "y": 505.1,
+   "w": 715.7,
+   "h": 26.9,
+   "paint": "both",
+   "fill": "#c0c0c0",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 58.9,
+   "y": 533.4,
+   "w": 99.1,
+   "h": 17.8,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 162,
+   "y": 533.9,
+   "w": 100.6,
+   "h": 17.9,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 265.8,
+   "y": 533.9,
+   "w": 99.5,
+   "h": 17.9,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 369.2,
+   "y": 533.9,
+   "w": 98.8,
+   "h": 17.9,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 471.7,
+   "y": 533.9,
+   "w": 96.8,
+   "h": 17.9,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 572.5,
+   "y": 533.9,
+   "w": 100.3,
+   "h": 17.9,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 676.2,
+   "y": 533.9,
+   "w": 102,
+   "h": 17.9,
+   "paint": "both",
+   "fill": "#ffffff",
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 58.3,
+   "y": 554.8,
+   "w": 244.1,
+   "h": 18.1,
+   "paint": "stroke",
+   "fill": null,
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 306.2,
+   "y": 554.8,
+   "w": 239,
+   "h": 18.1,
+   "paint": "stroke",
+   "fill": null,
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  },
+  {
+   "x": 548,
+   "y": 554.8,
+   "w": 230.4,
+   "h": 18.1,
+   "paint": "stroke",
+   "fill": null,
+   "stroke": "#000000",
+   "lineWidth": 0.5
+  }
+ ]
+}

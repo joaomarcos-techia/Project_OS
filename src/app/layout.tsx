@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
-import { DM_Sans, Hanken_Grotesk, IBM_Plex_Mono, Inter } from 'next/font/google';
+import { DM_Sans, Hanken_Grotesk, IBM_Plex_Mono, Inter, Manrope } from 'next/font/google';
+
+import { RAIL_INIT } from '@/components/painel/rail-preference';
 
 import './globals.css';
 
@@ -23,6 +25,13 @@ const inter = Inter({
   variable: '--font-inter',
   display: 'swap',
 });
+// App da clínica v5 (nov/2026): Manrope nos títulos e números grandes, Inter no
+// resto. As demais famílias continuam para admin, telas públicas e cadastro.
+const manrope = Manrope({
+  subsets: ['latin'],
+  variable: '--font-manrope',
+  display: 'swap',
+});
 
 // IBM Plex Mono não é variable font — pesos explícitos obrigatórios.
 const plexMono = IBM_Plex_Mono({
@@ -33,7 +42,9 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Qoro',
+  // UX-008 (`docs/otimização_ui_final.md`): cada tela define só o próprio nome e
+  // a aba mostra "Agenda · Qoro" (WCAG 2.4.2). Sem título próprio, fica "Qoro".
+  title: { default: 'Qoro', template: '%s · Qoro' },
   description: 'O sistema operacional anti-vazamento da sua clínica.',
 };
 
@@ -45,11 +56,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="pt-BR"
-      className={`${dmSans.variable} ${plexMono.variable} ${hanken.variable} ${inter.variable}`}
+      className={`${dmSans.variable} ${plexMono.variable} ${hanken.variable} ${inter.variable} ${manrope.variable}`}
       suppressHydrationWarning
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
+        {/* Menu fixado aberto no app da clínica, também antes da pintura. */}
+        <script dangerouslySetInnerHTML={{ __html: RAIL_INIT }} />
       </head>
       <body>{children}</body>
     </html>

@@ -1,7 +1,7 @@
 'use client';
 
 import { CircleAlert, ShieldCheck } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 
 import { Button } from './button';
 import {
@@ -43,6 +43,8 @@ type ConfirmDialogProps = {
   formFields?: ReactNode;
   /** Conteúdo visível do form (resumo, campos ou erro da confirmação). */
   children?: ReactNode;
+  /** Para onde o foco volta quando quem abriu o diálogo some (ex.: o item de um menu). */
+  returnFocusRef?: RefObject<HTMLElement | null>;
 } & ConfirmBehavior;
 
 /**
@@ -65,6 +67,7 @@ export function ConfirmDialog({
   onOpenChange,
   formFields,
   children,
+  returnFocusRef,
 }: ConfirmDialogProps) {
   return (
     <Dialog
@@ -73,7 +76,10 @@ export function ConfirmDialog({
     >
       {trigger ? <DialogTrigger asChild>{trigger}</DialogTrigger> : null}
       <DialogContent
+        // A-02: sem descrição, o Radix deixaria `aria-describedby` apontando para um id inexistente.
+        {...(description ? {} : { 'aria-describedby': undefined })}
         showClose={!loading}
+        returnFocusRef={returnFocusRef}
         onEscapeKeyDown={(event) => {
           if (loading) event.preventDefault();
         }}

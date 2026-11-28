@@ -29,6 +29,7 @@ import { decryptForTenant } from '@/lib/crypto';
 import { dbAdmin } from '@/lib/db';
 import type { Tx } from '@/lib/db';
 import { withTenant } from '@/lib/db/tenant';
+import { assertTrialPaidFeatureTx } from '@/lib/trial-access';
 
 import {
   closureSchedule,
@@ -90,6 +91,7 @@ export async function upsertPaymentAccount(
   input: UpsertPaymentAccountInput,
 ): Promise<UpsertPaymentAccountResult> {
   return dbAdmin.transaction(async (tx: Tx) => {
+    await assertTrialPaidFeatureTx(tx, input.clinicId, 'asaas');
     const existing = await tx.execute<{
       id: string;
       api_key_hash: string | null;

@@ -6,7 +6,7 @@ import { PROPOSED_OFFER } from '@/contexts/billing/proposed-offer';
 import { ProposalCalculator } from './proposal-calculator';
 
 export const metadata: Metadata = {
-  title: 'Prévia da proposta de preços · Qoro',
+  title: 'Prévia da proposta de preços',
   robots: { index: false, follow: false },
 };
 

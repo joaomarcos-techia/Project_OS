@@ -1,0 +1,159 @@
+{
+  "observedAt": "2026-11-10T14:08:39.364Z",
+  "status": "PASS",
+  "scope": "additional_doctor_matrix_local_integration_and_read_only_preview",
+  "pricesMinor": {
+    "consultorio_2026": 19700,
+    "clinica_2026_2": 39700,
+    "clinica_2026_3": 54400,
+    "clinica_2026_4": 69100,
+    "clinica_2026_5": 83800
+  },
+  "businessRulePreserved": "initial_signup_entry_plans_only; extra_doctors_at_next_fully_paid_renewal",
+  "postgres": {
+    "observedAt": "2026-11-10T14:04:41.312Z",
+    "environment": "loopback_synthetic",
+    "migrations": 143,
+    "checks": 85,
+    "newMatrixChecks": 19,
+    "fixtureHttpCalls": 349,
+    "networkCalls": 0,
+    "results": [
+      {
+        "name": "MATRIX-3 exact catalog amount, concurrent upgrade, paid quota and downgrade",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-3 old_amount cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-3 partial cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-3 overpaid cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-3 wrong_product cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-3 early cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-4 exact catalog amount, concurrent upgrade, paid quota and downgrade",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-4 old_amount cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-4 partial cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-4 overpaid cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-4 wrong_product cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-4 early cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-5 exact catalog amount, concurrent upgrade, paid quota and downgrade",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-5 old_amount cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-5 partial cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-5 overpaid cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-5 wrong_product cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-5 early cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX unknown, legacy and current plan are refused without provider commands",
+        "status": "PASS"
+      }
+    ]
+  },
+  "directedUnitAndComponentTests": {
+    "passed": 168,
+    "files": 6,
+    "newlyAdded": 14,
+    "usesProviderDoubles": true
+  },
+  "preview": {
+    "observedAt": "2026-11-10T14:01:29.553Z",
+    "runtimeSha": "ea45fb8e9b6f90b7fb6f999e4cc186d4f8fd9c45",
+    "runId": "2d072b20-dab5-4073-bdaf-2c8f1989c739",
+    "status": "PASS",
+    "scope": "read_only_paid_plan_options_not_a_change_request",
+    "options": [
+      "Selecione um plano",
+      "Consultório — R$ 197,00/mês",
+      "Clínica · 3 médicos — R$ 544,00/mês",
+      "Clínica · 4 médicos — R$ 691,00/mês",
+      "Clínica · 5 médicos — R$ 838,00/mês"
+    ],
+    "billingPosts": 0,
+    "productionWrites": 0
+  },
+  "validation": {
+    "typecheck": "PASS",
+    "targetedLint": "PASS",
+    "prettier": "PASS",
+    "runtimeApplicationChanged": false
+  },
+  "previousCommittedCheckoutCi": {
+    "sha": "49b2df95fa40e48f43735fb693ec7afecb813a36",
+    "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/42828598836",
+    "status": "PASS",
+    "unitPassed": 6855,
+    "publicE2E": {
+      "passed": 8,
+      "skipped": 2,
+      "skipReason": "Turnstile keys absent in isolated build; not proof of real production challenge"
+    }
+  },
+  "preparationFailuresCorrected": [
+    "Synthetic doctors need unique CRM values within a clinic",
+    "Before an upgrade payment, the current-plan trigger rejects the seat; pending downgrade uses the pending-seat trigger"
+  ],
+  "sourceHashes": {
+    "scripts/security/abacatepay-renewal-db.ts": "c0df64b864394eae78a137796b68c77fa2cfb27291032e9986387f46f4a03309",
+    "src/app/(app)/(shell)/configuracoes/assinatura/deferred-subscription.test.tsx": "0b94684f579ec95fd10ce7759ed4dd9270aba2665e16f41f5f879e9af8a23429",
+    "src/app/api/billing/plan-change/route.test.ts": "babe1d5fd87db13790581c5befca50e43f9e1342d7286c4c17ef6f542d42dcb0",
+    "src/lib/payments/abacatepay/initial-payment.test.ts": "d2f43e2b0130e2e7dadd26d5d7d2165cf053ee597f77bf6a4f162c351416e058",
+    "src/lib/payments/abacatepay/renewal-payment.test.ts": "1c28e22c6cb01a2b205cfa6b2a55fe31dde029a2bade6ba3896c0e1a58829ba5"
+  },
+  "newExternalCheckouts": 0,
+  "newExternalPayments": 0,
+  "productionWrites": 0,
+  "limitations": [
+    "Local integration uses actual migrations and application transactions with synthetic provider HTTP",
+    "Only the entry checkout of 39700 cents has a new external Sandbox paid proof in this round",
+    "Preview option inspection issued no billing POST and does not prove change-plan execution at the provider",
+    "No acceleration of a real recurring provider cycle; no new risk acceptance"
+  ]
+}

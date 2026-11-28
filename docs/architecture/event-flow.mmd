@@ -16,6 +16,8 @@ flowchart LR
   ev_ai_agent_manual_reply_requested["ai_agent.manual_reply.requested"]
   context_ai_agent --> ev_ai_agent_manual_reply_requested
   ev_ai_agent_manual_reply_requested --> context_ai_agent
+  ev_billing_ai_usage_notice_requested["billing.ai_usage.notice_requested"]
+  context_billing --> ev_billing_ai_usage_notice_requested
   ev_billing_clinic_dunning_advanced["billing.clinic.dunning_advanced"]
   context_billing --> ev_billing_clinic_dunning_advanced
   ev_billing_clinic_reactivated["billing.clinic.reactivated"]
@@ -73,6 +75,7 @@ flowchart LR
   context_financial --> ev_financial_lancamento_estornado
   ev_financial_lancamento_paid["financial.lancamento.paid"]
   context_financial --> ev_financial_lancamento_paid
+  ev_financial_lancamento_paid --> context_payments
   ev_financial_patient_refund_requested["financial.patient_refund.requested"]
   context_financial --> ev_financial_patient_refund_requested
   ev_financial_patient_refund_requested --> context_payments
@@ -84,6 +87,7 @@ flowchart LR
   ev_messaging_inbound_received --> context_ai_agent
   ev_messaging_outbound_status_updated["messaging.outbound.status_updated"]
   context_messaging --> ev_messaging_outbound_status_updated
+  ev_messaging_outbound_status_updated --> context_ai_agent
   ev_patient_consent_granted["patient.consent.granted"]
   context_patient --> ev_patient_consent_granted
   ev_patient_consent_revoked["patient.consent.revoked"]
@@ -132,6 +136,12 @@ flowchart LR
   ev_payments_patient_credit_released["payments.patient_credit.released"]
   context_payments --> ev_payments_patient_credit_released
   ev_payments_patient_credit_released --> context_financial
+  ev_payments_patient_payment_economics_corrected["payments.patient_payment.economics_corrected"]
+  context_payments --> ev_payments_patient_payment_economics_corrected
+  ev_payments_patient_payment_economics_corrected --> context_financial
+  ev_payments_patient_payment_economics_reconciled["payments.patient_payment.economics_reconciled"]
+  context_payments --> ev_payments_patient_payment_economics_reconciled
+  ev_payments_patient_payment_economics_reconciled --> context_financial
   ev_payments_patient_payment_risk_changed["payments.patient_payment.risk_changed"]
   context_payments --> ev_payments_patient_payment_risk_changed
   ev_payments_patient_payment_risk_changed --> context_financial
@@ -153,6 +163,9 @@ flowchart LR
   ev_scheduling_appointment_created["scheduling.appointment.created"]
   context_scheduling --> ev_scheduling_appointment_created
   ev_scheduling_appointment_created --> context_billing
+  ev_scheduling_appointment_deposit_requested["scheduling.appointment.deposit_requested"]
+  context_scheduling --> ev_scheduling_appointment_deposit_requested
+  ev_scheduling_appointment_deposit_requested --> context_payments
   ev_scheduling_appointment_no_show["scheduling.appointment.no_show"]
   context_scheduling --> ev_scheduling_appointment_no_show
   ev_scheduling_appointment_no_show --> context_ai_agent
@@ -174,4 +187,4 @@ flowchart LR
   context_scheduling --> ev_scheduling_waitlist_offered
   ev_scheduling_waitlist_offered --> context_ai_agent
   classDef semConsumidor stroke-dasharray: 4 4;
-  class ev_billing_clinic_dunning_advanced,ev_billing_clinic_reactivated,ev_billing_clinic_suspended,ev_billing_customer_created,ev_billing_customer_portal_requested,ev_billing_invoice_cancelled,ev_billing_invoice_generated,ev_billing_invoice_overdue,ev_billing_invoice_paid,ev_billing_invoice_refunded,ev_billing_payment_failed,ev_billing_subscription_activated,ev_billing_subscription_cancelled,ev_billing_subscription_changed,ev_billing_subscription_created,ev_billing_trial_converted,ev_billing_trial_expired,ev_billing_trial_started,ev_clinical_document_generated,ev_clinical_prescription_created,ev_clinical_prontuario_created,ev_financial_lancamento_cancelled,ev_financial_lancamento_estornado,ev_financial_lancamento_paid,ev_messaging_outbound_status_updated,ev_patient_consent_granted,ev_patient_consent_revoked,ev_patient_core_created,ev_patient_core_merged,ev_patient_core_updated,ev_patient_relationship_linked,ev_patient_relationship_unlinked,ev_patient_suppression_added,ev_payments_patient_charge_failed,ev_scheduling_appointment_checked_in,ev_scheduling_appointment_confirmed,ev_scheduling_appointment_corrected,ev_scheduling_appointment_rescheduled,ev_scheduling_doctor_absence_created,ev_scheduling_import_completed,ev_scheduling_recurrence_cancelled,ev_scheduling_recurrence_created semConsumidor;
+  class ev_billing_ai_usage_notice_requested,ev_billing_clinic_dunning_advanced,ev_billing_clinic_reactivated,ev_billing_clinic_suspended,ev_billing_customer_created,ev_billing_customer_portal_requested,ev_billing_invoice_cancelled,ev_billing_invoice_generated,ev_billing_invoice_overdue,ev_billing_invoice_paid,ev_billing_invoice_refunded,ev_billing_payment_failed,ev_billing_subscription_activated,ev_billing_subscription_cancelled,ev_billing_subscription_changed,ev_billing_subscription_created,ev_billing_trial_converted,ev_billing_trial_expired,ev_billing_trial_started,ev_clinical_document_generated,ev_clinical_prescription_created,ev_clinical_prontuario_created,ev_financial_lancamento_cancelled,ev_financial_lancamento_estornado,ev_patient_consent_granted,ev_patient_consent_revoked,ev_patient_core_created,ev_patient_core_merged,ev_patient_core_updated,ev_patient_relationship_linked,ev_patient_relationship_unlinked,ev_patient_suppression_added,ev_payments_patient_charge_failed,ev_scheduling_appointment_checked_in,ev_scheduling_appointment_confirmed,ev_scheduling_appointment_corrected,ev_scheduling_appointment_rescheduled,ev_scheduling_doctor_absence_created,ev_scheduling_import_completed,ev_scheduling_recurrence_cancelled,ev_scheduling_recurrence_created semConsumidor;

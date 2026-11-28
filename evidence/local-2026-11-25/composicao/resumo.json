@@ -1,0 +1,138 @@
+{
+ "workflow": ".github/workflows/ci.yml",
+ "sha": "aeda1e4616c4471b7689f8b52fbf6d03e7be3481",
+ "startedAt": "2026-11-26T18:03:06.364Z",
+ "totalSeconds": 2016,
+ "results": [
+  {
+   "job": "ci",
+   "step": "Install dependencies",
+   "status": "SKIPPED (instalação local já presente)",
+   "code": null,
+   "seconds": 0
+  },
+  {
+   "job": "ci",
+   "step": "Prod dependency audit gate (high+)",
+   "status": "SKIPPED (--skip)",
+   "code": null,
+   "seconds": 0
+  },
+  {
+   "job": "ci",
+   "step": "Typecheck",
+   "status": "FAIL",
+   "code": 2,
+   "seconds": 692,
+   "log": "03-Typecheck.log"
+  },
+  {
+   "job": "ci",
+   "step": "Lint",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 369,
+   "log": "04-Lint.log"
+  },
+  {
+   "job": "ci",
+   "step": "Arch check (madge — circular deps)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 83,
+   "log": "05-Arch-check-madge-circular-deps-.log"
+  },
+  {
+   "job": "ci",
+   "step": "Arch DB check (AST connection-origin guard)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 24,
+   "log": "06-Arch-DB-check-AST-connection-origin-guard-.log"
+  },
+  {
+   "job": "ci",
+   "step": "Migration safety gate (anti-destructive)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 8,
+   "log": "07-Migration-safety-gate-anti-destructive-.log"
+  },
+  {
+   "job": "ci",
+   "step": "Observability drift gate (docs ⇔ vercel.json ⇔ eventos)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 6,
+   "log": "08-Observability-drift-gate-docs-vercel-json-eventos-.log"
+  },
+  {
+   "job": "ci",
+   "step": "Handler registry gate (catalog ⇔ registry)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 41,
+   "log": "09-Handler-registry-gate-catalog-registry-.log"
+  },
+  {
+   "job": "ci",
+   "step": "Test + coverage gate",
+   "status": "FAIL",
+   "code": 1,
+   "seconds": 636,
+   "log": "10-Test-coverage-gate.log"
+  },
+  {
+   "job": "ci",
+   "step": "Security inventory (AST and explicit guard review)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 78,
+   "log": "11-Security-inventory-AST-and-explicit-guard-review-.log"
+  },
+  {
+   "job": "ci",
+   "step": "Two-tenant isolation (temporary local Postgres)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 51,
+   "log": "12-Two-tenant-isolation-temporary-local-Postgres-.log"
+  },
+  {
+   "job": "ci",
+   "step": "Convênios — isolamento de todas as tabelas do módulo (temporary local Postgres, P12.1)",
+   "status": "PASS",
+   "code": 0,
+   "seconds": 28,
+   "log": "13-Convênios-isolamento-de-todas-as-tabelas-do-módulo-temporary.log"
+  },
+  {
+   "job": "ci",
+   "step": "Build",
+   "status": "SKIPPED (--skip)",
+   "code": null,
+   "seconds": 0
+  },
+  {
+   "job": "ci",
+   "step": "Client bundle secrets and local HTTP boundaries",
+   "status": "SKIPPED (--skip)",
+   "code": null,
+   "seconds": 0
+  },
+  {
+   "job": "ci",
+   "step": "Install Playwright browser (chromium)",
+   "status": "SKIPPED (instalação local já presente)",
+   "code": null,
+   "seconds": 0
+  },
+  {
+   "job": "ci",
+   "step": "E2E gate (superfície pública, sem credencial)",
+   "status": "SKIPPED (--skip)",
+   "code": null,
+   "seconds": 0
+  }
+ ]
+}

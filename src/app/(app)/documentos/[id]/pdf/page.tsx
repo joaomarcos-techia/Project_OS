@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 /**
  * /documentos/[id]/pdf — preview + download de documento médico (atestado,
  * declaração, exame, encaminhamento). O arquivo passa por endpoint same-origin
@@ -13,6 +14,8 @@ import { PERMISSIONS } from '@/lib/auth/permissions';
 import { resourceGate } from '@/lib/auth/page-guard';
 
 import { RegeneratePdfButton } from './regenerate-button';
+
+export const metadata: Metadata = { title: 'Documento' };
 
 export const dynamic = 'force-dynamic';
 

@@ -1,0 +1,14 @@
+PASS: 1. regra REAL do Qoro (40%) congelada; política padrão "no recebimento": previsto R$ 60,00, elegível R$ 0,00 antes de a operadora pagar (sem antecipação); criação idempotente
+PASS: 2. pagamento parcial (R$ 100 de R$ 150): elegível R$ 40,00 (nunca o integral); autorizar acima do elegível e repassar acima do autorizado são recusados; a mesma chave não paga duas vezes
+PASS: 3. pagamento posterior (+R$ 50): elegível R$ 60,00, pendente de autorização só R$ 20,00; devido R$ 20,00 sobre R$ 40,00 já repassados
+PASS: 4. glosa definitiva parcial (R$ 50): devido R$ 100, recebido R$ 100, elegível R$ 40,00; glosa integral: elegível R$ 0,00 com previsto de R$ 60,00 visível
+PASS: 5. glosa contestada/em recurso não reduz o devido (fica "em aberto"); com o recurso aceito e o pagamento posterior, o elegível sobe para R$ 60,00
+PASS: 6. estorno de R$ 100 depois de R$ 60 repassados: elegível cai para R$ 20,00 e o excesso fica visível (−R$ 40); o ajuste é humano, com motivo, e deixa o devido em −R$ 40,00 (a compensar); movimentos não mudam
+PASS: 7. regra fixa (R$ 50): paga integral → elegível R$ 50,00; com glosa parcial → pendência de decisão (sem estimativa); a gestão decide por ajuste com motivo (R$ 30), nunca acima do previsto, e repassa
+PASS: 8. política D16 configurável: "na aprovação" (guia aprovada, sem pagamento) elegível R$ 60,00; "na conclusão" antecipa sobre o contratado; a política de cada repasse fica congelada
+PASS: 9. a regra do procedimento (55%) vence a geral (30%) do mesmo profissional; cada profissional usa a SUA regra (A 40%, B fixo R$ 50)
+PASS: 10. concorrência: dois repasses de R$ 40 sobre R$ 60 autorizados ao mesmo tempo → um passa, o outro é recusado (linha travada); nunca paga em dobro
+PASS: 11. plano sem políticas avançadas (consultório) e profissional sem regra: nenhum repasse; cancelar com repasse realizado é recusado (ajuste), sem repasse cancela e o histórico fica
+PASS: 12. outra clínica não lê nem movimenta o repasse; atendimento de convênio concluído pelo Scheduling → outbox → guia pronta → repasse criado sozinho (previsto R$ 60,00, elegível R$ 0,00); nenhum repasse particular criado ou alterado
+
+OK — 12 provas do repasse profissional de convênio (P10.4).

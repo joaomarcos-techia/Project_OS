@@ -12,7 +12,7 @@ const dsn =
 Sentry.init({
   dsn,
   enabled: Boolean(dsn),
-  environment: process.env.NODE_ENV,
+  environment: process.env.NEXT_PUBLIC_VERCEL_ENV ?? process.env.NODE_ENV,
   tracesSampleRate: 0.1,
   // B1 — Web Vitals (LCP/INP/CLS) por rota. `browserTracingIntegration` os
   // coleta junto com o trace de navegação; sem ela, "o sistema está lento" de

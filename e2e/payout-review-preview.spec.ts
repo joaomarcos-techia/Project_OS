@@ -599,8 +599,8 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
       .locator('section[aria-label="A receber"]')
       .locator('div[data-status]')
       .filter({ hasText: patientName });
-    await card.getByRole('button', { name: 'Confirmar pagamento' }).click();
-    await card.getByRole('button', { name: /^Receber R\$\s?150,00$/u }).click();
+    await card.getByRole('button', { name: 'Registrar recebimento' }).click();
+    await card.getByRole('button', { name: /^Registrar R\$\s?150,00$/u }).click();
     await expect(receivedRow(page)).toBeVisible({ timeout: 30_000 });
     const [receivable] = await db()<{ status: string; paid: string }[]>`
       select status, valor_pago::text paid from lancamentos where id = ${fixture.lancamentoId}::uuid
@@ -996,7 +996,7 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
     expect(await decisions()).toEqual([]);
 
     await scheduling.getByRole('checkbox').check();
-    await scheduling.getByRole('button', { name: 'Conceder' }).click();
+    await scheduling.getByRole('button', { name: 'Registrar consentimento' }).click();
     await expect(scheduling.getByText('Concedido', { exact: true })).toBeVisible();
     expect(await decisions()).toEqual([
       { purpose: 'agendamento_whatsapp', granted: true, version: 1 },
@@ -1007,11 +1007,13 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
     const stale = await owner.context().newPage();
     await stale.goto(`/pacientes/${patientId}`);
     const staleBilling = stale.locator('li').filter({ hasText: 'Cobrança por WhatsApp' });
-    await expect(staleBilling.getByRole('button', { name: 'Conceder' })).toBeVisible();
-    await scheduling.getByRole('button', { name: 'Revogar' }).click();
+    await expect(
+      staleBilling.getByRole('button', { name: 'Registrar consentimento' }),
+    ).toBeVisible();
+    await scheduling.getByRole('button', { name: 'Registrar revogação' }).click();
     await expect(scheduling.getByText('Não concedido')).toBeVisible();
     await staleBilling.getByRole('checkbox').check();
-    await staleBilling.getByRole('button', { name: 'Conceder' }).click();
+    await staleBilling.getByRole('button', { name: 'Registrar consentimento' }).click();
     await expect(staleBilling.getByText('Concedido', { exact: true })).toBeVisible();
     expect(await decisions()).toEqual([
       { purpose: 'agendamento_whatsapp', granted: false, version: 2 },
@@ -1209,6 +1211,10 @@ test.describe.serial('revisão humana do repasse (Preview + DEV, papéis reais)'
   test('11. relatório mensal mostra revisão ao médico e gestor, isolando perfil e tenant', async ({
     browser,
   }) => {
+    // Quatro sessões (dono, médico, atendente, outra clínica) e sete navegações no
+    // Preview: o padrão de 30 s do config estourou na 4ª sessão em 15/11/2026, com
+    // as verificações anteriores já aprovadas. Mesmo limite dos testes 9 e 12.
+    test.setTimeout(120_000);
     const month = saoPauloDate().slice(0, 7);
     const owner = sessions.has('owner') ? pageOf('owner') : await openSession(browser, 'owner');
     await owner.goto(`/relatorios/repasses?mes=${month}`);

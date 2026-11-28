@@ -1,0 +1,155 @@
+{
+  "recordedAt": "2026-11-10T14:43:28.876Z",
+  "status": "PASS",
+  "decision": "Founder approved choosing 2-5 doctors at the first AbacatePay payment, full monthly price",
+  "applicationChanges": {
+    "scope": "candidate AbacatePay only; no production rollout",
+    "initialPlanCodes": [
+      "consultorio_2026",
+      "clinica_2026_2",
+      "clinica_2026_3",
+      "clinica_2026_4",
+      "clinica_2026_5"
+    ],
+    "amountMinor": [19700, 39700, 54400, 69100, 83800],
+    "trialDaysFromAuthUnchanged": 14,
+    "nativeTrial": false,
+    "staffLimit": 3,
+    "afterPaidUpgradePolicyUnchanged": "next fully paid renewal",
+    "legacyAsaasUnchanged": true,
+    "annualAcquisition": false
+  },
+  "postgres": {
+    "observedAt": "2026-11-10T14:41:25.241Z",
+    "environment": "loopback_synthetic",
+    "migrations": 143,
+    "results": [
+      {
+        "name": "H3 timeout before remote processing is retained across retries without another POST",
+        "status": "PASS"
+      },
+      {
+        "name": "H3 response lost after provider processing recovers the original checkout without a second creation",
+        "status": "PASS"
+      },
+      {
+        "name": "H3 durable running reservation with lost journal acknowledgement is recoverable by GET",
+        "status": "PASS"
+      },
+      {
+        "name": "H3 concurrent read-only recovery confirms one original operation and one recovery audit",
+        "status": "PASS"
+      },
+      {
+        "name": "H3 database failure rolls back journal, attachment and audit; retry does not repeat POST",
+        "status": "PASS"
+      },
+      {
+        "name": "H3 a paid checkout is attached without granting access; separate payment readback applies one invoice",
+        "status": "PASS"
+      },
+      {
+        "name": "H3 ambiguity, wrong tenant and API failure preserve the unknown obligation",
+        "status": "PASS"
+      },
+      {
+        "name": "H5 bounded scanner applies authoritative recovery with durable backoff and no new command",
+        "status": "PASS"
+      },
+      {
+        "name": "INITIAL-consultorio_2026 first checkout freezes the exact price and releases only its paid quota",
+        "status": "PASS"
+      },
+      {
+        "name": "INITIAL-consultorio_2026 underpayment cannot release the trial or create a second checkout",
+        "status": "PASS"
+      },
+      {
+        "name": "INITIAL-clinica_2026_2 first checkout freezes the exact price and releases only its paid quota",
+        "status": "PASS"
+      },
+      {
+        "name": "INITIAL-clinica_2026_2 underpayment cannot release the trial or create a second checkout",
+        "status": "PASS"
+      },
+      {
+        "name": "INITIAL-clinica_2026_3 first checkout freezes the exact price and releases only its paid quota",
+        "status": "PASS"
+      },
+      {
+        "name": "INITIAL-clinica_2026_3 underpayment cannot release the trial or create a second checkout",
+        "status": "PASS"
+      },
+      {
+        "name": "INITIAL-clinica_2026_4 first checkout freezes the exact price and releases only its paid quota",
+        "status": "PASS"
+      },
+      {
+        "name": "INITIAL-clinica_2026_4 underpayment cannot release the trial or create a second checkout",
+        "status": "PASS"
+      },
+      {
+        "name": "INITIAL-clinica_2026_5 first checkout freezes the exact price and releases only its paid quota",
+        "status": "PASS"
+      },
+      {
+        "name": "INITIAL-clinica_2026_5 underpayment cannot release the trial or create a second checkout",
+        "status": "PASS"
+      }
+    ],
+    "networkCalls": 0,
+    "fixtureCalls": 382,
+    "syntheticPostAttempts": 18,
+    "productionWrites": 0,
+    "status": "PASS",
+    "newInitialChecks": 10,
+    "externalProviderProof": false
+  },
+  "directedUnitTests": {
+    "passed": 222,
+    "files": 7,
+    "newlyAdded": 14,
+    "usesDoubles": true
+  },
+  "uiCompatibility": {
+    "worktree": "C:/dev/Qoro_ui_refactor_20261108",
+    "branch": "ui/refactor-qoro-20261108",
+    "sha": "e47ec2f0101cd7b9b220d1c72f94495fe4ee8073",
+    "inspectedReadOnly": true,
+    "modified": false,
+    "mergedIntoFinancialBranch": false,
+    "protocolPreserved": [
+      "GET /api/signup/plan",
+      "PUT /api/signup/plan with planId/cycle/rowVersion",
+      "POST /api/signup/checkout"
+    ],
+    "allVariantsAlreadySupportedByOptionRendering": true,
+    "integratedUiBranchBrowserTest": "NOT RUN"
+  },
+  "providerCatalogRead": {
+    "status": "PASS",
+    "products": 5,
+    "devMode": true,
+    "monthly": true,
+    "nativeTrial": false,
+    "mutations": 0
+  },
+  "sourceHashes": {
+    "src/contexts/onboarding/internal/signup-draft.ts": "4ce7290ed084ac2a14dd4bf22bce0779321ae9dfa340ae13727dcd7191d40b99",
+    "src/contexts/onboarding/internal/signup-free-trial.ts": "fc61e14b861a55e41acccea1ea3bd2381f1fad4515a926e33f36c59c48214802",
+    "src/contexts/onboarding/internal/signup-draft.test.ts": "349693fbfea5ca8f51a52668783a2caa1dfb975abc4a96d78ff645a135df3b99",
+    "scripts/abacatepay-checkout-operator.ts": "37aba9bd8f516d482b4c66df80c15c89bc44bb2261e28ddabfe2dd73a7baf1f7",
+    "scripts/abacatepay-checkout-session.ts": "c3cc9d7b4a5ecd659d057fb1e692b2f828730161477df1e5321d1e650b3e4fd9",
+    "src/lib/payments/saas/checkout-operator-session.test.ts": "6a75b21e97839e6e27397107a4709f7058465702fc8d6a51cdf1602e0654c6ef",
+    "scripts/security/abacatepay-checkout-recovery-db.ts": "f259ad0255354a5918242c773c2a0b30a48daad9afde8ac7dfdc440dca267e92",
+    "e2e/abacatepay-trial-preview.spec.ts": "dc26ceb0b95f881c75ea2dd34a7ceafaeceaa1ad13e5aaef41c9e4d1e827dfe7"
+  },
+  "newExternalCheckouts": 0,
+  "newExternalPayments": 0,
+  "productionWrites": 0,
+  "limitations": [
+    "New initial prices 3-5 doctors have local DB/HTTP-double proof, not new hosted external payments",
+    "The real entry payment of 39700 cents remains the external Sandbox proof from this round",
+    "UI branch was inspected read only; no broad merge or interface rewrite"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+ "agora": "2026-11-25 21:19:18.388285+00",
+ "login_attempts": {
+  "mais_antigo": "2026-08-10",
+  "n": 228,
+  "mais_de_80_dias": 131,
+  "com_ip": 228
+ },
+ "auth_audit_log_entries": {
+  "mais_antigo": null,
+  "n": 0,
+  "mais_de_180_dias": 0,
+  "logins": 0,
+  "logins_com_ip": 0,
+  "logins_mais_de_180_dias": 0
+ }
+}

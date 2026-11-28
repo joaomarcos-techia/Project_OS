@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 /**
  * /configuracoes/procedimentos — catálogo de procedimentos da clínica (preço +
  * duração). É o que destrava a criação de atendimentos na Agenda para clínicas
@@ -6,16 +7,19 @@
  */
 import { listProcedures } from '@/contexts/scheduling/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { requirePageUser } from '@/lib/auth/page-guard';
+import { requireClinicId } from '@/lib/auth/tenant-context';
 import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 
 import { ProceduresManager } from './procedures-manager';
 
+export const metadata: Metadata = { title: 'Procedimentos' };
+
 export const dynamic = 'force-dynamic';
 
 export default async function ProcedimentosPage() {
-  const user = await requireUser();
+  const user = await requirePageUser();
   const clinicId = await requireClinicId();
 
   if (!user.permissions.includes(PERMISSIONS.MANAGE_PROCEDURES)) {

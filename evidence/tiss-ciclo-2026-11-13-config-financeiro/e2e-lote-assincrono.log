@@ -1,0 +1,7 @@
+
+Running 2 tests using 1 worker
+
+  ok 1 [chromium] › e2e\convenios-batch-async-preview.spec.ts:33:1 › o Preview usa o projeto DEV (prova assinada antes de qualquer escrita) (2.0s)
+  ok 2 [chromium] › e2e\convenios-batch-async-preview.spec.ts:38:1 › lote grande em segundo plano: pedido → job → XML pronto e íntegro; pedir de novo não duplica (1.7m)
+
+  2 passed (1.8m)

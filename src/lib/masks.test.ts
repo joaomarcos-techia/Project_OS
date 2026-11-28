@@ -32,6 +32,16 @@ describe('maskCnpj', () => {
     expect(maskCnpj(maskCnpj('11222333000181'))).toBe('11.222.333/0001-81');
     expect(maskCnpj('112223330001810000')).toBe('11.222.333/0001-81');
   });
+  it('CNPJ alfanumérico: letras nas 12 primeiras posições, em maiúscula', () => {
+    expect(maskCnpj('12abc34501de35')).toBe('12.ABC.345/01DE-35');
+    expect(maskCnpj('12.ABC.345/01DE-35')).toBe('12.ABC.345/01DE-35');
+    expect(maskCnpj('12AB')).toBe('12.AB');
+  });
+  it('dígitos verificadores só aceitam dígito; símbolos e Unicode continuam bloqueados', () => {
+    expect(maskCnpj('12ABC34501DEXY35')).toBe('12.ABC.345/01DE-35');
+    expect(maskCnpj('12ç34!')).toBe('12.34');
+    expect(maskCnpj('１２')).toBe('');
+  });
 });
 
 describe('maskCpfCnpj — transição determinística 11↔14', () => {
@@ -44,6 +54,9 @@ describe('maskCpfCnpj — transição determinística 11↔14', () => {
   });
   it('colar CNPJ já formatado permanece CNPJ (idempotente)', () => {
     expect(maskCpfCnpj('11.222.333/0001-81')).toBe('11.222.333/0001-81');
+  });
+  it('continua só com dígitos (documento do titular vai ao gateway)', () => {
+    expect(maskCpfCnpj('12ABC34501DE35')).toBe('123.450.135');
   });
 });
 

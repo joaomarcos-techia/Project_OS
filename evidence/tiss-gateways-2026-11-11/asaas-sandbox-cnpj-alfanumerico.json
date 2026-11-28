@@ -1,0 +1,58 @@
+{
+  "ambiente": "https://sandbox.asaas.com/api",
+  "data": "2026-11-11T10:16:06.325Z",
+  "resultados": [
+    {
+      "caso": "controle: CNPJ numérico válido",
+      "enviado": "11222333000181",
+      "http": 200,
+      "aceito": true,
+      "cpfCnpjDevolvido": "11222333000181",
+      "personType": "JURIDICA",
+      "erros": []
+    },
+    {
+      "caso": "alfanumérico oficial (Receita), sem pontuação",
+      "enviado": "12ABC34501DE35",
+      "http": 200,
+      "aceito": true,
+      "cpfCnpjDevolvido": "12ABC34501DE35",
+      "personType": "JURIDICA",
+      "erros": []
+    },
+    {
+      "caso": "alfanumérico oficial, com pontuação",
+      "enviado": "12.ABC.345/01DE-35",
+      "http": 200,
+      "aceito": true,
+      "cpfCnpjDevolvido": "12ABC34501DE35",
+      "personType": "JURIDICA",
+      "erros": []
+    },
+    {
+      "caso": "alfanumérico com DV errado",
+      "enviado": "12ABC34501DE36",
+      "http": 400,
+      "aceito": false,
+      "cpfCnpjDevolvido": null,
+      "personType": null,
+      "erros": [
+        "invalid_object: O CPF/CNPJ informado é inválido."
+      ]
+    }
+  ],
+  "limpeza": [
+    {
+      "http": 200,
+      "deleted": true
+    },
+    {
+      "http": 200,
+      "deleted": true
+    },
+    {
+      "http": 200,
+      "deleted": true
+    }
+  ]
+}

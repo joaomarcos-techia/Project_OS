@@ -81,6 +81,13 @@ const SUPABASE_SCAFFOLD = `
 export async function startScratchSchema(options: {
   port: number;
   beforeMigration?: { file: string; run: (sql: Sql) => Promise<void> };
+  /** Conexões do pool (padrão 4). Provas de concorrência pedem mais. */
+  maxConnections?: number;
+  /**
+   * Cadeia explícita (ex.: a união com as migrations de outra branch, na ordem do
+   * histórico de um ambiente). Sem ela, as do repositório, em ordem.
+   */
+  migrations?: { file: string; body: string }[];
 }): Promise<ScratchCluster> {
   const cluster = await mkdtemp(path.join(os.tmpdir(), 'qoro-scratch-schema-'));
   const data = path.join(cluster, 'data');
@@ -131,7 +138,7 @@ export async function startScratchSchema(options: {
   const url = `postgres://postgres@127.0.0.1:${options.port}/postgres?sslmode=require`;
   const sql = postgres(url, {
     ssl: 'require',
-    max: 4,
+    max: options.maxConnections ?? 4,
     connect_timeout: 2,
     onnotice: () => undefined,
   });
@@ -160,7 +167,7 @@ export async function startScratchSchema(options: {
   try {
     await sql.unsafe(SUPABASE_SCAFFOLD);
     let beforeMigrationRan = false;
-    for (const { file, body } of await readMigrations()) {
+    for (const { file, body } of options.migrations ?? (await readMigrations())) {
       try {
         if (file === options.beforeMigration?.file) {
           await options.beforeMigration.run(sql);
@@ -207,4 +214,60 @@ export async function buildSchemaSqlFromMigrations(): Promise<string> {
   // O cabeçalho por arquivo é o que transforma um erro de `psql` em diagnóstico:
   // sem ele, a falha aponta para uma linha de um script de 20 mil linhas.
   return migrations.map(({ file, body }) => [`-- >>> ${file}`, body, ''].join('\n')).join('\n');
+}
+
+/**
+ * Assinatura PAGA e ATIVA para uma clínica sintética (D24, 0151): Convênios, cobrança
+ * de pacientes e Agentes de IA só funcionam assim. Os harnesses de Convênios provam
+ * o módulo numa clínica que pode usá-lo; o bloqueio do trial tem harness próprio
+ * (`health-insurance-premium-gate-db.ts`). Plano do catálogo real das migrations.
+ *
+ * Com PERÍODO PAGO registrado (como o billing grava na ativação): desde a 0154 (D24-c), a
+ * assinatura antiga sem período verificável não libera Convênios — esse caso tem prova
+ * própria no harness do bloqueio comercial.
+ */
+export async function grantPaidSubscription(
+  sql: Sql,
+  clinicId: string,
+  planCode = 'clinica_2026_2',
+): Promise<void> {
+  const rows = await sql`
+    insert into public.subscriptions (clinic_id, plan_id, price_id, billing_status, current_period_start, current_period_end)
+    select ${clinicId}::uuid, pl.id, pr.id, 'active', now() - interval '1 day', now() + interval '30 days'
+      from public.plans pl
+      join public.prices pr on pr.plan_id = pl.id
+     where pl.code = ${planCode}
+     order by pr.id
+     limit 1
+    returning id`;
+  assert.equal(rows.length, 1, `plano ${planCode} sem preço no catálogo das migrations`);
+}
+
+/** Conexão extra ao MESMO cluster descartável (ex.: um backend só, para medir a CPU dele). */
+export function connectScratch(url: string, max = 1): Sql {
+  if (!/@(?:127\.0\.0\.1|localhost):\d+\//u.test(url)) throw new Error('só para o cluster local descartável');
+  return postgres(url, { ssl: 'require', max, onnotice: () => undefined });
+}
+
+/**
+ * P2.2 — credencia a clínica e TODOS os médicos já cadastrados em todas as operadoras dela,
+ * em TODOS os planos (escolha explícita do teste), desde 2020. Para provas que não são de
+ * credenciamento seguirem iguais; idempotente (só cria o que falta). Chame depois de cadastrar
+ * a operadora e os profissionais.
+ */
+export async function credentialAllPlans(sql: Sql, clinicId: string): Promise<void> {
+  await sql`
+    insert into public.hi_credentials (clinic_id, insurer_id, plan_id, professional_id, valid_from, status, created_by)
+    select i.clinic_id, i.id, null, x.pro, '2020-01-01', 'active', '00000000-0000-4000-8000-0000000000c2'::uuid
+      from public.hi_insurers i
+      cross join (
+        select null::uuid as pro
+        union all
+        select p.id from public.profiles p where p.clinic_id = ${clinicId}::uuid and p.role = 'doctor'
+      ) x
+     where i.clinic_id = ${clinicId}::uuid
+       and not exists (
+         select 1 from public.hi_credentials c
+          where c.clinic_id = i.clinic_id and c.insurer_id = i.id and c.plan_id is null
+            and c.professional_id is not distinct from x.pro and c.status = 'active')`;
 }

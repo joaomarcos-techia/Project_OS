@@ -14,6 +14,7 @@ import {
   DialogBody,
   DialogClose,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -124,6 +125,9 @@ export function FornecedoresView({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingId ? 'Editar fornecedor' : 'Novo fornecedor'}</DialogTitle>
+            <DialogDescription>
+              Fornecedor usado nas contas a pagar do Financeiro.
+            </DialogDescription>
           </DialogHeader>
           <DialogBody className="grid gap-3 sm:grid-cols-2">
             {error ? (
@@ -150,7 +154,7 @@ export function FornecedoresView({
                 value={draft.cnpj}
                 onChange={(e) => setDraft((d) => ({ ...d, cnpj: maskCnpj(e.target.value) }))}
                 maxLength={18}
-                inputMode="numeric"
+                autoCapitalize="characters"
                 placeholder="00.000.000/0001-00"
               />
             </Field>

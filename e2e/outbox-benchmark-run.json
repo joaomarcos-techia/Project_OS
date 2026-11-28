@@ -1,0 +1,4 @@
+{
+  "label": "outbox-r61b-temporario-travado",
+  "why": "Mudar o label dispara de novo o benchmark de capacidade do outbox no runner (workflow outbox-capacity-benchmark.yml)."
+}

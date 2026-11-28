@@ -157,7 +157,7 @@ test('super_admin sees incomplete self-service accounts without a transient draf
     const remainingMs = 30_000 - (Date.now() % 30_000);
     if (remainingMs < 4_000) await page.waitForTimeout(remainingMs + 250);
     await fillCredential(page.getByLabel('Código de 6 dígitos'), totp(factors[0].secret));
-    await page.getByRole('button', { name: 'Verificar', exact: true }).click();
+    await page.getByRole('button', { name: 'Confirmar', exact: true }).click();
     await expect(page).toHaveURL(/\/admin(?:\?|$)/u, { timeout: 45_000 });
     await page.goto(`${target.origin}/admin/clinicas`);
     const row = page.locator(`[data-signup-account-id="${fixtureId}"]`);

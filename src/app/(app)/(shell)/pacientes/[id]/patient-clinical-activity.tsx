@@ -69,6 +69,7 @@ export function PatientClinicalActivity({
   canCreateDocuments,
   initialCreate,
   deceased,
+  timeZone,
 }: {
   patientId: string;
   records: ProntuarioSummary[];
@@ -79,6 +80,7 @@ export function PatientClinicalActivity({
   canCreateDocuments: boolean;
   initialCreate: 'prescricao' | 'documento' | null;
   deceased: boolean;
+  timeZone: string;
 }) {
   const items = activityItems(
     patientId,
@@ -149,7 +151,7 @@ export function PatientClinicalActivity({
                 </div>
                 <p className="mt-0.5 text-(length:--fs-xs) text-fg-subtle">
                   <time dateTime={item.timestamp} className="tabular-nums">
-                    {new Date(item.timestamp).toLocaleString('pt-BR')}
+                    {new Date(item.timestamp).toLocaleString('pt-BR', { timeZone })}
                   </time>
                   {item.detail ? ` · ${item.detail}` : ''}
                 </p>

@@ -3,6 +3,7 @@ import 'server-only';
 import { ZodError } from 'zod';
 
 import { AuthError } from '@/lib/auth/tenant-context';
+import { TrialAccessError } from '@/lib/trial-access/policy';
 
 import type { SchedulingActionResult } from '../action-result';
 import {
@@ -51,6 +52,7 @@ export async function toActionResult<T>(run: () => Promise<T>): Promise<Scheduli
   try {
     return { ok: true, data: await run() };
   } catch (err) {
+    if (err instanceof TrialAccessError) return { ok: false, message: err.message };
     if (err instanceof ZodError) return { ok: false, message: zodMessage(err) };
     if (err instanceof AuthError) {
       return {

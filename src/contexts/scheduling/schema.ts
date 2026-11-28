@@ -434,6 +434,16 @@ export const appointments = pgTable(
     createdVia: appointmentCreatedVia('created_via').notNull().default('attendant'),
     urgencia: boolean('urgencia').notNull().default(false),
     faturamentoPendente: boolean('faturamento_pendente').notNull().default(false), // owner = Financial (C9)
+    /**
+     * Modalidade financeira (0148, convênios P1.6). `particular` é o comportamento
+     * de sempre; `convenio` só com o módulo ligado na clínica (gatilho no banco) e
+     * só até a chegada. Em convênio o paciente NÃO recebe recebível cheio: a guia
+     * cobra a operadora e o paciente só paga coparticipação confirmada.
+     */
+    billingMode: text('billing_mode')
+      .$type<'particular' | 'convenio'>()
+      .notNull()
+      .default('particular'),
     // ADR-049 — hold do sinal. Owner = Scheduling (o Payments NÃO escreve aqui;
     // ele publica `payments.patient_charge.*` e o handler daqui projeta). CHECK na
     // migration 0085 garante `hold_expires_at IS NOT NULL` ⇔ `pending`.

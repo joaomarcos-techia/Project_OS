@@ -1,0 +1,7 @@
+PASS: 41 tabelas do módulo no catálogo real, todas com RLS habilitada E forçada
+PASS: 42 políticas: toda USING e WITH CHECK filtra por clinic_id com a clínica da sessão
+PASS: anon sem nenhum privilégio; authenticated e qoro_runtime sem TRUNCATE em todas
+PASS: inserir com a clínica B pela sessão da A: recusado em 41 de 41 tabelas com clinic_id ({"sem_privilegio":13,"outro":8,"rls":20}); nenhuma linha da B nasceu
+  recusas antes da RLS (gatilho/constraint): hi_appointment_coverages=outro:23503, hi_authorization_consumptions=outro:23503, hi_billing_gaps=outro:23503, hi_guide_items=outro:23503, hi_guide_snapshots=outro:23503, hi_guides=outro:23503, hi_memberships=outro:23503, hi_payout_movements=outro:23503
+PASS: leitura pela sessão da A: zero linhas da B em hi_clinic_settings, hi_insurers
+OK 5/5

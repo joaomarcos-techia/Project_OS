@@ -35,22 +35,25 @@ const DELIVERY_LABEL = {
 } as const;
 
 /** Só a hora: a data já está no cabeçalho da conversa e nas linhas da fila. */
-function hora(iso: string): string {
+function hora(iso: string, timeZone: string): string {
   return new Date(iso).toLocaleTimeString('pt-BR', {
     hour: '2-digit',
     minute: '2-digit',
     hourCycle: 'h23',
+    timeZone,
   });
 }
 
 export function ConversationThread({
   thread,
+  timeZone,
   canManage,
   currentUserId,
   assignedToName,
   backHref = '/conversas',
 }: {
   thread: AIConversationThread;
+  timeZone: string;
   canManage: boolean;
   currentUserId: string;
   assignedToName: string | null;
@@ -77,9 +80,9 @@ export function ConversationThread({
         <div className={styles.sla}>
           <Timer aria-hidden="true" size={16} />
           <span>
-            {prazoRelativo(thread.handoff.dueAt).replace('SLA vencido', 'SLA de resposta vencido')}
+            {prazoRelativo(thread.handoff.dueAt, new Date(), { longo: true })}
             {thread.window.lastInboundAt
-              ? ` · o paciente aguarda desde ${hora(thread.window.lastInboundAt)}`
+              ? ` · o paciente aguarda desde ${hora(thread.window.lastInboundAt, timeZone)}`
               : ''}
           </span>
         </div>
@@ -96,9 +99,9 @@ export function ConversationThread({
           </div>
           <div className={styles.threadMeta}>
             {contato.telefone ? <span className={styles.phone}>{contato.telefone}</span> : null}
-            <span>conversa iniciada às {hora(thread.startedAt)}</span>
+            <span>conversa iniciada às {hora(thread.startedAt, timeZone)}</span>
             {thread.window.lastInboundAt ? (
-              <span>última mensagem recebida {hora(thread.window.lastInboundAt)}</span>
+              <span>última mensagem recebida {hora(thread.window.lastInboundAt, timeZone)}</span>
             ) : null}
           </div>
         </div>
@@ -148,7 +151,7 @@ export function ConversationThread({
                           : (assignedToName ?? 'Equipe')}
                   </strong>
                   <span className={styles.authorChip}>{AUTHOR_CHIP[message.author]}</span>
-                  <time dateTime={message.createdAt}>{hora(message.createdAt)}</time>
+                  <time dateTime={message.createdAt}>{hora(message.createdAt, timeZone)}</time>
                 </div>
                 <div className={styles.bubble} data-author={message.author}>
                   {message.text}
@@ -159,7 +162,7 @@ export function ConversationThread({
                 {message.delivery === 'failed' ? (
                   <div className={styles.deliveryFailed}>
                     <CircleX aria-hidden="true" size={15} />
-                    <span>Não entregue às {hora(message.createdAt)}</span>
+                    <span>Não entregue às {hora(message.createdAt, timeZone)}</span>
                     {canRetry ? (
                       <RetryMessageButton conversationId={thread.id} messageId={message.id} />
                     ) : null}
@@ -184,6 +187,7 @@ export function ConversationThread({
             windowOpen={thread.window.open}
             windowClosesAt={thread.window.closesAt}
             lastInboundAt={thread.window.lastInboundAt}
+            timeZone={timeZone}
             canManage={canManage}
             handoff={thread.handoff}
             currentUserId={currentUserId}

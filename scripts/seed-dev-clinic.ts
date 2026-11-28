@@ -1,15 +1,15 @@
 /**
  * `pnpm seed:dev`
  *
- * Cria contas de teste DETERMINÍSTICAS para dev: 2 clínicas, cada uma com 1
- * usuário por role, emails previsíveis e a MESMA senha. Idempotente (reusa
+ * Cria contas de teste para dev: 2 clínicas, cada uma com 1
+ * usuário por role e emails previsíveis. Idempotente (reusa
  * usuário/clínica existentes). SÓ dev (assertDevContext).
  *
  *   Clínica A (clinica-a)  → todas as roles
  *   Clínica B (clinica-b)  → owner + médico (para teste de RLS A/B entre tenants)
  *
  * Emails: <local>@<slug>.com   (ex.: medico@clinica-a.com)
- * Senha (todos):  SenhaForte123!
+ * Senha (todos): definida em SEED_DEV_PASSWORD; nunca gravada no código.
  *
  * O médico já nasce com CRM e a clínica com endereço/telefone, para emitir o
  * Receituário de Controle Especial sem preparo manual.
@@ -26,7 +26,9 @@ import { createAdminClient } from '@/lib/auth/supabase-admin';
 import { encryptForTenant, hashForLookup, normalizeCpf } from '@/lib/crypto';
 import { dbAdmin } from '@/lib/db';
 
-const PASSWORD = 'SenhaForte123!';
+import { requireSyntheticPassword } from './security/synthetic-password';
+
+const PASSWORD = requireSyntheticPassword(process.env.SEED_DEV_PASSWORD, 'SEED_DEV_PASSWORD');
 
 interface SeedUser {
   local: string; // parte local do email
@@ -127,7 +129,11 @@ const byEmail = new Map(listed.users.map((u) => [u.email?.toLowerCase() ?? '', u
 
 async function findOrCreateUser(email: string): Promise<string> {
   const existing = byEmail.get(email.toLowerCase());
-  if (existing) return existing;
+  if (existing) {
+    const { error } = await supabase.auth.admin.updateUserById(existing, { password: PASSWORD });
+    if (error) throw error;
+    return existing;
+  }
   const { data, error } = await supabase.auth.admin.createUser({
     email,
     password: PASSWORD,
@@ -138,7 +144,7 @@ async function findOrCreateUser(email: string): Promise<string> {
   return data.user.id;
 }
 
-const summary: Array<{ clinica: string; email: string; role: string; senha: string }> = [];
+const summary: Array<{ clinica: string; email: string; role: string }> = [];
 
 for (const c of CLINICS) {
   // 1. clínica (upsert por slug) — com endereço/telefone p/ o receituário.
@@ -174,7 +180,7 @@ for (const c of CLINICS) {
         deleted_at = NULL,
         updated_at = now()
     `);
-    summary.push({ clinica: c.nome, email, role: u.role, senha: PASSWORD });
+    summary.push({ clinica: c.nome, email, role: u.role });
     console.log(
       `[seed:dev]   • ${email}  (role=${u.role}${u.crm ? `, CRM ${u.crmUf} ${u.crm}` : ''})`,
     );
@@ -242,7 +248,7 @@ for (const c of CLINICS) {
   }
 }
 
-console.log('\n[seed:dev] ✅ done. Credenciais (senha igual para todos):\n');
+console.log('\n[seed:dev] ✅ done. Contas de teste (senha definida por SEED_DEV_PASSWORD):\n');
 console.table(summary);
 console.log(`
 Login em /login. Roles de clínica não exigem MFA → vão direto para /dashboard.

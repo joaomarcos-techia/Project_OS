@@ -8,6 +8,7 @@ import { metrics } from '@/lib/observability/metrics';
 
 import {
   BoundedFallbackLimiter,
+  assertLoginAllowed,
   assertClinicalPdfDownloadAllowed,
   assertInviteAcceptAllowed,
   assertInviteAllowed,
@@ -605,6 +606,22 @@ describe('M3 — fail-open com Redis indisponível', () => {
       'auth.ratelimit.degraded',
       expect.objectContaining({ kind: 'invite' }),
     );
+  });
+
+  it('login: Redis fora → sai marcado como degradado para o login conferir a trilha no banco (S8/R69)', async () => {
+    const { emit } = spies();
+    const res = await assertLoginAllowed('203.0.113.41', 'email-hash-failopen-1');
+    expect(res).toEqual({ ok: true, degraded: true });
+    expect(emit).toHaveBeenCalledWith(
+      'auth.ratelimit.degraded',
+      expect.objectContaining({ kind: 'login' }),
+    );
+    // Acima do teto da memória da instância, continua fechado (não vira barra-livre).
+    for (let i = 0; i < 5; i++) await assertLoginAllowed('203.0.113.42', 'email-hash-failopen-2');
+    await expect(assertLoginAllowed('203.0.113.42', 'email-hash-failopen-2')).resolves.toEqual({
+      ok: false,
+      reason: 'rate_limited',
+    });
   });
 
   it('mfa: Redis fora → continua funcionando + loga + emite métrica', async () => {

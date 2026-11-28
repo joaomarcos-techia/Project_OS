@@ -1,5 +1,8 @@
 import { Logo } from '@/components/shared/logo';
+import { loginFrame } from '@/components/shared/login-frame';
+import { signupFrame } from '@/components/shared/signup-frame';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/ui/cn';
 
 type AuthScreenSkeletonProps = {
   variant: 'login' | 'invite';
@@ -39,29 +42,29 @@ export function AuthScreenSkeleton({ variant }: AuthScreenSkeletonProps) {
     <main
       aria-busy="true"
       aria-label="Carregando acesso"
-      className="grid min-h-screen bg-surface lg:grid-cols-2"
+      data-qoro-tokens="app-v5"
+      className={signupFrame.page}
     >
       <LoadingAnnouncement label="Carregando acesso" />
-      <div className="flex flex-col px-6 py-8 sm:px-10 lg:px-16">
-        <Logo className="h-7 w-auto" />
-        <div className="flex flex-1 items-center justify-center py-10">
-          <div className="flex w-full max-w-sm flex-col gap-4">
-            <Skeleton className="h-8 w-64 max-w-full" />
-            <Skeleton className="h-3 w-72 max-w-full" />
-            <div className="mt-2 flex flex-col gap-2">
-              <Skeleton className="h-3 w-14" />
-              <Skeleton className="h-10 w-full" />
+      <div className={loginFrame.split}>
+        <div className={loginFrame.side}>
+          <div className={loginFrame.top}>
+            <Logo className={cn(signupFrame.logo, 'text-current dark:text-current')} />
+          </div>
+          <div className={loginFrame.mid}>
+            <div className={loginFrame.intro}>
+              <Skeleton className="h-10 w-72 max-w-full" />
+              <Skeleton className="h-4 w-64 max-w-full" />
             </div>
-            <div className="flex flex-col gap-2">
-              <Skeleton className="h-3 w-12" />
-              <Skeleton className="h-10 w-full" />
+            <div className={loginFrame.form}>
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
             </div>
-            <Skeleton className="h-10 w-full" />
           </div>
         </div>
-        <Skeleton className="h-3 w-40" />
+        <aside aria-hidden="true" className={loginFrame.art} />
       </div>
-      <aside aria-hidden="true" className="hidden bg-primary lg:block" />
     </main>
   );
 }

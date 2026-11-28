@@ -1,15 +1,19 @@
 'use client';
 
-import { CheckCircle2, Eye, EyeOff, KeyRound } from 'lucide-react';
+import { Eye, EyeOff, KeyRound } from 'lucide-react';
 import { useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 
+import { PublicBlock, PublicHeading, signupFrame } from '@/components/shared/signup-frame';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SIGNUP_INPUT_LIMITS } from '@/contexts/onboarding/signup-input-limits';
 import { signupPasswordSchema } from '@/lib/auth/signup-password';
+import { cn } from '@/lib/ui/cn';
+
+import styles from './cadastro.module.css';
 
 type PreparedCredentials = {
   email: string;
@@ -160,127 +164,103 @@ export function SignupEmailVerified({
     <section
       aria-labelledby="signup-email-verified-title"
       data-slot="signup-email-verified"
-      className="rounded-(--r-2xl) bg-surface-raised p-6 text-left shadow-[0_0_0_1px_oklch(0_0_0/0.06),0_8px_28px_oklch(0_0_0/0.07)] sm:p-8"
+      className={styles.stack}
     >
-      <div className="text-center">
-        <CheckCircle2 aria-hidden="true" className="mx-auto size-9 text-success-600" />
-        <p className="mt-5 font-mono text-xs font-semibold uppercase tracking-[0.12em] text-primary">
-          Etapa 3 · confirmação
-        </p>
-        <h1
-          id="signup-email-verified-title"
-          className="mt-3 text-balance font-display text-3xl font-semibold tracking-[-0.03em]"
-        >
-          E-mail confirmado
-        </h1>
-        <p className="mx-auto mt-3 max-w-[48ch] text-pretty text-sm leading-relaxed text-fg-muted">
-          Para continuar nesta aba, crie sua senha e digite o código de 8 dígitos do e-mail. Você
-          também pode continuar diretamente na página aberta pelo link de confirmação.
-        </p>
-      </div>
+      <PublicHeading
+        id="signup-email-verified-title"
+        title="E-mail confirmado"
+        lead="Para continuar nesta aba, crie sua senha e digite o código de 8 dígitos do e-mail. Você também pode continuar diretamente na página aberta pelo link de confirmação."
+      />
 
-      <form
-        method="post"
-        ref={formRef}
-        onSubmit={submit}
-        noValidate
-        className="mx-auto mt-7 max-w-sm space-y-5"
-      >
-        {!usarEmailPreparado ? (
-          <div className="space-y-2">
-            <Label htmlFor="signup-continue-email">E-mail usado no cadastro</Label>
-            <Input
-              id="signup-continue-email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
-              maxLength={SIGNUP_INPUT_LIMITS.email}
-              disabled={saving}
-            />
+      <PublicBlock narrow>
+        <form method="post" ref={formRef} onSubmit={submit} noValidate className={styles.form}>
+          {!usarEmailPreparado ? (
+            <div className={signupFrame.field}>
+              <Label htmlFor="signup-continue-email">E-mail usado no cadastro</Label>
+              <Input
+                id="signup-continue-email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                maxLength={SIGNUP_INPUT_LIMITS.email}
+                disabled={saving}
+              />
+            </div>
+          ) : null}
+          <div className={signupFrame.field}>
+            <Label htmlFor="signup-continue-password">Crie sua senha</Label>
+            <div className={signupFrame.passwordField}>
+              <Input
+                id="signup-continue-password"
+                name="password"
+                type={senhaVisivel ? 'text' : 'password'}
+                autoComplete="new-password"
+                required
+                maxLength={SIGNUP_INPUT_LIMITS.password}
+                disabled={saving}
+                aria-describedby="signup-continue-password-help"
+              />
+              <button
+                type="button"
+                onClick={() => setSenhaVisivel((visible) => !visible)}
+                aria-label={senhaVisivel ? 'Ocultar senha' : 'Mostrar senha'}
+                aria-pressed={senhaVisivel}
+                className={signupFrame.passwordToggle}
+              >
+                {senhaVisivel ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+              </button>
+            </div>
+            <p id="signup-continue-password-help" className={signupFrame.hint}>
+              De 8 a 72 caracteres, sem espaços, com letra maiúscula, minúscula e número. Símbolos
+              são opcionais.
+            </p>
           </div>
-        ) : null}
-        <div className="space-y-2">
-          <Label htmlFor="signup-continue-password">Crie sua senha</Label>
-          <div className="relative">
-            <Input
-              id="signup-continue-password"
-              name="password"
-              type={senhaVisivel ? 'text' : 'password'}
-              autoComplete="new-password"
-              required
-              maxLength={SIGNUP_INPUT_LIMITS.password}
-              disabled={saving}
-              aria-describedby="signup-continue-password-help"
-              className="pr-11"
-            />
-            <button
-              type="button"
-              onClick={() => setSenhaVisivel((visible) => !visible)}
-              aria-label={senhaVisivel ? 'Ocultar senha' : 'Mostrar senha'}
-              aria-pressed={senhaVisivel}
-              className="absolute right-0 top-0 flex size-(--control-h) min-h-(--hit-target) items-center justify-center rounded-(--field-radius) text-fg-subtle transition-colors hover:text-fg focus-visible:shadow-(--focus-ring) focus-visible:outline-none"
-            >
-              {senhaVisivel ? (
-                <EyeOff aria-hidden="true" className="size-4" />
-              ) : (
-                <Eye aria-hidden="true" className="size-4" />
-              )}
-            </button>
+
+          <div className={signupFrame.field}>
+            <Label htmlFor="signup-verification-code">Código do e-mail</Label>
+            <div className="relative w-full max-w-52">
+              <KeyRound
+                aria-hidden="true"
+                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-fg-subtle"
+              />
+              <Input
+                id="signup-verification-code"
+                name="verificationCode"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]{8}"
+                minLength={SIGNUP_INPUT_LIMITS.verificationCode}
+                maxLength={SIGNUP_INPUT_LIMITS.verificationCode}
+                size={SIGNUP_INPUT_LIMITS.verificationCode}
+                required
+                disabled={saving}
+                aria-describedby="signup-verification-code-help"
+                className={cn('px-10 text-center tabular-nums', styles.codeInputCompact)}
+                onInput={(event) => {
+                  event.currentTarget.value = event.currentTarget.value
+                    .replace(/\D/gu, '')
+                    .slice(0, SIGNUP_INPUT_LIMITS.verificationCode);
+                }}
+              />
+            </div>
+            <p id="signup-verification-code-help" className={signupFrame.hint}>
+              O código fica no corpo da mensagem e não aparece no endereço do link.
+            </p>
           </div>
-          <p
-            id="signup-continue-password-help"
-            className="text-pretty text-xs leading-relaxed text-fg-subtle"
-          >
-            De 8 a 72 caracteres, sem espaços, com letra maiúscula, minúscula e número. Símbolos são
-            opcionais.
-          </p>
-        </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="signup-verification-code">Código do e-mail</Label>
-          <div className="relative w-full max-w-[13rem]">
-            <KeyRound
-              aria-hidden="true"
-              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-fg-subtle"
-            />
-            <Input
-              id="signup-verification-code"
-              name="verificationCode"
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              pattern="[0-9]{8}"
-              minLength={SIGNUP_INPUT_LIMITS.verificationCode}
-              maxLength={SIGNUP_INPUT_LIMITS.verificationCode}
-              size={SIGNUP_INPUT_LIMITS.verificationCode}
-              required
-              disabled={saving}
-              aria-describedby="signup-verification-code-help"
-              className="px-10 text-center font-mono text-base tracking-[0.18em] tabular-nums"
-              onInput={(event) => {
-                event.currentTarget.value = event.currentTarget.value
-                  .replace(/\D/gu, '')
-                  .slice(0, SIGNUP_INPUT_LIMITS.verificationCode);
-              }}
-            />
+          <div className={styles.closing}>
+            <div aria-live="polite" className={styles.live}>
+              {message ? <Alert variant={messageKind}>{message}</Alert> : null}
+            </div>
+
+            <Button type="submit" loading={saving} className={signupFrame.buttonFull}>
+              Continuar
+            </Button>
           </div>
-          <p
-            id="signup-verification-code-help"
-            className="text-pretty text-xs leading-relaxed text-fg-subtle"
-          >
-            O código fica no corpo da mensagem e não aparece no endereço do link.
-          </p>
-        </div>
-
-        <div aria-live="polite">
-          {message ? <Alert variant={messageKind}>{message}</Alert> : null}
-        </div>
-
-        <Button type="submit" loading={saving} className="w-full active:scale-[0.96]">
-          Continuar
-        </Button>
-      </form>
+        </form>
+      </PublicBlock>
     </section>
   );
 }

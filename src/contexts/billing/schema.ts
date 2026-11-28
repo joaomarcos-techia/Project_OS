@@ -341,11 +341,15 @@ export const subscriptions = pgTable(
     cancelReason: text('cancel_reason'),
     cancelledBy: uuid('cancelled_by'), // FK auth.users via migration (sem FK, padrão *_by)
     asaasSubscriptionId: text('asaas_subscription_id'),
+    billingProvider: text('billing_provider', { enum: ['asaas', 'abacatepay'] })
+      .notNull()
+      .default('asaas'),
     dunningStage: integer('dunning_stage').notNull().default(0), // monotônico (0/1/3/7/15/30)
     ...timestampsPattern(),
   },
   (t) => ({
     clinicUniq: unique('subscriptions_clinic_uniq').on(t.clinicId),
+    gatewayTenantIdentity: unique('subscriptions_id_clinic_gateway_unique').on(t.id, t.clinicId),
     clinicIdx: index('subscriptions_clinic_id_idx').on(t.clinicId),
     statusIdx: index('subscriptions_billing_status_idx').on(t.billingStatus),
   }),
@@ -474,6 +478,11 @@ export const invoices = pgTable(
   },
   (t) => ({
     clinicStatusIdx: index('invoices_clinic_status_idx').on(t.clinicId, t.status),
+    gatewayTenantIdentity: unique('invoices_id_clinic_subscription_gateway_unique').on(
+      t.id,
+      t.clinicId,
+      t.subscriptionId,
+    ),
     dueIdx: index('invoices_due_idx').on(t.status, t.dueDate),
     // Resolução do webhook por asaas_payment_id (e dedup de geração).
     asaasPaymentUniq: uniqueIndex('invoices_asaas_payment_uniq')
@@ -487,6 +496,50 @@ export const invoices = pgTable(
   }),
 );
 export type InvoiceRow = typeof invoices.$inferSelect;
+
+/** Evaluation-only cohort, enrolled by 0136 on NEW versioned trial subscriptions. */
+export const trialAccessPolicies = pgTable(
+  'trial_access_policies',
+  {
+    clinicId: tenantIdRef().primaryKey(),
+    subscriptionId: uuid('subscription_id')
+      .notNull()
+      .unique()
+      .references(() => subscriptions.id, { onDelete: 'cascade' }),
+    ownerUserId: uuid('owner_user_id').notNull(),
+    releasedAt: timestamp('released_at', { withTimezone: true }),
+    releasedByInvoiceId: uuid('released_by_invoice_id').references(() => invoices.id, {
+      onDelete: 'no action',
+    }),
+    ...timestampsPattern(),
+  },
+  (t) => ({
+    releasePair: check(
+      'trial_access_release_pair',
+      sql`(${t.releasedAt} IS NULL) = (${t.releasedByInvoiceId} IS NULL)`,
+    ),
+  }),
+);
+
+export const trialResourceUsage = pgTable(
+  'trial_resource_usage',
+  {
+    clinicId: uuid('clinic_id')
+      .notNull()
+      .references(() => trialAccessPolicies.clinicId, { onDelete: 'cascade' }),
+    metric: text('metric').notNull(),
+    consumed: integer('consumed').notNull().default(0),
+    ...timestampsPattern(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.clinicId, t.metric] }),
+    countCheck: check('trial_resource_usage_consumed_check', sql`${t.consumed} >= 0`),
+    metricCheck: check(
+      'trial_resource_metric_chk',
+      sql`${t.metric} IN ('patients','appointments','documents','payments','receivables','expenses','procedures','resources','document_templates')`,
+    ),
+  }),
+);
 
 export const invoiceItems = pgTable(
   'invoice_items',

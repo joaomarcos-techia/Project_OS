@@ -1,0 +1,52 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "31",
+  "title": "Tabela 31 - Terminologia de estadiamento do tumor",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 6,
+  "terms": [
+    {
+      "code": "0",
+      "term": "0",
+      "startsOn": "2017-04-10",
+      "endsOn": null,
+      "implantationEndsOn": "2017-07-09"
+    },
+    {
+      "code": "1",
+      "term": "I",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "2",
+      "term": "II",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3",
+      "term": "III",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "4",
+      "term": "IV",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5",
+      "term": "Não se aplica",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    }
+  ]
+}

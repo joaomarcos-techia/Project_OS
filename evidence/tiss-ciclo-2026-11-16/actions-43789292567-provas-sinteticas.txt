@@ -1,0 +1,60 @@
+Job sintetico do Actions (Postgres descartavel no runner, dados sinteticos, sem segredo)
+Run 43789292567, commit b1595fae09278de9ec83b4c0b25a60fe5ea41770, 16/11/2026
+CI 43789296999 (670 arquivos, 7222 aprovados, 3 skipped do corpus; E2E publico 8 aprovados e 2 skipped historicos do Turnstile); ADR advisory 43789297011
+1a execucao da candidata dos gatilhos: run 43785054810 (provas 1-6 PASS; 7 falhou por linha incompleta no harness em modo replica)
+
+SP/SADT — solicitação, automação e indicação clínica × D24 | PASS: 2. vários procedimentos com autorização exigida: sessão antes da resposta vira pendência automática (sem guia, sem consumo); autorização sem evidência é recusada; parcial (2
+SP/SADT — solicitação, automação e indicação clínica × D24 | PASS: 3. reprocessamento (3×) e reentrega do evento: as 2 sessões seguem em uma guia cada, consumo 2 (nenhuma sessão nem consumo duplicado)
+SP/SADT — solicitação, automação e indicação clínica × D24 | PASS: 4. agrupamento por solicitação (regra da operadora): 3 sessões em datas diferentes numa guia, cada uma pelo contrato vigente NA SUA DATA (100,00; 100,00; 125,00); sessão de outro 
+SP/SADT — solicitação, automação e indicação clínica × D24 | PASS: 5. uma guia por sessão (padrão da operadora); execução parcial: 2 de 5 executadas, a solicitação segue aceitando sessões
+SP/SADT — solicitação, automação e indicação clínica × D24 | PASS: 6. negada: pendência sem guia; cancelar com sessão executada é recusado (encerra-se), sem sessão cancela também o pedido à operadora e a solicitação deixa de aceitar sessões;
+SP/SADT — solicitação, automação e indicação clínica × D24 | PASS: 7. concorrência: duas sessões concluídas ao mesmo tempo com saldo 1 → uma guia, consumo 1, a outra vira pendência (trava por item)
+SP/SADT — solicitação, automação e indicação clínica × D24 | PASS: 8. RLS: outra clínica não lê a solicitação nem liga atendimento ao item dela; clínica suspensa pelo dunning não cria solicitação (D24); procedimento fora do contrato e da TUS
+SP/SADT — solicitação, automação e indicação clínica × D24 | PASS: 9. histórico só de inclusão (rascunho → aguardando → parcialmente autorizada); nenhuma coluna de CID, diagnóstico ou prontuário
+SP/SADT — solicitação, automação e indicação clínica × D24 | PASS: 10. documento oficial do pedido (P6.2): XML SOLICITACAO_PROCEDIMENTOS validado no XSD + PDF do modelo oficial, cifrados e ligados à autorização; geração única sob concorrência;
+SP/SADT — solicitação, automação e indicação clínica × D24 | PASS: 11. indicação clínica (D24): ativa grava; trial e suspensa no meio da sessão recusam sem tocar na solicitação; outra clínica, clínica adulterada e id inexistente não alcança
+SP/SADT — solicitação, automação e indicação clínica × D24 | OK — 12 provas: solicitação SP/SADT persistida e SP/SADT automática ponta a ponta (até o XML validado no XSD).
+Repasse do convênio — inclui o cancelamento da guia com repasse | PASS: 1. regra REAL do Qoro (40%) congelada; política padrão "no recebimento": previsto R$ 60,00, elegível R$ 0,00 antes de a operadora pagar (sem antecipação); criação idempotente
+Repasse do convênio — inclui o cancelamento da guia com repasse | PASS: 2. pagamento parcial (R$ 100 de R$ 150): elegível R$ 40,00 (nunca o integral); autorizar acima do elegível e repassar acima do autorizado são recusados; a mesma chave não paga duas 
+Repasse do convênio — inclui o cancelamento da guia com repasse | PASS: 3. pagamento posterior (+R$ 50): elegível R$ 60,00, pendente de autorização só R$ 20,00; devido R$ 20,00 sobre R$ 40,00 já repassados
+Repasse do convênio — inclui o cancelamento da guia com repasse | PASS: 4. glosa definitiva parcial (R$ 50): devido R$ 100, recebido R$ 100, elegível R$ 40,00; glosa integral: elegível R$ 0,00 com previsto de R$ 60,00 visível
+Repasse do convênio — inclui o cancelamento da guia com repasse | PASS: 5. glosa contestada/em recurso não reduz o devido (fica "em aberto"); com o recurso aceito e o pagamento posterior, o elegível sobe para R$ 60,00
+Repasse do convênio — inclui o cancelamento da guia com repasse | PASS: 6. estorno de R$ 100 depois de R$ 60 repassados: elegível cai para R$ 20,00 e o excesso fica visível (−R$ 40); o ajuste é humano, com motivo, e deixa o devido em −R$ 40,00 (a com
+Repasse do convênio — inclui o cancelamento da guia com repasse | PASS: 7. regra fixa (R$ 50): paga integral → elegível R$ 50,00; com glosa parcial → pendência de decisão (sem estimativa); a gestão decide por ajuste com motivo (R$ 30), nunca acima d
+Repasse do convênio — inclui o cancelamento da guia com repasse | PASS: 8. política D16 configurável: "na aprovação" (guia aprovada, sem pagamento) elegível R$ 60,00; "na conclusão" antecipa sobre o contratado; a política de cada repasse fica congela
+Repasse do convênio — inclui o cancelamento da guia com repasse | PASS: 9. a regra do procedimento (55%) vence a geral (30%) do mesmo profissional; cada profissional usa a SUA regra (A 40%, B fixo R$ 50)
+Repasse do convênio — inclui o cancelamento da guia com repasse | PASS: 10. concorrência: dois repasses de R$ 40 sobre R$ 60 autorizados ao mesmo tempo → um passa, o outro é recusado (linha travada); nunca paga em dobro
+Repasse do convênio — inclui o cancelamento da guia com repasse | PASS: 11. plano sem políticas avançadas (consultório) e profissional sem regra: nenhum repasse; cancelar com repasse realizado é recusado (ajuste), sem repasse cancela e o histórico fica
+Repasse do convênio — inclui o cancelamento da guia com repasse | PASS: 12. outra clínica não lê nem movimenta o repasse; atendimento de convênio concluído pelo Scheduling → outbox → guia pronta → repasse criado sozinho (previsto R$ 60,00, elegí
+Repasse do convênio — inclui o cancelamento da guia com repasse | PASS: 13. cancelar guia aprovada (política "na aprovação"): sem repasse → elegível R$ 0,00 e nada a revisar; repasse autorizado → a obrigação de R$ 60,00 continua devida e o excesso
+Repasse do convênio — inclui o cancelamento da guia com repasse | PASS: 14. não regressão do cancelamento (guia cancelada com repasse autorizado e pago em parte): a mesma chave não duplica o pagamento; pagamento acima do autorizado, cancelamento do repas
+Repasse do convênio — inclui o cancelamento da guia com repasse | OK — 14 provas do repasse profissional de convênio (P10.4).
+Interruptor do módulo — classe A recusada, classe C preservada | PASS: 1. módulo desligado com assinatura ativa: montar lote, enviar lote, emitir guia e ajustar a Consulta são recusados (classe A), sem criar lote nem mudar guia ou lote
+Interruptor do módulo — classe A recusada, classe C preservada | PASS: 2. com o módulo desligado continuam: cancelar guia não enviada, glosa e pagamento do lote já enviado (preservação) e a leitura do conteúdo emitido
+Interruptor do módulo — classe A recusada, classe C preservada | PASS: 3. trial com o módulo desligado: a resposta é a comercial (contrate), não a do módulo
+Interruptor do módulo — classe A recusada, classe C preservada | PASS: 4. módulo religado: montar o lote e ajustar a Consulta passam (a recusa não consumiu nada)
+Interruptor do módulo — classe A recusada, classe C preservada | OK — 4/4 provas do interruptor do módulo (classes A e C).
+Gatilhos do módulo (candidata) — classe A barrada no banco, preservação e recuperação passam | PASS: 1. a candidata aplica depois da cadeia do DEV e reaplica sem mudança: 8 gatilhos hi_ab_module_* e a função hi_module_guard
+Gatilhos do módulo (candidata) — classe A barrada no banco, preservação e recuperação passam | PASS: 2. os 6 tipos de hi_files estão classificados (3 de operação nova); nas 8 tabelas da classe A só o D24 dispara antes do módulo; glosas, pagamentos,
+Gatilhos do módulo (candidata) — classe A barrada no banco, preservação e recuperação passam | PASS: 3. módulo desligado com assinatura ativa: 15 operações da classe A recusadas pelo banco com 55000/hi_module_enabled mesmo sem o serviço (SQL do dono
+Gatilhos do módulo (candidata) — classe A barrada no banco, preservação e recuperação passam | PASS: 4. com o módulo desligado continuam no banco: cancelar guia, devolver para correção, reabrir guia aprovada, cancelar lote exportado (a guia volta a "
+Gatilhos do módulo (candidata) — classe A barrada no banco, preservação e recuperação passam | PASS: 5. trial com o módulo desligado: o banco responde a restrição comercial (23514), não a do módulo; o serviço também
+Gatilhos do módulo (candidata) — classe A barrada no banco, preservação e recuperação passam | PASS: 6. pelo serviço, a recusa continua sendo ConveniosModuleDisabledError (mensagem do módulo), antes de chegar ao gatilho
+Gatilhos do módulo (candidata) — classe A barrada no banco, preservação e recuperação passam | PASS: 7. restauração com session_replication_role = replica e backfill com o gatilho desligado nominalmente (ALTER TABLE ... DISABLE TRIGGER na própria tra
+Gatilhos do módulo (candidata) — classe A barrada no banco, preservação e recuperação passam | PASS: 8. módulo religado: conferir por SQL direto e montar lote pelo serviço passam (a recusa não consumiu nada)
+Gatilhos do módulo (candidata) — classe A barrada no banco, preservação e recuperação passam | PASS: 9. a reversão do cabeçalho remove os 8 gatilhos e a função (o banco volta ao comportamento de hoje) e a candidata reaplica igual
+Gatilhos do módulo (candidata) — classe A barrada no banco, preservação e recuperação passam | OK — 9/9 provas da proposta de gatilhos do módulo (candidata sem número, NÃO aplicada no DEV).
+0162 candidata — matriz de permissões I.2 (12 provas) | PASS: catálogo: 28 → 33 códigos, os cinco novos com descrição
+0162 candidata — matriz de permissões I.2 (12 provas) | PASS: pacotes: cada papel recebe exatamente a matriz; os pacotes de hoje ficam intactos
+0162 candidata — matriz de permissões I.2 (12 provas) | PASS: efetivas: ninguém perde código; cada papel ganha só o da matriz (com e sem plano granular)
+0162 candidata — matriz de permissões I.2 (12 provas) | PASS: overrides: R1–R4 levados; redundantes ignorados; negativa vence; sem plano granular nada muda
+0162 candidata — matriz de permissões I.2 (12 provas) | PASS: claims_version: 18 perfis de clínica incrementados; super_admin intocado
+0162 candidata — matriz de permissões I.2 (12 provas) | PASS: sem DDL: visão, hook, colunas, funções, gatilhos, políticas e GRANTs idênticos
+0162 candidata — matriz de permissões I.2 (12 provas) | PASS: token: o hook real traz os códigos da matriz e o claims_version novo, abaixo do teto de 128
+0162 candidata — matriz de permissões I.2 (12 provas) | PASS: reaplicar: nada muda e o claims_version não sobe de novo
+0162 candidata — matriz de permissões I.2 (12 provas) | PASS: runtime: continua sem escrever catálogo, pacotes e overrides (42501)
+0162 candidata — matriz de permissões I.2 (12 provas) | PASS: reversão: efetivas, overrides, pacotes e catálogo voltam ao de antes; o token renova
+0162 candidata — matriz de permissões I.2 (12 provas) | PASS: escopo: a candidata só referencia _schema_version, permissions, profiles, role_permissions, user_permission_overrides (fora do pacote SaaS 0136–0159)
+0162 candidata — matriz de permissões I.2 (12 provas) | PASS: reaplicar depois da reversão: mesmo resultado, sem DDL
+0162 candidata — matriz de permissões I.2 (12 provas) | 12/12 provas da candidata 0162 (Postgres descartável, cadeia do DEV)
+SP/SADT — solicitação, automação e indicação clínica × D24 | PASS: 1b. emissão com a indicação do solicitante e as regras TISS (snapshot cifrado, sem indicação nem carteirinha em claro) → lote → XML SP/SADT validado no XSD oficial e guardado

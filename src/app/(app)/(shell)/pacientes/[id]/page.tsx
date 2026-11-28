@@ -1,10 +1,11 @@
+import type { Metadata } from 'next';
 /**
- * /pacientes/[id] — HUB do paciente: Dados | Prontuários em abas (?tab=…),
+ * /pacientes/[id] — HUB do paciente: Dados | Prontuários | Convênios em abas (?tab=…),
  * sem navegar de tela. THE decryption happens here via
  * getPatientWithDecryptedFields (the single decrypt point). RLS + key derivation
  * make a cross-tenant id both unreadable and undecryptable.
  */
-import { FileText } from 'lucide-react';
+import { ArrowLeft, FileText } from 'lucide-react';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { Suspense } from 'react';
@@ -24,7 +25,9 @@ import {
   listCurrentConsentDecisions,
   listPatientRelationships,
 } from '@/contexts/patient/queries';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { Alert } from '@/components/ui/alert';
+import { initialsFrom } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -42,10 +45,14 @@ import { PatientDeathForm } from './patient-death-form';
 import { PatientProfileCard } from './patient-profile-card';
 import { PatientRelationshipsCard } from './patient-relationships-card';
 import { NovoProntuarioButton } from './prontuarios/novo-prontuario-button';
+// Aba Convênios: componente do módulo TISS (dados, estados e permissões ficam lá).
+import { PatientInsuranceTab } from '../../convenios/_lib/patient-insurance-tab';
+
+export const metadata: Metadata = { title: 'Ficha do paciente' };
 
 export const dynamic = 'force-dynamic';
 
-type Tab = 'dados' | 'prontuarios';
+type Tab = 'dados' | 'prontuarios' | 'convenios';
 
 interface PatientPageUser {
   isSuperAdmin?: boolean;
@@ -68,6 +75,10 @@ export function patientPageCapabilities(user: PatientPageUser) {
     canSignProntuario: has(PERMISSIONS.SIGN_PRONTUARIO),
     canViewDocuments: has(PERMISSIONS.VIEW_PRESCRIPTION),
     canCreateDocuments: has(PERMISSIONS.CREATE_PRESCRIPTION),
+    // Convênios (matriz I.2): entrar no módulo abre a aba (só leitura, número mascarado); o link de
+    // gestão das carteirinhas é de quem opera Convênios (recepção). O mesmo gate de /convenios.
+    canViewInsurance: has(PERMISSIONS.VIEW_CONVENIOS),
+    canOperateInsurance: has(PERMISSIONS.OPERATE_CONVENIOS),
   };
 }
 
@@ -76,20 +87,22 @@ function HubTabs({
   patientId,
   active,
   canViewProntuario,
+  canViewInsurance,
 }: {
   patientId: string;
   active: Tab;
   canViewProntuario: boolean;
+  canViewInsurance: boolean;
 }) {
   const tab = (t: Tab, label: string) => (
     <Link
       href={`/pacientes/${patientId}?tab=${t}`}
       aria-current={active === t ? 'page' : undefined}
       className={cn(
-        'relative shrink-0 px-3.5 py-2.5 text-(length:--fs-sm) font-medium transition-colors duration-(--dur-fast)',
-        'after:absolute after:right-2 after:-bottom-px after:left-2 after:h-0.5 after:bg-primary after:transition-opacity',
+        'relative inline-flex h-10 shrink-0 items-center px-2.5 text-(length:--fs-base) font-medium transition-colors duration-(--dur-fast)',
+        'after:absolute after:right-0 after:-bottom-px after:left-0 after:h-0.5 after:bg-(--text-link) after:transition-opacity',
         active === t
-          ? 'text-primary after:opacity-100'
+          ? 'font-semibold text-fg after:opacity-100'
           : 'text-fg-muted after:opacity-0 hover:text-fg',
       )}
     >
@@ -98,7 +111,7 @@ function HubTabs({
   );
   return (
     <nav
-      className="mb-(--sp-5) flex gap-0.5 overflow-x-auto border-b border-border"
+      className="mb-(--sp-5) flex gap-1 overflow-x-auto border-b border-border"
       aria-label="Seções do paciente"
     >
       {tab('dados', 'Visão geral')}
@@ -106,6 +119,7 @@ function HubTabs({
           está no render do conteúdo abaixo; esconder o link só evita prometer
           uma ação proibida. */}
       {canViewProntuario ? tab('prontuarios', 'Prontuários') : null}
+      {canViewInsurance ? tab('convenios', 'Convênios') : null}
     </nav>
   );
 }
@@ -155,8 +169,16 @@ export default async function PacienteDetailPage({
     canSignProntuario,
     canViewDocuments,
     canCreateDocuments,
+    canViewInsurance,
+    canOperateInsurance,
   } = capabilities;
-  const tab: Tab = rawTab === 'prontuarios' && canViewProntuario ? 'prontuarios' : 'dados';
+  // Sem a permissão, o deep-link `?tab=convenios` cai na visão geral (mesma regra do AUTHZ-003).
+  const tab: Tab =
+    rawTab === 'prontuarios' && canViewProntuario
+      ? 'prontuarios'
+      : rawTab === 'convenios' && canViewInsurance
+        ? 'convenios'
+        : 'dados';
   const initialCreate =
     canCreateDocuments &&
     p.obitoEm == null &&
@@ -169,12 +191,27 @@ export default async function PacienteDetailPage({
       <PageHeader
         crumbs={[{ label: 'Pacientes', href: '/pacientes' }, { label: p.nome }]}
         title={p.nome}
-        description="Visão operacional, histórico clínico e governança do cadastro."
-        actions={
-          <Link
-            href="/pacientes"
-            className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'min-h-(--hit-target)')}
+        description="Cadastro, histórico de atendimentos, consentimentos e pedidos LGPD do paciente."
+        leading={
+          <span
+            aria-hidden="true"
+            className="grid size-14 place-items-center rounded-full bg-(--primary-soft) font-semibold text-(--text-link)"
           >
+            {initialsFrom(p.nome)}
+          </span>
+        }
+        titleAside={
+          p.obitoEm ? (
+            <Badge tone="line">Óbito registrado</Badge>
+          ) : (
+            <Badge tone="green" dot>
+              Cadastro ativo
+            </Badge>
+          )
+        }
+        actions={
+          <Link href="/pacientes" className={buttonVariants({ variant: 'secondary' })}>
+            <ArrowLeft aria-hidden="true" className="size-4" />
             Voltar
           </Link>
         }
@@ -187,7 +224,12 @@ export default async function PacienteDetailPage({
         </Alert>
       ) : null}
 
-      <HubTabs patientId={p.id} active={tab} canViewProntuario={canViewProntuario} />
+      <HubTabs
+        patientId={p.id}
+        active={tab}
+        canViewProntuario={canViewProntuario}
+        canViewInsurance={canViewInsurance}
+      />
 
       {tab === 'dados' ? (
         <DadosTab
@@ -211,6 +253,15 @@ export default async function PacienteDetailPage({
           canCreate={canCreateProntuario}
           canSign={canSignProntuario}
         />
+      ) : null}
+      {tab === 'convenios' ? (
+        <Suspense fallback={<SkeletonCard lines={6} />}>
+          <PatientInsuranceTab
+            clinicId={clinicId}
+            patientId={p.id}
+            canEditPatients={canOperateInsurance}
+          />
+        </Suspense>
       ) : null}
     </>
   );
@@ -277,11 +328,12 @@ export async function PatientClinicalActivityData({
     return null;
   }
 
-  const [prontuarios, documents] = await Promise.all([
+  const [prontuarios, documents, timeZone] = await Promise.all([
     canViewProntuario ? listRecentProntuariosByPatient(clinicId, patientId) : Promise.resolve([]),
     canViewDocuments
       ? listClinicalDocumentFeed(clinicId, { patientId, limit: 8 })
       : Promise.resolve([]),
+    getClinicTimezone(clinicId),
   ]);
 
   return (
@@ -295,6 +347,7 @@ export async function PatientClinicalActivityData({
       canCreateDocuments={canCreateDocuments}
       initialCreate={initialCreate}
       deceased={deceased}
+      timeZone={timeZone}
     />
   );
 }
@@ -322,10 +375,11 @@ export async function DadosTab({
   canCreateDocuments: boolean;
   initialCreate: 'prescricao' | 'documento' | null;
 }) {
-  const [endereco, relationships, decisions] = await Promise.all([
+  const [endereco, relationships, decisions, timeZone] = await Promise.all([
     getPrincipalAddress(clinicId, p.id),
     listPatientRelationships(clinicId, p.id),
     listCurrentConsentDecisions(clinicId, p.id),
+    getClinicTimezone(clinicId),
   ]);
   const decisionByPurpose = new Map(decisions.map((d) => [d.purpose, d]));
   const consentPurposes: ConsentPurposeView[] = CONSENT_PURPOSES.map((c) => {
@@ -388,7 +442,12 @@ export async function DadosTab({
             />
           </Suspense>
         ) : null}
-        <ConsentCard patientId={p.id} purposes={consentPurposes} canEdit={canEditPatient} />
+        <ConsentCard
+          patientId={p.id}
+          purposes={consentPurposes}
+          canEdit={canEditPatient}
+          timeZone={timeZone}
+        />
       </aside>
 
       <PatientRelationshipsCard
@@ -434,6 +493,7 @@ async function ProntuariosTab({
   canSign: boolean;
 }) {
   const list = await listProntuariosByPatient(clinicId, patientId);
+  const timeZone = await getClinicTimezone(clinicId);
   return (
     <div className="flex flex-col gap-(--sp-4)">
       {deceased || !canCreate ? null : (
@@ -457,7 +517,7 @@ async function ProntuariosTab({
               >
                 <Badge tone={pr.status === 'assinado' ? 'green' : 'amber'}>{pr.status}</Badge>
                 <span className="text-sm text-fg-muted">
-                  {new Date(pr.createdAt).toLocaleString('pt-BR')}
+                  {new Date(pr.createdAt).toLocaleString('pt-BR', { timeZone })}
                 </span>
                 {pr.needsReturn ? (
                   <span className="text-xs text-fg-subtle">retorno em {pr.returnDays}d</span>

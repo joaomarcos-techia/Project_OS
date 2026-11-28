@@ -1,0 +1,31 @@
+Lote de harnesses de Convênios em Postgres descartável (15/11, 00:00–00:18; PORT=55541 porque o Windows reservou 55417–55516)
+OK   health-insurance-clinic-db.ts passes=29 15s 
+OK   health-insurance-guides-db.ts passes=24 12s 
+OK   health-insurance-guide-service-db.ts passes=9 9s 
+OK   health-insurance-coverage-db.ts passes=13 16s 
+OK   health-insurance-guide-issuance-db.ts passes=7 10s 
+OK   health-insurance-billing-reconcile-db.ts passes=19 18s 
+OK   health-insurance-batches-db.ts passes=16 79s 
+OK   health-insurance-glosses-payments-db.ts passes=16 83s 
+OK   health-insurance-ledger-bridge-db.ts passes=18 80s 
+OK   health-insurance-ui-data-db.ts passes=6 75s 
+OK   health-insurance-appeal-xml-db.ts passes=6 74s 
+OK   health-insurance-statement-import-db.ts passes=9 73s 
+FAIL health-insurance-premium-gate-db.ts passes=0 40s     throw new Error(`postgres nao subiu em 30s:\n${serverLog.slice(-2_000)}`); | Error: postgres nao subiu em 30s:
+OK   hi-r38-ledger-equivalence-db.ts passes=4 82s 
+OK   health-insurance-payout-db.ts passes=12 77s 
+OK   health-insurance-copay-charge-db.ts passes=13 20s 
+OK   health-insurance-sadt-db.ts passes=11 81s 
+OK   health-insurance-config-db.ts passes=14 18s 
+OK   health-insurance-batch-export-async-db.ts passes=11 76s 
+OK   health-insurance-credentials-db.ts passes=7 12s 
+OK   payments-external-refund-db.ts passes=14 20s 
+OK   health-insurance-modality-change-db.ts passes=9 13s 
+OK   health-insurance-contract-import-db.ts passes=9 14s 
+OK   health-insurance-insurer-credentials-db.ts passes=5 18s 
+OK   migration-composition-db.ts passes=14 26s 
+OK   health-insurance-tenant-isolation-db.ts passes=5 19s 
+OK   health-insurance-concurrency-db.ts passes=5 20s 
+Reexecução do premium-gate com a porta configurável:
+OK   health-insurance-premium-gate-db.ts passes=11 31s
+Resultado: 27 de 27 harnesses verdes.

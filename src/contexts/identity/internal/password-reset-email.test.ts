@@ -1,21 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { generateLink, sendEmail } = vi.hoisted(() => ({
+const { generateLink, sendEmail, mockEnv } = vi.hoisted(() => ({
   generateLink: vi.fn(),
   sendEmail: vi.fn(),
+  mockEnv: {
+    APP_BASE_URL: 'https://app.qoro.test',
+    NODE_ENV: 'test',
+    MAGIC_TOKEN_SECRET: 'segredo-de-teste-com-tamanho-suficiente',
+    VERCEL_ENV: undefined as 'preview' | undefined,
+    VERCEL_BRANCH_URL: undefined as string | undefined,
+  },
 }));
 
 vi.mock('@/lib/auth/supabase-admin', () => ({
   createAdminClient: () => ({ auth: { admin: { generateLink } } }),
 }));
 vi.mock('@/lib/email/resend', () => ({ sendTransactionalEmail: sendEmail }));
-vi.mock('@/lib/env', () => ({
-  env: {
-    APP_BASE_URL: 'https://app.qoro.test',
-    NODE_ENV: 'test',
-    MAGIC_TOKEN_SECRET: 'segredo-de-teste-com-tamanho-suficiente',
-  },
-}));
+vi.mock('@/lib/env', () => ({ env: mockEnv }));
 vi.mock('@/lib/observability/logger', () => ({ logger: { warn: vi.fn(), error: vi.fn() } }));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit: vi.fn() } }));
 
@@ -25,6 +26,8 @@ const email = 'pessoa@example.test';
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockEnv.VERCEL_ENV = undefined;
+  mockEnv.VERCEL_BRANCH_URL = undefined;
   generateLink.mockResolvedValue({
     data: { properties: { hashed_token: 'hash-recovery' } },
     error: null,
@@ -33,6 +36,17 @@ beforeEach(() => {
 });
 
 describe('sendPasswordResetEmail', () => {
+  // Ciclo 9: no Preview o link sai no alias da branch, e a trava de origem do template aceita.
+  it('no Preview, entrega o link no alias da branch, não no APP_BASE_URL geral', async () => {
+    mockEnv.VERCEL_ENV = 'preview';
+    mockEnv.VERCEL_BRANCH_URL = 'branch-atual.vercel.app';
+    expect(await sendPasswordResetEmail(email)).toBe('sent');
+    const { text, html } = sendEmail.mock.calls[0]![0] as { text: string; html: string };
+    expect(text).toContain('https://branch-atual.vercel.app/auth/confirm#token_hash=hash-recovery');
+    expect(html).toContain('https://branch-atual.vercel.app/auth/confirm#');
+    expect(text + html).not.toContain('app.qoro.test');
+  });
+
   it('pede SÓ o token ao GoTrue e entrega o link de /auth/confirm pelo Resend', async () => {
     expect(await sendPasswordResetEmail(email)).toBe('sent');
 

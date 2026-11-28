@@ -56,6 +56,7 @@ function stubTransaction(
     pricingPolicyMode: string;
     commercialPaymentMethod: string | null;
   } | null,
+  paidAmount = '0.00',
 ) {
   const lancamento = {
     id: LANCAMENTO_ID,
@@ -64,7 +65,7 @@ function stubTransaction(
     tipo: 'receber',
     status: 'pendente',
     valor: '100.00',
-    valorPago: '0.00',
+    valorPago: paidAmount,
   };
   const returning = vi.fn().mockResolvedValue([{ id: LANCAMENTO_ID }]);
   const where = vi.fn(() => ({ returning }));
@@ -89,6 +90,23 @@ beforeEach(() => {
 });
 
 describe('confirmPayment e condição comercial do atendimento', () => {
+  it('recusa um saldo visto antes de outro pagamento sem gravar baixa ou evento', async () => {
+    const tx = stubTransaction(
+      { pricingPolicyMode: 'absorb_fees', commercialPaymentMethod: null },
+      '40.00',
+    );
+
+    await expect(
+      confirmPayment(
+        { lancamentoId: LANCAMENTO_ID, valorPago: 25, valorPagoEsperado: 0, paymentMethod: 'pix' },
+        'idem-stale-balance',
+      ),
+    ).rejects.toMatchObject({ name: 'LancamentoStateError', httpStatus: 409 });
+    expect(tx.update).not.toHaveBeenCalled();
+    expect(tx.insert).not.toHaveBeenCalled();
+    expect(mocks.publishEvent).not.toHaveBeenCalled();
+  });
+
   it('recusa método divergente antes de registrar baixa ou publicar evento', async () => {
     const tx = stubTransaction({
       pricingPolicyMode: 'payment_method_pricing',
@@ -97,7 +115,7 @@ describe('confirmPayment e condição comercial do atendimento', () => {
 
     await expect(
       confirmPayment(
-        { lancamentoId: LANCAMENTO_ID, valorPago: 25, paymentMethod: 'pix' },
+        { lancamentoId: LANCAMENTO_ID, valorPago: 25, valorPagoEsperado: 0, paymentMethod: 'pix' },
         'idem-divergent',
       ),
     ).rejects.toThrow('difere da condição comercial');
@@ -119,7 +137,12 @@ describe('confirmPayment e condição comercial do atendimento', () => {
     });
     await expect(
       confirmPayment(
-        { lancamentoId: LANCAMENTO_ID, valorPago: 25, paymentMethod: 'dinheiro' },
+        {
+          lancamentoId: LANCAMENTO_ID,
+          valorPago: 25,
+          valorPagoEsperado: 0,
+          paymentMethod: 'dinheiro',
+        },
         'idem-cash',
       ),
     ).resolves.toEqual({ id: LANCAMENTO_ID });
@@ -135,7 +158,12 @@ describe('confirmPayment e condição comercial do atendimento', () => {
     });
     await expect(
       confirmPayment(
-        { lancamentoId: LANCAMENTO_ID, valorPago: 25, paymentMethod: 'cartao_credito' },
+        {
+          lancamentoId: LANCAMENTO_ID,
+          valorPago: 25,
+          valorPagoEsperado: 0,
+          paymentMethod: 'cartao_credito',
+        },
         'idem-standard',
       ),
     ).resolves.toEqual({ id: LANCAMENTO_ID });
@@ -155,7 +183,7 @@ describe('confirmPayment e condição comercial do atendimento', () => {
 
       await expect(
         confirmPayment(
-          { lancamentoId: LANCAMENTO_ID, valorPago: 25, paymentMethod },
+          { lancamentoId: LANCAMENTO_ID, valorPago: 25, valorPagoEsperado: 0, paymentMethod },
           'idem-matched',
         ),
       ).resolves.toEqual({ id: LANCAMENTO_ID });
@@ -172,7 +200,12 @@ describe('confirmPayment e condição comercial do atendimento', () => {
       });
       await expect(
         confirmPayment(
-          { lancamentoId: LANCAMENTO_ID, valorPago: 75, paymentMethod: 'dinheiro' },
+          {
+            lancamentoId: LANCAMENTO_ID,
+            valorPago: 75,
+            valorPagoEsperado: 0,
+            paymentMethod: 'dinheiro',
+          },
           'idem-restante-dinheiro',
         ),
       ).resolves.toEqual({ id: LANCAMENTO_ID });
@@ -198,7 +231,12 @@ describe('confirmPayment e condição comercial do atendimento', () => {
     });
     await expect(
       confirmPayment(
-        { lancamentoId: LANCAMENTO_ID, valorPago: 25, paymentMethod: 'cartao_credito' },
+        {
+          lancamentoId: LANCAMENTO_ID,
+          valorPago: 25,
+          valorPagoEsperado: 0,
+          paymentMethod: 'cartao_credito',
+        },
         'idem-cartao-no-pix',
       ),
     ).rejects.toThrow('difere da condição comercial');
@@ -210,7 +248,12 @@ describe('confirmPayment e condição comercial do atendimento', () => {
     const tx = stubTransaction(null);
     await expect(
       confirmPayment(
-        { lancamentoId: LANCAMENTO_ID, valorPago: 25, paymentMethod: 'dinheiro' },
+        {
+          lancamentoId: LANCAMENTO_ID,
+          valorPago: 25,
+          valorPagoEsperado: 0,
+          paymentMethod: 'dinheiro',
+        },
         'idem-missing',
       ),
     ).rejects.toThrow('atendimento não encontrado nesta clínica');

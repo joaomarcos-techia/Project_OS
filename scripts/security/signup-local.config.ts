@@ -4,11 +4,13 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     include: [
-      process.env.SIGNUP_LOCAL_MAIL === 'true'
-        ? 'scripts/security/signup-mail.integration.ts'
-        : process.env.SIGNUP_LOCAL_BROWSER === 'true'
-          ? 'scripts/security/signup-browser.integration.ts'
-          : 'scripts/security/signup-local.integration.ts',
+      process.env.SIGNUP_LOCAL_PILOT === 'true'
+        ? 'scripts/security/signup-pilot-browser.integration.ts'
+        : process.env.SIGNUP_LOCAL_MAIL === 'true'
+          ? 'scripts/security/signup-mail.integration.ts'
+          : process.env.SIGNUP_LOCAL_BROWSER === 'true'
+            ? 'scripts/security/signup-browser.integration.ts'
+            : 'scripts/security/signup-local.integration.ts',
     ],
     environment: 'node',
     fileParallelism: false,

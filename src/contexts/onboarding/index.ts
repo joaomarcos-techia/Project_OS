@@ -28,10 +28,7 @@ export {
   signupRecoveryInputSchema,
   SIGNUP_RECOVERY_COOKIE,
 } from './internal/signup-recovery';
-export {
-  signupEmailCodeSchema,
-  readSignupCodeDestination,
-} from './internal/signup-email-code-repository';
+export { signupEmailCodeSchema } from './internal/signup-email-code-repository';
 export {
   claimSignupDraftByVerifiedEmail,
   ensureSignupDraftForVerifiedEmail,
@@ -162,6 +159,10 @@ export {
   type ProvisionSignupOutcome,
 } from './internal/signup-provision';
 export {
+  provisionFreeSignupTrial,
+  type FreeSignupTrialOutcome,
+} from './internal/signup-free-trial';
+export {
   ONBOARDING_STEPS,
   EMPTY_STEP_STATE,
   advanceStep,
@@ -189,3 +190,15 @@ export {
 } from './internal/operational-onboarding';
 export type { ClinicInviteRow, ClinicInviteInsert } from './schema';
 export { formatTrialDays, QORO_SELF_SERVICE_TRIAL_DAYS, QORO_TRIAL_DAYS } from './trial';
+export {
+  bootstrapPilotSignup,
+  readPilotSignupPlan,
+  pilotPlanSelectionAllowed,
+  provisionPilotSignup,
+  PILOT_INVITE_COOKIE,
+} from './internal/signup-pilot';
+export {
+  issuePilotInviteTx,
+  pilotIdentitySchema,
+  PilotSignupError,
+} from './internal/signup-pilot-repository';

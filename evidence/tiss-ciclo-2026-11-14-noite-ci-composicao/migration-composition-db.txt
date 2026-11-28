@@ -1,0 +1,12 @@
+PASS: composição incorreta (#55 sem a 0159): recusada antes de qualquer DDL, ledger intacto (159 linhas)
+PASS: sem o guarda: o migrador real aplica a 0160 e depois PULA a 0159 em silêncio (sai 0, tabela ausente)
+PASS: nesse banco o guarda acusa WOULD_SKIP da 0159 (explícito, antes de drift)
+PASS: sentinela da 0159 existindo sem a linha no ledger → SCHEMA_STATE
+PASS: linha do ledger fora do journal → APPLIED_UNKNOWN
+PASS: hash aplicado da 0160 diferente do arquivo → APPLIED_HASH_MISMATCH (estrito na fronteira)
+PASS: composição correta: guarda aceita, pendentes = 0159 → 0160
+PASS: migrador real aplica 0159 e 0160 (161 linhas), sentinelas presentes, guarda depois sem pendência
+PASS: segunda execução não reaplica nada
+PASS: 0159 com bytes diferentes do fixado → PINNED_HASH_MISMATCH (sem banco)
+PASS: manifesto incompatível (when da 0159) → PINNED_WHEN_MISMATCH
+OK 11/11

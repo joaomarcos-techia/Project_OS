@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 /**
  * /configuracoes/agente — comportamento do Agente de IA (RBAC-001).
  *
@@ -12,6 +13,8 @@ import { pageGate } from '@/lib/auth/page-guard';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 
 import { AgentConfigForm } from './agent-config-form';
+
+export const metadata: Metadata = { title: 'Agente de IA' };
 
 export const dynamic = 'force-dynamic';
 

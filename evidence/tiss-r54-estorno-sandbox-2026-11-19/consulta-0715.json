@@ -1,0 +1,33 @@
+{
+ "consulta": "19/11/2026 07h15 (America/Sao_Paulo), só leitura",
+ "asaas": {
+  "payment": "pay_0_u1…iroo",
+  "campos": {
+   "status": "CONFIRMED",
+   "value": 10,
+   "netValue": 9.32,
+   "billingType": "CREDIT_CARD",
+   "dateCreated": "2026-11-18",
+   "dueDate": "2026-11-19",
+   "originalDueDate": "2026-11-19",
+   "confirmedDate": "2026-11-18",
+   "paymentDate": null,
+   "clientPaymentDate": "2026-11-18",
+   "creditDate": "2026-12-21",
+   "estimatedCreditDate": "2026-12-21",
+   "anticipated": false,
+   "anticipable": false,
+   "deleted": false,
+   "postalService": false
+  },
+  "statusEndpoint": {
+   "http": 200,
+   "status": "CONFIRMED"
+  },
+  "estornos": {
+   "http": 200,
+   "data": []
+  }
+ },
+ "decisao": "nenhuma chamada de estorno: nenhum campo mudou e a condição registrada (a partir das 09h00) ainda não chegou"
+}

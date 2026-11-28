@@ -1,0 +1,31 @@
+{
+  "observedAt": "2026-11-10T04:36:24.412Z",
+  "environment": "DEV",
+  "migration": "0142_saas_review_replays",
+  "previousMigrations": 142,
+  "migrations": 143,
+  "historicalHashDifferences": [
+    "0033_messaging_connection_status",
+    "0037_profiles_invite_and_crm",
+    "0051_ai_conversations_panel",
+    "0071_runtime_role_timeouts",
+    "0093_ai_clinic_config_convenios",
+    "0124_offer_2026_trial_deadline"
+  ],
+  "knownHistoricalDriftPreserved": true,
+  "privileges": {
+    "rls": true,
+    "force_rls": true,
+    "service_select": true,
+    "service_insert": true,
+    "service_update": false,
+    "service_delete": false,
+    "service_truncate": false,
+    "anon_select": false,
+    "authenticated_insert": false
+  },
+  "contractsUnchanged": true,
+  "productionWrites": 0,
+  "providerRequests": 0,
+  "status": "PASS"
+}

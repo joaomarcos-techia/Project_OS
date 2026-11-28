@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 /**
  * /configuracoes/perfil — dados da clínica para os documentos (nome/endereço/
  * telefone/CNPJ/CNES) + logo e cor do receituário (white-label do PDF, ADR-028).
@@ -6,17 +7,20 @@
 import { getProfessionalProfile } from '@/contexts/identity/queries';
 import { getClinicProfile } from '@/contexts/tenancy/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { requirePageUser } from '@/lib/auth/page-guard';
+import { requireClinicId } from '@/lib/auth/tenant-context';
 import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 
 import { PerfilForm } from './perfil-form';
 import { ProfessionalCredentialForm } from './professional-credential-form';
 
+export const metadata: Metadata = { title: 'Perfil da clínica' };
+
 export const dynamic = 'force-dynamic';
 
 export default async function PerfilPage() {
-  const user = await requireUser();
+  const user = await requirePageUser();
   const clinicId = await requireClinicId();
 
   if (!user.permissions.includes(PERMISSIONS.MANAGE_SETTINGS)) {

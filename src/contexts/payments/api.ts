@@ -21,6 +21,7 @@ import {
   type ExcessRefundStatus,
   type ManualRefundTask,
 } from './internal/refund-status';
+import { createCopayCheckout, type CopayCheckoutOutcome } from './internal/copay-checkout';
 import {
   listPatientChargeEconomics,
   type PatientChargeEconomicsDTO,
@@ -77,6 +78,13 @@ export interface PaymentsApiV1 {
    * "já paguei" (08/10/2026). Sem link e sem dado do provedor.
    */
   listPatientChargeStatuses(clinicId: string, patientId: string): Promise<PatientChargeStatus[]>;
+  /** Coparticipação de convênio confirmada (P10.5): link só do saldo, nunca acima de `maxAmount`. */
+  createCopayCheckout(input: {
+    clinicId: string;
+    appointmentId: string;
+    patientId: string;
+    maxAmount: number;
+  }): Promise<{ outcome: CopayCheckoutOutcome; amount: number | null }>;
 }
 
 export const paymentsApiV1: PaymentsApiV1 = {
@@ -88,6 +96,7 @@ export const paymentsApiV1: PaymentsApiV1 = {
   previewDepositForBooking,
   listPatientChargeStatuses: (clinicId, patientId) =>
     listPatientChargeStatuses(clinicId, patientId),
+  createCopayCheckout: (input) => createCopayCheckout(input),
 };
 
 export type {

@@ -14,7 +14,9 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/ui/cn';
 
-import { autosaveProntuario } from '../actions';
+import { registerPendingWork } from '@/app/(app)/_lib/pending-work';
+
+import { autosaveProntuario, type AutosaveResult } from '../actions';
 
 const AUTOSAVE_MS = 10_000;
 
@@ -48,8 +50,10 @@ function savedLabel(savedAt: number | null, now: number): string {
 export function ProntuarioEditor({
   prontuario,
   canEdit = true,
+  timeZone,
 }: {
   prontuario: ProntuarioDetail;
+  timeZone: string;
   /**
    * AUTHZ-003 — falso quando a sessão não tem `create:prontuario`. O editor
    * era sempre editável e só a action negava, produzindo a combinação que o
@@ -85,12 +89,19 @@ export function ProntuarioEditor({
   // ANTES do await (dirty=false); se o usuário digitar durante o save lento, o
   // setField re-marca dirty → o autosave seguinte persiste o que faltou (corrige a
   // corrida "salvou e perdeu o que digitei no meio"). Falha → mantém dirty p/ retry.
+  // Rede caída faz a chamada da action REJEITAR (não volta `{ ok: false }`): sem o catch, `savingRef` ficava preso
+  // em true e o editor nunca mais salvava (nem no aviso de inatividade da S2). Rejeição = erro de salvamento.
   const persist = useCallback(async (): Promise<void> => {
     if (signed || savingRef.current || !dirtyRef.current) return;
     savingRef.current = true;
     dirtyRef.current = false;
     setStatus('saving');
-    const res = await autosaveProntuario(prontuario.id, contentRef.current, rowVersionRef.current);
+    let res: AutosaveResult;
+    try {
+      res = await autosaveProntuario(prontuario.id, contentRef.current, rowVersionRef.current);
+    } catch {
+      res = { ok: false, kind: 'error', message: 'Falha de rede ao salvar.' };
+    }
     savingRef.current = false;
     if (res.ok) {
       rowVersionRef.current = res.rowVersion;
@@ -125,13 +136,28 @@ export function ProntuarioEditor({
     };
   }, [content, persist, signed]);
 
+  // S2 (requisito 83): antes do bloqueio por inatividade o guarda pede para salvar o que falta. Espera um save em
+  // andamento terminar, salva o pendente e responde se ficou tudo no servidor (nada vai para o navegador).
+  useEffect(() => {
+    if (signed) return;
+    return registerPendingWork(async () => {
+      for (let i = 0; i < 50 && savingRef.current; i += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      if (dirtyRef.current) await persist();
+      return !dirtyRef.current && !savingRef.current;
+    });
+  }, [persist, signed]);
+
   // Flush no unmount: ao TROCAR de paciente (ou fechar), o cleanup do debounce
   // cancelaria o autosave pendente e perderia o texto. Aqui salvamos as edições
   // pendentes (fire-and-forget) com o conteúdo/rowVersion mais recentes (refs).
   useEffect(() => {
     return () => {
       if (!signed && dirtyRef.current) {
-        void autosaveProntuario(prontuario.id, contentRef.current, rowVersionRef.current);
+        autosaveProntuario(prontuario.id, contentRef.current, rowVersionRef.current).catch(() => {
+          /* fire-and-forget: rede caída aqui não tem tela para avisar; o texto não sobe */
+        });
       }
     };
     // refs são sempre atuais; deps vazias = roda só no unmount real.
@@ -163,7 +189,7 @@ export function ProntuarioEditor({
             ? ` — CRM ${prontuario.signedDoctorCrmUf ?? ''} ${prontuario.signedDoctorCrm}`
             : ''}
           {prontuario.signedAt
-            ? ` · assinado em ${new Date(prontuario.signedAt).toLocaleString('pt-BR')}`
+            ? ` · assinado em ${new Date(prontuario.signedAt).toLocaleString('pt-BR', { timeZone })}`
             : ''}
         </Alert>
       ) : signed ? (

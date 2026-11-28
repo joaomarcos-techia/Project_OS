@@ -1,0 +1,52 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "29",
+  "title": "Tabela 29 - Terminologia de diagnóstico por imagem",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 6,
+  "terms": [
+    {
+      "code": "1",
+      "term": "Tomografia",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "2",
+      "term": "Ressonância Magnética",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3",
+      "term": "Raios-X",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "4",
+      "term": "Outras",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5",
+      "term": "Ultrassonografia",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "6",
+      "term": "PET",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+E2E_RUN=0X4DM
+
+Running 22 tests using 1 worker
+
+E2E_RUN=0X5O4
+  ok  1 [chromium] › e2e\convenios-config-preview.spec.ts:232:1 › o Preview usa o projeto DEV (prova assinada antes de qualquer escrita) (3.1s)
+  ok  2 [chromium] › e2e\convenios-config-preview.spec.ts:237:1 › gestora: procedimento no catálogo da clínica (Configurações › Procedimentos) (30.1s)
+  x   3 [chromium] › e2e\convenios-config-preview.spec.ts:254:1 › gestora: configura do zero — prestador, operadora, plano, contrato TUSS, ativação e perfil TISS (1.5m)
+  -   4 [chromium] › e2e\convenios-config-preview.spec.ts:391:1 › recepção: cadastra o paciente e a carteirinha (número cifrado; completo só auditado)
+  -   5 [chromium] › e2e\convenios-config-preview.spec.ts:438:1 › recepção: agenda como CONVÊNIO e a cobertura nasce pronta, com coparticipação estimada
+  -   6 [chromium] › e2e\convenios-config-preview.spec.ts:506:1 › recepção: muda um atendimento PARTICULAR para CONVÊNIO pela agenda e volta para particular (P4.3)
+  -   7 [chromium] › e2e\convenios-config-preview.spec.ts:593:1 › gestora: importa a tabela por planilha — prévia por linha, erro bloqueia, aplicação atômica, reenvio não duplica (P2.7)
+  -   8 [chromium] › e2e\convenios-config-preview.spec.ts:661:1 › gestora: reajuste a partir de uma data cria versão; o passado não muda; histórico registrado
+  -   9 [chromium] › e2e\convenios-config-preview.spec.ts:692:1 › médica: sem ver o financeiro, não entra na configuração nem nas carteirinhas
+  -  10 [chromium] › e2e\convenios-config-preview.spec.ts:711:1 › outra clínica: operadora e paciente de outro tenant não aparecem (404 / não encontrado)
+  -  11 [chromium] › e2e\convenios-config-preview.spec.ts:726:1 › trial: configuração e carteirinhas aparecem como recurso contratável (a recusa da carteirinha no trial é provada no harness)
+  -  12 [chromium] › e2e\convenios-config-preview.spec.ts:742:1 › celular: configuração, operadora, carteirinhas e atendimentos sem rolagem lateral
+  -  13 [chromium] › e2e\convenios-config-preview.spec.ts:761:1 › gestora: regra de repasse da médica (40%) em Configurações › Pagamentos
+  -  14 [chromium] › e2e\convenios-config-preview.spec.ts:778:1 › recepção: encaixe de convênio (o paciente chegou agora)
+  -  15 [chromium] › e2e\convenios-config-preview.spec.ts:804:1 › médica: chama e encerra a consulta; a guia de convênio nasce sozinha do atendimento
+  -  16 [chromium] › e2e\convenios-config-preview.spec.ts:852:1 › gestora: confere, aprova e emite a guia; o PDF oficial sai do documento congelado
+  -  17 [chromium] › e2e\convenios-config-preview.spec.ts:870:1 › gestora: lote → XML validado no XSD → enviado → protocolo → em análise
+  -  18 [chromium] › e2e\convenios-config-preview.spec.ts:927:1 › gestora: glosa parcial → análise → contestação → recurso com XML no XSD → envio → resposta
+  -  19 [chromium] › e2e\convenios-config-preview.spec.ts:986:1 › gestora: pagamento parcial → alocação → estorno → nova alocação; demonstrativo repetido recusado
+  -  20 [chromium] › e2e\convenios-config-preview.spec.ts:1049:1 › gestora: repasse de 40% sobre o recebido → autorizar → registrar o repasse
+  -  21 [chromium] › e2e\convenios-config-preview.spec.ts:1074:1 › coparticipação: recepção confere R$ 45,00, gestora confirma; só esse valor vira cobrança do paciente
+  -  22 [chromium] › e2e\convenios-config-preview.spec.ts:1113:1 › ficha do paciente: aba Convênios com carteirinha mascarada, cobertura e guia; quem não vê o financeiro não tem a aba
+
+
+  1) [chromium] › e2e\convenios-config-preview.spec.ts:254:1 › gestora: configura do zero — prestador, operadora, plano, contrato TUSS, ativação e perfil TISS 
+
+    TimeoutError: locator.selectOption: Timeout 45000ms exceeded.
+    Call log:
+      - waiting for getByRole('combobox', { name: 'Coparticipação', exact: true })
+        - locator resolved to <select id="_r_7_-copay" class="w-full appearance-none rounded-(--field-radius) border border-(--field-border) bg-(--field-bg) h-(--control-h) min-h-(--hit-target) px-(--control-px) text-(length:--control-fs) text-(--field-text) transition-[border-color,box-shadow,background-color] duration-(--dur-fast) placeholder:text-(--field-placeholder) hover:border-(--field-border-hover) hover:bg-(--field-bg-hover) focus:border-(--field-border-focus) focus:bg-(--field-bg-focus) focus:outline-none focus-visible:s…>…</select>
+
+
+      300 |     .click();
+      301 |   await s.page.getByLabel('Valor contratado (R$)').fill('150,00');
+    > 302 |   await s.page.getByRole('combobox', { name: 'Coparticipação', exact: true }).selectOption('fixed');
+          |                                                                               ^
+      303 |   await s.page.getByLabel('Coparticipação (R$)').fill('45,00');
+      304 |   await s.page.getByRole('button', { name: 'Cadastrar procedimento' }).click();
+      305 |   await toast(s.page, 'Procedimento contratado cadastrado.');
+        at C:\dev\Qoro_convenios_tiss_20261110\e2e\convenios-config-preview.spec.ts:302:79
+
+    Error Context: test-results\convenios-config-preview-g-f7b9f-TUSS-ativação-e-perfil-TISS-chromium\error-context.md
+
+  1 failed
+    [chromium] › e2e\convenios-config-preview.spec.ts:254:1 › gestora: configura do zero — prestador, operadora, plano, contrato TUSS, ativação e perfil TISS 
+  19 did not run
+  2 passed (2.9m)

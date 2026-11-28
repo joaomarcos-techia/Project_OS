@@ -1,0 +1,96 @@
+{
+ "mode": "pre",
+ "at": "2026-11-24T13:50:16.782Z",
+ "code": {
+  "pr55": "5c1b8d092373c35eae28aa185316cb759accd4ab"
+ },
+ "sha": {
+  "0166": "ccf1639b4eccbdd50e5aa5b2f49a0b55d964ff8092dc47c09d77db61487025c6",
+  "0167": "7249f069fc5454e74034e1004f3be7d04606c020d7b16244b4014aafc861f3f0"
+ },
+ "checks": [
+  {
+   "name": "ledger com 167 linhas e última = 0166 (when 1795641773857), com o sha256 da 0166",
+   "ok": true,
+   "detail": {
+    "n": 167,
+    "last": "1795641773857",
+    "hash": "ccf1639b4ecc"
+   }
+  },
+  {
+   "name": "0167 ainda não existe (tabela, funções, versão); 0166 registrada",
+   "ok": true,
+   "detail": {
+    "has_table": false,
+    "funcs": 0,
+    "triggers": 0,
+    "has_version": false,
+    "has_v166": true
+   }
+  },
+  {
+   "name": "arquivo 0167 do repositório com o sha256 do GO",
+   "ok": true,
+   "detail": "7249f069fc54"
+  },
+  {
+   "name": "sem transação ativa longa (> 60 s)",
+   "ok": true,
+   "detail": 0
+  },
+  {
+   "name": "sem lock forte de outra sessão nas cinco tabelas referenciadas",
+   "ok": true,
+   "detail": []
+  }
+ ],
+ "raw": {
+  "led": {
+   "n": 167,
+   "last": "1795641773857"
+  },
+  "tail": [
+   {
+    "hash": "ccf1639b4eccbdd50e5aa5b2f49a0b55d964ff8092dc47c09d77db61487025c6",
+    "at": "1795641773857"
+   },
+   {
+    "hash": "a3af4a973f14cc3fb3720423d4c03f71f32330024f028d07191f40f4077c64cb",
+    "at": "1795555373857"
+   }
+  ],
+  "obj": {
+   "has_table": false,
+   "funcs": 0,
+   "triggers": 0,
+   "has_version": false,
+   "has_v166": true
+  },
+  "rls": null,
+  "long": 0,
+  "strong": [],
+  "data": {
+   "clinics": {
+    "n": 60,
+    "d": "855fb50063dc3b8f746006439bb5a803"
+   },
+   "hi_appointment_coverages": {
+    "n": 102,
+    "d": "08e512a7709678997b00fd59cb91c098"
+   },
+   "hi_procedure_contracts": {
+    "n": 61,
+    "d": "a2596b6db00bf244ebb25fdcf0daae49"
+   },
+   "hi_authorization_items": {
+    "n": 16,
+    "d": "21cdbe849dccee34ac6de88792f0d147"
+   },
+   "hi_guide_items": {
+    "n": 80,
+    "d": "c4866474e2ec4c2bdc2470349d3a13b4"
+   }
+  }
+ }
+}

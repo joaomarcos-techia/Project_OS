@@ -1,0 +1,174 @@
+{
+  "observedAt": "2026-11-10T05:10:31.860Z",
+  "status": "PASS",
+  "baseFinancialCommit": "5f216739e89f4dab20c60afe3027d829cce21ae9",
+  "baseCI": {
+    "observedAt": "2026-11-10T05:09:35.565Z",
+    "status": "PASS",
+    "runId": "42758707597",
+    "sha": "5f216739e89f4dab20c60afe3027d829cce21ae9",
+    "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/42758707597",
+    "unitPassed": 6807,
+    "publicE2E": {
+      "passed": 8,
+      "skipped": 2,
+      "skipReason": "Turnstile keys absent in isolated build; not proof of real production challenge"
+    },
+    "steps": [
+      {
+        "name": "Set up job",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run actions/checkout@v4",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run pnpm/action-setup@v4",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run actions/setup-node@v4",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Install dependencies",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Prod dependency audit gate (high+)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Typecheck",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Lint",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Arch check (madge — circular deps)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Arch DB check (AST connection-origin guard)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Migration safety gate (anti-destructive)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Observability drift gate (docs ⇔ vercel.json ⇔ eventos)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Handler registry gate (catalog ⇔ registry)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Test + coverage gate",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Security inventory (AST and explicit guard review)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Two-tenant isolation (temporary local Postgres)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Build",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Client bundle secrets and local HTTP boundaries",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Install Playwright browser (chromium)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "E2E gate (superfície pública, sem credencial)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Upload E2E report on failure",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "name": "Complete job",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "productionWrites": 0
+  },
+  "localMigrationSafetyTests": 24,
+  "newLogicalOrderCases": 10,
+  "typecheck": "PASS",
+  "lint": "PASS",
+  "financialSourceHashesUnchanged": true,
+  "checkedPriorHashes": 16,
+  "applicationRuntimeSourceChanged": false,
+  "migrationSQLOrJournalChanged": false,
+  "additionalRemoteMigrationWrites": 0,
+  "previewGuard": {
+    "observedAt": "2026-11-10T04:59:26.769Z",
+    "sha": "5f216739e89f4dab20c60afe3027d829cce21ae9",
+    "environment": "Preview_DEV",
+    "deploymentId": "dpl_ED6z2Zeqv5binTJLHETjA2DepBsv",
+    "url": "https://project-fq6gww0xk-clinic-os-v2-s-projects.vercel.app",
+    "status": "PASS",
+    "results": [
+      {
+        "case": "anonymous_operations_guard",
+        "width": 1440,
+        "status": "PASS"
+      },
+      {
+        "case": "anonymous_operations_guard",
+        "width": 390,
+        "status": "PASS"
+      },
+      {
+        "case": "anonymous_RSC_guard",
+        "status": "PASS",
+        "http": 307
+      }
+    ],
+    "scope": "unauthenticated_boundary_only_not_live_admin_MFA",
+    "productionWrites": 0,
+    "providerRequests": 0,
+    "accountsCreated": 0
+  },
+  "scope": "logical_order_guard_and_tests_only_preserving_applied_history",
+  "sourceHashes": {
+    "scripts/check-migration-safety.ts": "a8f7bf11b70287411fb8b8ad486ca94cfc30008962256983361e41dcb2f45afe",
+    "src/lib/db/migration-safety.test.ts": "55f331fdaac69e61000542a32b80eeb5a0e6197f961664299fe9cd9c8dc27bc4"
+  }
+}

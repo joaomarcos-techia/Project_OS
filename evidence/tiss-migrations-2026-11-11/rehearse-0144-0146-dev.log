@@ -1,0 +1,27 @@
+ok  conexão — postgres | PostgreSQL 17.6 on aarch64-unknown-linux
+ok  0144_hi_clinic_setup.sql executada (62 comandos)
+ok  0145_hi_memberships.sql executada (18 comandos)
+ok  0146_hi_authorizations.sql executada (42 comandos)
+ok  carteirinha: paciente de outra clínica [esperado 23503, obtido 23503] — Paciente não pertence à clínica.
+ok  carteirinha: inserir com paciente da clínica [esperado ok, obtido ok] — []
+ok  carteirinha: mesmo número ativo duas vezes [esperado 23505, obtido 23505] — duplicate key value violates unique constraint "hi_memberships_active_card_uniq"
+ok  carteirinha: número em claro no campo de hash [esperado 23514, obtido 23514] — new row for relation "hi_memberships" violates check constraint "hi_memberships_hash_chk"
+ok  carteirinha: trocar o número (imutável) [esperado 55000, obtido 55000] — Dados de identificação da carteirinha são imutáveis; cadastre uma nova.
+ok  carteirinha: authenticated apaga (inativar em vez de excluir) [esperado 42501, obtido 42501] — permission denied for table hi_memberships
+ok  carteirinha: authenticated de B não vê as de A [esperado predicado, obtido ok] — []
+ok  autorização: "autorizada" sem evidência da operadora [esperado 23514, obtido 23514] — new row for relation "hi_authorizations" violates check constraint "hi_authorizations_evidence_chk"
+ok  consumo: antes de autorizar [esperado 55000, obtido 55000] — Só se consome autorização concedida pela operadora (estado atual: draft).
+ok  autorização: com evidência (versão 2) [esperado predicado, obtido ok] — [{"version":2}]
+ok  consumo: 1 e 2 dentro do saldo [esperado ok, obtido ok] — []
+ok  consumo: mesma chave de novo (idempotência) [esperado 23505, obtido 23505] — Consumo já registrado para esta chave de idempotência.
+ok  consumo: acima do saldo sem exceção [esperado 23514, obtido 23514] — Consumo acima do autorizado (3 de 2), sem exceção aprovada.
+ok  consumo: authenticated altera quantity_consumed direto [esperado 42501, obtido 42501] — permission denied for table hi_authorization_items
+ok  autorização: authenticated de B não vê as de A [esperado predicado, obtido ok] — []
+ok  numeração: 1, 2, 3 na mesma clínica [esperado predicado, obtido ok] — [1,2,3]
+ok  numeração: contador independente de outra clínica [esperado predicado, obtido ok] — [{"v":"1"}]
+ok  numeração: authenticated de A no contador de B [esperado 42501, obtido 42501] — new row violates row-level security policy for table "hi_counters"
+ok  numeração: authenticated de A no próprio contador [esperado predicado, obtido ok] — [{"v":"1"}]
+ok  numeração: anon não executa [esperado 42501, obtido 42501] — permission denied for function hi_next_counter
+ok  depois do ROLLBACK: nenhuma tabela, função, registro de migration ou versão — {"m":null,"i":null,"a":null,"n":144,"v":0,"f":null}
+RESUMO 25/25 em 44.8 s
+exit=0

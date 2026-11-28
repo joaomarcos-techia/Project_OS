@@ -1,0 +1,38 @@
+{
+ "base": "https://app.qoro.dev",
+ "lido_em": "2026-11-27T04:57:05.008Z",
+ "out": {
+  "/login": {
+   "status": 200
+  },
+  "/cadastro": {
+   "status": 200,
+   "cadastro_fechado": true
+  },
+  "/configuracoes/assinatura": {
+   "status": 307,
+   "location": "/login"
+  },
+  "/api/health": {
+   "status": 401
+  },
+  "/api/health/outbox": {
+   "status": 401
+  },
+  "/api/health/auth-hook": {
+   "status": 401
+  },
+  "/api/health?deep=1 (com credencial)": {
+   "status": 200,
+   "resumo": "{\"status\":\"ok\",\"checks\":{\"db\":\"ok\",\"gemini\":\"ok\",\"meta\":\"ok\",\"asaas\":\"ok\",\"redis\":\"ok\",\"outbox\":\"ok\",\"signup\":\"ok\"},\"ts\":\"2026-11-27T04:57:05.516Z\"}"
+  },
+  "/api/health/outbox (com credencial)": {
+   "status": 200,
+   "resumo": "{\"ok\":true,\"degraded\":false,\"alarms\":[],\"outbox\":{\"pending\":0,\"processing\":0,\"failed\":0,\"skipped\":52,\"oldest_pending_age_s\":0,\"oldest_processing_age_s\":0,\"oldest_failed_age_s\":0},\"audit\":{\"default_partition_rows\":0},\"partitions\":[{\"parent\":\"audit_events\",\"default_rows\":0,\"months_ahead\":6},{\"parent\":\"ai_messages\",\"default_rows\":0,\"months_ahead\":7}],\"db_pool\":{\"total\":11,\"active\":1,\"idle\":9,\"waiting"
+  },
+  "/api/health/auth-hook (com credencial)": {
+   "status": 200,
+   "resumo": "{\"ok\":true,\"payload\":{\"ok\":true,\"elapsed_ms\":0,\"claims_keys\":[]}}"
+  }
+ }
+}

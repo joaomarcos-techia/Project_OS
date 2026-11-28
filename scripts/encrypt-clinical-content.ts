@@ -70,14 +70,16 @@ const SPECS: TableSpec[] = [
 
 async function backfillTable(spec: TableSpec): Promise<void> {
   // Uma linha precisa de backfill se QUALQUER coluna não-nullable ainda está NULL.
-  const pending = spec.cols.filter((c) => !c.nullable).map((c) => `${c.dst} IS NULL`);
-  const whereNeedsWork = pending.length > 0 ? pending.join(' OR ') : 'false';
+  const pending = spec.cols
+    .filter((c) => !c.nullable)
+    .map((c) => sql`${sql.identifier(c.dst)} IS NULL`);
+  const whereNeedsWork = pending.length > 0 ? sql.join(pending, sql` OR `) : sql`false`;
 
   const rows = (await dbAdmin.execute(
-    sql.raw(
-      `SELECT id, clinic_id, ${spec.cols.map((c) => c.src).join(', ')} ` +
-        `FROM ${spec.table} WHERE ${whereNeedsWork}`,
-    ),
+    sql`SELECT id, clinic_id, ${sql.join(
+      spec.cols.map((c) => sql.identifier(c.src)),
+      sql`, `,
+    )} FROM ${sql.identifier(spec.table)} WHERE ${whereNeedsWork}`,
   )) as unknown as Array<Record<string, unknown>>;
 
   if (rows.length === 0) {
@@ -111,10 +113,13 @@ async function backfillTable(spec: TableSpec): Promise<void> {
       if (spec.signedBypass) {
         await tx.execute(sql`SELECT set_config('app.allow_signed_edit', 'on', true)`);
       }
-      const assignments = sets
-        .map((s) => `${s.dst} = ${s.value === null ? 'NULL' : `'${s.value.replace(/'/g, "''")}'`}`)
-        .join(', ');
-      await tx.execute(sql.raw(`UPDATE ${spec.table} SET ${assignments} WHERE id = '${id}'`));
+      const assignments = sql.join(
+        sets.map((set) => sql`${sql.identifier(set.dst)} = ${set.value}`),
+        sql`, `,
+      );
+      await tx.execute(
+        sql`UPDATE ${sql.identifier(spec.table)} SET ${assignments} WHERE id = ${id}`,
+      );
       if (spec.signedBypass) {
         await tx.execute(sql`SELECT set_config('app.allow_signed_edit', 'off', true)`);
       }

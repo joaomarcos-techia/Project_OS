@@ -26,9 +26,20 @@ export const SCHEDULING_EVENTS = {
   CHECKED_IN: 'scheduling.appointment.checked_in',
   STARTED: 'scheduling.appointment.started',
   COMPLETED: 'scheduling.appointment.completed', // FINANCIAL OUVE (C9)
+  /**
+   * Convênios (P7.4): publicado JUNTO com `completed` quando o atendimento é
+   * `convenio`. O `health-insurance` ouve este (o `completed` é do Financeiro e o
+   * registro do outbox aceita um consumidor por tipo).
+   */
+  INSURANCE_COMPLETED: 'scheduling.appointment.insurance_completed',
   CANCELLED: 'scheduling.appointment.cancelled',
   NO_SHOW: 'scheduling.appointment.no_show',
   RESCHEDULED: 'scheduling.appointment.rescheduled',
+  /**
+   * P4.3: a forma de atendimento (particular ↔ convênio) mudou antes da chegada. O
+   * Payments ouve (anula a cobrança particular ainda aberta quando vira convênio).
+   */
+  BILLING_MODE_CHANGED: 'scheduling.appointment.billing_mode_changed',
   CORRECTED: 'scheduling.appointment.corrected',
   DOCTOR_ABSENCE_CREATED: 'scheduling.doctor_absence.created',
   WAITLIST_OFFERED: 'scheduling.waitlist.offered',
@@ -123,8 +134,27 @@ export const AppointmentCompletedSchema = z.object({
   snapshotProcedureName: z.string(),
   snapshotDoctorNome: z.string(),
   scheduledAt: z.string().datetime(),
+  /**
+   * Modalidade (0148). `optional` só pela janela de deploy: evento enfileirado
+   * antes desta versão não tem a chave e é sempre de atendimento particular (a
+   * coluna nasceu `particular` para todos). Todo publicador novo preenche.
+   */
+  billingMode: z.enum(['particular', 'convenio']).optional(),
 });
 export type AppointmentCompletedPayload = z.infer<typeof AppointmentCompletedSchema>;
+
+// --- insurance_completed (convênios P7.4: guia automática) -----------------
+export const AppointmentInsuranceCompletedSchema = z.object({
+  appointmentId: uuid,
+  clinicId: uuid,
+  patientId: uuid,
+  doctorId: uuid,
+  procedureId: uuid,
+  scheduledAt: z.string().datetime(),
+});
+export type AppointmentInsuranceCompletedPayload = z.infer<
+  typeof AppointmentInsuranceCompletedSchema
+>;
 
 // --- cancelled (motivo explícito — Financial reconcilia) -------------------
 export const AppointmentCancelledSchema = z.object({
@@ -164,6 +194,19 @@ export const AppointmentNoShowSchema = z.object({
   noShowAt: z.string().datetime().optional(),
 });
 export type AppointmentNoShowPayload = z.infer<typeof AppointmentNoShowSchema>;
+
+// --- billing_mode_changed (P4.3) -------------------------------------------
+export const AppointmentBillingModeChangedSchema = z.object({
+  appointmentId: uuid,
+  clinicId: uuid,
+  patientId: uuid.nullable(),
+  from: z.enum(['particular', 'convenio']),
+  to: z.enum(['particular', 'convenio']),
+  changedAt: z.string().datetime(),
+});
+export type AppointmentBillingModeChangedPayload = z.infer<
+  typeof AppointmentBillingModeChangedSchema
+>;
 
 // --- rescheduled (= cancel + create; lineage explícito) --------------------
 export const AppointmentRescheduledSchema = z.object({
@@ -237,6 +280,8 @@ export const AppointmentImportCompletedSchema = z.object({
   clinicId: uuid,
   source: z.string().min(1),
   importedAppointments: z.number().int().positive(),
+  /** P4.7-b: linhas registradas como convênio histórico (referência, nunca faturamento). */
+  historicalCoverages: z.number().int().min(0).optional(),
 });
 export type AppointmentImportCompletedPayload = z.infer<typeof AppointmentImportCompletedSchema>;
 
@@ -246,9 +291,11 @@ registerEventSchema(SCHEDULING_EVENTS.CONFIRMED, AppointmentConfirmedSchema);
 registerEventSchema(SCHEDULING_EVENTS.CHECKED_IN, AppointmentCheckedInSchema);
 registerEventSchema(SCHEDULING_EVENTS.STARTED, AppointmentStartedSchema);
 registerEventSchema(SCHEDULING_EVENTS.COMPLETED, AppointmentCompletedSchema);
+registerEventSchema(SCHEDULING_EVENTS.INSURANCE_COMPLETED, AppointmentInsuranceCompletedSchema);
 registerEventSchema(SCHEDULING_EVENTS.CANCELLED, AppointmentCancelledSchema);
 registerEventSchema(SCHEDULING_EVENTS.NO_SHOW, AppointmentNoShowSchema);
 registerEventSchema(SCHEDULING_EVENTS.RESCHEDULED, AppointmentRescheduledSchema);
+registerEventSchema(SCHEDULING_EVENTS.BILLING_MODE_CHANGED, AppointmentBillingModeChangedSchema);
 registerEventSchema(SCHEDULING_EVENTS.CORRECTED, AppointmentCorrectedSchema);
 registerEventSchema(SCHEDULING_EVENTS.DOCTOR_ABSENCE_CREATED, DoctorAbsenceCreatedSchema);
 registerEventSchema(SCHEDULING_EVENTS.WAITLIST_OFFERED, WaitlistOfferedSchema);

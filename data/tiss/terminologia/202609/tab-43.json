@@ -1,0 +1,24 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "43",
+  "title": "Tabela 43 - Sexo",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 2,
+  "terms": [
+    {
+      "code": "1",
+      "term": "Masculino",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3",
+      "term": "Feminino",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    }
+  ]
+}

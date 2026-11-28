@@ -1,0 +1,13 @@
+PASS 1: INSERT continua: pelo dono e pela sessão da clínica (authenticated com app.current_clinic)
+PASS 2: UPDATE, DELETE e TRUNCATE recusados para o dono (inclusive com session_replication_role=replica) e direto na partição audit_events_2026_11; authenticated sem privilégio
+PASS 3: anonimização LGPD real (anonymizePatientAuditTrail): retira nome, e-mail e sexo; ação, recurso e data ficam idênticos
+PASS 4: retirar dado pessoal mudando outra coluna, ou retirar chave fora da lista, é recusado
+PASS 5: hi_account_events (histórico da conta da guia): UPDATE, DELETE e TRUNCATE recusados
+PASS 6: exclusão de clínica COM histórico da conta TISS é recusada (o ON DELETE CASCADE bate no gatilho); clínica sem histórico continua excluível — reset:prod/dev e limpezas de E2E precisam preservar a trilha antes da promoção
+PASS 7: partições: TRUNCATE direto em audit_events_2026_11 recusado ao DONO (também com replica) e a linha continua; as 13 partições têm o gatilho de comando em ALWAYS; o default ACL do Supabase (UPDATE/DELETE/TRUNCATE na partição) é revogado pela selagem
+PASS 8: partição nova: nasce sem o gatilho de comando e com TRUNCATE para o service_role (a checagem acusa os dois); o provisionador sela as 14; depois, checagem limpa (16 relações conferidas)
+PASS 9: detecção pelo catálogo: 7/7 adulterações acusadas (gatilho de linha desabilitado no pai; gatilho de comando de UMA partição tirado de ALWAYS (replica o desligaria); gatilho de comando removido de uma partição; função do gatilho reescrita para aceitar tudo; DELETE devolvido ao authenticated numa partição; UPDATE devolvido em hi_account_events; partição de 2026-09 (menos de 180 dias) desanexada); barreira intacta = checagem limpa
+PASS 10: o DONO ainda pode remover a barreira por DDL — a reversão prova isso: tira os gatilhos do pai, das partições e de hi_account_events, e a checagem passa a ver "não instalada"
+PASS 11: recuperação: a 0171 reaplica limpa depois da reversão, volta a recusar UPDATE e o TRUNCATE da partição, e a checagem fica limpa
+
+11/11 provas da trilha append-only da clínica (S5) passaram.

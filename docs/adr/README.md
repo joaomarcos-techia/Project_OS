@@ -50,5 +50,18 @@ Decisão futura só entra aqui quando adotada na implementação. Uma ideia desc
 | C14 reenvia com uma chave por geração: recusa retentável da Meta gera chave nova e backoff; definitiva falha na hora, com o código; timeout nunca reenvia | Accepted em código em 08/10/2026; 0118 não aplicada; sem rollout | [ADR-064](064-c14-reenvio-por-geracao.md) |
 | Validade por tipo na fila C14: job vencido vira `cancelled` com `expired_<tipo>`, nunca envio atrasado | Accepted em código em 09/10/2026; sem migration; sem rollout | [ADR-065](065-validade-por-tipo-c14.md) |
 | Janela de resposta da oferta da lista de espera só corre nas horas de envio (8–20h locais); seam e cron usam a mesma função | Accepted em código em 09/10/2026; sem migration; sem rollout | [ADR-066](066-janela-da-oferta-da-lista-de-espera.md) |
+| Convênios e TISS no contexto `health-insurance`; recebível da operadora ligado à guia; só glosa definitiva baixa no ledger; escopo Consulta + SP/SADT; validação em três camadas | Accepted como direção em 10/11/2026; em implementação na branch `feat/convenios-tiss-20261110` (renumerada de 067 para 072 em 11/11: a 067–071 são do PR #53) | [ADR-072](072-convenios-e-tiss.md) |
+
+### Avaliação limitada
+
+[ADR-067](067-cotas-temporarias-de-avaliacao.md): cotas cumulativas e bloqueio de integrações/convites até pagamento verificado. Accepted local em 08/11/2026; 0136 não aplicada remotamente; contratos existentes preservados.
 
 ADR-061 permanece reservada ao perfil WhatsApp de Qoro v2 §33; não foi criada nesta fatia.
+
+### Faturamento SaaS AbacatePay candidato
+
+| Decisão | Estado | Documento |
+| --- | --- | --- |
+| Origem Auth do trial e prova financeira antes de liberar acesso; cache incremental privado e retomável, separado por finalidade | Candidata Sandbox, testes locais; sem composição live ou autorização de aplicação do SQL adicional | [ADR-069](069-abacatepay-trial-origin-and-initial-access.md) |
+| Upgrade/cota somente na próxima renovação paga; cancelamento preserva período e nova contratação só após seu fim | Candidatas Sandbox; contratos Asaas existentes preservados | [ADR-068](068-abacatepay-upgrade-policy.md), [ADR-070](070-abacatepay-cancellation-and-recontract.md) |
+| Evento negativo preserva período pago e exige revisão humana, sem refund automático | Candidata Sandbox, política aprovada; validação externa separada | [ADR-071](071-abacatepay-refunds-and-review.md) |

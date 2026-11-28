@@ -60,7 +60,7 @@ afterEach(() => {
 
 describe('ProntuarioEditor — autosave', () => {
   it('oferece o template de Psiquiatria com campos clínicos específicos', () => {
-    render(<ProntuarioEditor prontuario={makeProntuario()} />);
+    render(<ProntuarioEditor timeZone="America/Sao_Paulo" prontuario={makeProntuario()} />);
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Template' }), {
       target: { value: 'psiquiatria' },
@@ -73,7 +73,7 @@ describe('ProntuarioEditor — autosave', () => {
   });
 
   it('NÃO salva antes do debounce; salva 10s após digitar (com conteúdo + rowVersion)', async () => {
-    render(<ProntuarioEditor prontuario={makeProntuario()} />);
+    render(<ProntuarioEditor timeZone="America/Sao_Paulo" prontuario={makeProntuario()} />);
     type('dor de cabeça');
 
     await act(async () => {
@@ -89,7 +89,7 @@ describe('ProntuarioEditor — autosave', () => {
   });
 
   it('"Salvar agora" persiste imediatamente (sem esperar o debounce)', async () => {
-    render(<ProntuarioEditor prontuario={makeProntuario()} />);
+    render(<ProntuarioEditor timeZone="America/Sao_Paulo" prontuario={makeProntuario()} />);
     type('exame normal');
 
     await act(async () => {
@@ -101,7 +101,9 @@ describe('ProntuarioEditor — autosave', () => {
   });
 
   it('flush no UNMOUNT: trocar de paciente salva o que estava pendente', async () => {
-    const { unmount } = render(<ProntuarioEditor prontuario={makeProntuario()} />);
+    const { unmount } = render(
+      <ProntuarioEditor timeZone="America/Sao_Paulo" prontuario={makeProntuario()} />,
+    );
     type('não salvo ainda');
 
     // desmonta ANTES do debounce de 10s (como ao trocar de paciente)
@@ -114,7 +116,9 @@ describe('ProntuarioEditor — autosave', () => {
   });
 
   it('NÃO faz flush no unmount quando não há edição pendente', async () => {
-    const { unmount } = render(<ProntuarioEditor prontuario={makeProntuario()} />);
+    const { unmount } = render(
+      <ProntuarioEditor timeZone="America/Sao_Paulo" prontuario={makeProntuario()} />,
+    );
     await act(async () => {
       unmount();
       await Promise.resolve();
@@ -129,7 +133,7 @@ describe('ProntuarioEditor — autosave', () => {
       () => new Promise<AutosaveResult>((res) => (resolveFirst = res)),
     );
 
-    render(<ProntuarioEditor prontuario={makeProntuario()} />);
+    render(<ProntuarioEditor timeZone="America/Sao_Paulo" prontuario={makeProntuario()} />);
     type('a');
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10_000); // dispara o 1º save (pendente)
@@ -153,12 +157,136 @@ describe('ProntuarioEditor — autosave', () => {
     expect(autosave).toHaveBeenLastCalledWith('pront-1', { queixa_principal: 'ab' }, 2);
   });
 
+  it('mostra a assinatura no fuso da clínica', () => {
+    render(
+      <ProntuarioEditor
+        timeZone="Asia/Tokyo"
+        prontuario={makeProntuario({
+          status: 'assinado',
+          signedAt: '2026-09-14T12:15:00.000Z',
+        })}
+      />,
+    );
+
+    // 12:15Z é 21:15 em Tóquio e 09:15 em São Paulo.
+    expect(screen.getByText(/assinado em 14\/09\/2026, 21:15:00/u)).toBeTruthy();
+  });
+
   it('prontuário assinado: read-only, nunca chama autosave', async () => {
-    render(<ProntuarioEditor prontuario={makeProntuario({ status: 'assinado' })} />);
+    render(
+      <ProntuarioEditor
+        timeZone="America/Sao_Paulo"
+        prontuario={makeProntuario({ status: 'assinado' })}
+      />,
+    );
     // sem textareas editáveis disparando onChange → nenhum save
     await act(async () => {
       await vi.advanceTimersByTimeAsync(15_000);
     });
     expect(autosave).not.toHaveBeenCalled();
+  });
+});
+
+describe('S2 / requisito 83: salvar antes do bloqueio por inatividade', () => {
+  it('2/7. o guarda pede o flush: o pendente vai ao servidor como rascunho e o editor responde "salvo"', async () => {
+    const { flushPendingWork, pendingWorkCount } = await import('@/app/(app)/_lib/pending-work');
+    const { unmount } = render(
+      <ProntuarioEditor timeZone="America/Sao_Paulo" prontuario={makeProntuario()} />,
+    );
+    expect(pendingWorkCount()).toBe(1);
+    type('conduta registrada antes de sair');
+    let saved = false;
+    await act(async () => {
+      saved = await flushPendingWork();
+    });
+    expect(saved).toBe(true);
+    expect(autosave).toHaveBeenCalledWith(
+      'pront-1',
+      { queixa_principal: 'conduta registrada antes de sair' },
+      1,
+    );
+    unmount();
+    expect(pendingWorkCount()).toBe(0);
+  });
+
+  it('10. falha de rede no flush: responde "não salvo" e o texto continua no editor', async () => {
+    const { flushPendingWork } = await import('@/app/(app)/_lib/pending-work');
+    autosave.mockResolvedValueOnce({ ok: false, kind: 'error' } as AutosaveResult);
+    render(<ProntuarioEditor timeZone="America/Sao_Paulo" prontuario={makeProntuario()} />);
+    type('texto que não pode sumir');
+    let saved = true;
+    await act(async () => {
+      saved = await flushPendingWork();
+    });
+    expect(saved).toBe(false);
+    expect((firstField() as HTMLTextAreaElement).value).toBe('texto que não pode sumir');
+  });
+
+  it('10b. rede caída de verdade (a action REJEITA): mostra o erro, não trava em "salvando" e salva quando a rede volta', async () => {
+    const { flushPendingWork } = await import('@/app/(app)/_lib/pending-work');
+    autosave.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    render(<ProntuarioEditor timeZone="America/Sao_Paulo" prontuario={makeProntuario()} />);
+    type('evolução digitada com a rede caída');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(autosave).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Erro ao salvar')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Salvar agora' }).hasAttribute('disabled')).toBe(
+      false,
+    );
+    expect((firstField() as HTMLTextAreaElement).value).toBe('evolução digitada com a rede caída');
+
+    // A rede voltou: o aviso de inatividade pede o flush e o MESMO texto vai ao servidor (nada ficou "reivindicado").
+    let saved = false;
+    await act(async () => {
+      saved = await flushPendingWork();
+    });
+    expect(saved).toBe(true);
+    expect(autosave).toHaveBeenCalledTimes(2);
+    expect(autosave).toHaveBeenLastCalledWith(
+      'pront-1',
+      { queixa_principal: 'evolução digitada com a rede caída' },
+      1,
+    );
+  });
+
+  it('10c. rede caída no aviso E no bloqueio: responde "não salvo" e tenta de novo no segundo pedido', async () => {
+    const { flushPendingWork } = await import('@/app/(app)/_lib/pending-work');
+    autosave.mockRejectedValue(new TypeError('Failed to fetch'));
+    render(<ProntuarioEditor timeZone="America/Sao_Paulo" prontuario={makeProntuario()} />);
+    type('texto que o login vai avisar que não foi salvo');
+    let first = true;
+    let second = true;
+    await act(async () => {
+      first = await flushPendingWork();
+      second = await flushPendingWork();
+    });
+    expect([first, second]).toEqual([false, false]);
+    expect(autosave).toHaveBeenCalledTimes(2); // não ficou preso no primeiro
+  });
+
+  it('flush no unmount com a rede caída não vira rejeição solta', async () => {
+    autosave.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    const { unmount } = render(
+      <ProntuarioEditor timeZone="America/Sao_Paulo" prontuario={makeProntuario()} />,
+    );
+    type('pendente ao trocar de paciente');
+    unmount();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(autosave).toHaveBeenCalledTimes(1);
+  });
+
+  it('prontuário assinado não registra trabalho pendente', async () => {
+    const { pendingWorkCount } = await import('@/app/(app)/_lib/pending-work');
+    render(
+      <ProntuarioEditor
+        timeZone="America/Sao_Paulo"
+        prontuario={makeProntuario({ status: 'assinado' })}
+      />,
+    );
+    expect(pendingWorkCount()).toBe(0);
   });
 });

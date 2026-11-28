@@ -1,0 +1,24 @@
+[Unit]
+Description=Qoro encrypted database backup (approved recovery host only)
+OnFailure=qoro-recovery-alert@%n.service
+
+[Service]
+Type=oneshot
+User=qoro-recovery
+Group=qoro-recovery
+WorkingDirectory=/opt/qoro-recovery
+ExecStart=/usr/bin/node --import tsx scripts/recovery-scheduled-backup.ts
+StateDirectory=qoro-recovery
+StateDirectoryMode=0700
+UMask=0077
+LoadCredentialEncrypted=database-url:/etc/credstore.encrypted/qoro-database-url
+LoadCredentialEncrypted=recovery-passphrase:/etc/credstore.encrypted/qoro-recovery-passphrase
+LoadCredentialEncrypted=database-ca:/etc/credstore.encrypted/qoro-database-ca
+TimeoutStartSec=20min
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/qoro-recovery
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+

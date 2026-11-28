@@ -1,0 +1,24 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "23",
+  "title": "Tabela 23 - Terminologia de caráter do atendimento",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 2,
+  "terms": [
+    {
+      "code": "1",
+      "term": "Eletivo",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "2",
+      "term": "Urgência/Emergência",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    }
+  ]
+}

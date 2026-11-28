@@ -1,0 +1,79 @@
+{
+ "mode": "pre",
+ "at": "2026-11-14T04:25:54.302Z",
+ "code": {
+  "pr55": "c5841aa110134e57c98ded82e0347751572af2a1"
+ },
+ "sha0160": "718190feffe57a0f0b7ceaf7c28686793209f0c0cb9f4b7bfd6480d4ac1ef306",
+ "checks": [
+  {
+   "name": "ledger com 160 linhas e última = 0159 do #53 (when 1795036973858)",
+   "ok": true,
+   "detail": {
+    "n": 160,
+    "last": "1795036973858"
+   }
+  },
+  {
+   "name": "última linha tem o sha256 da 0159 aplicada (eb00a4e3…)",
+   "ok": true,
+   "detail": "eb00a4e3dd45"
+  },
+  {
+   "name": "a 0160 ainda não existe (tabela, coluna, índice, enum, versão)",
+   "ok": true,
+   "detail": {
+    "has_table": false,
+    "has_col": false,
+    "has_idx": false,
+    "has_enum": false,
+    "has_version": false
+   }
+  },
+  {
+   "name": "sem transação longa (> 60 s) no banco",
+   "ok": true,
+   "detail": 0
+  },
+  {
+   "name": "sem lock de outra sessão em patient_charges",
+   "ok": true,
+   "detail": 0
+  }
+ ],
+ "raw": {
+  "led": {
+   "n": 160,
+   "last": "1795036973858"
+  },
+  "tail": [
+   {
+    "hash": "eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74",
+    "at": "1795036973858"
+   },
+   {
+    "hash": "40cc90493b5abf980c209485c83451f33c4cfc5931b87f3af7653f2091af63a2",
+    "at": "1795036973857"
+   }
+  ],
+  "obj": {
+   "has_table": false,
+   "has_col": false,
+   "has_idx": false,
+   "has_enum": false,
+   "has_version": false
+  },
+  "pc": {
+   "n": 10,
+   "digest": "93a93fd03c56ab96bfee834a79da4ec3"
+  },
+  "adj": 0,
+  "pt": {
+   "n": 25,
+   "digest": "196c653cef54119c0850758884002ec0"
+  },
+  "longTx": 0,
+  "chargeLocks": 0,
+  "rls": null
+ }
+}

@@ -1,0 +1,199 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "69",
+  "title": "Tabela 69 - Terminologia de versão do componente de comunicação do padrão",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 27,
+  "terms": [
+    {
+      "code": "001",
+      "term": "01.00.00",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "002",
+      "term": "01.01.00",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "003",
+      "term": "02.00.00",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "004",
+      "term": "02.01.01",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "005",
+      "term": "02.01.02",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "006",
+      "term": "02.01.03",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "007",
+      "term": "02.02.01",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "008",
+      "term": "02.02.02",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "009",
+      "term": "02.02.03",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "010",
+      "term": "03.00.00",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "011",
+      "term": "03.00.01",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "012",
+      "term": "03.01.00",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "013",
+      "term": "03.02.00",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "014",
+      "term": "03.02.01",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "015",
+      "term": "03.02.02",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "016",
+      "term": "03.03.00",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "017",
+      "term": "03.03.01",
+      "startsOn": "2016-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-12-31"
+    },
+    {
+      "code": "018",
+      "term": "03.03.02",
+      "startsOn": "2017-04-10",
+      "endsOn": null,
+      "implantationEndsOn": "2017-07-09"
+    },
+    {
+      "code": "019",
+      "term": "03.03.03",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implantationEndsOn": "2018-06-25"
+    },
+    {
+      "code": "020",
+      "term": "03.04.00",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2020-02-29"
+    },
+    {
+      "code": "021",
+      "term": "03.04.01",
+      "startsOn": "2020-01-01",
+      "endsOn": null,
+      "implantationEndsOn": "2020-02-29"
+    },
+    {
+      "code": "022",
+      "term": "03.05.00",
+      "startsOn": "2020-04-03",
+      "endsOn": null,
+      "implantationEndsOn": "2020-04-03"
+    },
+    {
+      "code": "023",
+      "term": "04.00.00",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "024",
+      "term": "04.00.01",
+      "startsOn": "2021-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "025",
+      "term": "04.01.00",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "026",
+      "term": "04.02.00",
+      "startsOn": "2025-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2025-11-30"
+    },
+    {
+      "code": "027",
+      "term": "04.03.00",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    }
+  ]
+}

@@ -1,0 +1,90 @@
+E2E_RUN=5TEMA
+
+Running 23 tests using 1 worker
+
+E2E_RUN=5TFN0
+  ok  1 [chromium] › e2e\convenios-config-preview.spec.ts:234:1 › o Preview usa o projeto DEV (prova assinada antes de qualquer escrita) (3.4s)
+  ok  2 [chromium] › e2e\convenios-config-preview.spec.ts:239:1 › gestora: procedimento no catálogo da clínica (Configurações › Procedimentos) (32.2s)
+  ok  3 [chromium] › e2e\convenios-config-preview.spec.ts:256:1 › gestora: configura do zero — prestador, operadora, plano, contrato TUSS, ativação e perfil TISS (1.8m)
+  ok  4 [chromium] › e2e\convenios-config-preview.spec.ts:393:1 › recepção: cadastra o paciente e a carteirinha (número cifrado; completo só auditado) (46.5s)
+  ok  5 [chromium] › e2e\convenios-config-preview.spec.ts:440:1 › recepção: agenda como CONVÊNIO e a cobertura nasce pronta, com coparticipação estimada (26.4s)
+  ok  6 [chromium] › e2e\convenios-config-preview.spec.ts:508:1 › recepção: muda um atendimento PARTICULAR para CONVÊNIO pela agenda e volta para particular (P4.3) (51.9s)
+  ok  7 [chromium] › e2e\convenios-config-preview.spec.ts:595:1 › gestora: importa a tabela por planilha — prévia por linha, erro bloqueia, aplicação atômica, reenvio não duplica (P2.7) (40.4s)
+  ok  8 [chromium] › e2e\convenios-config-preview.spec.ts:663:1 › gestora: reajuste a partir de uma data cria versão; o passado não muda; histórico registrado (22.2s)
+  ok  9 [chromium] › e2e\convenios-config-preview.spec.ts:694:1 › médica: sem ver o financeiro, não entra na configuração nem nas carteirinhas (21.6s)
+  ok 10 [chromium] › e2e\convenios-config-preview.spec.ts:713:1 › outra clínica: operadora e paciente de outro tenant não aparecem (404 / não encontrado) (22.4s)
+  ok 11 [chromium] › e2e\convenios-config-preview.spec.ts:728:1 › trial: configuração e carteirinhas aparecem como recurso contratável (a recusa da carteirinha no trial é provada no harness) (19.9s)
+  ok 12 [chromium] › e2e\convenios-config-preview.spec.ts:744:1 › celular: configuração, operadora, carteirinhas e atendimentos sem rolagem lateral (31.6s)
+  ok 13 [chromium] › e2e\convenios-config-preview.spec.ts:763:1 › gestora: regra de repasse da médica (40%) em Configurações › Pagamentos (11.5s)
+  ok 14 [chromium] › e2e\convenios-config-preview.spec.ts:780:1 › recepção: encaixe de convênio (o paciente chegou agora) (23.1s)
+  ok 15 [chromium] › e2e\convenios-config-preview.spec.ts:806:1 › médica: chama e encerra a consulta; a guia de convênio nasce sozinha do atendimento (1.1m)
+  ok 16 [chromium] › e2e\convenios-config-preview.spec.ts:854:1 › gestora: confere, aprova e emite a guia; o PDF oficial sai do documento congelado (30.5s)
+  ok 17 [chromium] › e2e\convenios-config-preview.spec.ts:872:1 › gestora: lote → XML validado no XSD → enviado → protocolo → em análise (58.7s)
+  ok 18 [chromium] › e2e\convenios-config-preview.spec.ts:929:1 › gestora: glosa parcial → análise → contestação → recurso com XML no XSD → envio → resposta (1.2m)
+  ok 19 [chromium] › e2e\convenios-config-preview.spec.ts:988:1 › gestora: pagamento parcial → alocação → estorno → nova alocação; demonstrativo repetido recusado (54.2s)
+  ok 20 [chromium] › e2e\convenios-config-preview.spec.ts:1051:1 › gestora: repasse de 40% sobre o recebido → autorizar → registrar o repasse (26.1s)
+  ok 21 [chromium] › e2e\convenios-config-preview.spec.ts:1076:1 › coparticipação: recepção confere R$ 45,00, gestora confirma; só esse valor vira cobrança do paciente (46.4s)
+  x  22 [chromium] › e2e\convenios-config-preview.spec.ts:1115:1 › ficha do paciente: aba Convênios com carteirinha mascarada, cobertura e guia; quem não vê o financeiro não tem a aba (16.1s)
+  -  23 [chromium] › e2e\convenios-config-preview.spec.ts:1163:1 › ficha do paciente: aba Convênios por teclado, outra clínica, vazio, duas carteirinhas (uma vencida), trial e suspensa
+
+
+  1) [chromium] › e2e\convenios-config-preview.spec.ts:1115:1 › ficha do paciente: aba Convênios com carteirinha mascarada, cobertura e guia; quem não vê o financeiro não tem a aba 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: getByTestId('patient-insurance').getByTestId('patient-insurance-guides')
+    Expected substring: "Consulta 1"
+    Received string:    "Guia 1Operadora Sintética 5TFN0 · Consulta · 15/11/2026 · R$ 150,00Glosada em parte"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "toContainText" with timeout 10000ms
+      - waiting for getByTestId('patient-insurance').getByTestId('patient-insurance-guides')
+        23 × locator resolved to <ul data-testid="patient-insurance-guides" class="flex flex-col divide-y divide-border">…</ul>
+           - unexpected value "Guia 1Operadora Sintética 5TFN0 · Consulta · 15/11/2026 · R$ 150,00Glosada em parte"
+
+
+      1132 |   await expect(tab.getByTestId('patient-insurance-coverage').first()).toBeVisible();
+      1133 |   if (journey.guideNumber)
+    > 1134 |     await expect(tab.getByTestId('patient-insurance-guides')).toContainText(journey.guideNumber);
+           |                                                               ^
+      1135 |   // O único atalho de ação leva à tela de carteirinhas (com as validações de lá), não opera aqui.
+      1136 |   await expect(s.page.getByRole('link', { name: 'Gerenciar carteirinhas' })).toHaveAttribute(
+      1137 |     'href',
+        at C:\dev\Qoro_convenios_tiss_20261110\e2e\convenios-config-preview.spec.ts:1134:63
+
+    Error Context: test-results\convenios-config-preview-f-d7fa1--o-financeiro-não-tem-a-aba-chromium\error-context.md
+
+  1 failed
+    [chromium] › e2e\convenios-config-preview.spec.ts:1115:1 › ficha do paciente: aba Convênios com carteirinha mascarada, cobertura e guia; quem não vê o financeiro não tem a aba 
+  1 did not run
+  21 passed (14.0m)
+22:32:18 livre=0,78GB next_dev=0
+22:32:49 livre=0,59GB next_dev=0
+22:33:20 livre=0,56GB next_dev=0
+22:33:51 livre=0,79GB next_dev=0
+22:34:26 livre=0,87GB next_dev=0
+22:34:56 livre=0,99GB next_dev=0
+22:35:27 livre=0,94GB next_dev=0
+22:35:58 livre=0,8GB next_dev=0
+22:36:28 livre=0,76GB next_dev=0
+22:36:59 livre=0,46GB next_dev=0
+22:37:30 livre=1,07GB next_dev=0
+22:38:01 livre=0,88GB next_dev=0
+22:38:32 livre=0,47GB next_dev=0
+22:39:03 livre=1,01GB next_dev=0
+22:39:33 livre=0,9GB next_dev=0
+22:40:04 livre=1,25GB next_dev=0
+22:40:35 livre=0,79GB next_dev=0
+22:41:05 livre=0,99GB next_dev=0
+22:41:36 livre=1,47GB next_dev=0
+22:42:07 livre=0,94GB next_dev=0
+22:42:37 livre=1,31GB next_dev=0
+22:43:08 livre=0,94GB next_dev=0
+22:43:38 livre=0,86GB next_dev=0
+22:44:10 livre=0,51GB next_dev=3
+22:44:43 livre=0,87GB next_dev=3
+22:45:14 livre=0,67GB next_dev=5
+22:45:45 livre=0,73GB next_dev=5
+22:46:15 livre=0,9GB next_dev=5
+exit=1

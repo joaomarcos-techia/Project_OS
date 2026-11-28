@@ -13,6 +13,16 @@
  *   - URL contains sslmode=require
  *   - pg_dump and gpg available on PATH; BACKUP_PASSPHRASE configured
  *   - MIGRATION_FAILED.md absent from repo root
+ *   - migration composition guard (src/lib/db/migration-composition.ts): the journal is
+ *     contiguous, the cross-branch boundary 0158 → 0159 (#53) → 0160 (#55) is present with the
+ *     pinned hashes, and — against the target ledger — nothing would be SILENTLY SKIPPED by the
+ *     Drizzle migrator (it only applies entries whose `when` is greater than the last applied
+ *     row). Checked before the backup (journal only), again inside the advisory lock right before
+ *     migrating (journal + ledger + sentinels) and once more after (nothing pending).
+ *     `--check-composition` runs only the read-only guard (no backup, no lock, no DDL) — the
+ *     preflight of a coordinated release (docs/convenios/coordenacao-migrations.md §13 and §16).
+ *     Every guard read runs inside `BEGIN READ ONLY` with `SET LOCAL` statement/lock/idle timeouts
+ *     on a single labelled connection (`application_name`), so Postgres itself refuses any write.
  */
 import { execSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
@@ -20,15 +30,23 @@ import { resolve } from 'node:path';
 
 import postgres from 'postgres';
 
+import { MIGRATION_COMPOSITION_MANIFEST } from '@/lib/db/migration-composition.manifest';
+
 import { assertMigrationsSafe } from './check-migration-safety';
 import { assertProdContext, gitUserEmail, redact } from './_env';
 import { localBinCommand } from './_local-bin';
 import { takeEncryptedProdBackup } from './prod-encrypted-backup';
+import {
+  READ_ONLY_CHECK_APPLICATION_NAME,
+  checkComposition,
+  checkCompositionInReadOnlyTx,
+} from './security/migration-composition-io';
 
 const REPO_ROOT = process.cwd();
 const BACKUPS_DIR = resolve(REPO_ROOT, 'backups');
 const MIGRATION_FAILED_FILE = resolve(REPO_ROOT, 'MIGRATION_FAILED.md');
 const MIGRATIONS_LOG = resolve(BACKUPS_DIR, 'migrations.log');
+const MIGRATIONS_DIR = resolve(REPO_ROOT, 'drizzle/migrations');
 // Arbitrary 32-bit int; collisions only matter for OTHER advisory locks in the
 // same DB, of which we have none. See `pg_advisory_lock` Postgres docs.
 const ADVISORY_LOCK_KEY = 4242;
@@ -86,6 +104,44 @@ async function withAdvisoryLock<T>(databaseUrl: string, fn: () => Promise<T>): P
     } finally {
       await client.end({ timeout: 5 });
     }
+  }
+}
+
+/**
+ * Guarda de composição contra o ledger do banco-alvo (só leitura, conexão própria de 1 socket).
+ * `before`: recusa se o Drizzle fosse pular alguma migration, se o ledger tiver linha fora do
+ * journal, hash divergente ou sentinela incoerente. `after`: o mesmo, e nada pode sobrar pendente.
+ */
+async function guardComposition(
+  databaseUrl: string,
+  moment: 'before' | 'after' | 'check-only',
+  folder: string = MIGRATIONS_DIR,
+): Promise<void> {
+  const client = postgres(databaseUrl, {
+    ssl: 'require',
+    prepare: false,
+    max: 1,
+    connect_timeout: 15,
+    idle_timeout: 5,
+    connection: { application_name: READ_ONLY_CHECK_APPLICATION_NAME },
+  });
+  try {
+    const plan = await client.begin('READ ONLY', (tx) =>
+      checkCompositionInReadOnlyTx(tx, {
+        folder,
+        manifest: MIGRATION_COMPOSITION_MANIFEST,
+      }),
+    );
+    console.log(
+      `[migrate:prod] composition ${moment}: ok, pending=${plan.pending.length} (${plan.pending.join(', ') || 'none'})`,
+    );
+    for (const w of plan.warnings)
+      console.log(`[migrate:prod] warning ${w.code} ${w.subject}: ${w.detail}`);
+    if (moment === 'after' && plan.pending.length > 0) {
+      throw new Error(`migrations still pending after migrate: ${plan.pending.join(', ')}`);
+    }
+  } finally {
+    await client.end({ timeout: 5 });
   }
 }
 
@@ -154,9 +210,27 @@ async function main(): Promise<void> {
   // Gap 1.3: pré-flight fail-closed — bloqueia DROP/TRUNCATE não-aprovado ANTES
   // de tocar prod (mesmo com backup, evitar o erro humano é mais barato).
   assertMigrationsSafe();
+  // Pré-voo de lançamento coordenado: `--migrations-dir` aponta o pacote COMPOSTO
+  // (scripts/security/compose-release-migrations.ts). Só vale com `--check-composition`: migrar de
+  // uma pasta fora do repositório nunca é aceito.
+  const checkOnly = process.argv.includes('--check-composition');
+  const dirFlag = process.argv.indexOf('--migrations-dir');
+  if (dirFlag >= 0 && !checkOnly) {
+    throw new Error('--migrations-dir só é aceito com --check-composition (nunca para migrar)');
+  }
+  const folder = dirFlag >= 0 ? resolve(process.argv[dirFlag + 1] ?? '') : MIGRATIONS_DIR;
+  // Composição entre branches: sem banco ainda — recusa um journal sem a 0159 do #53 antes de
+  // qualquer conexão ou backup.
+  await checkComposition({ folder, manifest: MIGRATION_COMPOSITION_MANIFEST });
   const { databaseUrl: rawUrl } = assertProdContext();
   const migrateUrl = migrationUrl(rawUrl);
   console.log(`[migrate:prod] target (session pooler): ${redact(migrateUrl)}`);
+  if (checkOnly) {
+    // Só lê o ledger e as sentinelas (BEGIN READ ONLY); sem backup, sem lock, sem DDL, sem arquivo.
+    await guardComposition(migrateUrl, 'check-only', folder);
+    console.log('[migrate:prod] --check-composition: nothing applied.');
+    return;
+  }
   assertPgDump();
 
   let backupPath: string | null = null;
@@ -165,12 +239,14 @@ async function main(): Promise<void> {
     console.log(`[migrate:prod] encrypted backup OK -> ${backupPath}`);
 
     await withAdvisoryLock(migrateUrl, async () => {
+      await guardComposition(migrateUrl, 'before');
       // drizzle-kit reads DATABASE_URL from env; override for this child only.
       // Use the session-pooler URL so the lock and the migrator share session.
       execSync(`${localBinCommand('drizzle-kit')} migrate --config=drizzle.config.ts`, {
         stdio: 'inherit',
         env: { ...process.env, DATABASE_URL: migrateUrl, NODE_ENV: 'production' },
       });
+      await guardComposition(migrateUrl, 'after');
     });
 
     const stamp = new Date().toISOString();

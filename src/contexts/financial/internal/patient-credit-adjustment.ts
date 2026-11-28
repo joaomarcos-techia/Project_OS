@@ -28,6 +28,18 @@ export const CASH_UNDONE_REASON =
   'Recebimento em dinheiro desfeito: saldo financeiro reaberto para revisão humana.';
 export const PAYMENT_REVERSAL_MANUAL_REASON =
   'Reversão exige conciliação manual por ausência de vínculo financeiro histórico.';
+export const EXTERNAL_REFUND_REASON =
+  'Estorno feito direto no Asaas: baixa compensada e saldo reaberto para revisão humana. Não cobrar novamente sem decisão.';
+const EXTERNAL_REFUND_REVIEW_DETAIL = {
+  dispute: 'há disputa (chargeback) nesta cobrança',
+  open_refund_intent: 'há devolução pedida pelo Qoro ainda sem confirmação',
+  amount_mismatch: 'o valor da cobrança no Asaas difere do registrado no Qoro',
+  amount_exceeds: 'o Asaas devolveu mais que o valor da cobrança',
+} as const;
+export type ExternalRefundReviewCode = keyof typeof EXTERNAL_REFUND_REVIEW_DETAIL;
+export function externalRefundReviewReason(code: ExternalRefundReviewCode): string {
+  return `Estorno no Asaas sem conciliação automática (${EXTERNAL_REFUND_REVIEW_DETAIL[code]}): revisar antes de cobrar ou compensar.`;
+}
 
 async function upsertFinancialPending(
   tx: Tx,
@@ -152,27 +164,7 @@ export async function applyPatientPaymentRisk(
   },
 ): Promise<PatientPaymentRiskResult> {
   const { clinicId, payload, sourceEventId } = input;
-  const [credit] = await tx
-    .select({
-      id: patientCredits.id,
-      amount: patientCredits.amount,
-      allocatedAmount: patientCredits.allocatedAmount,
-      allocatedLancamentoId: patientCredits.allocatedLancamentoId,
-      allocatedPaymentTransactionId: patientCredits.allocatedPaymentTransactionId,
-      unallocatedReversedAmount: patientCredits.unallocatedReversedAmount,
-      allocatedReversedAmount: patientCredits.allocatedReversedAmount,
-      status: patientCredits.status,
-    })
-    .from(patientCredits)
-    .where(
-      and(
-        eq(patientCredits.clinicId, clinicId),
-        eq(patientCredits.patientChargeId, payload.chargeId),
-      ),
-    )
-    .for('update')
-    .limit(1);
-  if (!credit) throw new Error(`crédito da cobrança ${payload.chargeId} não encontrado`);
+  const credit = await lockCreditOfCharge(tx, clinicId, payload.chargeId);
 
   if (
     payload.state === 'requested' ||
@@ -210,6 +202,86 @@ export async function applyPatientPaymentRisk(
     return 'dispute_reversed';
   }
 
+  return applyMoneyLoss(tx, {
+    clinicId,
+    appointmentId: payload.appointmentId,
+    chargeId: payload.chargeId,
+    credit,
+    requested: payload.amount,
+    kind: payload.state === 'cash_undone' ? 'cash_undone' : 'chargeback_loss',
+    sourceEventId,
+    occurredAt: new Date(payload.changedAt),
+    ledgerReason:
+      payload.state === 'cash_undone'
+        ? 'Recebimento em dinheiro desfeito no Asaas.'
+        : 'Chargeback perdido no Asaas.',
+    pendingReason: payload.state === 'cash_undone' ? CASH_UNDONE_REASON : CHARGEBACK_LOST_REASON,
+    disputeStatus: payload.state,
+  });
+}
+
+type LockedCredit = {
+  id: string;
+  amount: string;
+  allocatedAmount: string;
+  allocatedLancamentoId: string | null;
+  allocatedPaymentTransactionId: string | null;
+  unallocatedReversedAmount: string;
+  allocatedReversedAmount: string;
+  status: string;
+};
+
+/** O crédito da cobrança, travado. Toda compensação passa por ele (uma de cada vez). */
+async function lockCreditOfCharge(
+  tx: Tx,
+  clinicId: string,
+  chargeId: string,
+): Promise<LockedCredit> {
+  const [credit] = await tx
+    .select({
+      id: patientCredits.id,
+      amount: patientCredits.amount,
+      allocatedAmount: patientCredits.allocatedAmount,
+      allocatedLancamentoId: patientCredits.allocatedLancamentoId,
+      allocatedPaymentTransactionId: patientCredits.allocatedPaymentTransactionId,
+      unallocatedReversedAmount: patientCredits.unallocatedReversedAmount,
+      allocatedReversedAmount: patientCredits.allocatedReversedAmount,
+      status: patientCredits.status,
+    })
+    .from(patientCredits)
+    .where(and(eq(patientCredits.clinicId, clinicId), eq(patientCredits.patientChargeId, chargeId)))
+    .for('update')
+    .limit(1);
+  if (!credit) throw new Error(`crédito da cobrança ${chargeId} não encontrado`);
+  return credit;
+}
+
+/**
+ * Dinheiro que SAIU depois da baixa (chargeback perdido, dinheiro desfeito, estorno feito no
+ * Asaas). A baixa original nunca é apagada: a parte já alocada vira uma transação `refund`
+ * vinculada a ela (`original_payment_id`) e reduz só `valorPago`; a parte ainda não
+ * alocada fica no ledger complementar do crédito. Idempotente pelo evento de origem
+ * (UNIQUE clinic_id + source_event_id) e limitada ao que ainda está disponível.
+ */
+async function applyMoneyLoss(
+  tx: Tx,
+  input: {
+    clinicId: string;
+    appointmentId: string;
+    chargeId: string;
+    credit: LockedCredit;
+    requested: number;
+    kind: 'chargeback_loss' | 'cash_undone' | 'external_refund';
+    sourceEventId: string;
+    occurredAt: Date;
+    ledgerReason: string;
+    pendingReason: string;
+    /** Só a disputa (D27) projeta estado; o estorno externo não mexe nele. */
+    disputeStatus?: PatientPaymentRiskChangedPayload['state'];
+  },
+): Promise<'loss_recorded' | 'duplicate' | 'manual_review'> {
+  const { clinicId, credit } = input;
+  const dispute = input.disputeStatus ? { disputeStatus: input.disputeStatus } : null;
   const amount = Number(credit.amount);
   const allocated = Number(credit.allocatedAmount);
   const unallocatedReversed = Number(credit.unallocatedReversedAmount);
@@ -219,14 +291,16 @@ export async function applyPatientPaymentRisk(
   );
   const allocatedAvailable = Number(Math.max(0, allocated - allocatedReversed).toFixed(2));
   const lossAmount = Number(
-    Math.min(payload.amount, unallocatedAvailable + allocatedAvailable).toFixed(2),
+    Math.min(input.requested, unallocatedAvailable + allocatedAvailable).toFixed(2),
   );
 
   if (lossAmount <= 0) {
-    await tx
-      .update(patientCredits)
-      .set({ disputeStatus: payload.state, updatedAt: sql`now()` })
-      .where(and(eq(patientCredits.id, credit.id), eq(patientCredits.clinicId, clinicId)));
+    if (dispute) {
+      await tx
+        .update(patientCredits)
+        .set({ ...dispute, updatedAt: sql`now()` })
+        .where(and(eq(patientCredits.id, credit.id), eq(patientCredits.clinicId, clinicId)));
+    }
     return 'duplicate';
   }
 
@@ -236,13 +310,15 @@ export async function applyPatientPaymentRisk(
     allocatedLoss > 0 &&
     (!credit.allocatedLancamentoId || !credit.allocatedPaymentTransactionId)
   ) {
-    await tx
-      .update(patientCredits)
-      .set({ disputeStatus: payload.state, updatedAt: sql`now()` })
-      .where(and(eq(patientCredits.id, credit.id), eq(patientCredits.clinicId, clinicId)));
+    if (dispute) {
+      await tx
+        .update(patientCredits)
+        .set({ ...dispute, updatedAt: sql`now()` })
+        .where(and(eq(patientCredits.id, credit.id), eq(patientCredits.clinicId, clinicId)));
+    }
     await upsertFinancialPending(tx, {
       clinicId,
-      appointmentId: payload.appointmentId,
+      appointmentId: input.appointmentId,
       reason: PAYMENT_REVERSAL_MANUAL_REASON,
       amount: allocatedLoss,
     });
@@ -254,11 +330,11 @@ export async function applyPatientPaymentRisk(
     .values({
       clinicId,
       patientCreditId: credit.id,
-      patientChargeId: payload.chargeId,
-      kind: payload.state === 'cash_undone' ? 'cash_undone' : 'chargeback_loss',
+      patientChargeId: input.chargeId,
+      kind: input.kind,
       amount: lossAmount.toFixed(2),
-      sourceEventId,
-      occurredAt: new Date(payload.changedAt),
+      sourceEventId: input.sourceEventId,
+      occurredAt: input.occurredAt,
     })
     .onConflictDoNothing()
     .returning({ id: patientCreditAdjustments.id });
@@ -289,11 +365,8 @@ export async function applyPatientPaymentRisk(
       kind: 'refund',
       amount: allocatedLoss.toFixed(2),
       originalPaymentId: credit.allocatedPaymentTransactionId!,
-      reason:
-        payload.state === 'cash_undone'
-          ? 'Recebimento em dinheiro desfeito no Asaas.'
-          : 'Chargeback perdido no Asaas.',
-      occurredAt: new Date(payload.changedAt),
+      reason: input.ledgerReason,
+      occurredAt: input.occurredAt,
     });
     await tx
       .update(lancamentos)
@@ -312,9 +385,9 @@ export async function applyPatientPaymentRisk(
     .set({
       unallocatedReversedAmount: (unallocatedReversed + unallocatedLoss).toFixed(2),
       allocatedReversedAmount: (allocatedReversed + allocatedLoss).toFixed(2),
-      disputeStatus: payload.state,
+      ...(dispute ?? {}),
       ...(allocated === 0 && unallocatedLoss >= amount
-        ? { status: 'refunded' as const, releasedAt: new Date(payload.changedAt) }
+        ? { status: 'refunded' as const, releasedAt: input.occurredAt }
         : {}),
       updatedAt: sql`now()`,
     })
@@ -322,9 +395,54 @@ export async function applyPatientPaymentRisk(
 
   await upsertFinancialPending(tx, {
     clinicId,
-    appointmentId: payload.appointmentId,
-    reason: payload.state === 'cash_undone' ? CASH_UNDONE_REASON : CHARGEBACK_LOST_REASON,
+    appointmentId: input.appointmentId,
+    reason: input.pendingReason,
     amount: lossAmount,
   });
   return 'loss_recorded';
+}
+
+/** R54: o Pagamentos confirmou no Asaas uma devolução feita fora do Qoro. */
+export async function recordExternalRefund(
+  tx: Tx,
+  input: {
+    clinicId: string;
+    appointmentId: string;
+    patientChargeId: string;
+    amount: number;
+    sourceEventId: string;
+    occurredAt: Date;
+  },
+): Promise<'loss_recorded' | 'duplicate' | 'manual_review'> {
+  const credit = await lockCreditOfCharge(tx, input.clinicId, input.patientChargeId);
+  return applyMoneyLoss(tx, {
+    clinicId: input.clinicId,
+    appointmentId: input.appointmentId,
+    chargeId: input.patientChargeId,
+    credit,
+    requested: input.amount,
+    kind: 'external_refund',
+    sourceEventId: input.sourceEventId,
+    occurredAt: input.occurredAt,
+    ledgerReason: 'Estorno feito direto no Asaas.',
+    pendingReason: EXTERNAL_REFUND_REASON,
+  });
+}
+
+/** R54: devolução no Asaas que não dá para atribuir sozinho — só a pendência, nada compensado. */
+export async function openExternalRefundReview(
+  tx: Tx,
+  input: {
+    clinicId: string;
+    appointmentId: string;
+    amount: number;
+    reason: ExternalRefundReviewCode;
+  },
+): Promise<void> {
+  await upsertFinancialPending(tx, {
+    clinicId: input.clinicId,
+    appointmentId: input.appointmentId,
+    reason: externalRefundReviewReason(input.reason),
+    amount: input.amount,
+  });
 }

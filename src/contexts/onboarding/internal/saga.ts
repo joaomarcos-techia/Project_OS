@@ -105,6 +105,9 @@ export type TenantSeed = Omit<ProvisionArgs, 'inviteId' | 'inviteVersion'> & {
   initialBillingStatus?: 'trial' | 'active';
   currentPeriodStart?: Date;
   currentPeriodEnd?: Date;
+  /** New self-service trial must never take over an existing profile in a race. */
+  rejectExistingOwner?: boolean;
+  billingProvider?: 'asaas' | 'abacatepay';
 };
 
 /**
@@ -151,19 +154,28 @@ export async function provisionTenantCoreTx(
   });
 
   // 2. Owner profile (id = auth.users.id criado antes da tx). Idempotente em retry.
-  await tx
-    .insert(profiles)
-    .values({
-      id: args.owner.userId,
-      clinicId,
-      nome: args.owner.nome,
-      telefone: args.clinic.telefone ?? null,
-      role: 'owner',
-      ativo: true,
-      // Owner nasce ACEITO (não é convite pendente — ADR-032 Fase 2, review #1).
-      inviteAcceptedAt: new Date(),
-    })
-    .onConflictDoUpdate({
+  const ownerInsert = tx.insert(profiles).values({
+    id: args.owner.userId,
+    clinicId,
+    nome: args.owner.nome,
+    telefone: args.clinic.telefone ?? null,
+    role: 'owner',
+    ativo: true,
+    // Owner nasce ACEITO (não é convite pendente — ADR-032 Fase 2, review #1).
+    inviteAcceptedAt: new Date(),
+  });
+  if (args.rejectExistingOwner) {
+    const [createdOwner] = await ownerInsert
+      .onConflictDoNothing({ target: profiles.id })
+      .returning({ id: profiles.id });
+    if (!createdOwner) {
+      throw new OnboardingProvisionError(
+        'Owner identity already has a profile',
+        'owner_profile_conflict',
+      );
+    }
+  } else {
+    await ownerInsert.onConflictDoUpdate({
       target: profiles.id,
       set: {
         clinicId,
@@ -173,6 +185,7 @@ export async function provisionTenantCoreTx(
         inviteAcceptedAt: new Date(),
       },
     });
+  }
 
   // 3. Config de IA da clínica (defaults). 1:1 com a clínica.
   await tx
@@ -210,6 +223,7 @@ export async function provisionTenantCoreTx(
       currentPeriodStart: args.currentPeriodStart ?? new Date(),
       currentPeriodEnd: args.currentPeriodEnd ?? trialEnds,
       asaasSubscriptionId: args.asaasSubscriptionId,
+      ...(args.billingProvider && { billingProvider: args.billingProvider }),
     })
     .onConflictDoNothing({ target: subscriptions.clinicId })
     .returning({ id: subscriptions.id });

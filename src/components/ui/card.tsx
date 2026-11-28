@@ -2,18 +2,13 @@ import type { ComponentProps } from 'react';
 
 import { cn } from '@/lib/ui/cn';
 
+/** Superfície do Card, reaproveitada por quem precisa ser link (ex.: StatCard). */
+export const cardSurfaceClassName =
+  'rounded-(--card-radius) border border-(--card-border) bg-(--card-bg) shadow-sm';
+
 /** Card — DS v2 §card (`--card-bg/border/radius` + elevação card). */
 export function Card({ className, ...props }: ComponentProps<'div'>) {
-  return (
-    <div
-      data-slot="card"
-      className={cn(
-        'rounded-(--card-radius) border border-(--card-border) bg-(--card-bg) shadow-sm',
-        className,
-      )}
-      {...props}
-    />
-  );
+  return <div data-slot="card" className={cn(cardSurfaceClassName, className)} {...props} />;
 }
 
 export function CardHeader({ className, ...props }: ComponentProps<'div'>) {

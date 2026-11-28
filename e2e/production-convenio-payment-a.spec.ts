@@ -121,7 +121,7 @@ test.describe('produção: convênio como forma de pagamento na Clínica A', () 
         .locator('xpath=ancestor::div[.//button][1]');
       // O select de forma de pagamento só existe DEPOIS de abrir o painel de
       // confirmação — sem este clique a asserção passaria sem testar nada.
-      await linha.getByRole('button', { name: 'Confirmar pagamento' }).click();
+      await linha.getByRole('button', { name: 'Registrar recebimento' }).click();
       const caixaSelect = page.getByLabel('Forma de pagamento').first();
       await expect(caixaSelect).toBeVisible({ timeout: 30_000 });
       await expect(caixaSelect.getByRole('option', { name: 'Convênio' })).toHaveCount(1);

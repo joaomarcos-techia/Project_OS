@@ -1,0 +1,46 @@
+{
+ "workflow": ".github/workflows/ci.yml",
+ "sha": "c8935bc5d9b291bcfa8f2d23cc6236ae3539a9be",
+ "startedAt": "2026-11-26T03:17:10.708Z",
+ "totalSeconds": 86,
+ "results": [
+  {
+   "job": "ci",
+   "step": "Install dependencies",
+   "status": "SKIPPED (instalação local já presente)",
+   "code": null,
+   "seconds": 0
+  },
+  {
+   "job": "ci",
+   "step": "Build",
+   "status": "FAIL",
+   "code": 134,
+   "seconds": 78,
+   "log": "02-Build.log"
+  },
+  {
+   "job": "ci",
+   "step": "Client bundle secrets and local HTTP boundaries",
+   "status": "FAIL",
+   "code": 1,
+   "seconds": 3,
+   "log": "03-Client-bundle-secrets-and-local-HTTP-boundaries.log"
+  },
+  {
+   "job": "ci",
+   "step": "Install Playwright browser (chromium)",
+   "status": "SKIPPED (instalação local já presente)",
+   "code": null,
+   "seconds": 0
+  },
+  {
+   "job": "ci",
+   "step": "E2E gate (superfície pública, sem credencial)",
+   "status": "FAIL",
+   "code": 1,
+   "seconds": 6,
+   "log": "05-E2E-gate-superfície-pública-sem-credencial-.log"
+  }
+ ]
+}

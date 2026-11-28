@@ -90,6 +90,14 @@ export function HistoryImporter() {
             }}
           />
         </label>
+        <p className="text-sm text-muted-foreground md:col-span-2" data-help="historical-convenio">
+          Atendimento antigo de convênio: inclua{' '}
+          <code>&quot;billingMode&quot;: &quot;convenio&quot;</code>, o registro ANS da operadora em{' '}
+          <code>&quot;insurerAnsRegistry&quot;</code> (6 dígitos, operadora já cadastrada em
+          Convênios) e, se quiser, o código do plano na operadora em{' '}
+          <code>&quot;planCode&quot;</code>. Ele fica só como histórico: não gera guia, cobrança nem
+          recebível.
+        </p>
       </div>
 
       {payload ? (

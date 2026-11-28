@@ -1,0 +1,7 @@
+PASS 1: semente: 20 registros com 1, 30, 90, 179, 180, 184, 185, 186, 187, 200 dias; o Marco Civil (6 meses de calendário) manda guardar os de 1, 30, 90, 179, 180 dias; a ANS, os de 1, 30, 90, 179
+PASS 2: regra de PRODUÇÃO (90 dias): apagaria os de 90, 179, 180, 184, 185, 186, 187, 200 dias — 6 registros dentro dos 6 meses do Marco Civil e 4 dentro dos 180 dias da ANS (risco reproduzido; transação desfeita)
+PASS 3: regra CORRIGIDA (186 dias): apaga só os de 186, 187, 200 dias; 0 dentro dos 6 meses e 0 dentro dos 180 dias; os de 184 e 185 dias (maior semestre) ficam
+{"ts":"2026-11-26T22:35:20.390Z","kind":"metric","event":"retention.run","request_id":"9aa62eca-86ce-4ecb-be05-1d74ef5c113f","flow":"cron.data-retention","outbox":1,"login_attempts":6,"idempotency_keys":1,"ai_conversations":0,"ai_messages":0,"inbound_messages_raw":0,"whatsapp_business_app_echoes":0,"outbound_messages":0,"provider_status_events_raw":0}
+PASS 4: rota real GET /api/cron/data-retention: 200; login_attempts apagou 6 (só ≥ 186 dias); ficaram os de 1, 30, 90, 179, 180, 184, 185 dias; as 9 políticas rodaram; outbox processado de 40 dias saiu, recente e pendente ficaram; chave de idempotência vencida saiu, válida ficou
+
+4/4 provas da retenção do registro de acesso (e do R42) passaram.

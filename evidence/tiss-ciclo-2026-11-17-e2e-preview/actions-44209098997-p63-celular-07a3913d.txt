@@ -1,0 +1,2 @@
+  ✓  1 [chromium] › e2e/convenios-authorizations-preview.spec.ts:262:1 › celular (390 px): fila, detalhe e formulário do comprovante sem rolagem lateral; axe sem violação (28.3s)
+  1 passed (30.2s)

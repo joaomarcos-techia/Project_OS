@@ -1,0 +1,54 @@
+PASS: bucket tiss-files do DEV: existe, privado, 30 MiB, só application/octet-stream (prontidão do app = ready)
+{"ts":"2026-11-12T13:16:07.321Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T13:16:07.325Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T13:16:08.024Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T13:16:08.024Z","kind":"metric","event":"insurance.batch.exported","guides":2,"items":2}
+PASS: upload autorizado: a exportação real (13 passos) gravou UM objeto no bucket do DEV, sob o prefixo da clínica, com hi_files na mesma transação
+PASS: arquivo CIFRADO no bucket: os bytes guardados batem com ciphertext_sha256 e não contêm XML, carteirinha, nome do paciente nem do profissional
+{"ts":"2026-11-12T13:16:09.783Z","kind":"metric","event":"audit.written","action":"health_insurance.file.read","resourceType":"hi_file"}
+PASS: download autorizado: decifra, confere o SHA-256 do cifrado e do conteúdo e entrega o XML do lote
+PASS: acesso negado: outra clínica não acha o arquivo pelo ID (mesmo null de inexistente) nem lista o prefixo; sem sessão de servidor (chave publicável) não baixa, não lista, não grava; URL "pública" do objeto responde 400
+PASS: sem permissão e sem URL permanente: nenhum código do app gera URL assinada ou pública do tiss-files; a entrega é só pela rota com gate de permissão (route.test.ts)
+{"ts":"2026-11-12T13:16:13.262Z","kind":"metric","event":"audit.written","action":"health_insurance.file.read","resourceType":"hi_file"}
+{"ts":"2026-11-12T13:16:13.262Z","kind":"batch_xml","event":"insurance.file.integrity_failed","outcome":"integrity_failed"}
+{"ts":"2026-11-12T13:16:13.945Z","kind":"metric","event":"audit.written","action":"health_insurance.file.read","resourceType":"hi_file"}
+{"ts":"2026-11-12T13:16:13.945Z","kind":"batch_xml","event":"insurance.file.missing","outcome":"missing"}
+{"ts":"2026-11-12T13:16:14.485Z","kind":"metric","event":"audit.written","action":"health_insurance.file.read","resourceType":"hi_file"}
+PASS: adulterado no bucket real: recusado (SHA-256 não confere); ausente: classificado como "missing" a partir do erro REAL do Supabase; restauração com os bytes originais volta a abrir; a auditoria tem as 4 leituras com finalidade, inclusive as falhas
+{"ts":"2026-11-12T13:16:14.550Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T13:16:15.781Z","kind":"metric","event":"audit.written","action":"health_insurance.file.read","resourceType":"hi_file"}
+{"ts":"2026-11-12T13:16:15.782Z","kind":"batch_xml","event":"insurance.file.missing","outcome":"storage_unavailable"}
+PASS: falha REAL de armazenamento (chave recusada pelo DEV): a exportação recusa, o lote continua "preparado" sem arquivo, nada fica no bucket; a leitura responde indisponível (503 na rota), sem entregar nada
+{"ts":"2026-11-12T13:16:15.787Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T13:16:15.788Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T13:16:16.039Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T13:16:16.563Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T13:16:16.564Z","kind":"metric","event":"insurance.batch.exported","guides":1,"items":1}
+PASS: reprocessamento: exportar de novo o lote exportado não grava outro objeto (already_exported); o lote que falhou exporta ao repetir com o armazenamento de volta
+{"ts":"2026-11-12T13:16:17.166Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T13:16:17.428Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T13:16:17.455Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T13:16:17.456Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T13:16:17.465Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T13:16:17.475Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-12T13:16:18.237Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T13:16:18.237Z","kind":"metric","event":"insurance.batch.exported","guides":1,"items":1}
+{"ts":"2026-11-12T13:16:18.747Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T13:16:18.747Z","kind":"metric","event":"insurance.batch.exported","guides":1,"items":1}
+{"ts":"2026-11-12T13:16:19.202Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T13:16:19.202Z","kind":"metric","event":"insurance.batch.exported","guides":1,"items":1}
+{"ts":"2026-11-12T13:16:19.706Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T13:16:19.706Z","kind":"metric","event":"insurance.batch.exported","guides":1,"items":1}
+{"ts":"2026-11-12T13:16:20.202Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T13:16:20.202Z","kind":"metric","event":"insurance.batch.exported","guides":1,"items":1}
+{"ts":"2026-11-12T13:16:20.862Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-12T13:16:20.863Z","kind":"metric","event":"insurance.batch.exported","guides":1,"items":1}
+PASS: concorrência: 6 exportações simultâneas no bucket real, 8 objetos distintos, banco e bucket iguais objeto a objeto
+PASS: o bucket recusa qualquer tipo diferente de application/octet-stream (XML em claro não entra nem por engano)
+{"ts":"2026-11-12T13:16:22.405Z","kind":"metric","event":"insurance.file.orphan_discarded","count":1}
+PASS: órfão no bucket real: dentro da carência de 24 h fica (pode ser exportação em curso); fora dela é descartado; os 8 arquivos registrados ficam intactos
+PASS: sem vazamento: nada do que o processo escreveu nem a auditoria contém carteirinha, nome, chaves ou referência de objeto
+{"timings":{"export_2_guias_ms":719,"download_ms":213,"export_6_paralelo_ms":3713}}
+
+13/12 cenários do bucket real do DEV passaram.
+limpeza: 8 objetos sintéticos removidos do bucket do DEV
