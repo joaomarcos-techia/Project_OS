@@ -118,8 +118,11 @@ try {
   assert.deepEqual(r1.daily, { passwordExpiring: 1, sessionsEnding: 0, awaitingOperatorOverdue: 1, openPayoutReviews: 0, awaitingCancellationReceipts: 0, clinicsWithAlerts: 1 });
   pass('a senha vencida ontem vira "vencida" (histórico do sistema); a que vence amanhã fica concedida e entra no resumo como "senha vencendo"; pedido parado há 6 dias entra como "aguardando a operadora"');
 
-  // 2. Idempotência.
-  const r2 = await maint.runInsuranceMaintenance({ deadlineAt: Date.now() + 60_000, clinics: [A.clinicId] });
+  // 2. Idempotência. O instante fica FORA da janela do resumo diário (09:00–09:15 UTC), no mesmo dia: sem isso a
+  // prova reprovava quando o job caía nessa janela (visto em 28/11, run 46129000760, às 09:1x UTC).
+  const outsideDaily = new Date();
+  if (maint.isDailySummaryWindow(outsideDaily)) outsideDaily.setUTCMinutes(30);
+  const r2 = await maint.runInsuranceMaintenance({ deadlineAt: Date.now() + 60_000, clinics: [A.clinicId], now: outsideDaily });
   assert.deepEqual([r2.expired, r2.daily], [0, null]);
   const ev2 = await sql`select count(*)::int n from public.hi_authorization_events where authorization_id = ${expiredA}::uuid and to_status = 'expired'`;
   assert.equal(Number(ev2[0]!.n), 1);
