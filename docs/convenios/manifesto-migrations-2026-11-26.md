@@ -113,3 +113,21 @@ idêntica não altera nada. A prova usa alteração real.
 
 **Conclusão para a ordem definitiva:** nenhuma dependência nova; a sequência da seção 3 vale com o #64 atual. Se o #59
 entrar antes do #55, ele fica com 0169 e as do #55 andam um número cada, ainda como candidatas.
+
+## 9. Revalidação e pré-requisitos resolvidos (28/11/2026, tarde)
+
+- **Ledgers lidos de novo (READ ONLY, `db-health-ro`):** DEV 169 linhas, última `844cf2f2…` (0168); Production 160,
+  última `eb00a4e3…` (0159). Em nenhum dos dois há objeto de 0169, 0170, 0171 ou da candidata do #59, tabela exposta
+  sem RLS, lock esperando ou índice inválido. Saídas em `evidence/local-2026-11-28/`.
+- **0171 × reset (item do §5), resolvido no #55:**
+  - `reset:prod` deixa de apagar `audit_events` e `login_attempts` (trilha append-only e Marco Civil art. 15),
+    guardado por teste;
+  - `reset:dev` recusa ANTES de apagar qualquer coisa quando a barreira estiver instalada, com o motivo, em vez de
+    falhar no meio pelo gatilho;
+  - `super_admin_actions` continua com o #59, que já a tirou do reset na branch dele.
+- **E2E prontos para depois da aplicação:** `e2e/convenios-s3-s4-senhas-preview.spec.ts` (5 testes: regra TISS,
+  troca, revogação da sessão, histórico, validade, fora do alcance) e a fixture `setup-s34`. Os dois rodam só com a
+  0170 no DEV e o Preview dedicado (`TISS_SECURITY_PROFILE_ENFORCE`, `TISS_SECURITY_PROFILE_ACTIVATED_AT` há mais de
+  90 dias e `PASSWORD_HISTORY_PEPPER` sintético).
+- **Ancoragem (S5):** `audit-anchor-db.ts` usa as mesmas duas trilhas; a cadeia deve começar no dia em que a 0171 for
+  aplicada no ambiente.
