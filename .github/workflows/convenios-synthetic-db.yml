@@ -263,3 +263,9 @@ jobs:
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55642 NODE_OPTIONS=--conditions=react-server \
             pnpm exec tsx scripts/security/agent-insurance-tools-db.ts
+
+      - name: "P11.2 — as cinco jornadas do agente com Convênios pela conversa, turno real no banco (6 provas)"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55644 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/agent-insurance-conversation-db.ts
