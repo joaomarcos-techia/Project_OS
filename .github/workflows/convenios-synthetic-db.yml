@@ -36,6 +36,16 @@ on:
       - 'drizzle/migrations/**'
       - 'docs/convenios/migrations/**'
       - '.github/workflows/convenios-synthetic-db.yml'
+      # Harnesses de S2–S8 e da P11 (e o código que eles provam): sem eles aqui, um push que só
+      # mexe num desses arquivos passava sem a rodada sintética (visto em 28/11, e45217c4).
+      - 'scripts/security/agent-insurance-*-db.ts'
+      - 'scripts/security/audit-*-db.ts'
+      - 'scripts/security/auth-password-history-db.ts'
+      - 'scripts/security/login-attempts-retention-db.ts'
+      - 'scripts/security/migration-final-order-db.ts'
+      - 'src/contexts/ai-agent/**'
+      - 'src/lib/db/audit-anchor.ts'
+      - 'src/lib/auth/**'
 
 permissions:
   contents: read
@@ -263,3 +273,9 @@ jobs:
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55642 NODE_OPTIONS=--conditions=react-server \
             pnpm exec tsx scripts/security/agent-insurance-tools-db.ts
+
+      - name: "P11.2 — as cinco jornadas do agente com Convênios pela conversa, turno real no banco (6 provas)"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55644 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/agent-insurance-conversation-db.ts

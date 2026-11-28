@@ -138,3 +138,31 @@ com `scripts/gemini-live-check.ts` e dados sintéticos.
 **Conflito previsto com o #28 no rebase dele:** só o `inbound-received.ts` (ele muda 9 linhas no tratamento do
 provedor; aqui entram o import, a variável `modelFreeText` e o bloco da guarda depois do pós-guard clínico). Resolução
 mecânica, sem sobreposição de linhas.
+
+## 28/11/2026 (noite) — P11.2: as cinco jornadas pela conversa, turno real
+
+`scripts/security/agent-insurance-conversation-db.ts` (porta 55644, 6 provas) leva cada jornada pela **mensagem do
+paciente**, no caminho real do turno do WhatsApp: `persistInbound` → `processInbound` (identidade pelo telefone,
+pré-filtro clínico, modelo, registro de ferramentas, portão de confirmação, guarda de saída) → resposta gravada e
+enviada → estado no banco. Postgres descartável com todas as migrations; dados sintéticos; rede externa recusada (o
+envio ao WhatsApp é capturado e precisa ser igual à resposta gravada). O modelo tem roteiro fixo, como no
+`smoke-agent-journeys.ts`: o que está sob teste é o servidor.
+
+| # | Jornada | O que a prova exige |
+| --- | --- | --- |
+| 1 | particular | resumo e "Pronto!" sem falar de convênio; atendimento particular do agente, sem cobertura; o handler real do pedido de sinal segue tratando como elegível (nada mudou no particular) |
+| 2 | convênio aceito | resumo com operadora e plano, sem sinal nem link; "SIM" → convênio do agente, cobertura de automação sem usuário, "a recepção vai conferir a sua carteirinha"; o handler REAL do pedido de sinal sai como inelegível (`payments.deposit.request_skipped_ineligible`), sem cobrança; nenhuma guia |
+| 3 | convênio não aceito | fora do cadastro → a lista do que a clínica agenda e a saída particular/recepção; suspensa nunca oferecida; módulo desligado em outra clínica → "é com a recepção"; nada preparado nem criado |
+| 4 | dúvida de cobertura | o modelo tenta dizer "o seu plano cobre" → a guarda troca pela frase fixa ("quem confirma é a operadora, junto com a recepção… posso passar você para a recepção?") e grava a falha do turno; nada criado |
+| 5 | autorização exigida | o resumo avisa o aval da operadora; "SIM" → convênio SP/SADT pelo contrato, sem dizer "autorizado"; carteirinha e autorização ficam com a recepção; sinal inelegível |
+| 6 | todas | nenhuma das mensagens enviadas afirma cobertura, autorização, elegibilidade ou valor, nem pede a carteirinha; nenhuma guia nem cobrança; nenhuma rede externa |
+
+**Execução:** 6/6 no código do #55 e 6/6 no código da composição com o comercial (barreira paga do `ai_agents` ativa),
+localmente; entra no workflow sintético e no gate de cobertura (45 harnesses).
+
+**O que a prova não cobre, de propósito:**
+- a interpretação do Gemini de verdade (gírias, erros de digitação, frase ambígua). Nenhum roteiro prova isso. É a
+  verificação no Preview com o modelo real, que gasta tokens do provedor e só roda com autorização de custo
+  (roteiro: as cinco jornadas acima, com `scripts/gemini-live-check.ts` e dados sintéticos);
+- trial ou assinatura cancelada: a barreira é do comercial (`assertOperationalModuleAccessTx(..., 'ai_agents')` no
+  registro, com teste no `registry.test.ts` do #68), e não existe no código do #55 sozinho.
