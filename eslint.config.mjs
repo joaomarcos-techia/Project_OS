@@ -188,6 +188,9 @@ const config = [
       // Reset operacional de pré-go-live: conexão one-shot explícita em
       // DATABASE_URL_PROD, backup obrigatório e confirmação fail-closed.
       'scripts/reset-prod-data.ts',
+      // S5 (ancoragem das trilhas): operador SÓ LEITURA, transação READ ONLY sem SET de
+      // sessão (serve pelo pooler 6543), URL própria em ANCHOR_DATABASE_URL (não herda o app).
+      'scripts/security/audit-anchor.ts',
     ],
     rules: {
       'no-restricted-imports': [

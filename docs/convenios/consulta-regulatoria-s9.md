@@ -132,3 +132,26 @@ controversa (4). Nenhuma delas impede o trabalho técnico; cada uma está reduzi
 Conclusão: a parte técnica que o texto exige do **sistema** está cumprida e testada. Trocar para `autocomplete="off"`
 pioraria acessibilidade e segurança sem impedir o gerenciador do usuário. A única decisão aberta é a leitura literal
 (pergunta 4), que fica com a ANS/fundador — P12.12 segue parcial só por ela e pela aprovação do S8.
+
+## Matriz de conformidade do S8 (28/11/2026, tarde)
+
+**Redação de origem (S9, requisito 43, Componente de Segurança da TISS 202511, conferido por sha256 em 25/11):** "A
+interface de usuário utilizada para digitação de credenciais [...] deve impedir a memorização e a visualização de
+dados anteriores (lista de logins já digitados, lembrança automática de senhas associadas a um login, etc.)."
+
+| Requisito | Controle no Qoro | Evidência atual (28/11) | Equivalência / limite | Situação |
+| --- | --- | --- | --- | --- |
+| R42 — aviso de último acesso | aviso no shell depois do login, com data e hora da sessão anterior | `last-access.test.ts` 3/3, `last-access-notice.test.tsx` 3/3; E2E 2/2 no shell comercial (`evidence/local-2026-11-27/r42-ultimo-acesso-e2e-2-de-2.txt`) | — | técnico **PASS**; ligado para usuário real só com a aprovação do S8 |
+| R43 — sistema não memoriza | nenhuma credencial em `localStorage`/`sessionStorage`/cookie de cliente; sem "lembrar login"; sessão só em cookie HttpOnly | varredura do `login/`; `clear-password-field.test.ts` 3/3 | cumprido no que depende do sistema | técnico **PASS** |
+| R43 — sem visualização de dados anteriores | o Qoro não lista logins; senha mascarada (`type="password"`); a senha sai do DOM depois de tentativa rejeitada | `login/page.tsx:129`; `actions.test.ts` 32/32 | cumprido no que depende do sistema | técnico **PASS** |
+| R43 — leitura literal (bloquear o gerenciador do navegador) | **não adotado** `autocomplete="off"`; mantidos `email` e `current-password` | — | os navegadores ignoram `off` em login (MDN), então ele não bloquearia nada; o token de propósito é exigência de acessibilidade (WCAG 2.1, 1.3.5, AA); o NIST SP 800-63B-4 recomenda permitir gerenciadores. **Nenhuma dessas fontes substitui a norma da ANS**: elas mostram o efeito real da alternativa | **decisão humana**: pergunta 4 (ANS) |
+| R69 — limite de tentativas e fail-safe | Upstash 5/e-mail e 10/IP em 15 min; na queda dele, contagem em `login_attempts` com os mesmos tetos; banco fora = login fechado, recuperação de senha com limite próprio | `login-attempts-fallback.test.ts` 6/6, `actions.test.ts`; barrado de verdade no Preview (rodadas 2 e 3 do E2E da S2) | — | técnico **PASS** |
+| Sessão | inatividade (S2), sessão por geração de cookie, revogação | S2 E2E 9/9 (27/11) | — | **PASS** (S2) |
+
+**Acessibilidade:** os tokens `autocomplete` ficam porque leitores de tela e preenchimento assistido dependem deles
+(WCAG 1.3.5). **Gerenciadores de senha:** permitidos; quem guarda a senha é o cofre do usuário, não o Qoro.
+
+**O que muda a classificação:** P12.12 vira PASS quando (1) o fundador aprovar o S8 para usuários reais (R42 ligado) e
+(2) a pergunta 4 tiver resposta da ANS ou decisão documentada do fundador aceitando a leitura "o sistema não memoriza".
+Se a resposta for "bloquear o gerenciador", não há controle técnico que cumpra isso nos navegadores atuais. A saída
+seria a interface sem campo de senha (por exemplo, link mágico ou passkey), que é outra decisão de produto.
