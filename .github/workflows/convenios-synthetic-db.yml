@@ -36,6 +36,16 @@ on:
       - 'drizzle/migrations/**'
       - 'docs/convenios/migrations/**'
       - '.github/workflows/convenios-synthetic-db.yml'
+      # Harnesses de S2–S8 e da P11 (e o código que eles provam): sem eles aqui, um push que só
+      # mexe num desses arquivos passava sem a rodada sintética (visto em 28/11, e45217c4).
+      - 'scripts/security/agent-insurance-*-db.ts'
+      - 'scripts/security/audit-*-db.ts'
+      - 'scripts/security/auth-password-history-db.ts'
+      - 'scripts/security/login-attempts-retention-db.ts'
+      - 'scripts/security/migration-final-order-db.ts'
+      - 'src/contexts/ai-agent/**'
+      - 'src/lib/db/audit-anchor.ts'
+      - 'src/lib/auth/**'
 
 permissions:
   contents: read
