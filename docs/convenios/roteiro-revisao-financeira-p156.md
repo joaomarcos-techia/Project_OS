@@ -130,3 +130,9 @@ Ver no Preview é opcional (seção 1); não precisa repetir a bateria. **Até a
   (a cobrança real com o Asaas foi homologada à parte no Sandbox, P10.5).
 
 **Recomendação técnica: APROVAR.** Isto não é o aceite: a P15.6 só fecha com a marcação do fundador na seção 7.
+
+## 9. Resumo executivo para o aceite (28/11/2026)
+
+12 conferências financeiras e 1 de isolamento, todas iguais ao esperado (diferença **R$ 0,00**); nenhum código do
+caminho do dinheiro mudou desde a pré-auditoria; sem ressalva material. **Recomendação técnica: aprovar.**
+**Campo de aceite: seção 7** — marcar "aprovado" ou "reprovado no caso F__". Até essa marcação, P15.6 = PENDING.

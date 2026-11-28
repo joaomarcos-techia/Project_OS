@@ -245,3 +245,9 @@ jobs:
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55631 NODE_OPTIONS=--conditions=react-server PR64_REF=74823d649d8a9aa6f8842bf6cbfb9f953d0470f2 PR59_REF=c6e91bf1991fcabe2f30aa67b20914e0ab625a64 \
             pnpm exec tsx scripts/security/migration-final-order-db.ts
+
+      - name: "P11 — jornadas de Convênios do agente de IA, lado do Convênios (8 provas)"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55641 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/agent-insurance-journeys-db.ts

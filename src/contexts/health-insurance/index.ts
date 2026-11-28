@@ -59,3 +59,25 @@ export {
 } from './historical-coverage';
 // S1/S3 — rastro TISS da clínica para o perfil de segurança (só existência).
 export { readClinicTissFootprint } from './security-footprint';
+// P11 — o que o agente de IA (outro context) usa do Convênios: as consultas da agenda e o adaptador de respostas
+// seguras (handoff-agente-p11.md). Nenhum agente aqui; as ferramentas são do registro do agente.
+export {
+  getSchedulingInsuranceOptions,
+  procedureRequiresAuthorization,
+  type SchedulingInsuranceOptions,
+} from './config-queries';
+export {
+  checkSchedulingChoice,
+  recordSchedulingCoverage,
+  type SchedulingInsuranceChoice,
+} from './scheduling-coverage';
+export {
+  AGENT_INSURANCE_TEXT,
+  agentChoiceVerdict,
+  agentInsuranceOptions,
+  coverageQuestionReply,
+  findUnsafeAgentClaims,
+  matchInsurerFromPatientText,
+  type AgentChoiceVerdict,
+  type AgentInsuranceOptions,
+} from './agent-insurance';

@@ -691,6 +691,38 @@ export async function getSchedulingInsuranceOptions(
   });
 }
 
+/**
+ * P11 (jornada 5) — o contrato vigente da operadora para o procedimento exige autorização prévia? Só o booleano: o
+ * agente avisa que a clínica precisa do aval da operadora, sem afirmar nada sobre a autorização. Contrato do plano
+ * ou da operadora inteira (`plan_id` nulo), vigente na data (`on`, padrão hoje). Sem contrato = `false`.
+ */
+export async function procedureRequiresAuthorization(
+  clinicId: string,
+  q: {
+    insurerId: string;
+    planId: string | null;
+    procedureId: string;
+    guideType: 'consulta' | 'sp_sadt';
+    on?: string;
+  },
+): Promise<boolean> {
+  return withTenant(clinicId, async (tx) => {
+    const [r] = await rows(
+      tx,
+      sql`SELECT coalesce(bool_or(c.requires_authorization), false) AS required
+            FROM public.hi_procedure_contracts c
+           WHERE c.clinic_id = ${clinicId}::uuid
+             AND c.insurer_id = ${q.insurerId}::uuid
+             AND c.procedure_id = ${q.procedureId}::uuid
+             AND c.guide_type = ${q.guideType}
+             AND (c.plan_id IS NULL OR c.plan_id = ${q.planId}::uuid)
+             AND c.valid_from <= coalesce(${q.on ?? null}::date, current_date)
+             AND (c.valid_until IS NULL OR c.valid_until >= coalesce(${q.on ?? null}::date, current_date))`,
+    );
+    return r?.required === true;
+  });
+}
+
 export interface SchedulingCard {
   id: string;
   insurerId: string;

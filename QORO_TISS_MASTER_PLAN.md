@@ -122,6 +122,18 @@
 | Coordenação | UI: janela de testes pesados aceita e usada (23:33–00:10); terminologia de guias decidida pela UI e aplicada; títulos de página nas 13 telas; divisão de arquivos (handoff-ui.md §8). #53: release congela a cauda TISS do `4d0ed1d5` |
 | Próximo passo exato | ver "Próxima ação exata" acima |
 
+### Checkpoint de 28/11/2026 — base comercial #68 `9823f026`, P11 do lado do Convênios, R43 decidido tecnicamente
+
+| Item | Estado |
+| --- | --- |
+| Base comercial | #68 andou para `9823f026` (esbuild acima do advisory crítico do Snyk, teste do intervalo efetivo de retenção, sem migration nem troca de Next/React/Vitest). Composição #65 refeita: `916e8672`, **CI PASS** (46103155741), 860/860, **ramos 59,70%** (cobertura preservada); só `acoes.md` em conflito (gerado) |
+| **P11 — lado do Convênios** | `agent-insurance.ts` (opções ativas, reconhecimento conservador da operadora, veredito antes de confirmar, resposta de dúvida de cobertura, **guarda de saída** contra afirmar cobertura/autorização/elegibilidade/valor/número da carteirinha), `procedureRequiresAuthorization` e exportação pela superfície pública. **16/16** unitários e **8/8** no banco descartável com as consultas reais (`agent-insurance-journeys-db.ts`, também no gate de cobertura). P11.1/P11.2 seguem BLOCKED só pela ligação às ferramentas do registro do agente (frente do #28) |
+| R43 | parte técnica cumprida e testada; `autocomplete="off"` não adotado com fundamento (navegadores ignoram em login; WCAG 1.3.5 exige o token de propósito; NIST manda permitir gerenciadores). Só a leitura literal fica para a ANS |
+| P12.6 | instruções do token restrito (`alerts:write`, `project:read`, `org:read`) e da regra; BLOCKED até o token ou a regra pela tela |
+| P15.6 | resumo executivo e campo de aceite (seção 7); recomendação técnica: aprovar |
+| Migrations DEV | continuam sem aplicação: o comercial (#68) ainda é draft, sem merge — a condição do fundador para o DEV |
+| Contagem | **95/117** |
+
 ### Checkpoint de 27/11/2026, noite — gate de cobertura resolvido com medição real; base comercial = #68
 
 | Item | Estado |

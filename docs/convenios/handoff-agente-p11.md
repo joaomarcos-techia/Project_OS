@@ -74,3 +74,24 @@ lote e cobrança continuam na recepção); nenhum dado clínico na conversa.
 
 **Classificação:** P11.1 e P11.2 seguem **BLOCKED** pela frente proprietária. O lado do Convênios está pronto e
 provado pela agenda.
+
+## 28/11/2026 — o lado do Convênios implementado e provado (o agente só consome)
+
+Tudo pela superfície pública `@/contexts/health-insurance` (o agente é outro context):
+
+| Para a ferramenta | Chamar | Devolve |
+| --- | --- | --- |
+| `list_insurance_options` | `agentInsuranceOptions(await getSchedulingInsuranceOptions(clinicId))` | `{ kind: 'options', insurers }` (só ativos da clínica) ou `{ kind: 'not_available', reply }` |
+| entender "tenho X" | `matchInsurerFromPatientText(options, fala)` | a operadora, só se UMA casar pelo nome inteiro; senão `null` (perguntar de novo) |
+| `prepare_appointment` (convênio) | `agentChoiceVerdict({ refusal: await checkSchedulingChoice(...), requiresAuthorization: await procedureRequiresAuthorization(clinicId, { insurerId, planId, procedureId, guideType }) })` | `{ allowed: true, billingMode: 'convenio', notices }` ou `{ allowed: false, reply, internalReason }` (o motivo técnico vai para a recepção, nunca ao paciente) |
+| `confirm_appointment` | criar pela agenda com `billingMode: 'convenio'` e depois `recordSchedulingCoverage(...)` | (já existia; nunca lança) |
+| "meu plano cobre?" | `coverageQuestionReply()` | frase segura + `handoff: true` |
+| antes de enviar qualquer frase sobre convênio | `findUnsafeAgentClaims(texto)` | lista do que a frase afirma indevidamente (cobertura, autorização, elegibilidade, valor, número da carteirinha); vazio = pode enviar |
+
+**Provas:** `agent-insurance.test.ts` 16/16 (as cinco jornadas e a guarda) e `scripts/security/agent-insurance-journeys-db.ts`
+8/8 contra o banco descartável com as consultas reais (só ativos, isolamento entre clínicas, módulo desligado, jornadas
+2, 3 e 5, guarda de saída, nenhuma escrita). O harness também entra no gate de cobertura.
+
+**O que continua com a frente do agente (P11.1/P11.2 BLOCKED só por isso):** ligar essas funções às três ferramentas do
+registro existente (`src/contexts/ai-agent/tools/`), depois do rebase do #28 sobre o comercial e o #55, e o E2E da
+conversa no Preview. Nenhum agente novo.
