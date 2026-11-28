@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { drizzle } from 'drizzle-orm/postgres-js';
@@ -28,10 +28,32 @@ const folder = path.resolve(generated.migrationFolder);
 assert.ok(folder.startsWith(path.resolve('dist') + path.sep));
 const journal = z
   .object({
-    entries: z.array(z.object({ idx: z.number().int(), tag: z.string(), when: z.number().int() })),
+    version: z.string(),
+    dialect: z.string(),
+    entries: z.array(
+      z.object({
+        idx: z.number().int(),
+        tag: z.string(),
+        when: z.number().int(),
+        version: z.string(),
+        breakpoints: z.boolean(),
+      }),
+    ),
   })
   .parse(JSON.parse(await readFile(path.join(folder, 'meta/_journal.json'), 'utf8')));
 assert.equal(journal.entries.length, 169);
+const prefixFolder = await mkdtemp(path.resolve('dist/abacatepay-pix-prefix-'));
+assert.ok(prefixFolder.startsWith(path.resolve('dist') + path.sep));
+await mkdir(path.join(prefixFolder, 'meta'));
+await writeFile(
+  path.join(prefixFolder, 'meta/_journal.json'),
+  JSON.stringify({ ...journal, entries: journal.entries.slice(0, 160) }) + '\n',
+);
+for (const entry of journal.entries.slice(0, 160))
+  await copyFile(
+    path.join(folder, `${entry.tag}.sql`),
+    path.join(prefixFolder, `${entry.tag}.sql`),
+  );
 const cluster = await startScratchSchema({ port: 55453 });
 const sha256 = (body: Buffer) => createHash('sha256').update(body).digest('hex');
 try {
@@ -47,6 +69,13 @@ try {
   const before = await cluster.sql`SELECT count(*)::int n FROM drizzle.__drizzle_migrations`;
   assert.equal(before[0]?.n, 143);
   const database = drizzle(cluster.sql);
+  await migrate(database, { migrationsFolder: prefixFolder });
+  const [productionBaseline] =
+    await cluster.sql`SELECT count(*)::int n FROM drizzle.__drizzle_migrations`;
+  assert.equal(productionBaseline?.n, 160);
+  const [pixBefore] =
+    await cluster.sql`SELECT to_regclass('billing_gateway.pix_replacement_intents') IS NOT NULL present`;
+  assert.equal(pixBefore?.present, false);
   const started = performance.now();
   await migrate(database, { migrationsFolder: folder });
   const migrationMs = Math.round(performance.now() - started);
@@ -333,6 +362,7 @@ try {
       status: 'PASS',
       postgres: 'real_disposable_loopback',
       migrations: 169,
+      upgradeFromProductionBaseline: 160,
       pixMigration: journal.entries[168]!.tag,
       migrationMs,
       rlsForced: true,
@@ -357,4 +387,5 @@ try {
   );
 } finally {
   await cluster.stop();
+  await rm(prefixFolder, { recursive: true, force: true });
 }
