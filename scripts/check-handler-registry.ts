@@ -67,7 +67,8 @@ const PRODUCER_AHEAD = new Set<string>([
   'scheduling.appointment.checked_in',
   // (scheduling.appointment.cancelled e .no_show saíram daqui: ADR-049 1.5 ligou
   // os handlers de estorno/retenção do Payments — F-14.)
-  'scheduling.appointment.rescheduled',
+  // (scheduling.appointment.rescheduled saiu daqui: P4.3/R50 — o Convênios leva a cobertura
+  // para o novo horário.)
   'scheduling.appointment.corrected',
   'scheduling.doctor_absence.created',
   // BILLING-002 — emitido quando o GET autoritativo confirma que a cobrança

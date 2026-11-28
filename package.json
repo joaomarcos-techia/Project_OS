@@ -12,6 +12,7 @@
     "security:unit": "vitest run src/lib/security src/contexts/patient/security-actions.test.ts src/contexts/clinical/prontuario-access.test.ts src/contexts/ai-agent/internal/quota.test.ts src/lib/auth/tenant-context.test.ts src/lib/auth/supabase-session-cookie.test.ts src/lib/auth/supabase-server.test.ts src/lib/auth/no-browser-supabase.arch.test.ts src/lib/auth/authz-denied.test.ts src/lib/db/tenant.test.ts src/lib/env-coherence.test.ts src/middleware.test.ts \"src/app/(app)/auth/session-refresh/route.test.ts\" \"src/app/(app)/convite/server-session.test.tsx\" \"src/app/(app)/logout/route.test.ts\" src/lib/realtime/use-consultorio-polling.test.tsx src/lib/http/webhook-body.test.ts src/lib/http/content-security-policy.test.ts src/app/api/webhooks src/contexts/ai-agent/guards/prompt-injection-security.test.ts src/lib/observability/sentry-scrub.test.ts src/lib/sanitize",
     "security:risks": "tsx scripts/security/risk-doc.ts",
     "security:tenant": "tsx --conditions=react-server scripts/security/tenant-isolation.ts",
+    "security:tenant:convenios": "tsx --conditions=react-server scripts/security/health-insurance-tenant-isolation-db.ts",
     "security:build": "tsx scripts/security/local-build.ts",
     "security:browser-session": "playwright test --config=playwright.httponly.config.ts",
     "security:bundle": "tsx scripts/security/bundle-check.ts",
@@ -147,6 +148,7 @@
     "safe-stable-stringify": "2.5.0",
     "server-only": "0.0.1",
     "tailwind-merge": "3.6.0",
+    "xmllint-wasm": "5.3.0",
     "zod": "^4.6.6"
   },
   "devDependencies": {

@@ -7,7 +7,7 @@ import type {
 } from '@/contexts/financial/types';
 import { Button } from '@/components/ui/button';
 import { PaymentStatusBadge } from '@/components/ui/status-badge';
-import { formatBRL } from '@/lib/format';
+import { formatBRL, QORO_DATE_TIME_ZONE, todayYmdIn } from '@/lib/format';
 import { cn } from '@/lib/ui/cn';
 
 import {
@@ -179,9 +179,13 @@ function FinancialComposition({
   );
 }
 
-/** Data local de hoje em `YYYY-MM-DD`, para comparar com `dueDate`. */
+/**
+ * Hoje em `YYYY-MM-DD` no fuso das datas do Qoro, para comparar com `dueDate`. Sem fuso
+ * explícito o servidor (UTC) e o navegador (Brasília) discordavam depois das 21h e a
+ * hidratação acusava erro 418 (R51).
+ */
 function todayYmd(): string {
-  return new Intl.DateTimeFormat('en-CA').format(new Date());
+  return todayYmdIn();
 }
 
 /** dd/MM — o ano só atrapalha numa fila que é toda do mês corrente. */
@@ -403,6 +407,7 @@ export function CashItemCard({
             hourCycle: 'h23',
             hour: '2-digit',
             minute: '2-digit',
+            timeZone: QORO_DATE_TIME_ZONE,
           }).format(new Date(item.paidAt))
         : item.dueDate
           ? prazo(item.dueDate, hoje)

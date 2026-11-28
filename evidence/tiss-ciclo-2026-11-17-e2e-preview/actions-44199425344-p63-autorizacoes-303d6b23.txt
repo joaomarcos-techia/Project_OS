@@ -1,0 +1,5 @@
+  ✓  1 [chromium] › e2e/convenios-authorizations-preview.spec.ts:92:1 › recepção (operate:convenios): vê a fila e o detalhe e recebe o formulário na Consulta aguardando (14.0s)
+  ✓  2 [chromium] › e2e/convenios-authorizations-preview.spec.ts:107:1 › gestora: alerta antes do vencimento, registro da resposta com evidência e senha que não volta (18.9s)
+  ✓  3 [chromium] › e2e/convenios-authorizations-preview.spec.ts:166:1 › gestora: anexa comprovante pequeno e de 10 MB (em partes), baixa e confere a integridade; excesso e tipo falso são recusados (1.7m)
+  ✓  4 [chromium] › e2e/convenios-authorizations-preview.spec.ts:224:1 › comprovante: a recepção baixa (leitura registrada); médica, outra clínica e sem sessão não recebem o arquivo (19.0s)
+  4 passed (2.6m)

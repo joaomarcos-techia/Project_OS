@@ -43,6 +43,19 @@ import '@/contexts/financial/internal/handlers/appointment-completed';
 import '@/contexts/scheduling/internal/handlers/financial-faturamento-pendente';
 import '@/contexts/scheduling/internal/handlers/financial-lancamento-created';
 
+// Convênios (ADR-072, P7.4/P10.5): atendimento de convênio concluído → guia
+// automática (o `completed` segue com o Financeiro, que não cobra o valor cheio
+// de convênio); coparticipação confirmada → recebível do paciente por esse valor.
+import '@/contexts/health-insurance/internal/handlers/insurance-completed';
+import '@/contexts/health-insurance/internal/handlers/appointment-rescheduled';
+import '@/contexts/financial/internal/handlers/copay-confirmed';
+// R45: XML do lote em segundo plano, com a leitura delegada das guias do lote.
+import '@/contexts/health-insurance/internal/handlers/batch-export-requested';
+// P9.4: envio do lote pelo webservice HOMOLOGADO da operadora (sem homologação, ninguém publica).
+import '@/contexts/health-insurance/internal/handlers/batch-send-requested';
+// P6.6: entrega dos avisos de autorização à clínica (e-mail a quem opera Convênios, só contagens).
+import './insurance-alerts-delivery-handler';
+
 // C11 — AI Agent: messaging.inbound.received → turno de conversa (saga
 // multi-fase, LLM fora de TX — ADR-022). Idempotente via eventId checkpoints.
 import '@/contexts/ai-agent/internal/handlers/inbound-received';
@@ -92,6 +105,7 @@ import '@/contexts/scheduling/internal/handlers/patient-charge-paid';
 // handler detached, preservando TX curta antes da chamada externa ao Asaas.
 import './appointment-no-show-handler';
 import '@/contexts/payments/internal/handlers/appointment-cancelled';
+import '@/contexts/payments/internal/handlers/appointment-billing-mode-changed';
 // Agendamento pela IA confirmado -> tenta criar o sinal sem aguardar o scan de 15 min.
 import '@/contexts/payments/internal/handlers/appointment-deposit-requested';
 // ADR-049 1.5 — desfecho da cobrança projetado na agenda (R3: o Payments publica,
@@ -125,5 +139,7 @@ import '@/contexts/payments/internal/handlers/lancamento-paid';
 import '@/contexts/payments/internal/handlers/excess-refund-requested';
 import '@/contexts/financial/internal/handlers/excess-refund-confirmed';
 import '@/contexts/financial/internal/handlers/patient-payment-risk-changed';
+import '@/contexts/financial/internal/handlers/external-refund-recognized';
+import '@/contexts/financial/internal/handlers/external-refund-review-required';
 
 export {};

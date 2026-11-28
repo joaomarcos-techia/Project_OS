@@ -1,0 +1,73 @@
+{
+ "alvo": "DEV",
+ "agora": "2026-11-26 22:32:07.178692+00",
+ "ledger": {
+  "linhas": 169,
+  "ultimo_when": "1795814573857"
+ },
+ "ultimas": [
+  {
+   "when": "1795814573857",
+   "hash": "844cf2f2592edba659bbcc84fa2d9ab3b265b7e688ce60112307db5815be2520"
+  },
+  {
+   "when": "1795728173857",
+   "hash": "7249f069fc5454e74034e1004f3be7d04606c020d7b16244b4014aafc861f3f0"
+  },
+  {
+   "when": "1795641773857",
+   "hash": "ccf1639b4eccbdd50e5aa5b2f49a0b55d964ff8092dc47c09d77db61487025c6"
+  },
+  {
+   "when": "1795555373857",
+   "hash": "a3af4a973f14cc3fb3720423d4c03f71f32330024f028d07191f40f4077c64cb"
+  },
+  {
+   "when": "1795468973857",
+   "hash": "da5f8b90fd45b0afe3b307be689f326a25b7719ddcc664f81a714f99341e6ec1"
+  },
+  {
+   "when": "1795382573857",
+   "hash": "d94b652d1a602167ea0444740f717fce72afada940c703444965a4b7087ce9be"
+  },
+  {
+   "when": "1795296173857",
+   "hash": "eed2d0dee2b9d59be3b8f707d1c4963541d0b03e3597a73157be8766d481ec68"
+  },
+  {
+   "when": "1795209773857",
+   "hash": "acd23a73e25109c14c1514f6995fbcd81182a51f7338c1bd6c63127f8d0265c5"
+  },
+  {
+   "when": "1795123373857",
+   "hash": "718190feffe57a0f0b7ceaf7c28686793209f0c0cb9f4b7bfd6480d4ac1ef306"
+  },
+  {
+   "when": "1795036973858",
+   "hash": "eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74"
+  },
+  {
+   "when": "1795036973857",
+   "hash": "40cc90493b5abf980c209485c83451f33c4cfc5931b87f3af7653f2091af63a2"
+  },
+  {
+   "when": "1794950573857",
+   "hash": "f39a58d0401b3d221b03cbe0b41c9f4b530947d0f03b4b3564929e11349b5f15"
+  },
+  {
+   "when": "1794864173857",
+   "hash": "cdf3004b15a8a09d6e8f2065bf42be39a05b979eb4d12cd8a5ac1d32b492f860"
+  },
+  {
+   "when": "1794777773857",
+   "hash": "aecc5c2d0b7cf36a3dbdcf7331d4247077acf8c7466cbc853e2d40dc905e1d33"
+  }
+ ],
+ "objetos": {
+  "t0169": false,
+  "t0170": false,
+  "t0171": false,
+  "t0168": false,
+  "t59": false
+ }
+}

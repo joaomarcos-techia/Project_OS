@@ -20,6 +20,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Os harnesses de banco do gate de cobertura (abaixo) leem commits de outras frentes pelo git — a cadeia do
+      # DEV com o #53, a 0168 do #64 e a trilha do #59 —, como o workflow de provas de banco. Só leitura; o token
+      # sai em seguida.
+      - name: Commits lidos pelos harnesses de banco (só leitura) e retirada do token do git
+        run: |
+          git fetch --no-tags --depth=1 origin \
+            8c591c8f3d89b459a80c30bb36541eae1123861f \
+            97e2c3067ad35ce487a426d966949f7391c37870 \
+            74823d649d8a9aa6f8842bf6cbfb9f953d0470f2 \
+            c6e91bf1991fcabe2f30aa67b20914e0ab625a64
+          git config --local --unset-all http.https://github.com/.extraheader || true
+
       - uses: pnpm/action-setup@v4
         with:
           version: 11.17.0
@@ -41,6 +53,10 @@ jobs:
         run: pnpm audit --prod --audit-level high
 
       - name: Typecheck
+        # O tsc do projeto inteiro passou do teto padrão do Node (~2 GB) no runner (OOM em 18/11, com
+        # "Reached heap limit" aos 2.028 MB). Só o teto de memória do processo muda; a checagem é a mesma.
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: pnpm typecheck
 
       - name: Lint
@@ -77,14 +93,23 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: 'https://ci.supabase.co'
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_ci'
 
-      - name: Test + coverage gate
-        run: pnpm test:coverage
+      # O MESMO gate (mesmo `coverage.include`, mesmos pisos) numa execução que também roda os harnesses de banco
+      # dentro do Vitest (`vitest.coverage-db.config.ts`, testes gerados de `convenios-synthetic-db*.yml`): o código
+      # de `src/` que eles executam conta como qualquer teste — sem fusão de relatórios, sem dupla contagem.
+      - name: Test + coverage gate (unitários + harnesses de banco)
+        run: SECURITY_PG_BIN="$(pg_config --bindir)" pnpm vitest run --coverage -c vitest.coverage-db.config.ts
+
+      - name: Testes gerados dos harnesses em dia com os workflows de provas de banco
+        run: pnpm exec tsx scripts/security/db-coverage/gerar.ts --check
 
       - name: Security inventory (AST and explicit guard review)
         run: pnpm security:inventory
 
       - name: Two-tenant isolation (temporary local Postgres)
         run: SECURITY_PG_BIN="$(pg_config --bindir)" pnpm security:tenant
+
+      - name: Convênios — isolamento de todas as tabelas do módulo (temporary local Postgres, P12.1)
+        run: SECURITY_PG_BIN="$(pg_config --bindir)" TENANT_ISOLATION_CHAIN=local pnpm security:tenant:convenios
 
       - name: Build
         run: pnpm security:build

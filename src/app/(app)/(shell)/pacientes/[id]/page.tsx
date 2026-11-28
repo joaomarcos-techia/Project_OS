@@ -1,5 +1,5 @@
 /**
- * /pacientes/[id] — HUB do paciente: Dados | Prontuários em abas (?tab=…),
+ * /pacientes/[id] — HUB do paciente: Dados | Prontuários | Convênios em abas (?tab=…),
  * sem navegar de tela. THE decryption happens here via
  * getPatientWithDecryptedFields (the single decrypt point). RLS + key derivation
  * make a cross-tenant id both unreadable and undecryptable.
@@ -42,10 +42,12 @@ import { PatientDeathForm } from './patient-death-form';
 import { PatientProfileCard } from './patient-profile-card';
 import { PatientRelationshipsCard } from './patient-relationships-card';
 import { NovoProntuarioButton } from './prontuarios/novo-prontuario-button';
+// Aba Convênios: componente do módulo TISS (dados, estados e permissões ficam lá).
+import { PatientInsuranceTab } from '../../convenios/_lib/patient-insurance-tab';
 
 export const dynamic = 'force-dynamic';
 
-type Tab = 'dados' | 'prontuarios';
+type Tab = 'dados' | 'prontuarios' | 'convenios';
 
 interface PatientPageUser {
   isSuperAdmin?: boolean;
@@ -68,6 +70,10 @@ export function patientPageCapabilities(user: PatientPageUser) {
     canSignProntuario: has(PERMISSIONS.SIGN_PRONTUARIO),
     canViewDocuments: has(PERMISSIONS.VIEW_PRESCRIPTION),
     canCreateDocuments: has(PERMISSIONS.CREATE_PRESCRIPTION),
+    // Convênios (matriz I.2): entrar no módulo abre a aba (só leitura, número mascarado); o link de
+    // gestão das carteirinhas é de quem opera Convênios (recepção). O mesmo gate de /convenios.
+    canViewInsurance: has(PERMISSIONS.VIEW_CONVENIOS),
+    canOperateInsurance: has(PERMISSIONS.OPERATE_CONVENIOS),
   };
 }
 
@@ -76,10 +82,12 @@ function HubTabs({
   patientId,
   active,
   canViewProntuario,
+  canViewInsurance,
 }: {
   patientId: string;
   active: Tab;
   canViewProntuario: boolean;
+  canViewInsurance: boolean;
 }) {
   const tab = (t: Tab, label: string) => (
     <Link
@@ -106,6 +114,7 @@ function HubTabs({
           está no render do conteúdo abaixo; esconder o link só evita prometer
           uma ação proibida. */}
       {canViewProntuario ? tab('prontuarios', 'Prontuários') : null}
+      {canViewInsurance ? tab('convenios', 'Convênios') : null}
     </nav>
   );
 }
@@ -155,8 +164,16 @@ export default async function PacienteDetailPage({
     canSignProntuario,
     canViewDocuments,
     canCreateDocuments,
+    canViewInsurance,
+    canOperateInsurance,
   } = capabilities;
-  const tab: Tab = rawTab === 'prontuarios' && canViewProntuario ? 'prontuarios' : 'dados';
+  // Sem a permissão, o deep-link `?tab=convenios` cai na visão geral (mesma regra do AUTHZ-003).
+  const tab: Tab =
+    rawTab === 'prontuarios' && canViewProntuario
+      ? 'prontuarios'
+      : rawTab === 'convenios' && canViewInsurance
+        ? 'convenios'
+        : 'dados';
   const initialCreate =
     canCreateDocuments &&
     p.obitoEm == null &&
@@ -187,7 +204,12 @@ export default async function PacienteDetailPage({
         </Alert>
       ) : null}
 
-      <HubTabs patientId={p.id} active={tab} canViewProntuario={canViewProntuario} />
+      <HubTabs
+        patientId={p.id}
+        active={tab}
+        canViewProntuario={canViewProntuario}
+        canViewInsurance={canViewInsurance}
+      />
 
       {tab === 'dados' ? (
         <DadosTab
@@ -211,6 +233,15 @@ export default async function PacienteDetailPage({
           canCreate={canCreateProntuario}
           canSign={canSignProntuario}
         />
+      ) : null}
+      {tab === 'convenios' ? (
+        <Suspense fallback={<SkeletonCard lines={6} />}>
+          <PatientInsuranceTab
+            clinicId={clinicId}
+            patientId={p.id}
+            canEditPatients={canOperateInsurance}
+          />
+        </Suspense>
       ) : null}
     </>
   );

@@ -1,6 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+  tissFootprint: vi.fn(),
+  tissReuse: vi.fn(),
+  tissRecord: vi.fn(),
   advanceEpoch: vi.fn(),
   finishEpoch: vi.fn(),
   checkExposure: vi.fn(),
@@ -35,6 +38,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('next/headers', () => ({ cookies: mocks.cookies, headers: mocks.headers }));
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
+vi.mock('@/app/(app)/_lib/tiss-footprint', () => ({ readTissFootprintLazy: mocks.tissFootprint }));
 vi.mock('@/contexts/onboarding', () => ({
   advanceSignupCredentialEpoch: mocks.advanceEpoch,
   checkSignupPasswordExposure: mocks.checkExposure,
@@ -62,6 +66,11 @@ vi.mock('@/lib/auth/recovery-grant', () => ({
 vi.mock('@/lib/auth/recovery-consumption', () => ({
   isOrphanRecoveryEpochConsumed: mocks.isOrphanConsumed,
   markOrphanRecoveryEpochConsumed: mocks.markOrphanConsumed,
+}));
+// S4: o ciclo de vida da senha TISS é observado aqui (a lógica tem os próprios testes).
+vi.mock('@/lib/auth/security-profile/password-lifecycle', () => ({
+  tissPasswordReuseError: mocks.tissReuse,
+  recordTissPasswordChange: mocks.tissRecord,
 }));
 vi.mock('@/lib/auth/session-epoch', () => ({
   bumpSessionEpochIfCurrent: mocks.bumpEpochIfCurrent,
@@ -165,6 +174,8 @@ beforeEach(() => {
   mocks.updateUser.mockResolvedValue({ error: null });
   mocks.bumpEpochIfCurrent.mockResolvedValue(true);
   mocks.signGrant.mockReturnValue('reissued-grant');
+  mocks.tissReuse.mockResolvedValue(null);
+  mocks.tissRecord.mockResolvedValue(undefined);
 });
 
 describe('resetPasswordAction', () => {
@@ -671,5 +682,96 @@ describe('resetPasswordAction — senha recusada no ramo profile', () => {
     expect(result.error).toContain('novo link');
     expect(mocks.signGrant).not.toHaveBeenCalled();
     expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'global' });
+  });
+});
+
+describe('S3 — requisito 67 da ANS na redefinição (perfil TISS)', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('perfil TISS ligado e clínica com dado TISS: senha sem símbolo é recusada ANTES de consumir o link', async () => {
+    vi.stubEnv('TISS_SECURITY_PROFILE_ENFORCE', 'true');
+    mocks.readGrant.mockReturnValue({
+      kind: 'profile',
+      userId,
+      epoch: 4,
+      expiresAt: Date.now() + 60_000,
+    });
+    mocks.readProfile.mockResolvedValue({ claimsVersion: 4, clinicId: 'clinic-tiss' });
+    mocks.tissFootprint.mockResolvedValue({ moduleEnabled: false, hasTissData: true });
+    const out = await resetPasswordAction({ error: null }, form('SenhaForte7'));
+    expect(out.error).toMatch(/perfil de segurança de Convênios.*um símbolo/u);
+    expect(mocks.tissFootprint).toHaveBeenCalledWith('clinic-tiss');
+    expect(mocks.bumpEpochIfCurrent).not.toHaveBeenCalled();
+    expect(mocks.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('perfil desligado (padrão): nada muda e o rastro nem é lido', async () => {
+    mocks.readGrant.mockReturnValue({
+      kind: 'profile',
+      userId,
+      epoch: 4,
+      expiresAt: Date.now() + 60_000,
+    });
+    mocks.readProfile.mockResolvedValue({ claimsVersion: 4, clinicId: 'clinic-tiss' });
+    await expect(resetPasswordAction({ error: null }, form('SenhaForte7'))).rejects.toThrow(
+      'REDIRECT:/login?reason=password_updated',
+    );
+    expect(mocks.tissFootprint).not.toHaveBeenCalled();
+  });
+});
+
+describe('S4 — requisitos 81 e 82 na redefinição (perfil TISS)', () => {
+  const profileGrant = () =>
+    mocks.readGrant.mockReturnValue({
+      kind: 'profile',
+      userId,
+      epoch: 4,
+      expiresAt: Date.now() + 60_000,
+    });
+
+  it('senha entre as 10 últimas é recusada ANTES de consumir o link (sem CAS, sem troca no Auth)', async () => {
+    profileGrant();
+    mocks.readProfile.mockResolvedValue({ claimsVersion: 4, clinicId: 'clinic-tiss' });
+    mocks.tissReuse.mockResolvedValueOnce(
+      'Esta senha já foi usada recentemente (perfil de segurança de Convênios): escolha outra.',
+    );
+    const out = await resetPasswordAction({ error: null }, form());
+    expect(out.error).toMatch(/já foi usada/u);
+    expect(mocks.tissReuse).toHaveBeenCalledWith(
+      userId,
+      'clinic-tiss',
+      'SenhaForte7',
+      expect.anything(),
+    );
+    expect(mocks.bumpEpochIfCurrent).not.toHaveBeenCalled();
+    expect(mocks.updateUser).not.toHaveBeenCalled();
+    expect(mocks.tissRecord).not.toHaveBeenCalled();
+  });
+
+  it('troca concluída: verificador no histórico DEPOIS do Auth e todas as sessões encerradas (global)', async () => {
+    profileGrant();
+    mocks.readProfile.mockResolvedValue({ claimsVersion: 4, clinicId: 'clinic-tiss' });
+    await expect(resetPasswordAction({ error: null }, form())).rejects.toThrow(
+      'REDIRECT:/login?reason=password_updated',
+    );
+    expect(mocks.tissRecord).toHaveBeenCalledWith(
+      userId,
+      'clinic-tiss',
+      'SenhaForte7',
+      expect.anything(),
+    );
+    expect(mocks.updateUser.mock.invocationCallOrder[0]!).toBeLessThan(
+      mocks.tissRecord.mock.invocationCallOrder[0]!,
+    );
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'global' });
+    expect(mocks.bumpEpochIfCurrent).toHaveBeenCalledWith(userId, 4, 'password_reset');
+  });
+
+  it('falha do Auth: nada vai para o histórico', async () => {
+    profileGrant();
+    mocks.readProfile.mockResolvedValue({ claimsVersion: 4, clinicId: 'clinic-tiss' });
+    mocks.updateUser.mockResolvedValueOnce({ error: { code: 'unexpected_failure', message: 'x' } });
+    await resetPasswordAction({ error: null }, form()).catch(() => undefined);
+    expect(mocks.tissRecord).not.toHaveBeenCalled();
   });
 });

@@ -1,0 +1,73 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "72",
+  "title": "Tabela 72 - Terminologia de tipo de identificação do beneficiário",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 9,
+  "terms": [
+    {
+      "code": "01",
+      "term": "Tarja Magnética",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2020-02-29"
+    },
+    {
+      "code": "02",
+      "term": "Código de Barras",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2020-02-29"
+    },
+    {
+      "code": "04",
+      "term": "QR Code",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2020-02-29"
+    },
+    {
+      "code": "05",
+      "term": "Impressão Digital",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2020-02-29"
+    },
+    {
+      "code": "06",
+      "term": "Leitura Facial",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2020-02-29"
+    },
+    {
+      "code": "07",
+      "term": "Leitura de Íris",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2020-02-29"
+    },
+    {
+      "code": "08",
+      "term": "Leitura da Geometria da Mão",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2020-02-29"
+    },
+    {
+      "code": "03",
+      "term": "Cartão de Identificação Físico",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2020-02-29"
+    },
+    {
+      "code": "09",
+      "term": "Cartão de Identificação Virtual",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    }
+  ]
+}

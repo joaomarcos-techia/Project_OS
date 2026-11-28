@@ -1,0 +1,38 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "70",
+  "title": "Tabela 70 - Terminologia de forma de envio do padrão",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 4,
+  "terms": [
+    {
+      "code": "1",
+      "term": "Portal",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "2",
+      "term": "Upload de arquivo",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "3",
+      "term": "Webservice",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    },
+    {
+      "code": "4",
+      "term": "Papel",
+      "startsOn": "2016-06-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-11-30"
+    }
+  ]
+}

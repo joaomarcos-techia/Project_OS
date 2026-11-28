@@ -528,3 +528,49 @@ export async function closeChargeForCancellation(ctx: {
 
   await refundCharge({ client, clinicId, appointmentId, charge, sourceEventId });
 }
+
+/**
+ * P4.3: o atendimento virou CONVÊNIO antes da chegada. Atendimento coberto nunca mantém uma
+ * cobrança particular aberta (sinal ou saldo cheio): o link pendente é anulado agora. A troca
+ * é recusada quando já há pagamento; se o paciente pagou ENTRE a troca e este passo (corrida
+ * com o link antigo), o dinheiro entra no fluxo de devolução pela clínica (D77) — nunca fica
+ * retido em silêncio nem vira cobrança de convênio.
+ */
+export async function closeChargesForBillingModeChange(ctx: {
+  clinicId: string;
+  appointmentId: string;
+  sourceEventId: string;
+}): Promise<{ voided: number; refundQueued: number }> {
+  const out = { voided: 0, refundQueued: 0 };
+  let client: AsaasClient | null | undefined;
+  for (const kind of ['deposit', 'remainder'] as const) {
+    const charge = await findOpenCharge(ctx.clinicId, ctx.appointmentId, kind);
+    if (!charge) continue;
+    client ??= await getClinicAsaasClient(ctx.clinicId);
+    if (charge.status === 'pending') {
+      await voidCharge({
+        client,
+        clinicId: ctx.clinicId,
+        appointmentId: ctx.appointmentId,
+        charge,
+        outcome: 'cancelled',
+      });
+      out.voided += 1;
+      continue;
+    }
+    await refundCharge({
+      client,
+      clinicId: ctx.clinicId,
+      appointmentId: ctx.appointmentId,
+      charge,
+      sourceEventId: ctx.sourceEventId,
+    });
+    out.refundQueued += 1;
+  }
+  metrics.emit('payments.billing_mode_changed.closed', {
+    clinicId: ctx.clinicId,
+    appointmentId: ctx.appointmentId,
+    ...out,
+  });
+  return out;
+}

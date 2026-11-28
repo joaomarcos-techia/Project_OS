@@ -1,0 +1,10 @@
+{"ts":"2026-11-26T03:14:25.627Z","kind":"metric","event":"audit.written","action":"health_insurance.guide.content_viewed","resourceType":"hi_guide"}
+{"ts":"2026-11-26T03:14:25.809Z","kind":"metric","event":"audit.written","action":"health_insurance.batch.exported","resourceType":"hi_batch"}
+{"ts":"2026-11-26T03:14:25.809Z","kind":"metric","event":"insurance.batch.exported","guides":1,"items":1}
+PASS 1: inventário do paciente: 1 guia, 1 arquivo(s) (XML do lote marcado como compartilhado, com SHA-256), carteirinha ligada à guia; nenhum conteúdo de guia nem número de carteirinha
+PASS 2: simulação: hoje "dentro do prazo" (até 2032-01-01); em 2033 "revisão humana" com a pendência; nenhuma linha mudou ({"guides":1,"snapshots":1,"files":1,"memberships":1,"events":0,"lancamentos":1,"patients":1})
+PASS 3: trava: descarte de guia recusado por fundamento não confirmado, mesmo com prazo vencido e termo humano
+PASS 4: isolamento: a sessão da clínica B, passando o id da clínica e do paciente da A, não vê guia, arquivo nem carteirinha
+PASS 5: paciente com guia: exclusão física recusada pelo banco (23503); a guia e os arquivos ficam (o caminho LGPD anonimiza o cadastro)
+
+5/5 provas de retenção (B6) passaram.

@@ -1,0 +1,3300 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "38",
+  "title": "Tabela 38 - Terminologia de mensagens (glosas, negativas e outras)",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 470,
+  "terms": [
+    {
+      "code": "1001",
+      "term": "NÚMERO DA CARTEIRA INVÁLIDO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1002",
+      "term": "NÚMERO DO CARTÃO NACIONAL DE SAÚDE INVÁLIDO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1006",
+      "term": "ATENDIMENTO APÓS O DESLIGAMENTO DO BENEFICIÁRIO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1009",
+      "term": "BENEFICIÁRIO COM PAGAMENTO EM ABERTO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1016",
+      "term": "BENEFICIÁRIO COM ATENDIMENTO SUSPENSO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1024",
+      "term": "PLANO NÃO EXISTENTE",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1025",
+      "term": "BENEFICIÁRIO NÃO POSSUI COBERTURA PARA ASSISTÊNCIA ODONTOLÓGICA",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1103",
+      "term": "PROTOCOLO NÃO É DE REAPRESENTAÇÃO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1104",
+      "term": "VALOR TOTAL DO PROTOCOLO DIFERENTE DO VALOR TOTAL DAS GUIAS",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1202",
+      "term": "NÚMERO DO CNES INVÁLIDO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1206",
+      "term": "CPF / CNPJ INVÁLIDO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1213",
+      "term": "CBO (ESPECIALIDADE) INVÁLIDO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1217",
+      "term": "ESPECIALIDADE NÃO CADASTRADA PARA O PRESTADOR",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1304",
+      "term": "COBRANÇA EM GUIA INDEVIDA",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1305",
+      "term": "ITEM PAGO EM OUTRA GUIA",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1307",
+      "term": "NÚMERO DA GUIA INVÁLIDO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1308",
+      "term": "GUIA JÁ APRESENTADA",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1311",
+      "term": "PRESTADOR EXECUTANTE NÃO INFORMADO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1312",
+      "term": "PRESTADOR CONTRATADO NÃO INFORMADO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1313",
+      "term": "GUIA COM RASURA",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1321",
+      "term": "VALIDADE DA GUIA EXPIRADA",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1322",
+      "term": "COMPROVANTE PRESENCIAL OU GTO NÃO ENVIADO",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1323",
+      "term": "DATA PREENCHIDA INCORRETAMENTE",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1411",
+      "term": "SOLICITANTE NÃO INFORMADO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1414",
+      "term": "DATA DE VALIDADE DA SENHA EXPIRADA",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1417",
+      "term": "SOLICITANTE NÃO HABILITADO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1422",
+      "term": "ESPECIALIDADE NÃO CADASTRADA PARA O SOLICITANTE",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1425",
+      "term": "NECESSITA PRÉ-AUTORIZAÇÃO DA EMPRESA",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1426",
+      "term": "NÃO AUTORIZADO PELA AUDITORIA",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "1427",
+      "term": "NECESSIDADE DE AUDITORIA MÉDICA",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1431",
+      "term": "PROCEDIMENTO NÃO AUTORIZADO NA FACE SOLICITADA",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "1432",
+      "term": "PROCEDIMENTO NÃO AUTORIZADO PARA DENTE/REGIÃO SOLICITADA",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "1434",
+      "term": "COBRANÇA DE CONTA DE CTI NEONATAL NA SENHA DO PARTO",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1437",
+      "term": "SENHA DE AUTORIZAÇÃO CANCELADA",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1503",
+      "term": "INDICADOR DE ACIDENTE INVÁLIDO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1506",
+      "term": "TIPO DE INTERNAÇÃO INVÁLIDO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1509",
+      "term": "CÓDIGO CID INVÁLIDO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1601",
+      "term": "REINCIDÊNCIA NO ATENDIMENTO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1602",
+      "term": "TIPO DE ATENDIMENTO INVÁLIDO OU NÃO INFORMADO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1603",
+      "term": "TIPO DE CONSULTA INVÁLIDO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1604",
+      "term": "TIPO DE SAÍDA INVÁLIDO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1607",
+      "term": "ALTA HOSPITALAR ANTERIOR AO FINAL DA INTERVENÇÃO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1608",
+      "term": "ALTA ANTERIOR À DATA DE INTERNAÇÃO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1705",
+      "term": "VALOR APRESENTADO A MAIOR",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1706",
+      "term": "VALOR APRESENTADO A MENOR",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1710",
+      "term": "FALTA VISTO DA ENFERMAGEM",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1711",
+      "term": "PROCEDIMENTO PERTENCE A UM PACOTE ACORDADO E JÁ COBRADO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1713",
+      "term": "FATURAMENTO INVÁLIDO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1716",
+      "term": "PERCENTUAL DE REDUÇÃO/ACRÉSCIMO FORA DOS VALORES DEFINIDOS EM TABELA",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1717",
+      "term": "PAGO CONFORME RELATÓRIO DE AUDITORIA EXTERNA - CONTA INICIAL",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1719",
+      "term": "REANÁLISE NEGADA, ANÁLISE CONFORME TABELA ACORDADA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1721",
+      "term": "CÓDIGO COBRADO SUBSTITUÍDO PELO CÓDIGO PAGO",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1722",
+      "term": "PAGO CONFORME NEGOCIAÇÃO",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1724",
+      "term": "VISITA MÉDICA COBRADA PELA EQUIPE CIRÚRGICA INCLUÍDA NO PERÍODO DE 10 DIAS APÓS REALIZAÇÃO DO PROCEDIMENTO CIRÚRGICO",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1733",
+      "term": "RECUPERAÇÃO DE VALORES POR PAGAMENTO INDEVIDO",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1736",
+      "term": "CONTA AGUARDANDO NEGOCIAÇÃO PARA PAGAMENTO",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1737",
+      "term": "DIFERENÇA DEVE SER COBRADA DO BENEFICIÁRIO PELO PRESTADOR COMO FRANQUIA",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1738",
+      "term": "DOCUMENTO FISCAL NÃO ENVIADO",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1740",
+      "term": "ESTORNO DO VALOR DE PROCEDIMENTO PAGO",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1741",
+      "term": "HONORÁRIO OU PROCEDIMENTO JÁ PAGO A OUTRO PRESTADOR",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1742",
+      "term": "HONORÁRIO OU PROCEDIMENTO JÁ PAGO POR REEMBOLSO AO BENEFICIÁRIO",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1743",
+      "term": "NÃO HÁ NEGOCIAÇÃO PARA COBRANÇA DO KIT, DISCRIMINAR POR ITENS",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1744",
+      "term": "NEGOCIAÇÃO DIFERENCIADA DEVIDO A LIMINAR",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1746",
+      "term": "PERCENTUAL DE ACRÉSCIMO DIFERENTE DO NEGOCIADO",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1747",
+      "term": "PLANO DO BENEFICIÁRIO E O TIPO DE ACOMODAÇÃO NÃO PERMITEM ACRÉSCIMO DE HONORÁRIOS",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1801",
+      "term": "PROCEDIMENTO INVÁLIDO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1802",
+      "term": "PROCEDIMENTO INCOMPATÍVEL COM O SEXO DO BENEFICIÁRIO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1803",
+      "term": "IDADE DO BENEFICIÁRIO INCOMPATÍVEL COM O PROCEDIMENTO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1805",
+      "term": "VALOR TOTAL DO PROCEDIMENTO DIFERENTE DO VALOR PROCESSADO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1806",
+      "term": "QUANTIDADE DE PROCEDIMENTO DEVE SER MAIOR QUE ZERO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1809",
+      "term": "COBRANÇA DE PROCEDIMENTO NÃO EXECUTADO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1811",
+      "term": "PROCEDIMENTO SEM REGISTRO DE EXECUÇÃO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1818",
+      "term": "COBRANÇA DE PROCEDIMENTO QUE EXIGE AUTORIZAÇÃO PRÉVIA",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1819",
+      "term": "COBRANÇA DE PROCEDIMENTO COM HISTÓRIA CLÍNICA/HIPÓTESE DIAGNÓSTICA NÃO COMPATÍVEL",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1832",
+      "term": "PROCEDIMENTO NÃO PERMITE COBRANÇA DE AUXILIAR DE ANESTESISTA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1834",
+      "term": "PORTE ANESTÉSICO COBRADO INCOMPATÍVEL COM O PORTE DO PROCEDIMENTO REALIZADO",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1836",
+      "term": "\"ANALGESIA POR DIA SUBSEQUENTE\" INCOMPATÍVEL COM A VIA DE ADMINISTRAÇÃO DO MEDICAMENTO - VO OU IV PERIFÉRICA - SENDO LIBERADA VISITA HOSPITALAR",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1837",
+      "term": "NÃO CABE PAGAMENTO DO HONORÁRIO INTEGRAL POR SER VIA DE ACESSO CIRÚRGICO DIFERENTE",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1903",
+      "term": "PERMANÊNCIA HOSPITALAR INCOMPATÍVEL COM A EVOLUÇÃO CLÍNICA",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1904",
+      "term": "PERMANÊNCIA HOSPITALAR INCOMPATÍVEL COM O PROCEDIMENTO AUTORIZADO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1918",
+      "term": "PLANO DO BENEFICIÁRIO NÃO CONTEMPLA DIÁRIA DE ACOMPANHANTE",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "2502",
+      "term": "COBRANÇA DE DUAS AVALIAÇÕES FISIOTERÁPICAS",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "2503",
+      "term": "COBRANÇA DE PSICOTERAPIA INDIVIDUAL, QUANDO O APLICADO É A COBRANÇA DE PSICOTERAPIA EM GRUPO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "2505",
+      "term": "O CÓDIGO COBRADO É DIFERENTE DO CÓDIGO AUTORIZADO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "2506",
+      "term": "A QUANTIDADE DE SESSÕES COBRADAS É DIFERENTE DA QUANTIDADE AUTORIZADA",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "2507",
+      "term": "O CÓDIGO AUTORIZADO ESTÁ INCOMPATÍVEL COM A PRESCRIÇÃO MÉDICA SOLICITADA",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "2509",
+      "term": "COBRANÇA DO PROCEDIMENTO SERIADO INCOMPATÍVEL COM O QUADRO CLÍNICO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "2512",
+      "term": "COBRANÇA DE SESSÕES DE FISIOTERAPIA EM DESACORDO COM AS EVOLUÇÕES DO PRONTUÁRIO MÉDICO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "2513",
+      "term": "COBRANÇA DE TRATAMENTO SERIADO SEM JUSTIFICATIVA CLÍNICA/TÉCNICA",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "2516",
+      "term": "QUANTIDADE COBRADA DIFERENTE DA REALIZADA",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "2603",
+      "term": "COBRANÇA DE HONORÁRIO SEM REGISTRO DA EFETIVA PARTICIPAÇÃO DO PROFISSIONAL",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "2604",
+      "term": "PROCEDIMENTO PRINCIPAL NÃO REQUER EQUIPE MÉDICA",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "2611",
+      "term": "COBRANÇA DE ESPECIALISTA NÃO JUSTIFICADA NO EVENTO",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "2814",
+      "term": "ITENS DE COMPOSIÇÃO DO PACOTE NÃO REALIZADOS",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "2902",
+      "term": "GLOSA MANTIDA",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "2903",
+      "term": "PEDIDO DE REVISÃO SEM JUSTIFICATIVA",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "2904",
+      "term": "MAIS DE UM RECURSO DE GLOSA PARA A MESMA GUIA/PROTOCOLO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "2905",
+      "term": "A GUIA NÃO É DE REVISÃO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "2908",
+      "term": "SOLICITAÇÃO DE REANÁLISE EFETUADA DE FORMA INCORRETA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "2909",
+      "term": "PRAZO PARA SOLICITAÇÃO DE RECURSO DE GLOSA PRESCRITO",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3019",
+      "term": "EVENTO SOB ANÁLISE TÉCNICA, AGUARDANDO LIBERAÇÃO DE CONFIRMAÇÃO PARA POSTERIOR PAGAMENTO",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "3020",
+      "term": "CONFORME DOCUMENTAÇÃO RADIOGRÁFICA ENVIADA, EVENTO REALIZADO INADEQUADAMENTE",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "3021",
+      "term": "FALHA EM INFORMAÇÃO DE DADOS DE ARCADAS/HEMI-ARCOS",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "3022",
+      "term": "FALHA EM INFORMAÇÃO DE DADOS DE DENTE INICIAL E/OU FINAL",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "3023",
+      "term": "FALHA EM INFORMAÇÃO DE DADOS DE FACES DOS DENTES",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "3024",
+      "term": "EVENTO SÓ POSSÍVEL EM DENTES DECÍDUOS",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "3025",
+      "term": "EVENTO SÓ POSSÍVEL EM DENTES PERMANENTES",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "3026",
+      "term": "ERRO NAS INFORMAÇÕES DE ORDEM DOS DENTES INICIAL E FINAL",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "3027",
+      "term": "DESACORDO ENTRE O TIPO DE DENTE E O NÚMERO DE CANAIS SOLICITADOS",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "3029",
+      "term": "EVENTO NÃO INDICADO PELA AUDITORIA INICIAL",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "3030",
+      "term": "AUDITORIA FINAL CONSTA QUE A RESTAURAÇÃO FOI REALIZADA EM OUTRO MATERIAL",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "3031",
+      "term": "RADIOGRAFIA FORA DOS PADRÕES TÉCNICOS",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "3032",
+      "term": "INTERVALO DA ÚLTIMA MPP INFERIOR A TRÊS MESES",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "3033",
+      "term": "INTERVALO DA ÚLTIMA MPP INFERIOR A QUATRO MESES",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "3038",
+      "term": "RADIOGRAFIA INICIAL INCONGRUENTE COM A RADIOGRAFIA FINAL",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "3039",
+      "term": "RADIOGRAFIA NÃO CORRESPONDE AO PROCEDIMENTO COBRADO",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "3040",
+      "term": "GLOSA TÉCNICA (ESPECIFICAR DETALHADAMENTE)",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "3041",
+      "term": "AGUARDANDO DOCUMENTAÇÃO DE ORTODONTIA",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3045",
+      "term": "APÓS ANÁLISE DA RADIOGRAFIA INICIAL, VERIFICOU-SE EXODONTIA DE FRAGMENTO RADICULAR",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3046",
+      "term": "AUDITORIA FINAL CONSTA QUE O PROCEDIMENTO FOI REALIZADO COM OUTRO MATERIAL",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3047",
+      "term": "AUSÊNCIA DE IMAGEM/FOTO/RADIOGRAFIA/ DIAGNÓSTICO PÓS PROCEDIMENTO ODONTOLÓGICO",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3051",
+      "term": "DOCUMENTAÇÃO EM ANÁLISE",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3055",
+      "term": "IDENTIFICADO TRATAMENTO ENDODÔNTICO E NÃO RETRATAMENTO",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3056",
+      "term": "NA AUDITORIA FOI CONSTATADA DIVERGÊNCIA NA QUANTIDADE DE FACES RESTAURADAS",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3057",
+      "term": "NÃO APRESENTA A QUANTIDADE MÍNIMA DE ELEMENTOS DENTÁRIOS POR SEGMENTO",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3061",
+      "term": "NECESSÁRIA AVALIAÇÃO DO ESPECIALISTA",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3063",
+      "term": "O PLANO DE TRATAMENTO AUTORIZADO SERÁ CANCELADO DEVIDO À TROCA DE PROFISSIONAL",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3064",
+      "term": "PROCEDIMENTO AUTORIZADO APENAS PARA DENTES TRATADOS ENDODONTICAMENTE",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3065",
+      "term": "PROCEDIMENTO AUTORIZADO SOMENTE PARA DENTES ANTERIORES",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3066",
+      "term": "PROCEDIMENTO EM DESACORDO COM O ANEXO GUIA TRATAMENTO ODONTOLÓGICO SITUAÇÃO INICIAL",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3067",
+      "term": "RADIOGRAFIA FINAL NÃO ENVIADA",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3068",
+      "term": "RADIOGRAFIA FINAL SEM DISSOCIAÇÃO DOS CONDUTOS",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3072",
+      "term": "RADIOGRAFIA INDICA CANAL(AIS) NÃO OBTURADO(S)",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3074",
+      "term": "RADIOGRAFIA INDICA EXCESSO DE MATERIAL",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3075",
+      "term": "RADIOGRAFIA INDICA FALHA NA OBTURAÇÃO DO(S) CONDUTO(S)",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3076",
+      "term": "RADIOGRAFIA INDICA FALTA DE ADAPTAÇÃO DA COROA/NÚCLEO",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3077",
+      "term": "RADIOGRAFIA INDICA FALTA DE ADAPTAÇÃO DA COROA/PEÇA PROTÉTICA",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3078",
+      "term": "RADIOGRAFIA INDICA NÚCLEO INADEQUADO",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3080",
+      "term": "RADIOGRAFIA INICIAL E FINAL NÃO ENVIADAS",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3081",
+      "term": "RADIOGRAFIA INICIAL NÃO ENVIADA",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3082",
+      "term": "RADIOGRAFIA/IMAGEM INDICA FALHA NA RESTAURAÇÃO",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3085",
+      "term": "RADIOGRAFIA NÃO CORRESPONDE AO PROCEDIMENTO SOLICITADO",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3088",
+      "term": "VALOR ACATADO, CONFORME REAJUSTE RETROATIVO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3090",
+      "term": "NECESSÁRIO ENVIAR AS ETIQUETAS E SELOS HEMOTERÁPICOS DO MATERIAL UTILIZADO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3093",
+      "term": "VALOR ACATADO POR AUTORIZAÇÃO ESPECIAL",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3094",
+      "term": "VALOR DA TAXA ADMINISTRATIVA ALTERADO EM RAZÃO DE GLOSAS",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3095",
+      "term": "RECURSO DE GLOSA ACATADO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3096",
+      "term": "ATENDIMENTO NÃO CONFIRMADO PELO BENEFICIÁRIO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3097",
+      "term": "TIPO DE ATENDIMENTO INCOMPATÍVEL COM A SEGMENTAÇÃO ASSISTENCIAL CONTRATADA",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3098",
+      "term": "O PRESTADOR POSSUI PACOTE CONTRATADO PARA ESTE PROCEDIMENTO. VERIFIQUE O CÓDIGO CORRESPONDENTE",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3100",
+      "term": "PARA LIBERAR ESTE ACESSO, ENTRE EM CONTATO COM A OPERADORA E SOLICITE O CADASTRAMENTO DO SEU CÓDIGO DE ORIGEM",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3101",
+      "term": "O PROCEDIMENTO SOLICITADO É DE EXECUÇÃO ÚNICA E JÁ FOI REALIZADO PELO BENEFICIÁRIO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3102",
+      "term": "É NECESSÁRIO TER UM PROCEDIMENTO RELACIONADO À SOLICITAÇÃO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3103",
+      "term": "SOLICITAÇÃO DE AUTORIZAÇÃO FORA DO PRAZO ACORDADO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3104",
+      "term": "RECUSADO, CONFORME JUNTA MÉDICA/ODONTOLÓGICA",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3105",
+      "term": "ITEM COM UTILIZAÇÃO SUSPENSA PELO ÓRGÃO COMPETENTE",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3106",
+      "term": "REGISTRO ANVISA INVÁLIDO OU NÃO INFORMADO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3107",
+      "term": "ITEM CATEGORIZADO COMO NÃO DESCARTÁVEL",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3108",
+      "term": "ITEM INCLUSO NO PACOTE NEGOCIADO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3109",
+      "term": "PROCEDIMENTO SOLICITADO NÃO AUTORIZADO POR NÃO CONSTAR DO ROL DE PROCEDIMENTOS E EVENTOS EM SAÚDE DA ANS",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3110",
+      "term": "BLOQUEIO JUDICIAL",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3111",
+      "term": "CAMPO CONDICIONADO NÃO PREENCHIDO OU INCORRETO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3112",
+      "term": "DESCONTO DE COPARTICIPAÇÃO/FRANQUIA CONFORME CONTRATO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3113",
+      "term": "NECESSÁRIO ENVIO DE RADIOGRAFIA PERIAPICAL DA REGIÃO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3114",
+      "term": "NECESSÁRIO ENVIO DE RADIOGRAFIA INTERPROXIMAL DA REGIÃO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3115",
+      "term": "NECESSÁRIO ENVIO DE RADIOGRAFIA OCLUSAL DA REGIÃO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3117",
+      "term": "PROCEDIMENTO ODONTOLÓGICO COM INDICAÇÃO TÉCNICA EM PROGNÓSTICO DESFAVORÁVEL",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3118",
+      "term": "NECESSÁRIO ENVIAR TERMO DE CONSENTIMENTO INFORMADO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3119",
+      "term": "NECESSÁRIO ENVIAR TERMO DE RESPONSABILIDADE PROFISSIONAL",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3120",
+      "term": "NECESSÁRIO O ENVIO DO PEDIDO DO PROFISSIONAL SOLICITANTE",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3122",
+      "term": "SOLICITAÇÃO DE REEMBOLSO EM PLANO SEM DIREITO À LIVRE ESCOLHA",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3123",
+      "term": "ITEM PARA A MESMA FINALIDADE JÁ AUTORIZADO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3124",
+      "term": "RADIOGRAFIA SUGERE INDICAÇÃO DE EXODONTIA",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3126",
+      "term": "COBRANÇA DE ITEM ANTERIOR À DATA DE REALIZAÇÃO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3127",
+      "term": "IMAGEM SUGERE ALTERAÇÃO PATOLÓGICA",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3128",
+      "term": "IMAGEM SUGERE PRESENÇA DE ARTEFATO DE IMAGEM",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3129",
+      "term": "IMAGEM SUGERE PRESENÇA DE CORPO ESTRANHO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3130",
+      "term": "IMAGEM SUGERE IMPLANTE EM PROCESSO DE OSSEOINTEGRAÇÃO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3131",
+      "term": "ENVIAR PLANO DE TRATAMENTO ORTODÔNTICO INICIAL",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3132",
+      "term": "ENVIAR PLANO DE TRATAMENTO ORTODÔNTICO INTERMEDIÁRIO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3133",
+      "term": "TRATAMENTO ORTODÔNTICO CONCLUÍDO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3134",
+      "term": "TRATAMENTO ORTODÔNTICO EM FASE DE CONTENÇÃO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3136",
+      "term": "PROCEDIMENTO OU ITEM ASSISTENCIAL AUTORIZADO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3138",
+      "term": "CONDIÇÃO CLÍNICA INCOMPATÍVEL COM A SOLICITAÇÃO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3140",
+      "term": "ABANDONO DE TRATAMENTO PELO BENEFICIÁRIO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3142",
+      "term": "ITEM NÃO CONTRATADO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3143",
+      "term": "VALOR ACATADO POR DECISÃO JUDICIAL /LIMINAR",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3144",
+      "term": "NÃO É NECESSÁRIA AUTORIZAÇÃO PRÉVIA",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3145",
+      "term": "NÃO AUTORIZADO POR MOTIVO TÉCNICO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3146",
+      "term": "PRODUTO CONTRATADO NÃO ADAPTADO À LEI 9.656/98, SEM COBERTURA CONTRATUAL PARA O ITEM SOLICITADO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3147",
+      "term": "MATERIAL PASSÍVEL DE REPROCESSAMENTO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3148",
+      "term": "TIPO DE TRANSAÇÃO INVÁLIDO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3149",
+      "term": "INDICADOR DE ENVIO EM PAPEL INVÁLIDO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3150",
+      "term": "CÓDIGO DA TABELA INVÁLIDO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3155",
+      "term": "PARTOGRAMA OU RELATÓRIO MÉDICO NÃO DISPONÍVEL PARA CONSULTA DA OPERADORA",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "5001",
+      "term": "MENSAGEM ELETRÔNICA FORA DO PADRÃO TISS",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "5002",
+      "term": "NÃO FOI POSSÍVEL VALIDAR O ARQUIVO XML",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "5003",
+      "term": "ENDEREÇO DO REMETENTE INVÁLIDO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "5004",
+      "term": "ENDEREÇO DO DESTINATÁRIO INVÁLIDO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "5005",
+      "term": "REMETENTE NÃO IDENTIFICADO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "5006",
+      "term": "DESTINATÁRIO NÃO IDENTIFICADO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "5007",
+      "term": "MENSAGEM INCONSISTENTE OU INCOMPLETA",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "5010",
+      "term": "ENVIO DE MENSAGEM NÃO FOI TERMINADO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "5011",
+      "term": "ENVIO DE MENSAGEM FINALIZADA",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "5012",
+      "term": "RECEBIMENTO DE MENSAGEM NÃO FINALIZADO",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "5013",
+      "term": "RECEBIMENTO DE MENSAGEM FINALIZADA",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "5017",
+      "term": "ARQUIVO PROCESSADO PELA ANS",
+      "startsOn": "2013-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5018",
+      "term": "CERTIFICADO DIGITAL INVÁLIDO",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5019",
+      "term": "CERTIFICADO DIGITAL VENCIDO",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5020",
+      "term": "CERTIFICADO DIGITAL REVOGADO",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5021",
+      "term": "CADEIA DE CERTIFICAÇÃO INVÁLIDA",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5022",
+      "term": "ASSINATURA DIGITAL NÃO CONFERE",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5023",
+      "term": "COMPETÊNCIA NÃO ESTÁ LIBERADA PARA ENVIO DE DADOS",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5024",
+      "term": "OPERADORA INATIVA NA COMPETÊNCIA DOS DADOS",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5025",
+      "term": "DATA DE REGISTRO DA TRANSAÇÃO INVÁLIDA",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5026",
+      "term": "HORA DE REGISTRO DA TRANSAÇÃO INVÁLIDA",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5027",
+      "term": "REGISTRO ANS DA OPERADORA INVÁLIDO",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5028",
+      "term": "VERSÃO DO PADRÃO INVÁLIDA",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5029",
+      "term": "INDICADOR INVÁLIDO",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5030",
+      "term": "CÓDIGO DO MUNÍCIPIO INVÁLIDO",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5032",
+      "term": "INDICADOR DE RECÉM-NATO INVÁLIDO",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5033",
+      "term": "MOTIVO DE ENCERRAMENTO INVÁLIDO",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5034",
+      "term": "VALOR NÃO INFORMADO",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5035",
+      "term": "CÓDIGO DA TABELA DE REFERÊNCIA NÃO INFORMADO",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5036",
+      "term": "CÓDIGO DO GRUPO DO PROCEDIMENTO INVÁLIDO",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5037",
+      "term": "CÓDIGO DO DENTE INVÁLIDO",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5038",
+      "term": "CÓDIGO DA REGIÃO DA BOCA INVÁLIDO",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5039",
+      "term": "CÓDIGO DA FACE DO DENTE INVÁLIDO",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5040",
+      "term": "VALOR DEVE SER MAIOR QUE ZERO",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5042",
+      "term": "VALOR INFORMADO DA GUIA DIFERENTE DO SOMATÓRIO DO VALOR INFORMADO DOS ITENS",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5043",
+      "term": "MOTIVO INVÁLIDO",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5044",
+      "term": "JÁ EXISTEM INFORMAÇÕES NA ANS PARA A COMPETÊNCIA INFORMADA",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5045",
+      "term": "COMPETÊNCIA ANTERIOR NÃO ENVIADA",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5046",
+      "term": "COMPETÊNCIA INVÁLIDA",
+      "startsOn": "2014-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5047",
+      "term": "NÚMERO DO LOTE NÃO INFORMADO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "5048",
+      "term": "DATA DE NASCIMENTO DO BENEFICIÁRIO INVÁLIDA",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "5049",
+      "term": "VALOR TOTAL MENOR QUE ZERO NA GUIA",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "5050",
+      "term": "VALOR INFORMADO INVÁLIDO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "5052",
+      "term": "IDENTIFICADOR INEXISTENTE",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "5053",
+      "term": "IDENTIFICADOR JÁ INFORMADO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "5054",
+      "term": "IDENTIFICADOR NÃO ENCONTRADO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "5055",
+      "term": "IDENTIFICADOR JÁ INFORMADO NA COMPETÊNCIA",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "5056",
+      "term": "IDENTIFICADOR NÃO INFORMADO NA COMPETÊNCIA",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "5057",
+      "term": "GUIA DE CONSULTA COM MAIS DE UM PROCEDIMENTO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "5058",
+      "term": "PROCEDIMENTO INCOMPATÍVEL COM O TIPO DE GUIA",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "5059",
+      "term": "EXCLUSÃO INVÁLIDA - EXISTEM LANÇAMENTOS VINCULADOS A ESTA FORMA DE CONTRATAÇÃO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "5060",
+      "term": "VALOR TOTAL PAGO DIFERENTE DA SOMA DAS PARCELAS PAGAS NO LANÇAMENTO",
+      "startsOn": "2016-05-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "5061",
+      "term": "TIPO DE ATENDIMENTO OPERADORA INTERMEDIÁRIA NÃO INFORMADO",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implantationEndsOn": "2018-03-31"
+    },
+    {
+      "code": "5062",
+      "term": "REGISTRO ANS DA OPERADORA INTERMEDIÁRIA NÃO INFORMADO",
+      "startsOn": "2018-01-01",
+      "endsOn": null,
+      "implantationEndsOn": "2018-03-31"
+    },
+    {
+      "code": "3156",
+      "term": "TOKEN INVÁLIDO",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2020-02-29"
+    },
+    {
+      "code": "3157",
+      "term": "QR CODE INVÁLIDO",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2020-02-29"
+    },
+    {
+      "code": "3158",
+      "term": "BIOMETRIA – FALHA NA TRANSMISSÃO",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2020-02-29"
+    },
+    {
+      "code": "3159",
+      "term": "BIOMETRIA – NÃO COMPATÍVEL",
+      "startsOn": "2019-03-01",
+      "endsOn": null,
+      "implantationEndsOn": "2020-02-29"
+    },
+    {
+      "code": "3160",
+      "term": "TIME OUT - TENTE NOVAMENTE",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "3161",
+      "term": "PRAZO DE ENVIO FORA DO PERÍODO CONTRATUAL ACORDADO ENTRE AS PARTES",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "3163",
+      "term": "NÃO NECESSITA DE IMAGEM",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "3164",
+      "term": "ARQUIVO ENVIADO NÃO É DE IMAGEM",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "3165",
+      "term": "ARQUIVO DE IMAGEM CORROMPIDO",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "3166",
+      "term": "ARQUIVO ENVIADO EXCEDE O TAMANHO MÁXIMO PERMITIDO",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "3167",
+      "term": "SEQUENCIAL INVÁLIDO",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "3168",
+      "term": "ASSINATURA DIGITAL INVÁLIDA OU NÃO ENVIADA",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "5063",
+      "term": "PAR CNPJ x CNES NAO ENCONTRADO NA BASE DO CNES",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "5064",
+      "term": "TIPO DE ESTABELECIMENTO NO CNES NÃO É APTO PARA INTERNAÇÃO",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "5067",
+      "term": "DIAGNÓSTICO EM DUPLICIDADE",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "5068",
+      "term": "DECLARAÇÃO DIFERENTE DO LANÇAMENTO ANTERIOR DA GUIA",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "5069",
+      "term": "CÓDIGO DO DENTE DIFERENTE DO LANÇAMENTO ANTERIOR DA GUIA",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "5070",
+      "term": "CÓDIGO DA REGIÃO DA BOCA DIFERENTE DO LANÇAMENTO ANTERIOR DA GUIA",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "5071",
+      "term": "CÓDIGO DA FACE DO DENTE DIFERENTE DO LANÇAMENTO ANTERIOR DA GUIA",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "5072",
+      "term": "VALOR INFORMADO DIFERENTE DO LANÇAMENTO ANTERIOR DA GUIA",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "5073",
+      "term": "O PRIMEIRO LANCAMENTO DA GUIA SÓ PODE SER EXCLUIDO SE ELE FOR O ÚNICO",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "5074",
+      "term": "REGIME DE ATENDIMENTO INVÁLIDO",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "5075",
+      "term": "CID DIFERENTE DO LANÇAMENTO ANTERIOR DA GUIA",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "5076",
+      "term": "CPF NÃO ENCONTRADO NA RECEITA FEDERAL",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "5077",
+      "term": "SEXO NA RECEITA FEDERAL DIFERENTE DO INFORMADO PARA O CPF",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "5078",
+      "term": "DATA DE NASCIMENTO NA RECEITA FEDERAL DIFERENTE DA INFORMADA PARA O CPF",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "5080",
+      "term": "MODELO DE REMUNERAÇÃO NÃO INFORMADO",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "5081",
+      "term": "MODELO DE REMUNERAÇÃO NÃO DEVE SER INFORMADO PARA REEMBOLSO/PRESTADOR EVENTUAL",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "5083",
+      "term": "SOMA DOS VALORES DOS MODELOS DE REMUNERAÇÃO DIFERENTE DO VALOR INFORMADO DA GUIA",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "5084",
+      "term": "UNIDADE DE MEDIDA NÃO DEVE SER PREENCHIDA PARA A TABELA TUSS INFORMADA",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "5085",
+      "term": "UNIDADE DE MEDIDA É OBRIGATÓRIA PARA A TABELA TUSS INFORMADA",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "5086",
+      "term": "DADO DIVERGENTE COM A RECEITA FEDERAL PARA ESTE CNS (CPF/SEXO/DATA NASCIMENTO)",
+      "startsOn": "2022-10-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "1017",
+      "term": "DATA DE VALIDADE DA CARTEIRA VENCIDA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1102",
+      "term": "PROTOCOLO É DE REAPRESENTAÇÃO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1301",
+      "term": "TIPO DE GUIA INVÁLIDO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1505",
+      "term": "REGIME DE INTERNAÇÃO INVÁLIDO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1605",
+      "term": "INTERVENÇÃO ANTERIOR À ADMISSÃO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1609",
+      "term": "MOTIVO DE SAÍDA INVÁLIDO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1718",
+      "term": "REANÁLISE NEGADA, PAGO CONFORME RELATÓRIO DE AUDITORIA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1732",
+      "term": "QUIMIOTERAPIA (QT) COM DATA DE EVENTO DIVERGENTE DA LIBERADA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1734",
+      "term": "COBRADA CONTA ABERTA, PAGO O PACOTE CONFORME NEGOCIAÇÃO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1814",
+      "term": "COBRANÇA DE PROCEDIMENTO COM DATA DE AUTORIZAÇÃO POSTERIOR À DO ATENDIMENTO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1822",
+      "term": "COBRANÇA DE PROCEDIMENTO COM AUSÊNCIA DE RESULTADO OU LAUDO TÉCNICO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1823",
+      "term": "PROCEDIMENTO REALIZADO PELO MESMO PROFISSIONAL, NA MESMA ESPECIALIDADE, EM PRAZO INFERIOR AO ESTIPULADO SEM JUSTIFICATIVA ADEQUADA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1827",
+      "term": "COBRANÇA DE OUTRO PROCEDIMENTO EM OUTRA GUIA, NA MESMA DATA, PELO MESMO PROFISSIONAL COM MESMO GRAU DE PARTICIPAÇÃO - LIBERADO VALOR REFERENTE À VIA DE ACESSO DO PROCEDIMENTO SECUNDÁRIO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1829",
+      "term": "ADICIONAL DE VÍDEO NÃO PREVISTO PARA O PROCEDIMENTO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1839",
+      "term": "NECESSÁRIO ENVIO DO RESULTADO DO EXAME ANATOMOPATOLÓGICO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "1910",
+      "term": "COBRANÇA DE DIÁRIAS EM LOCAIS DE ACOMODAÇÕES DIFERENTES, NO MESMO DIA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1911",
+      "term": "PERMANÊNCIA HOSPITALAR PARA INVESTIGAÇÃO INJUSTIFICADA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "1917",
+      "term": "FALTA PRORROGAÇÃO PARA QUANTIDADE DE DIÁRIAS COBRADAS",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "2504",
+      "term": "QUANTIDADE DE SESSÕES COBRADAS NÃO CONDIZ COM AS ASSINATURAS NO CONTROLE DE TRATAMENTO SERIADO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "2511",
+      "term": "AUSÊNCIA DE EVOLUÇÃO NO PRONTUÁRIO MÉDICO DO TRATAMENTO SERIADO REALIZADO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "2601",
+      "term": "CODIFICAÇÃO INCORRETA/INADEQUADA DO PROCEDIMENTO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "2605",
+      "term": "NÃO CABE PAGAMENTO DO HONORÁRIO INTEGRAL POR SER A MESMA VIA DE ACESSO CIRÚRGICO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "2607",
+      "term": "COBRANÇA DE HONORÁRIOS EM DUPLICIDADE",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "3028",
+      "term": "EVENTO RESTRITO A ESPECIALISTAS",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "3042",
+      "term": "APÓS ANÁLISE DA RADIOGRAFIA INICIAL, VERIFICOU-SE EXODONTIA DE INCLUSO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3043",
+      "term": "APÓS ANÁLISE DA RADIOGRAFIA INICIAL, VERIFICOU-SE EXODONTIA DE SEMI-INCLUSO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3044",
+      "term": "APÓS ANÁLISE DA RADIOGRAFIA INICIAL, VERIFICOU-SE EXODONTIA SIMPLES",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3050",
+      "term": "COBRANÇA DE URGÊNCIA/EMERGÊNCIA NA VIGÊNCIA DO TRATAMENTO ODONTOLÓGICO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3053",
+      "term": "ELEMENTOS PODEM SER VISUALIZADOS EM UMA MESMA PELÍCULA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3054",
+      "term": "IDENTIFICADO(S) CONDUTO(S) NÃO OBTURADO(S)",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3069",
+      "term": "RADIOGRAFIA INDICA A NECESSIDADE DE TRATAMENTO ENDODÔNTICO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3070",
+      "term": "RADIOGRAFIA INDICA A PRESENÇA DE RAIZ RESIDUAL NO ALVEÓLO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3071",
+      "term": "RADIOGRAFIA INDICA AUSÊNCIA DE NÚCLEO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3073",
+      "term": "RADIOGRAFIA INDICA DESVIO DA TRAJETÓRIA DO CANAL",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3125",
+      "term": "RADIOGRAFIA SUGERE INDICAÇÃO DE RETRATAMENTO ENDODÔNTICO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "3135",
+      "term": "PROFISSIONAL INFORMADO PARA REEMBOLSO PERTENCE À REDE DA OPERADORA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "5014",
+      "term": "CÓDIGO HASH INVÁLIDO. MENSAGEM PODE ESTAR CORROMPIDA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "5015",
+      "term": "NÚMERO DE GUIAS/DEMONSTRATIVOS DENTRO DA MENSAGEM SUPERIOR AO TAMANHO MÁXIMO PERMITIDO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2007-10-29"
+    },
+    {
+      "code": "5016",
+      "term": "SEM NENHUMA OCORRÊNCIA DE MOVIMENTO NA COMPETÊNCIA PARA ENVIO À ANS",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5051",
+      "term": "COMPETÊNCIA DO ARQUIVO DIFERENTE DA COMPETÊNCIA DA DATA DE PROCESSAMENTO DO LANÇAMENTO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "5066",
+      "term": "NÚMERO DA DECLARAÇÃO EM DUPLICIDADE",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "5079",
+      "term": "MODELO DE REMUNERAÇÃO EM DUPLICIDADE",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "3139",
+      "term": "TRATAMENTO ORTODÔNTICO SUSPENSO A PEDIDO DO DENTISTA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2016-07-31"
+    },
+    {
+      "code": "5082",
+      "term": "MODELO DE REMUNERAÇÃO NÃO DEVE SER INFORMADO PARA REDE PRÓPRIA COM MESMO CNPJ",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "5065",
+      "term": "TIPO DE ATIVIDADE ECONÔMICA DO CNPJ NÃO É APTO PARA INTERNAÇÃO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "3169",
+      "term": "ASSINATURA DO BENEFICIÁRIO TITULAR/RESPONSÁVEL INEXISTENTE/DIVERGENTE",
+      "startsOn": "2026-02-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3170",
+      "term": "ASSINATURA/CARIMBO DO PROFISSIONAL SOLICITANTE INEXISTENTE",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3171",
+      "term": "ATENDIMENTO DENTRO DA CARÊNCIA DO BENEFICIÁRIO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3172",
+      "term": "AUSÊNCIA DE RADIOGRAFIA PERIAPICAL DO TRATAMENTO ENDODÔNTICO CONCLUÍDO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3173",
+      "term": "BENEFICIÁRIO EM CUMPRIMENTO DE COBERTURA PARCIAL TEMPORÁRIA (DLP PREEXISTENTE) PARA O PROCEDIMENTO/ITEM ASSISTENCIAL SOLICITADO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3174",
+      "term": "BENEFICIÁRIO EM TRATAMENTO COM O MESMO PROFISSIONAL",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3175",
+      "term": "BENEFICIÁRIO EM TRATAMENTO COM OUTRO PROFISSIONAL",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3176",
+      "term": "BENEFICIÁRIO NÃO SE ENCONTRA NO LOCAL DO ATENDIMENTO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3177",
+      "term": "BENEFICIÁRIO TITULAR SEM DADOS BANCÁRIOS CADASTRADOS",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3178",
+      "term": "CANCELAMENTO DO PROCEDIMENTO POR SOLICITAÇÃO DO BENEFICIÁRIO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3179",
+      "term": "CANCELAMENTO DO PROCEDIMENTO POR SOLICITAÇÃO DO PRESTADOR",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3180",
+      "term": "CARÁTER DE ATENDIMENTO INVÁLIDO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3181",
+      "term": "COBRANÇA DE ITEM ASSISTENCIAL PARA ATENDIMENTO QUE GEROU UMA INTERNAÇÃO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3182",
+      "term": "COBRANÇA DE HONORÁRIO EM LOCAL DE ATENDIMENTO INVÁLIDO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3183",
+      "term": "COBRANÇA DE ITEM ASSISTENCIAL COM PERMANÊNCIA MENOR QUE O PERÍODO ESTIPULADO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3184",
+      "term": "COBRANÇA DE ITEM ASSISTENCIAL COM VALOR ACIMA DO PERMITIDO PARA O PROCEDIMENTO REALIZADO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3185",
+      "term": "COBRANÇA DE ITEM ASSISTENCIAL DE USO OBRIGATÓRIO NO LOCAL DE ATENDIMENTO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3186",
+      "term": "COBRANCA DE ITEM ASSISTENCIAL EM AMBIENTE INCOMPATÍVEL COM O USO DE EQUIPAMENTOS",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3187",
+      "term": "COBRANÇA DE ITEM ASSISTENCIAL EM BENEFICIÁRIO INTERNADO NA UTI/CTI",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3188",
+      "term": "COBRANÇA DE ITEM ASSISTENCIAL EM PERMANÊNCIA HOSPITALAR NÃO AUTORIZADA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3189",
+      "term": "COBRANÇA DE ITEM ASSISTENCIAL EM QUANTIDADE INCOMPATÍVEL COM A PERMANÊNCIA HOSPITALAR",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3190",
+      "term": "COBRANÇA DE ITEM ASSISTENCIAL EM QUANTIDADE INCOMPATÍVEL COM O PROCEDIMENTO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3191",
+      "term": "COBRANÇA DE ITEM ASSISTENCIAL EM QUANTIDADE INCORRETA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3192",
+      "term": "COBRANÇA DE ITEM ASSISTENCIAL EM TIPO DE DESPESA INVÁLIDA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3193",
+      "term": "COBRANÇA DE ITEM ASSISTENCIAL INCLUSO NO PROCEDIMENTO REALIZADO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3194",
+      "term": "COBRANÇA DE ITEM ASSISTENCIAL INCOMPATÍVEL COM DIAGNÓSTICO E/OU EVOLUÇÃO CLÍNICA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3195",
+      "term": "COBRANÇA DE ITEM ASSISTENCIAL INCOMPATÍVEL COM O PROCEDIMENTO REALIZADO/USO PREVISTO NO PROCEDIMENTO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3196",
+      "term": "COBRANÇA DE ITEM ASSISTENCIAL INCOMPATÍVEL COM O UTILIZADO/PRESCRITO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3197",
+      "term": "COBRANÇA DE ITEM ASSISTENCIAL NÃO UTILIZADO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3198",
+      "term": "COBRANÇA DE ITEM ASSISTENCIAL PARA BENEFICIARIO COM PÓS-OPERATÓRIO IMEDIATO REALIZADO NA UTI/CTI",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3199",
+      "term": "COBRANÇA DE ITEM ASSISTENCIAL SEM A PRESENÇA DO ANESTESISTA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3200",
+      "term": "COBRANÇA DE ITEM ASSISTENCIAL SEM O REGISTRO DE PERMANÊNCIA COMPATÍVEL",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3201",
+      "term": "COBRANÇA DE ITEM ASSISTENCIAL SEM REGISTRO NO BOLETIM ANESTÉSICO E DURAÇÃO DE USO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3202",
+      "term": "COBRANÇA DE ITEM INCLUSO NO PROCEDIMENTO PRINCIPAL",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3203",
+      "term": "COBRANÇA DE MAIS DE UM ITEM ASSISTENCIAL, POR CONTA DO NÚMERO DE PROCEDIMENTOS REALIZADOS NO MESMO TEMPO CIRÚRGICO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3204",
+      "term": "COBRANÇA DE PROCEDIMENTO EM QUANTIDADE INCOMPATÍVEL COM O PROCEDIMENTO/EVOLUÇÃO CLÍNICA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3205",
+      "term": "COBRANÇA DE PROCEDIMENTO NÃO SOLICITADA PELO PROFISSIONAL SOLICITANTE",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3206",
+      "term": "COBRANÇA DE PROCEDIMENTO/ ITEM ASSISTENCIAL INCOMPATÍVEL COM RELATÓRIO TÉCNICO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3207",
+      "term": "COBRANÇA DE PROCEDIMENTO/ITEM ASSISTENCIAL INCLUSO NAS TAXAS",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3208",
+      "term": "COBRANÇA DE PROCEDIMENTO/ITEM ASSISTENCIAL COM QUANTITATIVO DE USO EM DIVERGÊNCIA/PAGO VALOR CORRIGIDO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3209",
+      "term": "COBRANÇA DE PROCEDIMENTO/ITEM ASSISTENCIAL EM DUPLICIDADE",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3210",
+      "term": "COBRANÇA DE PROCEDIMENTO/ITEM ASSISTENCIAL EM QUANTIDADE ACIMA DA MÁXIMA PERMITIDA/AUTORIZADA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3211",
+      "term": "COBRANÇA DE PROCEDIMENTO/ITEM ASSISTENCIAL INCLUSO NO PACOTE NEGOCIADO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3212",
+      "term": "COBRANÇA DE PROCEDIMENTO/ITEM ASSISTENCIAL INCOMPATÍVEL COM RELATÓRIO TÉCNICO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3213",
+      "term": "COBRANÇA DE PROCEDIMENTO/ITEM ASSISTENCIAL SEM PRESCRIÇÃO MÉDICA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3214",
+      "term": "COBRANÇA FORA DO PRAZO ESTIPULADO NO CONTRATO COM O PRESTADOR",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3215",
+      "term": "COBRANÇA INDEVIDA DE ITEM ASSISTENCIAL",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3216",
+      "term": "COBRANÇA INDEVIDA DE ITEM ASSISTENCIAL PARA ADMINISTRAÇÃO DE MEDICAMENTOS",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3217",
+      "term": "COBRANÇA/SOLICITAÇÃO DE PROCEDIMENTO/ITEM ASSISTENCIAL SEM JUSTIFICATIVA PARA REALIZAÇÃO OU COM JUSTIFICATIVA INSUFICIENTE",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3218",
+      "term": "CÓDIGO DO PROCEDIMENTO NO DOCUMENTO ENVIADO NÃO IDENTIFICADO PARA A AUTORIZAÇÃO/FATURAMENTO/GLOSA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3219",
+      "term": "CÓDIGO DO PROCEDIMENTO/ITEM ASSISTENCIAL PREENCHIDO INCORRETAMENTE",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3220",
+      "term": "COMPROVANTE DE DESEMBOLSO AUSENTE",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3221",
+      "term": "COMPROVANTE DE DESEMBOLSO IRREGULAR",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3222",
+      "term": "DADOS DO PROFISSIONAL SOLICITANTE DIVERGENTES",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3223",
+      "term": "DATA DE ATENDIMENTO POSTERIOR À DATA DE ENVIO DO LOTE",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3224",
+      "term": "DATA DE INÍCIO DA INTERNAÇÃO ANTERIOR À DATA DE EMISSÃO DA GUIA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3225",
+      "term": "DATA DE INÍCIO DA INTERNAÇÃO É POSTERIOR À DATA DE REALIZAÇÃO DO PROCEDIMENTO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3226",
+      "term": "DATA DO ATENDIMENTO NÃO INFORMADA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3227",
+      "term": "DATA PREENCHIDA NA GUIA DIVERGENTE DA DATA DE REALIZAÇÃO DO PROCEDIMENTO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3228",
+      "term": "DATA PREENCHIDA NA GUIA DIVERGENTE DA DATA REGISTRADA NO EXAME",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3229",
+      "term": "DESCRIÇÃO DO PROCEDIMENTO/ITEM ASSISTENCIAL NÃO INFORMADA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3230",
+      "term": "DOCUMENTAÇÃO INCOMPLETA, ILEGÍVEL, INCORRETA OU AUSENTE",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3231",
+      "term": "DOCUMENTAÇÃO RADIOGRÁFICA INCOMPLETA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3232",
+      "term": "DUPLICIDADE DE CONTA DEVIDO A PERÍODO JÁ APRESENTADO EM OUTRA PARCIAL",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3233",
+      "term": "ESPECIALIDADE DO PRESTADOR VERIFICADA PELO CBO NÃO ESTÁ AUTORIZADA A EXECUTAR O PROCEDIMENTO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3234",
+      "term": "EVENTO GLOSADO POR AUDITORIA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3235",
+      "term": "EXAME COMPLEMENTAR NÃO ENVIADO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3236",
+      "term": "EXAMES DEVEM SER SOLICITADOS EM RECEITUÁRIOS PRÓPRIO DO CD",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3237",
+      "term": "FAVOR VERIFICAR O CÓDIGO CORRETO PARA A DOCUMENTAÇÃO SOLICITADA E AS CONDIÇÕES DE REPASSE",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3238",
+      "term": "FORMULÁRIO DE REEMBOLSO AUSENTE",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3239",
+      "term": "FORMULÁRIO DE REEMBOLSO INCOMPLETO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3240",
+      "term": "FORMULÁRIO DE REEMBOLSO IRREGULAR",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3241",
+      "term": "GRAU DE PARTICIPAÇÃO INFORMADO INCOMPATÍVEL COM O PROCEDIMENTO COBRADO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3242",
+      "term": "GUIA NÃO PERTENCE AO PRESTADOR QUE ESTÁ REALIZANDO O ENVIO DO RECURSO DE GLOSA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3243",
+      "term": "IDENTIFICAÇÃO DO BENEFICIÁRIO INCOMPLETA/INVÁLIDA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3244",
+      "term": "IMAGEM NÃO SUGERE INDICAÇÃO PARA RESTAURAÇÃO DAS FACES SOLICITADAS",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3245",
+      "term": "IMAGEM RADIOGRÁFICA RECORTADA SEM POSSIBILIDADE DE IDENTIFICAÇÃO DO DENTE SOLICITADO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3246",
+      "term": "IMAGEM SUGERE SULCO PIGMENTADO E/OU MANCHA BRANCA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3247",
+      "term": "INFORMAR AS DATAS PARA O TRATAMENTO SERIADO POR DATA DE REALIZAÇÃO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3248",
+      "term": "INTERNAÇÃO JÁ CONCLUÍDA, PRORROGAÇÃO NÃO PERMITIDA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3249",
+      "term": "INTERNAÇÃO JÁ CONCLUÍDA, REALIZAÇÃO DO ATENDIMENTO NÃO PERMITIDA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3250",
+      "term": "INTERNAÇÃO NÃO ABERTA, NÃO É PERMITIDO CONCLUÍ-LA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3251",
+      "term": "ITEM ASSISTENCIAL EM DESACORDO COM OS CRITÉRIOS TÉCNICOS ADOTADOS PELA OPERADORA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3252",
+      "term": "ITEM ASSISTENCIAL INCOMPATÍVEL E/OU SEM COBERTURA PARA O TIPO DE ATENDIMENTO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3253",
+      "term": "ITEM ASSISTENCIAL INVÁLIDO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3254",
+      "term": "ITEM ASSISTENCIAL PAGO A FORNECEDOR TERCEIRIZADO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3255",
+      "term": "ITEM ASSISTENCIAL SEM NOTA FISCAL DO FORNECEDOR",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3256",
+      "term": "ITEM CONTRATADO EM OUTRO MODELO DE REMUNERAÇÃO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3257",
+      "term": "ITEM NÃO JUSTIFICADO PARA O CENTRO DE CONSUMO INFORMADO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3258",
+      "term": "LOCAL DE ATENDIMENTO INVÁLIDO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3259",
+      "term": "LOTE NÃO PERTENCE AO PRESTADOR QUE ESTÁ REALIZANDO O ENVIO DO RECURSO DE GLOSA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3260",
+      "term": "NÃO É PERMITIDO ACRÉSCIMO NO ITEM ASSISTENCIAL PARA O ITEM COBRADO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3261",
+      "term": "NECESSÁRIO ENVIO DE FOTOGRAFIA SOBRE O TRATAMENTO SOLICITADO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3262",
+      "term": "NECESSÁRIO ENVIO DE ETIQUETAS DO ENXERTO REALIZADO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3263",
+      "term": "NECESSÁRIO ENVIO DE ETIQUETAS DO IMPLANTE INSTALADO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3264",
+      "term": "NECESSÁRIO ENVIO DE NOVA RADIOGRAFIA FINAL",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3265",
+      "term": "NECESSITA RELATÓRIO DE AUDITORIA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3266",
+      "term": "NOME DO BENEFICIÁRIO DIVERGENTE DA SOLICITAÇÃO DO PROCEDIMENTO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3267",
+      "term": "NOME E CONSELHO DE REGISTRO DO PRESTADOR SÃO DIVERGENTES ENTRE SI",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3268",
+      "term": "NÚMERO DE LOTE JÁ INFORMADO ANTERIORMENTE",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3269",
+      "term": "NÚMERO DO CONSELHO/UF DO PROFISSIONAL INATIVO, NÃO INFORMADO OU INVÁLIDO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3270",
+      "term": "NÚMERO DO LOTE INFORMADO NÃO LOCALIZADO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3271",
+      "term": "O CÓDIGO AUTORIZADO ESTÁ INCOMPATÍVEL COM A PRESCRIÇÃO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3272",
+      "term": "O CRM INFORMADO CONSTA INVÁLIDO OU INATIVO JUNTO AO CONSELHO REGIONAL DE MEDICINA DO SEU ESTADO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3273",
+      "term": "O ESTABELECIMENTO DE SAÚDE OU PROFISSIONAL PARA O QUAL FOI SOLICITADA A INFORMAÇÃO SOBRE PARTOS NÃO POSSUÍA VÍNCULO COM A OPERADORA NO PERÍODO A QUE SE REFERE A INFORMAÇÃO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3274",
+      "term": "PAGAMENTO DA EQUIPE CONFORME RELATÓRIO DO PROFISSIONAL SOLICITANTE",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3275",
+      "term": "PRAZO PRESCRITO PARA SOLICITAÇÃO DE REEMBOLSO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3276",
+      "term": "PRESTADOR EXECUTANTE NÃO CONFERE COM O PRESTADOR SOLICITANTE DA SENHA AUTORIZADA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3277",
+      "term": "PRESTADOR FORA DA ABRANGÊNCIA GEOGRÁFICA DO PLANO DO BENEFICIÁRIO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3278",
+      "term": "PRESTADOR NÃO ESTAVA ATIVO NA DATA DE ATENDIMENTO/SOLICITAÇÃO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3279",
+      "term": "PRESTADOR NÃO HABILITADO/CONTRATADO PARA REALIZAR O PROCEDIMENTO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3280",
+      "term": "PROCEDIMENTO/ITEM ASSISTENCIAL INCOMPATÍVEL COM O LOCAL DE ATENDIMENTO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3281",
+      "term": "PROCEDIMENTO COBRADO NÃO CORRESPONDE À PERÍCIA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3282",
+      "term": "PROCEDIMENTO COBRADO NÃO CORRESPONDE AO EXECUTADO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3283",
+      "term": "PROCEDIMENTO NÃO AUTORIZADO POR NÃO CONSTAR NO ROL DE PROCEDIMENTOS E EVENTOS EM SAÚDE DA ANS",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3284",
+      "term": "PROCEDIMENTO NÃO AUTORIZADO, POIS O DENTE ESTÁ AUSENTE",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3285",
+      "term": "PROCEDIMENTO NECESSITA DISCRIMINAÇÃO DE EQUIPE PROFISSIONAL NA GUIA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3286",
+      "term": "PROCEDIMENTO SOLICITADO COM INCOERÊNCIA TÉCNICA EM RELAÇÃO A UM SERVIÇO JÁ AUTORIZADO PARA O MESMO PRESTADOR",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3287",
+      "term": "PROCEDIMENTO/ITEM ASSISTENCIAL NÃO POSSUI COBERTURA PELO PLANO DO BENEFICIÁRIO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3288",
+      "term": "PROCEDIMENTO NÃO ATENDE A DIRETRIZ DE UTILIZAÇÃO (DUT) DO ROL DE PROCEDIMENTOS E EVENTOS EM SAÚDE DA ANS",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3289",
+      "term": "PROCEDIMENTO/ITEM ASSISTENCIAL SOLICITADO JÁ AUTORIZADO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3290",
+      "term": "PROCEDIMENTOS DEVEM SER SOLICITADOS EM RECEITUÁRIO/GUIA EMITIDO PELO PRÓPRIO PRESTADOR SOLICITANTE",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3291",
+      "term": "PROTOCOLO NÃO LOCALIZADO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3292",
+      "term": "QUANTIDADE SOLICITADA DE PROCEDIMENTO/ITEM ASSISTENCIAL ACIMA DA AUTORIZADA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3293",
+      "term": "QUANTIDADE SOLICITADA DE PROCEDIMENTO/ITEM ASSISTENCIAL ACIMA DA COBERTA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3294",
+      "term": "RADIOGRAFIA INDICA FALHA NA INSTALAÇÃO DO IMPLANTE",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3295",
+      "term": "RADIOGRAFIA INDICA FALHA NA OSSEOINTEGRAÇÃO DO IMPLANTE",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3296",
+      "term": "RADIOGRAFIA INDICA PRESENÇA DE INSTRUMENTO FRATURADO NO CONDUTO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3297",
+      "term": "RADIOGRAFIA INDICA PRÓTESE INSTALADA EM DENTE COM ENDODONTIA INSATISFATÓRIA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3298",
+      "term": "RADIOGRAFIA INDICA PRÓTESE INSTALADA EM DENTE COM NÚCLEO/PINO INSATISFATÓRIO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3299",
+      "term": "RADIOGRAFIA INDICA PRÓTESE INSTALADA EM IMPLANTE INSATISFATÓRIO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3300",
+      "term": "RADIOGRAFIA SUGERE INSTRUMENTO NO INTERIOR DO CONDUTO, COM POSSIBILIDADE DE DESFECHO FAVORÁVEL COM RETRATAMENTO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3301",
+      "term": "RADIOGRAFIA SUGERE PERFURAÇÃO, COM POSSIBILIDADE DE DESFECHO FAVORÁVEL COM RETRATAMENTO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3302",
+      "term": "RADIOGRAFIA SUGERE REMANESCENTE RADICULAR CURTO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3303",
+      "term": "REALIZAÇÃO DE PROCEDIMENTO COM FINALIDADE ESTÉTICA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3304",
+      "term": "REAVALIAR O PLANO DE TRATAMENTO OBSERVANDO CRITÉRIOS DE INDICAÇÃO, OPORTUNIDADE E/OU VIABILIDADE",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3305",
+      "term": "RECIBO FORA DO PADRÃO DETERMINADO PELA RECEITA FEDERAL",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3306",
+      "term": "SENHA OU GUIA DE AUTORIZAÇÃO INFORMADA INVÁLIDA",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3307",
+      "term": "SOLICITAÇÃO DE PROCEDIMENTO SEM INFORMAÇÃO DO LOCAL (REGIÃO/DENTE)",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3308",
+      "term": "SOLICITAÇÃO/ATENDIMENTO ANTERIOR À INCLUSÃO DO BENEFICIÁRIO NO PLANO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3309",
+      "term": "URGÊNCIA/EMERGÊNCIA NÃO APLICÁVEL",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3310",
+      "term": "VALOR DA NOTA FISCAL DIVERGENTE",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3311",
+      "term": "VALOR DO PROCEDIMENTO/ITEM ASSISTENCIAL INFORMADO INVÁLIDO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    },
+    {
+      "code": "3312",
+      "term": "VALOR LIBERADO CONFORME FRACIONAMENTO",
+      "startsOn": "2025-12-01",
+      "endsOn": null,
+      "implantationEndsOn": "2026-06-30"
+    }
+  ]
+}

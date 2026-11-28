@@ -1,0 +1,71 @@
+E2E_RUN=8488S
+
+Running 23 tests using 1 worker
+
+E2E_RUN=848YD
+  ok  1 [chromium] › e2e\convenios-config-preview.spec.ts:234:1 › o Preview usa o projeto DEV (prova assinada antes de qualquer escrita) (3.5s)
+  ok  2 [chromium] › e2e\convenios-config-preview.spec.ts:239:1 › gestora: procedimento no catálogo da clínica (Configurações › Procedimentos) (31.2s)
+  ok  3 [chromium] › e2e\convenios-config-preview.spec.ts:256:1 › gestora: configura do zero — prestador, operadora, plano, contrato TUSS, ativação e perfil TISS (1.6m)
+  ok  4 [chromium] › e2e\convenios-config-preview.spec.ts:393:1 › recepção: cadastra o paciente e a carteirinha (número cifrado; completo só auditado) (44.3s)
+  ok  5 [chromium] › e2e\convenios-config-preview.spec.ts:440:1 › recepção: agenda como CONVÊNIO e a cobertura nasce pronta, com coparticipação estimada (28.2s)
+  ok  6 [chromium] › e2e\convenios-config-preview.spec.ts:508:1 › recepção: muda um atendimento PARTICULAR para CONVÊNIO pela agenda e volta para particular (P4.3) (49.2s)
+  ok  7 [chromium] › e2e\convenios-config-preview.spec.ts:595:1 › gestora: importa a tabela por planilha — prévia por linha, erro bloqueia, aplicação atômica, reenvio não duplica (P2.7) (39.5s)
+  ok  8 [chromium] › e2e\convenios-config-preview.spec.ts:663:1 › gestora: reajuste a partir de uma data cria versão; o passado não muda; histórico registrado (21.1s)
+  ok  9 [chromium] › e2e\convenios-config-preview.spec.ts:694:1 › médica: sem ver o financeiro, não entra na configuração nem nas carteirinhas (17.9s)
+  ok 10 [chromium] › e2e\convenios-config-preview.spec.ts:713:1 › outra clínica: operadora e paciente de outro tenant não aparecem (404 / não encontrado) (19.0s)
+  ok 11 [chromium] › e2e\convenios-config-preview.spec.ts:728:1 › trial: configuração e carteirinhas aparecem como recurso contratável (a recusa da carteirinha no trial é provada no harness) (13.8s)
+  ok 12 [chromium] › e2e\convenios-config-preview.spec.ts:744:1 › celular: configuração, operadora, carteirinhas e atendimentos sem rolagem lateral (28.8s)
+  ok 13 [chromium] › e2e\convenios-config-preview.spec.ts:763:1 › gestora: regra de repasse da médica (40%) em Configurações › Pagamentos (11.8s)
+  x  14 [chromium] › e2e\convenios-config-preview.spec.ts:780:1 › recepção: encaixe de convênio (o paciente chegou agora) (55.6s)
+  -  15 [chromium] › e2e\convenios-config-preview.spec.ts:806:1 › médica: chama e encerra a consulta; a guia de convênio nasce sozinha do atendimento
+  -  16 [chromium] › e2e\convenios-config-preview.spec.ts:854:1 › gestora: confere, aprova e emite a guia; o PDF oficial sai do documento congelado
+  -  17 [chromium] › e2e\convenios-config-preview.spec.ts:872:1 › gestora: lote → XML validado no XSD → enviado → protocolo → em análise
+  -  18 [chromium] › e2e\convenios-config-preview.spec.ts:929:1 › gestora: glosa parcial → análise → contestação → recurso com XML no XSD → envio → resposta
+  -  19 [chromium] › e2e\convenios-config-preview.spec.ts:988:1 › gestora: pagamento parcial → alocação → estorno → nova alocação; demonstrativo repetido recusado
+  -  20 [chromium] › e2e\convenios-config-preview.spec.ts:1051:1 › gestora: repasse de 40% sobre o recebido → autorizar → registrar o repasse
+  -  21 [chromium] › e2e\convenios-config-preview.spec.ts:1076:1 › coparticipação: recepção confere R$ 45,00, gestora confirma; só esse valor vira cobrança do paciente
+  -  22 [chromium] › e2e\convenios-config-preview.spec.ts:1115:1 › ficha do paciente: aba Convênios com carteirinha mascarada, cobertura e guia; quem não vê o financeiro não tem a aba
+  -  23 [chromium] › e2e\convenios-config-preview.spec.ts:1163:1 › ficha do paciente: aba Convênios por teclado, outra clínica, vazio, duas carteirinhas (uma vencida), trial e suspensa
+
+
+  1) [chromium] › e2e\convenios-config-preview.spec.ts:780:1 › recepção: encaixe de convênio (o paciente chegou agora) 
+
+    Error: aviso esperado não apareceu (Encaixe criado); avisos vistos: []
+
+      200 |     await page.waitForTimeout(400);
+      201 |   }
+    > 202 |   throw new Error(
+          |         ^
+      203 |     `aviso esperado não apareceu (${String(text)}); avisos vistos: ${JSON.stringify([...seen])}`,
+      204 |   );
+      205 | };
+        at toast (C:\dev\Qoro_convenios_tiss_20261110\e2e\convenios-config-preview.spec.ts:202:9)
+        at C:\dev\Qoro_convenios_tiss_20261110\e2e\convenios-config-preview.spec.ts:801:3
+
+    Error Context: test-results\convenios-config-preview-r-15411-io-o-paciente-chegou-agora--chromium\error-context.md
+
+  1 failed
+    [chromium] › e2e\convenios-config-preview.spec.ts:780:1 › recepção: encaixe de convênio (o paciente chegou agora) 
+  9 did not run
+  13 passed (7.7m)
+23:35:40 livre=1GB seguidas=1
+23:36:11 livre=0,58GB seguidas=2
+23:36:41 livre=0,78GB seguidas=3
+FOLGA: iniciando a jornada
+23:36:42 livre=0,72GB next_dev=0
+23:37:12 livre=0,64GB next_dev=0
+23:37:43 livre=0,7GB next_dev=0
+23:38:13 livre=0,65GB next_dev=0
+23:38:44 livre=0,84GB next_dev=0
+23:39:14 livre=0,68GB next_dev=0
+23:39:45 livre=0,53GB next_dev=0
+23:40:15 livre=0,62GB next_dev=0
+23:40:46 livre=0,54GB next_dev=0
+23:41:16 livre=0,61GB next_dev=0
+23:41:47 livre=0,62GB next_dev=0
+23:42:18 livre=0,71GB next_dev=0
+23:42:48 livre=0,6GB next_dev=0
+23:43:19 livre=0,73GB next_dev=0
+23:43:49 livre=0,63GB next_dev=0
+23:44:20 livre=0,56GB next_dev=0
+exit=1

@@ -1,0 +1,15 @@
+ok  R01-solicitacao-valida: XSD válido
+ok  R02-solicitacao-sem-indicacao: XSD válido
+ok  R03-quantidade-acima: XSD inválido
+ok  R04-data-futura: XSD válido
+ok  R05-procedimento-repetido: XSD válido
+ok  R06-carater-invalido: XSD inválido
+ok  G01-recurso-protocolo: XSD válido
+ok  G02-recurso-itens: XSD válido
+ok  G03-recurso-guia-completa: XSD válido
+ok  G04-total-divergente: XSD válido
+ok  G05-protocolo-nao-numerico: XSD inválido
+ok  G06-codigo-glosa-inexistente: XSD inválido
+ok  G07-justificativa-curta: XSD válido
+ok  G08-forma-trocada: XSD válido
+14 arquivos; 0 divergência(s) da expectativa

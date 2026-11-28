@@ -75,5 +75,6 @@ Backoff após falha: imediato, 30 s, 5 min, 30 min e 6 h; a sexta tentativa fica
 - Handler removido acidentalmente: registry/check e métrica `outbox.skipped_no_handler` detectam.
 - Tick sobreposto: advisory lock devolve resumo sem duplicar manutenção.
 - Handler lento + janitor: finalize guard emite `outbox.lost_race`; idempotência do handler é obrigatória.
+- Handler acima de 25 s depois de iniciado (`OUTBOX_HANDLER_SLOW_MS`): `outbox.handler_slow` com `eventType`, `handlerMs` e `ok`. Nada é interrompido; a métrica aponta o tipo de evento que ameaça a janela do cron compartilhado (R61). Com `reserveUntil`, o tick para de reservar no prazo e o resumo do `worker.tick` traz `deferred`; com `skipUnhandledInBulk`, traz `skipped_bulk`.
 
 Veja [runbook do outbox](../runbooks/c4-validation.md) e [operações](../operations/deployment-observability.md).

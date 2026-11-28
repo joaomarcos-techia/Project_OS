@@ -1,8 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   assertLoginAllowed: vi.fn(),
   assertPasswordResetAllowed: vi.fn(),
+  checkLoginByAuditTrail: vi.fn(),
+  tissPasswordAge: vi.fn(),
   createPasswordResetRedirectUrl: vi.fn(),
   createServerClient: vi.fn(),
   ensurePasswordAuthenticatedSignupAuthBinding: vi.fn(),
@@ -24,9 +26,13 @@ const mocks = vi.hoisted(() => ({
   sendPasswordResetEmail: vi.fn(),
   signInWithPassword: vi.fn(),
   signOut: vi.fn(),
+  cookieSet: vi.fn(),
 }));
 
-vi.mock('next/headers', () => ({ headers: mocks.headers }));
+vi.mock('next/headers', () => ({
+  headers: mocks.headers,
+  cookies: async () => ({ set: mocks.cookieSet }),
+}));
 vi.mock('@/contexts/identity/internal/password-reset-email', () => ({
   sendPasswordResetEmail: mocks.sendPasswordResetEmail,
 }));
@@ -45,7 +51,17 @@ vi.mock('@/lib/auth/pretenant-onboarding', () => ({
   resolvePreTenantOnboarding: mocks.resolvePreTenantOnboarding,
 }));
 vi.mock('@/lib/auth/email-hash', () => ({ hashEmail: mocks.hashEmail }));
-vi.mock('@/lib/auth/login-audit', () => ({ recordLoginAttempt: mocks.recordLoginAttempt }));
+vi.mock('@/lib/auth/login-audit', () => ({
+  recordLoginAttempt: mocks.recordLoginAttempt,
+  readLastAccessSummary: vi.fn(async () => ({ previousSuccessAt: null, failuresSince: 0 })),
+}));
+vi.mock('@/lib/auth/login-attempts-fallback', () => ({
+  checkLoginByAuditTrail: mocks.checkLoginByAuditTrail,
+}));
+vi.mock('@/lib/auth/security-profile/password-lifecycle', () => ({
+  tissPasswordAge: mocks.tissPasswordAge,
+}));
+vi.mock('@/app/(app)/_lib/tiss-footprint', () => ({ readTissFootprintLazy: vi.fn() }));
 vi.mock('@/lib/auth/rate-limit', () => ({
   assertLoginAllowed: mocks.assertLoginAllowed,
   assertPasswordResetAllowed: mocks.assertPasswordResetAllowed,
@@ -383,5 +399,198 @@ describe('login de usuário verificado pré-tenant', () => {
       mfaEnrolledAt: null,
       aal: 'aal1',
     });
+  });
+});
+
+describe('S8 / requisito 69: Upstash degradado consulta a trilha no banco', () => {
+  function loginForm(): FormData {
+    const data = new FormData();
+    data.set('email', 'pessoa@example.test');
+    data.set('password', 'senha-correta-123');
+    return data;
+  }
+
+  beforeEach(() => {
+    mocks.createServerClient.mockResolvedValue({
+      auth: { signInWithPassword: mocks.signInWithPassword, signOut: mocks.signOut },
+    });
+    mocks.signInWithPassword.mockResolvedValue({
+      data: { user: null },
+      error: { code: 'invalid_credentials', message: 'Invalid login credentials' },
+    });
+  });
+
+  it('limitador normal: não consulta a trilha', async () => {
+    mocks.assertLoginAllowed.mockResolvedValue({ ok: true });
+    const { loginAction } = await import('./actions');
+    await loginAction({ error: null }, loginForm());
+    expect(mocks.checkLoginByAuditTrail).not.toHaveBeenCalled();
+    expect(mocks.signInWithPassword).toHaveBeenCalledOnce();
+  });
+
+  it('degradado e a trilha libera: segue para a senha', async () => {
+    mocks.assertLoginAllowed.mockResolvedValue({ ok: true, degraded: true });
+    mocks.checkLoginByAuditTrail.mockResolvedValue('allowed');
+    const { loginAction } = await import('./actions');
+    await loginAction({ error: null }, loginForm());
+    expect(mocks.checkLoginByAuditTrail).toHaveBeenCalledWith('email-hash', '203.0.113.7');
+    expect(mocks.signInWithPassword).toHaveBeenCalledOnce();
+  });
+
+  it('degradado e a trilha bloqueia: não tenta a senha, conta a tentativa', async () => {
+    mocks.assertLoginAllowed.mockResolvedValue({ ok: true, degraded: true });
+    mocks.checkLoginByAuditTrail.mockResolvedValue('blocked');
+    const { loginAction } = await import('./actions');
+    const result = await loginAction({ error: null }, loginForm());
+    expect(mocks.signInWithPassword).not.toHaveBeenCalled();
+    expect(mocks.recordLoginAttempt).toHaveBeenCalledWith('email-hash', '203.0.113.7', false);
+    expect(mocks.metricsEmit).toHaveBeenCalledWith('auth.ratelimit.tripped', {
+      route: 'login',
+      source: 'audit_blocked',
+    });
+    expect(result).toEqual({
+      error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
+    });
+  });
+
+  it('Upstash e banco fora: o login FECHA (nunca tentativa ilimitada)', async () => {
+    mocks.assertLoginAllowed.mockResolvedValue({ ok: true, degraded: true });
+    mocks.checkLoginByAuditTrail.mockResolvedValue('unavailable');
+    const { loginAction } = await import('./actions');
+    const result = await loginAction({ error: null }, loginForm());
+    expect(mocks.signInWithPassword).not.toHaveBeenCalled();
+    expect(mocks.metricsEmit).toHaveBeenCalledWith('auth.ratelimit.tripped', {
+      route: 'login',
+      source: 'audit_unavailable',
+    });
+    expect(result.error).toMatch(/Muitas tentativas/u);
+  });
+});
+
+describe('S4 / requisito 81: senha vencida no perfil TISS', () => {
+  function loginForm(): FormData {
+    const data = new FormData();
+    data.set('email', 'pessoa@example.test');
+    data.set('password', 'SenhaForte7!');
+    return data;
+  }
+
+  beforeEach(() => {
+    mocks.assertLoginAllowed.mockResolvedValue({ ok: true });
+    mocks.signInWithPassword.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null });
+    mocks.signOut.mockResolvedValue({ error: null });
+    mocks.createServerClient.mockResolvedValue({
+      auth: { signInWithPassword: mocks.signInWithPassword, signOut: mocks.signOut },
+    });
+    mocks.readAuthoritativeProfile.mockResolvedValue({
+      role: 'gestor',
+      ativo: true,
+      deletedAt: null,
+      clinicId: 'clinic-tiss',
+      mfaEnrolledAt: null,
+    });
+    mocks.isRole.mockReturnValue(true);
+    mocks.getAal.mockResolvedValue('aal1');
+    mocks.postLoginRedirect.mockReturnValue('/dashboard');
+    mocks.redirect.mockImplementation((d: string) => {
+      throw new Error(`REDIRECT:${d}`);
+    });
+    mocks.sendPasswordResetEmail.mockResolvedValue('sent');
+  });
+
+  it('vencida: encerra a sessão, manda o link de troca e explica', async () => {
+    mocks.tissPasswordAge.mockResolvedValue({ kind: 'must_change' });
+    const { loginAction } = await import('./actions');
+    const out = await loginAction({ error: null }, loginForm());
+    expect(mocks.tissPasswordAge).toHaveBeenCalledWith('u-1', 'clinic-tiss', expect.anything());
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    expect(mocks.sendPasswordResetEmail).toHaveBeenCalledWith('pessoa@example.test');
+    expect(out.error).toMatch(/Sua senha venceu.*90 dias/u);
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
+  it('dentro do prazo ou fora do alcance: segue para o painel', async () => {
+    for (const age of [{ kind: 'ok', daysLeft: 40 }, null]) {
+      mocks.tissPasswordAge.mockResolvedValueOnce(age);
+      const { loginAction } = await import('./actions');
+      await expect(loginAction({ error: null }, loginForm())).rejects.toThrow(
+        'REDIRECT:/dashboard',
+      );
+    }
+    expect(mocks.sendPasswordResetEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe('S2 / requisito 83: o login grava o registro de atividade desta sessão (perfil TISS ligado)', () => {
+  const SESSION = 'sess-login-1';
+  const token = `h.${Buffer.from(JSON.stringify({ session_id: SESSION })).toString('base64url')}.s`;
+  function loginForm(): FormData {
+    const data = new FormData();
+    data.set('email', 'pessoa@example.test');
+    data.set('password', 'SenhaForte7!');
+    return data;
+  }
+
+  beforeEach(() => {
+    vi.stubEnv('TISS_SECURITY_PROFILE_ENFORCE', 'true');
+    vi.stubEnv('SUPABASE_SECRET_KEY', 'chave-sintetica-do-servidor-com-mais-de-32-caracteres');
+    mocks.cookieSet.mockReset();
+    mocks.assertLoginAllowed.mockResolvedValue({ ok: true });
+    mocks.signInWithPassword.mockResolvedValue({
+      data: { user: { id: 'u-1' }, session: { access_token: token } },
+      error: null,
+    });
+    mocks.createServerClient.mockResolvedValue({
+      auth: { signInWithPassword: mocks.signInWithPassword, signOut: mocks.signOut },
+    });
+    mocks.readAuthoritativeProfile.mockResolvedValue({
+      role: 'gestor',
+      ativo: true,
+      deletedAt: null,
+      clinicId: 'clinic-tiss',
+      mfaEnrolledAt: null,
+    });
+    mocks.isRole.mockReturnValue(true);
+    mocks.getAal.mockResolvedValue('aal1');
+    mocks.postLoginRedirect.mockReturnValue('/dashboard');
+    mocks.tissPasswordAge.mockResolvedValue(null);
+    mocks.redirect.mockImplementation((d: string) => {
+      throw new Error(`REDIRECT:${d}`);
+    });
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  async function activityCookie() {
+    const { SESSION_ACTIVITY_COOKIE, decodeSessionActivity, sessionActivitySecret } =
+      await import('@/lib/auth/session-activity');
+    const call = mocks.cookieSet.mock.calls.find(([name]) => name === SESSION_ACTIVITY_COOKIE);
+    return call ? decodeSessionActivity(call[1] as string, sessionActivitySecret()) : null;
+  }
+
+  it('no alcance: registro assinado, preso ao usuário e à sessão, com scope=true', async () => {
+    vi.stubEnv('TISS_SECURITY_PROFILE_SCOPE', 'platform');
+    const { loginAction } = await import('./actions');
+    await expect(loginAction({ error: null }, loginForm())).rejects.toThrow('REDIRECT:/dashboard');
+    const a = await activityCookie();
+    expect(a).toMatchObject({ uid: 'u-1', sid: SESSION, scope: true });
+    expect(Math.abs(a!.at - Date.now())).toBeLessThan(5_000);
+  });
+
+  it('clínica sem Convênios: registro com scope=false (a porta única nunca bloqueia essa sessão)', async () => {
+    const { readTissFootprintLazy } = await import('@/app/(app)/_lib/tiss-footprint');
+    vi.mocked(readTissFootprintLazy).mockResolvedValue({
+      moduleEnabled: false,
+      hasTissData: false,
+    });
+    const { loginAction } = await import('./actions');
+    await expect(loginAction({ error: null }, loginForm())).rejects.toThrow('REDIRECT:/dashboard');
+    expect(await activityCookie()).toMatchObject({ uid: 'u-1', sid: SESSION, scope: false });
+  });
+
+  it('perfil desligado: nenhum cookie novo', async () => {
+    vi.stubEnv('TISS_SECURITY_PROFILE_ENFORCE', '');
+    const { loginAction } = await import('./actions');
+    await expect(loginAction({ error: null }, loginForm())).rejects.toThrow('REDIRECT:/dashboard');
+    expect(mocks.cookieSet).not.toHaveBeenCalled();
   });
 });

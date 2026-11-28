@@ -57,6 +57,20 @@ describe('guias da Qoro para quem usa o produto', () => {
     );
   });
 
+  it('ensina Convênios (TISS) sem prometer o que o módulo não faz', () => {
+    for (const slug of ['convenios', 'convenios-guias', 'convenios-lotes', 'convenios-retorno', 'convenios-duvidas']) {
+      expect(findDocTopic(slug)?.category, slug).toBe('Financeiro');
+    }
+    const all = JSON.stringify(['convenios', 'convenios-guias', 'convenios-lotes', 'convenios-retorno', 'convenios-duvidas'].map((s) => findDocTopic(s)));
+    expect(all).toContain('assinatura paga e ativa, quando o módulo é ativado para a clínica');
+    expect(all).toContain('não é possível operar guias reais');
+    expect(all).toContain('pelo portal da operadora');
+    expect(all).toContain('não marca um lote como enviado sem o seu registro do envio');
+    expect(all).toContain('Internação, odontologia, honorários, materiais e medicamentos');
+    // Nada de envio eletrônico prometido enquanto nenhuma operadora está homologada.
+    expect(all).not.toMatch(/webservice|envio automático|envia sozinha/iu);
+  });
+
   it.each(['inexistente', '../../arquivo', '__proto__', '<script>', ''])(
     'não monta conteúdo a partir de um endereço desconhecido: %s',
     (slug) => {

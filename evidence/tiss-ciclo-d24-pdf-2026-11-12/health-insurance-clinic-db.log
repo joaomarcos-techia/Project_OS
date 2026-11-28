@@ -1,0 +1,31 @@
+# health-insurance-clinic-db.ts — Postgres 17 descartável; árvore de trabalho sobre 6b101e89 (código do ciclo D24, ver README)
+PASS: FK composta impede plano e credenciamento ligados a outra clínica
+PASS: CHECKs: registro ANS, CNPJ no formato TISS (alfanumérico aceito) e flag só com quem/quando
+PASS: módulo nasce desligado para a clínica
+PASS: perfil TISS só para profissional da mesma clínica
+PASS: credenciamentos ativos do mesmo alvo não se sobrepõem
+PASS: contrato imutável: correção só por nova versão, uma por linha; coparticipação ≤ valor
+PASS: RLS: a clínica A só lê, grava e altera o que é dela
+PASS: privilégios: runtime sem UPDATE/DELETE em contrato e sem EXECUTE nos gatilhos; anon sem acesso
+PASS: carteirinha: paciente e operadora só da mesma clínica
+PASS: carteirinha: número ativo único por operadora; só HMAC hex no campo de busca
+PASS: carteirinha: uma preferencial por paciente
+PASS: carteirinha: número, paciente e operadora imutáveis; substituição só para frente, com histórico
+PASS: carteirinha: RLS por clínica; o runtime não apaga (inativa)
+PASS: carteirinha: exclusão definitiva do paciente leva o número junto (LGPD)
+PASS: numeração: 400 alocações concorrentes (24 conexões) dão 1..400, sem repetição nem buraco
+PASS: numeração: contadores independentes por clínica, tipo e escopo
+PASS: numeração: transação desfeita devolve o número (nunca emitido); confirmado não se repete
+PASS: numeração: retentativa da transação inteira após 2 falhas emite o número 1, sem pular
+PASS: numeração: o runtime de uma clínica não move o contador de outra (RLS)
+PASS: numeração: no limite do Padrão TISS (999999999999) recusa, nunca volta a 1
+PASS: autorização: carteirinha e operadora só da mesma clínica
+PASS: autorização: "autorizada" só com data, quem registrou e evidência da operadora; negada só com motivo
+PASS: consumo: só depois de a operadora autorizar
+PASS: autorização: versão sobe a cada mudança; carteirinha e operadora não mudam
+PASS: consumo: 30 consumos simultâneos contra saldo de 10 → exatamente 10 aceitos, saldo nunca negativo
+PASS: consumo: idempotente pela chave; acima do saldo só com exceção justificada; estorno uma vez
+PASS: runtime não reescreve o consumido nem o histórico; só a quantidade pedida/autorizada
+PASS: comprovante: só referência opaca e SHA-256 (bytes fora do banco); RLS por clínica
+PASS: excluir a clínica remove os dados de convênio dela (inclusive contratos) e não toca nas outras
+OK: 29 provas das migrations 0144–0146 (P1.4, P1.5, P1.7, P7.1) sobre o schema real

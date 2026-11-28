@@ -1,0 +1,730 @@
+{
+ "mode": "post",
+ "target": "DEV",
+ "at": "2026-11-12T22:29:43.757Z",
+ "code": {
+  "pr55": "ff47e6b8c070f98b086fd7255c393c3c571e0037",
+  "pr53": "52de7ada99b1556df673d4cd849181dba2243df5",
+  "main": "5620a0987ec53db7d7358728eb7d457d9d373df3"
+ },
+ "session": {
+  "db": "postgres",
+  "u": "postgres",
+  "v": "17.6",
+  "ro": "on"
+ },
+ "ledger": {
+  "rows": 159,
+  "last": {
+   "created_at": "1795036973857",
+   "tag": "0158_hi_copay_charge"
+  },
+  "rows_without_file": [
+   {
+    "id": 34,
+    "created_at": "1782272213408"
+   },
+   {
+    "id": 38,
+    "created_at": "1783272435137"
+   },
+   {
+    "id": 52,
+    "created_at": "1784293573483"
+   },
+   {
+    "id": 88,
+    "created_at": "1784293593483"
+   },
+   {
+    "id": 110,
+    "created_at": "1788300900000"
+   },
+   {
+    "id": 141,
+    "created_at": "1792368000002"
+   }
+  ],
+  "when_mismatch": [],
+  "duplicate_created_at": 0,
+  "tail_rows": [
+   "0144_hi_clinic_setup",
+   "0145_hi_memberships",
+   "0146_hi_authorizations",
+   "0147_hi_guides",
+   "0148_hi_coverage_copay",
+   "0149_hi_billing_gaps",
+   "0150_hi_batches",
+   "0151_hi_premium_gate",
+   "0152_hi_glosses_payments",
+   "0153_hi_ledger_bridge",
+   "0154_hi_premium_period_evidence",
+   "0155_ledger_payment_sum_by_clinic",
+   "0156_hi_sadt_requests",
+   "0157_hi_professional_payouts",
+   "0158_hi_copay_charge"
+  ],
+  "files_without_row": [
+   "0033_messaging_connection_status [main,pr53,pr55]",
+   "0037_profiles_invite_and_crm [main,pr53,pr55]",
+   "0051_ai_conversations_panel [main,pr53,pr55]",
+   "0071_runtime_role_timeouts [main,pr53,pr55]",
+   "0093_ai_clinic_config_convenios [main,pr53,pr55]",
+   "0124_offer_2026_trial_deadline [main,pr53,pr55]"
+  ],
+  "tail_expected": [
+   "0144_hi_clinic_setup",
+   "0145_hi_memberships",
+   "0146_hi_authorizations",
+   "0147_hi_guides",
+   "0148_hi_coverage_copay",
+   "0149_hi_billing_gaps",
+   "0150_hi_batches",
+   "0151_hi_premium_gate",
+   "0152_hi_glosses_payments",
+   "0153_hi_ledger_bridge",
+   "0154_hi_premium_period_evidence",
+   "0155_ledger_payment_sum_by_clinic",
+   "0156_hi_sadt_requests",
+   "0157_hi_professional_payouts",
+   "0158_hi_copay_charge"
+  ]
+ },
+ "ledger_rows_digest": "c12d1a3277116a76967c134c22e7b1610146a6bc22916f8a7f1e41496a407800",
+ "schema_versions_0143plus": [
+  "0143-tiss-catalog",
+  "0144-hi-clinic-setup",
+  "0145-hi-memberships",
+  "0146-hi-authorizations",
+  "0147-hi-guides",
+  "0148-hi-coverage-copay",
+  "0149-hi-billing-gaps",
+  "0150-hi-batches",
+  "0151-hi-premium-gate",
+  "0152-hi-glosses-payments",
+  "0153-hi-ledger-bridge",
+  "0154-hi-premium-period-evidence",
+  "0155-ledger-payment-sum-by-clinic",
+  "0156-hi-sadt-requests",
+  "0157-hi-professional-payouts",
+  "0158-hi-copay-charge"
+ ],
+ "hi_tables": [
+  "hi_account_events",
+  "hi_appointment_coverages",
+  "hi_authorization_attachments",
+  "hi_authorization_consumptions",
+  "hi_authorization_events",
+  "hi_authorization_items",
+  "hi_authorizations",
+  "hi_batch_events",
+  "hi_batch_guides",
+  "hi_batch_returns",
+  "hi_batches",
+  "hi_billing_gap_events",
+  "hi_billing_gaps",
+  "hi_clinic_settings",
+  "hi_contract_imports",
+  "hi_copayments",
+  "hi_counters",
+  "hi_credentials",
+  "hi_files",
+  "hi_gloss_appeal_items",
+  "hi_gloss_appeals",
+  "hi_glosses",
+  "hi_guide_accounts",
+  "hi_guide_events",
+  "hi_guide_items",
+  "hi_guide_snapshots",
+  "hi_guides",
+  "hi_insurer_credentials",
+  "hi_insurer_receivables",
+  "hi_insurers",
+  "hi_ledger_drift",
+  "hi_ledger_entries",
+  "hi_memberships",
+  "hi_payment_allocations",
+  "hi_payment_balances",
+  "hi_payments",
+  "hi_payout_movements",
+  "hi_payout_positions",
+  "hi_payouts",
+  "hi_plans",
+  "hi_procedure_contracts",
+  "hi_professional_profiles",
+  "hi_sadt_request_events",
+  "hi_sadt_request_items",
+  "hi_sadt_requests"
+ ],
+ "hi_views": [
+  "hi_guide_accounts",
+  "hi_insurer_receivables",
+  "hi_ledger_drift",
+  "hi_payment_balances",
+  "hi_payout_positions"
+ ],
+ "shared_new_columns": [
+  "appointments.billing_mode",
+  "lancamentos.source_hi_guide_id",
+  "lancamentos.valor_glosado"
+ ],
+ "validate_payment_transaction_insert": [
+  {
+   "md5": "a9b4ec9d1fa117e0739f5771881cfe92",
+   "clinic_filter": true,
+   "insurer_branch": true
+  }
+ ],
+ "triggers": {
+  "appointments": [
+   "a0_hi_premium_appointment",
+   "appointments_billing_mode_guard",
+   "appointments_commercial_snapshot_immutable",
+   "appointments_validate_commercial_price_snapshot",
+   "trg_appointment_recurrence_validate",
+   "trg_appointments_snapshot_immutable",
+   "trg_appointments_updated_at",
+   "trg_appointments_validate_import_provenance",
+   "trial_appointments"
+  ],
+  "lancamentos": [
+   "lancamentos_convenio_patient_guard",
+   "lancamentos_insurer_receivable_guard",
+   "trg_lancamentos_block_immutable",
+   "trg_lancamentos_updated_at",
+   "trial_financial_entries"
+  ],
+  "payment_transactions": [
+   "payment_transactions_insurer_guard",
+   "trg_payment_transactions_validate_insert",
+   "trial_payment_records"
+  ]
+ },
+ "constraints": [
+  "appointments.appointments_billing_mode_chk",
+  "appointments.appointments_commercial_price_snapshot_chk",
+  "appointments.appointments_deposit_hold_chk",
+  "appointments.appointments_duration_chk",
+  "appointments.appointments_recurrence_pair_chk",
+  "appointments.appointments_reschedule_self_chk",
+  "appointments.appointments_valor_ajuste_chk",
+  "appointments.appointments_valor_chk",
+  "lancamentos.lancamentos_auto_origin_chk",
+  "lancamentos.lancamentos_estorno_origin_chk",
+  "lancamentos.lancamentos_insurer_receivable_chk",
+  "lancamentos.lancamentos_paid_coerencia_chk",
+  "lancamentos.lancamentos_provider_expense_coherence_chk",
+  "lancamentos.lancamentos_valor_chk",
+  "lancamentos.lancamentos_valor_glosado_chk",
+  "lancamentos.lancamentos_valor_pago_chk",
+  "payment_transactions.payment_transactions_amount_chk",
+  "payment_transactions.payment_transactions_kind_coerencia_chk"
+ ],
+ "rls_hi": [
+  {
+   "relname": "hi_account_events",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_appointment_coverages",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_authorization_attachments",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_authorization_consumptions",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_authorization_events",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_authorization_items",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_authorizations",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_batch_events",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_batch_guides",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_batch_returns",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_batches",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_billing_gap_events",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_billing_gaps",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_clinic_settings",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_contract_imports",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_copayments",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_counters",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_credentials",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_files",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_gloss_appeal_items",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_gloss_appeals",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_glosses",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_guide_events",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_guide_items",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_guide_snapshots",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_guides",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_insurer_credentials",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_insurers",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_ledger_entries",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_memberships",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_payment_allocations",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_payments",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_payout_movements",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_payouts",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_plans",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_procedure_contracts",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_professional_profiles",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_sadt_request_events",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_sadt_request_items",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  },
+  {
+   "relname": "hi_sadt_requests",
+   "rls": true,
+   "force": true,
+   "policies": 1
+  }
+ ],
+ "r38_invariant": {
+  "ledger_rows": 14,
+  "clinic_mismatch": 0,
+  "clinics": 2
+ },
+ "counts": {
+  "appointments": 39,
+  "lancamentos": 28,
+  "payment_transactions": 14
+ },
+ "fingerprint_columns": {
+  "appointments": [
+   "id",
+   "clinic_id",
+   "unit_id",
+   "doctor_id",
+   "patient_id",
+   "procedure_id",
+   "scheduled_at",
+   "duration_min",
+   "status",
+   "valor",
+   "valor_ajustado",
+   "valor_ajuste_motivo",
+   "snapshot_procedure_name",
+   "snapshot_procedure_codigo",
+   "snapshot_procedure_categoria",
+   "snapshot_procedure_valor",
+   "snapshot_procedure_duracao_min",
+   "snapshot_doctor_nome",
+   "snapshot_doctor_crm",
+   "snapshot_doctor_especialidade",
+   "created_via",
+   "urgencia",
+   "faturamento_pendente",
+   "observacoes",
+   "created_by",
+   "rescheduled_from_appointment_id",
+   "slot_occupies_instant",
+   "slot_blocks_overlap",
+   "created_at",
+   "updated_at",
+   "recurrence_series_id",
+   "recurrence_occurrence",
+   "import_batch_id",
+   "import_source_reference",
+   "deposit_status",
+   "hold_expires_at",
+   "pricing_policy_mode",
+   "commercial_payment_method",
+   "commercial_installment_count",
+   "commercial_price_id"
+  ],
+  "lancamentos": [
+   "id",
+   "clinic_id",
+   "unit_id",
+   "tipo",
+   "descricao",
+   "valor",
+   "valor_pago",
+   "status",
+   "due_date",
+   "paid_at",
+   "patient_id",
+   "supplier_id",
+   "appointment_id",
+   "payment_method",
+   "created_via",
+   "reverses_lancamento_id",
+   "snapshot_procedure_name",
+   "snapshot_doctor_nome",
+   "created_by",
+   "created_at",
+   "updated_at",
+   "source_patient_charge_id",
+   "financial_expense_kind",
+   "provider_economics_revision",
+   "source_event_id",
+   "provider_payment_id"
+  ],
+  "payment_transactions": [
+   "id",
+   "clinic_id",
+   "lancamento_id",
+   "kind",
+   "amount",
+   "payment_method",
+   "occurred_at",
+   "original_payment_id",
+   "reason",
+   "created_by",
+   "created_at"
+  ]
+ },
+ "fingerprint": {
+  "appointments": "2c8942c923ad55abe9997de8bb766fb7",
+  "lancamentos": "5397b280d5eb97935994a12609f0c1d4",
+  "payment_transactions": "99028147c71ab55586a9d6afb1ca41ef"
+ },
+ "post": {
+  "appointments_non_particular": 0,
+  "lancamentos_with_hi": 0,
+  "hi_ledger_drift": 0,
+  "hi_guides": 0,
+  "period_audit": [
+   {
+    "classification": "verified_period",
+    "n": 12
+   }
+  ]
+ },
+ "activity": {
+  "active": 0,
+  "long_tx": 0,
+  "ddl_active": 0,
+  "sessions": 6
+ },
+ "exclusive_locks": 0,
+ "checks": [
+  {
+   "name": "ledger 159 linhas, última = 0158",
+   "ok": true,
+   "detail": {
+    "created_at": "1795036973857",
+    "tag": "0158_hi_copay_charge"
+   }
+  },
+  {
+   "name": "ledger: 144 linhas anteriores preservadas",
+   "ok": true
+  },
+  {
+   "name": "cauda inteira no ledger",
+   "ok": true,
+   "detail": [
+    "0144_hi_clinic_setup",
+    "0145_hi_memberships",
+    "0146_hi_authorizations",
+    "0147_hi_guides",
+    "0148_hi_coverage_copay",
+    "0149_hi_billing_gaps",
+    "0150_hi_batches",
+    "0151_hi_premium_gate",
+    "0152_hi_glosses_payments",
+    "0153_hi_ledger_bridge",
+    "0154_hi_premium_period_evidence",
+    "0155_ledger_payment_sum_by_clinic",
+    "0156_hi_sadt_requests",
+    "0157_hi_professional_payouts",
+    "0158_hi_copay_charge"
+   ]
+  },
+  {
+   "name": "arquivos sem linha = só as 6 históricas",
+   "ok": true,
+   "detail": [
+    "0033_messaging_connection_status [main,pr53,pr55]",
+    "0037_profiles_invite_and_crm [main,pr53,pr55]",
+    "0051_ai_conversations_panel [main,pr53,pr55]",
+    "0071_runtime_role_timeouts [main,pr53,pr55]",
+    "0093_ai_clinic_config_convenios [main,pr53,pr55]",
+    "0124_offer_2026_trial_deadline [main,pr53,pr55]"
+   ]
+  },
+  {
+   "name": "when do ledger = journal",
+   "ok": true,
+   "detail": []
+  },
+  {
+   "name": "_schema_version 0143–0158",
+   "ok": true,
+   "detail": [
+    "0143-tiss-catalog",
+    "0144-hi-clinic-setup",
+    "0145-hi-memberships",
+    "0146-hi-authorizations",
+    "0147-hi-guides",
+    "0148-hi-coverage-copay",
+    "0149-hi-billing-gaps",
+    "0150-hi-batches",
+    "0151-hi-premium-gate",
+    "0152-hi-glosses-payments",
+    "0153-hi-ledger-bridge",
+    "0154-hi-premium-period-evidence",
+    "0155-ledger-payment-sum-by-clinic",
+    "0156-hi-sadt-requests",
+    "0157-hi-professional-payouts",
+    "0158-hi-copay-charge"
+   ]
+  },
+  {
+   "name": "colunas novas presentes",
+   "ok": true,
+   "detail": [
+    "appointments.billing_mode",
+    "lancamentos.source_hi_guide_id",
+    "lancamentos.valor_glosado"
+   ]
+  },
+  {
+   "name": "0155 aplicada (soma pela clínica)",
+   "ok": true
+  },
+  {
+   "name": "CHECKs todos validados",
+   "ok": true,
+   "detail": []
+  },
+  {
+   "name": "RLS + FORCE + política em toda tabela hi_*",
+   "ok": true,
+   "detail": []
+  },
+  {
+   "name": "nenhum atendimento mudou de modalidade",
+   "ok": true
+  },
+  {
+   "name": "nenhum lançamento com valor de convênio",
+   "ok": true
+  },
+  {
+   "name": "hi_ledger_drift vazio",
+   "ok": true
+  },
+  {
+   "name": "contagens iguais ao pré-voo",
+   "ok": true,
+   "detail": {
+    "pre": {
+     "appointments": 39,
+     "lancamentos": 28,
+     "payment_transactions": 14
+    },
+    "post": {
+     "appointments": 39,
+     "lancamentos": 28,
+     "payment_transactions": 14
+    }
+   }
+  },
+  {
+   "name": "dados existentes intocados (md5 das colunas originais)",
+   "ok": true,
+   "detail": {
+    "pre": {
+     "appointments": "2c8942c923ad55abe9997de8bb766fb7",
+     "lancamentos": "5397b280d5eb97935994a12609f0c1d4",
+     "payment_transactions": "99028147c71ab55586a9d6afb1ca41ef"
+    },
+    "post": {
+     "appointments": "2c8942c923ad55abe9997de8bb766fb7",
+     "lancamentos": "5397b280d5eb97935994a12609f0c1d4",
+     "payment_transactions": "99028147c71ab55586a9d6afb1ca41ef"
+    }
+   }
+  },
+  {
+   "name": "R38: 0 linhas com clínica divergente",
+   "ok": true
+  }
+ ],
+ "verdict": "APROVADO"
+}

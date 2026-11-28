@@ -1,0 +1,113 @@
+name: Convênios — E2E no Preview (navegador remoto)
+
+# Playwright + Chromium no runner padrão do GitHub contra o PREVIEW desta branch (Vercel, banco e
+# Auth do projeto DEV). Autorizado pelo fundador em 17/11/2026: o notebook não roda Chromium.
+#
+# Como dispara: um push que mude `e2e/preview-run.json` (o pedido: quais specs, filtro e quais
+# arquivos da fixture cada variável aponta). Push sem mudança nesse arquivo não gasta minutos.
+#
+# Limites:
+#   - três segredos, todos do ambiente de Preview/DEV (confirmado pelo fundador em 17/11):
+#     `PREVIEW_E2E_BYPASS` (bypass de automação da proteção de deploy da Vercel),
+#     `PREVIEW_E2E_MAGIC` (segredo da prova assinada de que o Preview usa Auth e banco do DEV; os
+#     specs fazem a prova antes de qualquer passo) e `PREVIEW_E2E_BUNDLE` (URL do Preview, contas
+#     SINTÉTICAS e2e-hi-* e ids da fixture, em base64). Nenhuma credencial de banco, de Supabase,
+#     de cifra, de Asaas ou de produção vem para cá: a fixture é preparada fora, antes do pedido;
+#   - relé da fixture (23/11/2026): specs que mudam estado no meio da sessão (trial, suspensa, acesso
+#     desativado) ou leem o banco pedem isso por `e2e/preview-fixture-relay.mjs`. O pedido vira um
+#     status `e2e-fixture/request` do commit (por isso `statuses: write`); o executor do lado do
+#     DEV, fora do runner, confere a lista fechada (set-state, set-active, guide-state; só clínicas
+#     e2e-hi-*), executa e responde em `e2e-fixture/result`. O runner continua sem credencial de banco;
+#   - token do GitHub: leitura do código e escrita só de status de commit; nenhum deploy; nenhum trace, vídeo ou screenshot (podem levar
+#     cookie e cabeçalho); o único artefato é a saída em texto do Playwright;
+#   - sem nova tentativa automática: os specs são seriais e mudam estado.
+
+on:
+  push:
+    branches: [feat/convenios-tiss-20261110]
+    paths:
+      - 'e2e/preview-run.json'
+
+permissions:
+  contents: read
+  statuses: write
+
+concurrency:
+  group: convenios-preview-e2e
+  cancel-in-progress: false
+
+jobs:
+  # O pedido pode ter vários grupos de specs: cada grupo roda num runner próprio (outro IP, por causa
+  # do limite de logins por IP), um de cada vez (os grupos compartilham as contas sintéticas).
+  plan:
+    name: Convênios — grupos do pedido
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      groups: ${{ steps.groups.outputs.groups }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: groups
+        run: node -e "const r=require('./e2e/preview-run.json');const n=(r.groups??[r.specs]).length;console.log('groups='+JSON.stringify([...Array(n).keys()]))" >> "$GITHUB_OUTPUT"
+
+  preview-e2e:
+    name: Convênios — Playwright no Preview (DEV), grupo ${{ matrix.group }}
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        group: ${{ fromJSON(needs.plan.outputs.groups) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Dependências
+        run: pnpm install --frozen-lockfile
+
+      - name: Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Esperar o deploy do Preview deste commit (status "Vercel")
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in $(seq 1 60); do
+            state=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/status" \
+              -q '[.statuses[] | select(.context == "Vercel")][0].state // "none"')
+            echo "tentativa $i: Vercel=$state"
+            if [ "$state" = "success" ]; then sleep 45; exit 0; fi
+            if [ "$state" = "failure" ] || [ "$state" = "error" ]; then echo "deploy do Preview falhou"; exit 1; fi
+            sleep 20
+          done
+          echo "o deploy do Preview não ficou pronto em 20 minutos"; exit 1
+
+      - name: Executar o pedido (e2e/preview-run.json)
+        env:
+          PREVIEW_E2E_BUNDLE: ${{ secrets.PREVIEW_E2E_BUNDLE }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.PREVIEW_E2E_BYPASS }}
+          MAGIC_TOKEN_SECRET_DEV: ${{ secrets.PREVIEW_E2E_MAGIC }}
+          # Só para o relé da fixture (status do commit); o token do job não tem escrita de código.
+          GH_TOKEN: ${{ github.token }}
+          CI: '1'
+          PREVIEW_E2E_GROUP: ${{ matrix.group }}
+        run: node e2e/preview-run.mjs
+
+      - name: Saída do Playwright (texto, sem conta nem cookie)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: convenios-preview-e2e-${{ github.sha }}-grupo-${{ matrix.group }}
+          path: preview-e2e-output/
+          if-no-files-found: ignore
+          retention-days: 14

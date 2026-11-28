@@ -1,0 +1,31 @@
+{
+ "alvo": "DATABASE_URL_PROD",
+ "lido_em": "2026-11-27T05:00:50.799Z",
+ "read_only": true,
+ "db": "postgres",
+ "pg": "17.6",
+ "ledger": {
+  "n": 160,
+  "ultima_when": "1795036973858",
+  "ultimo_hash": "eb00a4e3dd45f89e7eef4dc2c95c577e7932f1f2131d5bfb4ff8f5e4570f5c74"
+ },
+ "tabelas_expostas_sem_rls": [],
+ "transacoes_longas": 0,
+ "locks_esperando": 0,
+ "tamanho": "37 MB",
+ "conexoes": "17/60",
+ "cron_heartbeats": {
+  "crons": 21,
+  "nao_success": 0,
+  "ultimo": "2026-11-27 05:00:43.362308+00"
+ },
+ "indices_invalidos": 0,
+ "constraints_nao_validadas": 1,
+ "tabelas_hi": 40,
+ "candidatas_presentes": {
+  "c0169": false,
+  "c0170": false,
+  "c0171": false,
+  "c59": false
+ }
+}

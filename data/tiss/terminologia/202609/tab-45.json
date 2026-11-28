@@ -1,0 +1,59 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "45",
+  "title": "Tabela 45 - Terminologia de status da solicitação",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 7,
+  "terms": [
+    {
+      "code": "1",
+      "term": "Autorizado",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "2",
+      "term": "Em análise",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3",
+      "term": "Negado",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "4",
+      "term": "Aguardando justificativa técnica do solicitante",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5",
+      "term": "Aguardando documentação do prestador",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "6",
+      "term": "Solicitação cancelada",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "7",
+      "term": "Autorizado parcialmente",
+      "startsOn": "2013-04-01",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    }
+  ]
+}

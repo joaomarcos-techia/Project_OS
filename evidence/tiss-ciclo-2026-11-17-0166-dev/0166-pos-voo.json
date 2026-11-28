@@ -1,0 +1,151 @@
+{
+ "mode": "post",
+ "at": "2026-11-17T23:11:30.910Z",
+ "code": {
+  "pr55": "087380af5e239ce7855e0d072cb4bdb6b3ff91cd"
+ },
+ "sha": {
+  "0165": "a3af4a973f14cc3fb3720423d4c03f71f32330024f028d07191f40f4077c64cb",
+  "0166": "ccf1639b4eccbdd50e5aa5b2f49a0b55d964ff8092dc47c09d77db61487025c6"
+ },
+ "checks": [
+  {
+   "name": "ledger com 167 linhas e última = 0166 (when 1795641773857)",
+   "ok": true,
+   "detail": {
+    "n": 167,
+    "last": "1795641773857"
+   }
+  },
+  {
+   "name": "última linha com o sha256 do arquivo 0166; a anterior é a 0165",
+   "ok": true,
+   "detail": [
+    "ccf1639b4ecc",
+    "a3af4a973f14"
+   ]
+  },
+  {
+   "name": "objetos da 0166 presentes (tabela, 2 funções, versão)",
+   "ok": true,
+   "detail": {
+    "has_table": true,
+    "new_funcs": 2,
+    "has_version": true,
+    "has_v165": true
+   }
+  },
+  {
+   "name": "RLS ligada e forçada, 1 política por clínica; authenticated SELECT, INSERT, UPDATE (sem DELETE); anon nada; vazia",
+   "ok": true,
+   "detail": {
+    "t": {
+     "rls": true,
+     "force": true,
+     "policies": [
+      "hi_authorization_alerts_tenant_access"
+     ],
+     "auth_grants": [
+      "INSERT",
+      "SELECT",
+      "UPDATE"
+     ],
+     "anon_grants": 0
+    },
+    "rows": 0
+   }
+  },
+  {
+   "name": "funções dos gatilhos: SECURITY DEFINER, sem EXECUTE para authenticated",
+   "ok": true,
+   "detail": [
+    {
+     "n": "hi_authorization_alert_insert_guard",
+     "definer": true,
+     "auth_exec": false
+    },
+    {
+     "n": "hi_authorization_alert_update_guard",
+     "definer": true,
+     "auth_exec": false
+    }
+   ]
+  },
+  {
+   "name": "os 2 gatilhos ligados",
+   "ok": true,
+   "detail": [
+    "hi_authorization_alerts_a_insert_guard:O",
+    "hi_authorization_alerts_a_update_guard:O"
+   ]
+  },
+  {
+   "name": "autorizações intocadas (mesmas linhas, estados e validades)",
+   "ok": true,
+   "detail": {
+    "n": 8
+   }
+  }
+ ],
+ "raw": {
+  "led": {
+   "n": 167,
+   "last": "1795641773857"
+  },
+  "tail": [
+   {
+    "hash": "ccf1639b4eccbdd50e5aa5b2f49a0b55d964ff8092dc47c09d77db61487025c6",
+    "at": "1795641773857"
+   },
+   {
+    "hash": "a3af4a973f14cc3fb3720423d4c03f71f32330024f028d07191f40f4077c64cb",
+    "at": "1795555373857"
+   }
+  ],
+  "obj": {
+   "has_table": true,
+   "new_funcs": 2,
+   "has_version": true,
+   "has_v165": true
+  },
+  "auths": {
+   "n": 8,
+   "d": "41434f2c1f45a5d402c53e95cc65bb71"
+  },
+  "outbox": 0,
+  "longTx": 0,
+  "heavy": [],
+  "post": {
+   "t": {
+    "rls": true,
+    "force": true,
+    "policies": [
+     "hi_authorization_alerts_tenant_access"
+    ],
+    "auth_grants": [
+     "INSERT",
+     "SELECT",
+     "UPDATE"
+    ],
+    "anon_grants": 0
+   },
+   "rows": 0,
+   "funcs": [
+    {
+     "n": "hi_authorization_alert_insert_guard",
+     "definer": true,
+     "auth_exec": false
+    },
+    {
+     "n": "hi_authorization_alert_update_guard",
+     "definer": true,
+     "auth_exec": false
+    }
+   ],
+   "trgs": [
+    "hi_authorization_alerts_a_insert_guard:O",
+    "hi_authorization_alerts_a_update_guard:O"
+   ]
+  }
+ }
+}

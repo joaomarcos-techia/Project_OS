@@ -12,6 +12,14 @@
  * Segurança: idêntica a schedule_appointment — paciente é SEMPRE ctx.patientId
  * (telefone verificado), políticas de identidade/maxDaysAhead/passado aplicadas.
  * NÃO cria a consulta: só prepara (mesma trilha de proposePendingAction).
+ *
+ * P11 (28/11/2026) — convênio: com `insurer_name`, o servidor resolve a operadora
+ * ATIVA da clínica pelo nome dito (nunca por id do modelo), o plano, a carteirinha
+ * que a recepção já cadastrou (só o id; o número nunca vem da conversa), o tipo de
+ * guia e a autorização pelos contratos vigentes, e confere a escolha como a agenda
+ * da recepção (`checkSchedulingChoice`). Convênio não tem sinal nem link de
+ * pagamento; o resumo só avisa que a recepção confere a carteirinha (e o aval da
+ * operadora, quando o contrato exige). Clínica sem o módulo: "é com a recepção".
  */
 import { z } from 'zod';
 
@@ -20,6 +28,27 @@ import { schedulingApiV1 } from '@/contexts/scheduling';
 /* eslint-enable boundaries/element-types */
 /* eslint-disable-next-line boundaries/element-types -- política de sinal usa a API pública de Payments. */
 import { paymentsApiV1 } from '@/contexts/payments';
+/* eslint-disable boundaries/element-types -- superfície pública do Convênios (P11), mesma exceção das APIs acima. */
+import {
+  AGENT_INSURANCE_TEXT,
+  agentChoiceVerdict,
+  agentInsuranceOptions,
+  checkSchedulingChoice,
+  getSchedulingInsuranceOptions,
+  insurerNotRecognizedReply,
+  insurerOrPrivateReply,
+  listPatientCardsForScheduling,
+  patientInsuranceIntent,
+  pickAgentMembership,
+  planNotRecognizedReply,
+  plansSaidByPatient,
+  resolveInsurerFromPatientText,
+  resolvePlanFromPatientText,
+  schedulingTermsForProcedure,
+  type SchedulingInsuranceChoice,
+} from '@/contexts/health-insurance';
+/* eslint-enable boundaries/element-types */
+import { metrics } from '@/lib/observability/metrics';
 
 import {
   anonymousSchedulingAllowed,
@@ -33,7 +62,7 @@ import {
   resolveRequestedDateTime,
 } from '../internal/relative-datetime';
 import { agentSlotFloor } from './list-slots';
-import { registerTool } from './registry';
+import { registerTool, type ToolContext } from './registry';
 
 const InputSchema = z.object({
   procedure_name: z
@@ -48,6 +77,18 @@ const InputSchema = z.object({
     .datetime({ offset: true })
     .optional()
     .describe('Horário desejado (ISO 8601 com offset). Omita para pegar o primeiro horário livre.'),
+  insurer_name: z
+    .string()
+    .max(120)
+    .optional()
+    .describe(
+      'Só quando o paciente quiser marcar PELO CONVÊNIO: o nome da operadora que ele disse (ex.: "Unimed"). Omita para particular. Nunca peça o número da carteirinha.',
+    ),
+  plan_name: z
+    .string()
+    .max(120)
+    .optional()
+    .describe('Plano do convênio, se o paciente disser. Omita se ele não souber.'),
 });
 
 const PreparedOutputSchema = z.object({
@@ -123,6 +164,186 @@ function matchesProcedure(
   );
 }
 
+/** De onde veio cada parte da escolha (gravado na ação preparada e na métrica do agendamento). */
+type InsuranceSource = {
+  insurer: 'patient_text';
+  plan: 'patient_text' | 'single_active' | 'card' | 'none';
+};
+
+/** Falas do paciente, em ordem, terminando no turno. */
+const patientTexts = (ctx: Pick<ToolContext, 'currentMessage' | 'recentPatientTexts'>) => [
+  ...(ctx.recentPatientTexts ?? []),
+  ctx.currentMessage,
+];
+
+type AgentInsurance =
+  | {
+      ok: true;
+      choice: SchedulingInsuranceChoice;
+      insurerName: string;
+      planName: string | null;
+      notices: string[];
+      source: InsuranceSource;
+    }
+  | {
+      ok: false;
+      output:
+        | { status: 'appointment_unavailable'; patient_message: string }
+        | { status: 'appointment_information_required'; patient_message: string };
+    };
+
+/**
+ * P11 — resolve e confere a escolha de convênio no servidor. Leituras pela superfície
+ * pública do Convênios (transações próprias, por clínica); falha ao consultar =
+ * fail-closed com a frase segura, sem criar nada.
+ */
+async function resolveAgentInsurance(
+  ctx: Pick<ToolContext, 'clinicId' | 'aiRequestId' | 'currentMessage' | 'recentPatientTexts'>,
+  patientId: string,
+  procedureId: string,
+  insurerName: string,
+  planName: string | undefined,
+): Promise<AgentInsurance> {
+  const unavailable = (patient_message: string): AgentInsurance => ({
+    ok: false,
+    output: { status: 'appointment_unavailable', patient_message },
+  });
+  const ask = (patient_message: string): AgentInsurance => ({
+    ok: false,
+    output: { status: 'appointment_information_required', patient_message },
+  });
+  try {
+    const options = agentInsuranceOptions(await getSchedulingInsuranceOptions(ctx.clinicId));
+    if (options.kind === 'not_available') return unavailable(options.reply);
+    const insurer = resolveInsurerFromPatientText(options, insurerName);
+    if (insurer.kind !== 'match') {
+      return ask(insurerNotRecognizedReply(options, insurer.kind === 'ambiguous'));
+    }
+    // A operadora precisa ter sido dita pelo PACIENTE (no turno ou nas últimas falas dele), e por último: o nome que
+    // só o modelo propôs, ou um "particular" dito depois, não vira convênio. Nada é preparado; o agente pergunta.
+    const texts = patientTexts(ctx);
+    const intent = patientInsuranceIntent(options, texts);
+    if (intent.kind !== 'insurer' || !intent.insurers.some((i) => i.id === insurer.insurer.id)) {
+      metrics.emit('ai_agent.insurance.not_declared', {
+        clinicId: ctx.clinicId,
+        aiRequestId: ctx.aiRequestId,
+        intent: intent.kind,
+      });
+      return ask(
+        intent.kind === 'insurer' || intent.kind === 'unclear'
+          ? insurerOrPrivateReply(intent.insurers)
+          : AGENT_INSURANCE_TEXT.insurerNotDeclared,
+      );
+    }
+    const fromArg = resolvePlanFromPatientText(options, insurer.insurer.id, planName);
+    if (fromArg === undefined) return ask(planNotRecognizedReply(options, insurer.insurer.id));
+    // Plano proposto pelo modelo e não escrito pelo paciente não vale: fica o único ativo, ou a carteirinha/recepção.
+    const planSaid =
+      fromArg !== null &&
+      plansSaidByPatient(options, insurer.insurer.id, texts).some((p) => p.id === fromArg.id);
+    const plan =
+      planName?.trim() && !planSaid
+        ? resolvePlanFromPatientText(options, insurer.insurer.id, undefined)
+        : fromArg;
+    const card = pickAgentMembership(
+      await listPatientCardsForScheduling(ctx.clinicId, patientId),
+      insurer.insurer.id,
+      plan?.id ?? null,
+    );
+    const planId = plan?.id ?? card?.planId ?? null;
+    const source: InsuranceSource = {
+      insurer: 'patient_text',
+      plan: plan
+        ? planName?.trim() && planSaid
+          ? 'patient_text'
+          : 'single_active'
+        : card?.planId
+          ? 'card'
+          : 'none',
+    };
+    const terms = await schedulingTermsForProcedure(ctx.clinicId, {
+      insurerId: insurer.insurer.id,
+      planId,
+      procedureId,
+    });
+    const choice: SchedulingInsuranceChoice = {
+      insurerId: insurer.insurer.id,
+      planId,
+      membershipId: card?.membershipId ?? null,
+      guideType: terms.guideType,
+    };
+    const verdict = agentChoiceVerdict({
+      refusal: await checkSchedulingChoice(ctx.clinicId, patientId, choice),
+      requiresAuthorization: terms.requiresAuthorization,
+    });
+    if (!verdict.allowed) {
+      // O motivo técnico é da recepção (métrica), nunca do paciente.
+      metrics.emit('ai_agent.insurance.refused', {
+        clinicId: ctx.clinicId,
+        aiRequestId: ctx.aiRequestId,
+        reason: verdict.internalReason,
+      });
+      return unavailable(verdict.reply);
+    }
+    const planLabel =
+      planId === null
+        ? null
+        : (options.insurers
+            .find((i) => i.id === insurer.insurer.id)
+            ?.plans.find((p) => p.id === planId)?.name ?? null);
+    return {
+      ok: true,
+      choice,
+      insurerName: insurer.insurer.name,
+      planName: planLabel,
+      notices: verdict.notices,
+      source,
+    };
+  } catch {
+    metrics.emit('ai_agent.insurance.check_failed', {
+      clinicId: ctx.clinicId,
+      aiRequestId: ctx.aiRequestId,
+      tool: 'prepare_appointment',
+    });
+    return unavailable(AGENT_INSURANCE_TEXT.unavailable);
+  }
+}
+
+/**
+ * P11 — o inverso: a marcação veio SEM convênio, mas o paciente citou por último uma operadora ativa da clínica (sem
+ * "particular" depois). Pergunta antes (nada preparado), para o "SIM" não confirmar um particular com sinal que ele
+ * não pediu. Com o módulo ligado, o resumo do particular diz "como particular". Só com as falas do turno real
+ * (`recentPatientTexts`): numa chamada direta da ferramenta, o particular segue exatamente como antes. Falha ao
+ * consultar = o particular segue como antes (a guarda não derruba o fluxo que já existia).
+ */
+async function privateBookingCheck(
+  ctx: Pick<ToolContext, 'clinicId' | 'aiRequestId' | 'currentMessage' | 'recentPatientTexts'>,
+): Promise<{ kind: 'unchanged' } | { kind: 'private_label' } | { kind: 'ask'; reply: string }> {
+  if (!ctx.recentPatientTexts) return { kind: 'unchanged' };
+  try {
+    const options = agentInsuranceOptions(await getSchedulingInsuranceOptions(ctx.clinicId));
+    if (options.kind !== 'options') return { kind: 'unchanged' };
+    const intent = patientInsuranceIntent(options, patientTexts(ctx));
+    if (intent.kind === 'insurer' || intent.kind === 'unclear') {
+      metrics.emit('ai_agent.insurance.dropped_by_model', {
+        clinicId: ctx.clinicId,
+        aiRequestId: ctx.aiRequestId,
+        intent: intent.kind,
+      });
+      return { kind: 'ask', reply: insurerOrPrivateReply(intent.insurers) };
+    }
+    return { kind: 'private_label' };
+  } catch {
+    metrics.emit('ai_agent.insurance.check_failed', {
+      clinicId: ctx.clinicId,
+      aiRequestId: ctx.aiRequestId,
+      tool: 'prepare_appointment',
+      stage: 'private',
+    });
+    return { kind: 'unchanged' };
+  }
+}
+
 const HOUR_MS = 60 * 60 * 1000;
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const moneyForMessage = (value: number): string => money.format(value).replace(/\u00a0/g, ' ');
@@ -141,7 +362,7 @@ registerTool({
   name: 'prepare_appointment',
   effect: 'mutation',
   description:
-    'Prepara uma marcação de atendimento novo de uma vez: resolve o serviço ou procedimento, profissional e horário. Passe procedure_name (omita se a clínica só tiver um) e scheduled_at (omita para o primeiro horário livre). Só PREPARA — o atendimento é criado depois com confirm_pending_action. Se retornar status="patient_registration_required", peça o nome completo para iniciar o cadastro; não encaminhe para humano nem tente agendar neste turno.',
+    'Prepara uma marcação de atendimento novo de uma vez: resolve o serviço ou procedimento, profissional e horário. Passe procedure_name (omita se a clínica só tiver um) e scheduled_at (omita para o primeiro horário livre). Para marcar pelo convênio, passe insurer_name com o nome que o PACIENTE disse (e plan_name, se ele disser); nunca sugira convênio nem plano. Só PREPARA — o atendimento é criado depois com confirm_pending_action. Se retornar status="patient_registration_required", peça o nome completo para iniciar o cadastro; não encaminhe para humano nem tente agendar neste turno.',
   inputSchema: InputSchema,
   outputSchema: OutputSchema,
   handler: async (input, ctx) => {
@@ -163,6 +384,16 @@ registerTool({
       identityAmbiguous: ctx.identityAmbiguous,
       canScheduleAnonymous: anonymousAllowed,
     });
+
+    // P11 — convênio é do PACIENTE cadastrado (a cobertura e a carteirinha são dele):
+    // sem cadastro, o cadastro vem antes, mesmo que a clínica marque particular sem ele.
+    const insurerName = input.insurer_name?.trim() || null;
+    if (insurerName && !ctx.patientId) {
+      return {
+        status: 'patient_registration_required' as const,
+        required_fields: REGISTRATION_REQUIRED_FIELDS,
+      };
+    }
 
     // 1. Resolve o procedimento (server-side; nunca confia num id do LLM).
     const procedures = await schedulingApiV1.listProcedures(ctx.clinicId, { limit: 50 });
@@ -206,6 +437,32 @@ registerTool({
         status: 'appointment_information_required' as const,
         patient_message: 'Informe qual atendimento ou serviço você deseja agendar.',
       };
+    }
+
+    // P11 — a escolha de convênio é conferida antes de procurar horário (falha cedo,
+    // sem resumo): operadora inativa, de outra clínica ou módulo desligado = nada preparado.
+    let insurance: Extract<AgentInsurance, { ok: true }> | null = null;
+    if (insurerName && ctx.patientId) {
+      const resolved = await resolveAgentInsurance(
+        ctx,
+        ctx.patientId,
+        procedure!.id,
+        insurerName,
+        input.plan_name,
+      );
+      if (!resolved.ok) return resolved.output;
+      insurance = resolved;
+    }
+    let privateLabel = false;
+    if (!insurance && ctx.patientId) {
+      const check = await privateBookingCheck(ctx);
+      if (check.kind === 'ask') {
+        return {
+          status: 'appointment_information_required' as const,
+          patient_message: check.reply,
+        };
+      }
+      privateLabel = check.kind === 'private_label';
     }
 
     // Retorno = o paciente já tem outro agendamento (mesma leitura do Payments ao
@@ -365,13 +622,18 @@ registerTool({
     // sinal pago pelo link e quanto fica para pagar na clínica. Mesma decisão do
     // `createDepositCharge`, sem efeito; dinheiro nunca tem sinal.
     const basePrice = procedure!.valorPadrao ?? 0;
-    const deposit = await paymentsApiV1.previewDepositForBooking({
-      clinicId: ctx.clinicId,
-      patientId: ctx.patientId,
-      basePrice,
-      isReturnVisit,
-      scheduledAt: new Date(scheduledAt),
-    });
+    // P11 — convênio não tem sinal nem link de pagamento (o banco também recusa
+    // recebível de convênio além da coparticipação confirmada).
+    const deposit = insurance
+      ? null
+      : await paymentsApiV1.previewDepositForBooking({
+          clinicId: ctx.clinicId,
+          patientId: ctx.patientId,
+          basePrice,
+          isReturnVisit,
+          scheduledAt: new Date(scheduledAt),
+        });
+    const when = appointmentTimeForPatient(scheduledAt, ctx.clinicTimeZone);
 
     // 3. Prepara (mesma trilha do schedule_appointment: pending action + confirmação).
     const pending = await proposePendingAction(ctx.tx, {
@@ -385,19 +647,21 @@ registerTool({
         procedureId: procedure!.id,
         scheduledAt,
         ...(deposit ? { depositAmount: deposit.amount } : {}),
+        ...(insurance ? { insurance: insurance.choice, insuranceSource: insurance.source } : {}),
       },
-      summary: `Agendar ${procedure!.descricao} para ${appointmentTimeForPatient(
-        scheduledAt,
-        ctx.clinicTimeZone,
-      )}${
-        deposit
-          ? `. Para confirmar o horário, o sinal de ${moneyForMessage(deposit.amount)} é pago pelo link que vamos enviar por aqui (o horário fica reservado por até 24 horas). O restante${
-              basePrice > deposit.amount
-                ? `, ${moneyForMessage(Math.round((basePrice - deposit.amount) * 100) / 100)},`
-                : ''
-            } pode ser pago na clínica, inclusive em dinheiro.`
-          : ''
-      }`,
+      summary: insurance
+        ? `Agendar ${procedure!.descricao} para ${when} pelo convênio ${insurance.insurerName}${
+            insurance.planName ? ` (plano ${insurance.planName})` : ''
+          }. ${insurance.notices.join(' ')}`
+        : `Agendar ${procedure!.descricao} para ${when}${privateLabel ? ' como particular' : ''}${
+            deposit
+              ? `. Para confirmar o horário, o sinal de ${moneyForMessage(deposit.amount)} é pago pelo link que vamos enviar por aqui (o horário fica reservado por até 24 horas). O restante${
+                  basePrice > deposit.amount
+                    ? `, ${moneyForMessage(Math.round((basePrice - deposit.amount) * 100) / 100)},`
+                    : ''
+                } pode ser pago na clínica, inclusive em dinheiro.`
+              : ''
+          }`,
     });
     return {
       status: 'appointment_prepared' as const,

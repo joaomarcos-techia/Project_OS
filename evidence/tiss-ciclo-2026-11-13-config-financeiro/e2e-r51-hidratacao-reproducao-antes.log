@@ -1,0 +1,38 @@
+
+Running 4 tests using 1 worker
+
+  ok 1 [chromium] › e2e\hydration-r51-preview.spec.ts:99:1 › o Preview usa o projeto DEV (prova assinada antes de qualquer escrita) (1.5s)
+  ok 2 [chromium] › e2e\hydration-r51-preview.spec.ts:104:1 › recepção põe um paciente na sala de espera (encaixe de convênio) (22.7s)
+R51 médica: ["/consultorio: Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environme","/consultorio: Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environme"]
+  x  3 [chromium] › e2e\hydration-r51-preview.spec.ts:125:1 › médica: consultório com paciente esperando, relógio adiantado e outro fuso — sem #418 (desktop e celular) (57.0s)
+  -  4 [chromium] › e2e\hydration-r51-preview.spec.ts:133:1 › gestora: convênio e financeiro, relógio adiantado e outro fuso — sem #418 (desktop e celular)
+
+
+  1) [chromium] › e2e\hydration-r51-preview.spec.ts:125:1 › médica: consultório com paciente esperando, relógio adiantado e outro fuso — sem #418 (desktop e celular) 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 4
+
+    - Array []
+    + Array [
+    +   "/consultorio: Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environme",
+    +   "/consultorio: Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environme",
+    + ]
+
+      128 |   const errors = [...(await sweep(browser, 'cfg-medica', routes)), ...(await sweep(browser, 'cfg-medica', ['/consultorio', '/agenda'], MOBILE))];
+      129 |   console.log('R51 médica: ' + JSON.stringify(errors));
+    > 130 |   expect(errors).toEqual([]);
+          |                  ^
+      131 | });
+      132 |
+      133 | test('gestora: convênio e financeiro, relógio adiantado e outro fuso — sem #418 (desktop e celular)', async ({ browser }) => {
+        at C:\dev\Qoro_convenios_tiss_20261110\e2e\hydration-r51-preview.spec.ts:130:18
+
+    Error Context: test-results\hydration-r51-preview-médi-26abe--sem-418-desktop-e-celular--chromium\error-context.md
+
+  1 failed
+    [chromium] › e2e\hydration-r51-preview.spec.ts:125:1 › médica: consultório com paciente esperando, relógio adiantado e outro fuso — sem #418 (desktop e celular) 
+  1 did not run
+  2 passed (1.4m)

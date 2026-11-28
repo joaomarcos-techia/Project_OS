@@ -1,0 +1,437 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "42",
+  "title": "Tabela 42 - Terminologia de regiões da boca",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 61,
+  "terms": [
+    {
+      "code": "AS",
+      "term": "Arco Superior",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "AI",
+      "term": "Arco Inferior",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "HASD",
+      "term": "Hemi-Arco Superior Direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "HASE",
+      "term": "Hemi-Arco Superior Esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "HAID",
+      "term": "Hemi-Arco Inferior Direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "HAIE",
+      "term": "Hemi-Arco Inferior Esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "ASAI",
+      "term": "Arcadas Superiores e inferiores",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "S1",
+      "term": "Sextante superior posterior direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "S2",
+      "term": "Sextante superior anterior",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "S3",
+      "term": "Sextante superior posterior esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "S4",
+      "term": "Sextante inferior posterior esquerdo",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "S5",
+      "term": "Sextante inferior anterior",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "S6",
+      "term": "Sextante inferior posterior direito",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "LG",
+      "term": "Língua",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "CL",
+      "term": "Comissura labial",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "AB",
+      "term": "Assoalho de boca",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "PA",
+      "term": "Palato",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "MJ",
+      "term": "Mucosa jugal",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "PD",
+      "term": "Palato duro",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "PM",
+      "term": "Palato mole",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "RM",
+      "term": "Região retromolar",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "MA",
+      "term": "Mucosa alveolar",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "GI",
+      "term": "Gengiva inserida",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "PT",
+      "term": "Parótida",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "TP",
+      "term": "Tonsilas palatinas",
+      "startsOn": "2006-11-16",
+      "endsOn": null,
+      "implantationEndsOn": "2006-11-16"
+    },
+    {
+      "code": "RIS",
+      "term": "Região dos Incisivos centrais superiores",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RCSD",
+      "term": "Região do canino e lateral superior direito",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RPSD",
+      "term": "Região dos pré-molares superiores direito",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RMSD",
+      "term": "Região dos molares superiores direito",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RCSE",
+      "term": "Região do canino e lateral superior esquerdo",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RPSE",
+      "term": "Região dos pré-molares superiores esquerdo",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RMSE",
+      "term": "Região dos molares superiores esquerdo",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RII",
+      "term": "Região dos incisivos inferiores",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RCID",
+      "term": "Região de canino inferior direito",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RPID",
+      "term": "Região dos pré-molares inferiores direito",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RMID",
+      "term": "Região dos molares inferiores direito",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RCIE",
+      "term": "Região de canino inferior esquerdo",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RPIE",
+      "term": "Região dos pré-molares inferiores esquerdo",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RMIE",
+      "term": "Região dos molares inferiores esquerdo",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RMD",
+      "term": "Região dos molares lado direito",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RME",
+      "term": "Região dos molares lado esquerdo",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RPD",
+      "term": "Região dos pré-molares lado direito",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RPE",
+      "term": "Região dos pré-molares lado esquerdo",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RMPE",
+      "term": "Região dos molares e pré-molares lado esquerdo",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RMPD",
+      "term": "Região dos molares e pré-molares lado direito",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "SM",
+      "term": "Região do assoalho do seio maxilar",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "TU",
+      "term": "Região do Túber",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "SI",
+      "term": "Região de Sínfise",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "FLI",
+      "term": "Freio lingual",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "FLA",
+      "term": "Freios labiais",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "UV",
+      "term": "Úvula",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "PP",
+      "term": "Pregas palatinas",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "PI",
+      "term": "Papila incisiva",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "LS",
+      "term": "Lábio Superior",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "LI",
+      "term": "Lábio inferior",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RL",
+      "term": "Região lingual",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RP",
+      "term": "Região palatina",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RV",
+      "term": "Região vestibular",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RSMD",
+      "term": "Região Sub-Mandibular Direita",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RSME",
+      "term": "Região Sub-Mandibular Esquerda",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    },
+    {
+      "code": "RSL",
+      "term": "Região Sub-Lingual",
+      "startsOn": "2007-05-11",
+      "endsOn": null,
+      "implantationEndsOn": "2007-05-11"
+    }
+  ]
+}

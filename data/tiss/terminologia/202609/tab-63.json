@@ -1,0 +1,227 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "63",
+  "title": "Tabela 63 - Grupos de procedimentos e itens assistenciais para envio de dados para ANS",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 31,
+  "terms": [
+    {
+      "code": "001",
+      "term": "ANATOMIA PATOLÓGICA E CITOPATOLOGIA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "002",
+      "term": "ANESTESIAS",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "003",
+      "term": "DIAGNÓSTICO POR IMAGEM - OUTROS",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "004",
+      "term": "DIAGNÓSTICO POR IMAGEM - RX",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "005",
+      "term": "ENDOSCOPIA DIAGNÓSTICA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "006",
+      "term": "ENDOSCOPIA INTERVENCIONISTA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "007",
+      "term": "EXAMES RADIOLÓGICOS EM ODONTOLOGIA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "008",
+      "term": "GENÉTICA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "009",
+      "term": "MEDICINA LABORATORIAL",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "010",
+      "term": "MEDICINA NUCLEAR",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "011",
+      "term": "MEDICINA TRANSFUCIONAL",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "012",
+      "term": "MÉTODOS INTERVENCIONISTAS / TERAPÊUTICOS POR IMAGEM",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "013",
+      "term": "OUTROS EXAMES E PROCEDIMENTOS",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "014",
+      "term": "PROCEDIMENTOS DE ASSISTÊNCIA SOCIAL",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "015",
+      "term": "PROCEDIMENTOS DE ENFERMAGEM",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "016",
+      "term": "PROCEDIMENTOS DE FONOAUDIOLOGIA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "017",
+      "term": "PROCEDIMENTOS DE NUTRIÇÃO",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "018",
+      "term": "PROCEDIMENTOS EM FISIOTERAPIA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "019",
+      "term": "PROCEDIMENTOS EM PSICOTERAPIA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "020",
+      "term": "PROCEDIMENTOS EM TERAPIA OCUPACIONAL",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "021",
+      "term": "RADIOTERAPIA MEGAVOLTAGEM",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "022",
+      "term": "RADIOTERAPIA OUTRAS TÉCNICAS",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "023",
+      "term": "RESSONÂNCIA MAGNÉTICA DIAGNÓSTICA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "024",
+      "term": "RESSONÂNCIA MAGNÉTICA INTERVENCIONISTA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "025",
+      "term": "TOMOGRAFIA COMPUTADORIZADA DIAGNÓSTICA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "026",
+      "term": "TOMOGRAFIA COMPUTADORIZADA INTERVENCIONISTA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "027",
+      "term": "ULTRA-SONOGRAFIA DIAGNÓSTICA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "028",
+      "term": "ULTRA-SONOGRAFIA INTERVENCIONISTA",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "029",
+      "term": "MATERIAIS E OPME",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "030",
+      "term": "MEDICAMENTOS",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "031",
+      "term": "DIÁRIAS, TAXAS E GASES MEDICINAIS",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    }
+  ]
+}

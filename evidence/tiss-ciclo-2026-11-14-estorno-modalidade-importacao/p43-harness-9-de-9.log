@@ -1,0 +1,10 @@
+PASS 1: particular → convênio com o link do sinal aberto: modalidade, cobertura (ready) e evento numa transação; o worker anula o link no Asaas e a cobrança vira "cancelada"; recebível do valor cheio continua recusado pelo banco
+PASS 2: → convênio com sinal já PAGO: recusado com orientação (decidir o dinheiro no Caixa); modalidade, cobertura, cobrança e eventos intactos
+PASS 3: carteirinha de OUTRO paciente → recusada; sem operadora → recusada; o atendimento continua particular
+PASS 4: convênio → particular: cobertura "cancelada" com operadora e carteirinha no histórico (versão nova), nenhuma cobrança criada; voltar para convênio reaproveita a mesma cobertura (outra versão), sem erro na coparticipação
+PASS 5: em atendimento: o serviço recusa com orientação (correção do atendimento) e o banco recusa a mesma troca feita direto (gatilho 0148)
+PASS 6: outra clínica não acha o atendimento; sem o módulo ou com a assinatura suspensa, virar convênio é recusado — e voltar para particular continua possível (não prende a operação)
+PASS 7: duas trocas simultâneas: uma vence, a outra vê "já é convênio" (atendimento travado); UM evento, UMA cobertura
+PASS 8: remarcar convênio (R50): o novo horário continua convênio com a MESMA carteirinha e cobertura rederivada, a do antigo vira "cancelada" e a cópia é auditada; reentrega não duplica; com a carteirinha desativada o novo fica convênio (incomplete), nunca particular
+PASS 9: o evento da troca reprocessado à força: a cobrança já cancelada não é tocada e o Asaas não é chamado de novo
+9/9 provas do P4.3 passaram (Postgres descartável, Asaas simulado na fronteira HTTP).

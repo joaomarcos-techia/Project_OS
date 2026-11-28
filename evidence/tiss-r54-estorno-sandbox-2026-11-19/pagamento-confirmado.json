@@ -1,0 +1,94 @@
+{
+ "quando": "2026-11-19T02:56Z",
+ "ambiente": "Asaas Sandbox + Preview #55 (DEV)",
+ "checkout": "5faa25a3…326b",
+ "clinica": "e2e-hi-config-* (sintética)",
+ "asaas": {
+  "pagamento": {
+   "http": 200,
+   "value": 10,
+   "netValue": 9.32,
+   "status": "CONFIRMED",
+   "billingType": "CREDIT_CARD",
+   "confirmedDate": "2026-11-18",
+   "paymentDate": null,
+   "clientPaymentDate": "2026-11-18",
+   "customer": "cus_0000…8817",
+   "externalReference": null,
+   "refunds": null,
+   "deleted": false
+  },
+  "estornos": "nenhum",
+  "pagamentosDoCheckout": 1
+ },
+ "qoro": {
+  "cobranca": {
+   "status": "paid",
+   "amount": "10.00",
+   "payment": "pay_0_u1…iroo",
+   "paidAt": "2026-11-19 02:55:59.11+00",
+   "refundedAt": null,
+   "gross": "10.00",
+   "net": "9.32",
+   "fee": "0.68",
+   "billingType": "CREDIT_CARD",
+   "kind": "remainder",
+   "sameClinic": true
+  },
+  "webhooks": [
+   {
+    "event": "evt_15e4…3995",
+    "type": "PAYMENT_CONFIRMED",
+    "processedAt": "2026-11-19 02:55:59.764544+00"
+   },
+   {
+    "event": "evt_20f7…3991",
+    "type": "CHECKOUT_PAID",
+    "processedAt": "2026-11-19 02:56:03.610065+00"
+   }
+  ],
+  "baixasDoRecebivel": [
+   {
+    "kind": "payment",
+    "amount": "10.00",
+    "method": "cartao_credito",
+    "at": "2026-11-19 02:55:59.11+00",
+    "refundOf": null
+   }
+  ],
+  "livro": [
+   {
+    "tipo": "receber",
+    "valor": "10.00",
+    "valorPago": "10.00",
+    "valorGlosado": "0.00",
+    "status": "pago",
+    "paidAt": "2026-11-19 02:55:59.11+00",
+    "linkedToCharge": false,
+    "providerPayment": null
+   }
+  ],
+  "despesaTarifa": {
+   "tipo": "pagar",
+   "valor": "0.68",
+   "status": "pago"
+  },
+  "coparticipacao": {
+   "status": "paid",
+   "chargeable_cents": 1000,
+   "received_cents": 1000,
+   "confirmed_cents": 1000
+  },
+  "auditoria": [
+   "2026-11-19 02:56:06 health_insurance.copay.synced_from_payment"
+  ]
+ },
+ "cobranca45": {
+  "status": "paid",
+  "amount": "45.00",
+  "paidAt": "2026-11-13 20:57:28.441+00",
+  "refundedAt": null,
+  "payment": "pay_0_ov…w9n6"
+ },
+ "outrasClinicasAfetadas": 0
+}

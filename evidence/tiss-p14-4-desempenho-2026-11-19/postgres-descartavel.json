@@ -1,0 +1,228 @@
+{
+ "at": "2026-11-19T10:08:22.734Z",
+ "node": "v22.23.4",
+ "platform": "win32/x64",
+ "tuss": {
+  "tuss22": {
+   "termos": 5969,
+   "ms": 362.4
+  },
+  "todas": {
+   "termos": 7331,
+   "ms": 820.5
+  }
+ },
+ "pico": {
+  "producao": {
+   "tick": {
+    "lote": 50,
+    "paralelismo": 5,
+    "cron": "1 min"
+   },
+   "ondas": [
+    {
+     "onda": 1,
+     "conclusoesMs": 3114.9,
+     "pendentesAntesDoTick": {
+      "scheduling.appointment.checked_in": 50,
+      "scheduling.appointment.completed": 50,
+      "scheduling.appointment.started": 50
+     },
+     "tickMs": 321.4,
+     "tratadosNoTick": 50,
+     "falhasNoTick": 0,
+     "pendentesDepoisDoTick": 100
+    },
+    {
+     "onda": 2,
+     "conclusoesMs": 3109.7,
+     "pendentesAntesDoTick": {
+      "scheduling.appointment.checked_in": 83,
+      "scheduling.appointment.completed": 84,
+      "scheduling.appointment.started": 83
+     },
+     "tickMs": 209.1,
+     "tratadosNoTick": 50,
+     "falhasNoTick": 0,
+     "pendentesDepoisDoTick": 200
+    },
+    {
+     "onda": 3,
+     "conclusoesMs": 3160.9,
+     "pendentesAntesDoTick": {
+      "scheduling.appointment.checked_in": 116,
+      "scheduling.appointment.completed": 117,
+      "scheduling.appointment.started": 117
+     },
+     "tickMs": 211.3,
+     "tratadosNoTick": 50,
+     "falhasNoTick": 0,
+     "pendentesDepoisDoTick": 300
+    }
+   ],
+   "conclusaoParaGuia": {
+    "p50": 45.5,
+    "p95": 132.6,
+    "max": 231,
+    "n": 150
+   },
+   "eventosDaReserva": 450,
+   "piorAtrasoMin": 7,
+   "minutosExtrasDeCron": 6,
+   "sobrouPendenteOuFalho": 0,
+   "piorTickMs": 321.4
+  },
+  "lote200": {
+   "tick": {
+    "lote": 200,
+    "paralelismo": 5,
+    "cron": "1 min"
+   },
+   "ondas": [
+    {
+     "onda": 1,
+     "conclusoesMs": 2978.8,
+     "pendentesAntesDoTick": {
+      "scheduling.appointment.checked_in": 50,
+      "scheduling.appointment.completed": 50,
+      "scheduling.appointment.started": 50
+     },
+     "tickMs": 829.1,
+     "tratadosNoTick": 150,
+     "falhasNoTick": 0,
+     "pendentesDepoisDoTick": 0
+    },
+    {
+     "onda": 2,
+     "conclusoesMs": 4250.9,
+     "pendentesAntesDoTick": {
+      "scheduling.appointment.checked_in": 50,
+      "scheduling.appointment.completed": 50,
+      "scheduling.appointment.started": 50
+     },
+     "tickMs": 2150.7,
+     "tratadosNoTick": 150,
+     "falhasNoTick": 0,
+     "pendentesDepoisDoTick": 0
+    },
+    {
+     "onda": 3,
+     "conclusoesMs": 3327.5,
+     "pendentesAntesDoTick": {
+      "scheduling.appointment.checked_in": 50,
+      "scheduling.appointment.completed": 50,
+      "scheduling.appointment.started": 50
+     },
+     "tickMs": 428.7,
+     "tratadosNoTick": 150,
+     "falhasNoTick": 0,
+     "pendentesDepoisDoTick": 0
+    }
+   ],
+   "conclusaoParaGuia": {
+    "p50": 52.9,
+    "p95": 139.7,
+    "max": 196.2,
+    "n": 150
+   },
+   "eventosDaReserva": 450,
+   "piorAtrasoMin": 1,
+   "minutosExtrasDeCron": 0,
+   "sobrouPendenteOuFalho": 0,
+   "piorTickMs": 2150.7
+  }
+ },
+ "lista": {
+  "guias": 10000,
+  "cargaMs": 3469.2,
+  "porFiltro": {
+   "sem filtro": {
+    "total": 10000,
+    "p50": 12.9,
+    "p95": 16,
+    "max": 16.4
+   },
+   "pendentes": {
+    "total": 1685,
+    "p50": 5.4,
+    "p95": 7.3,
+    "max": 7.6
+   },
+   "faturadas": {
+    "total": 2772,
+    "p50": 7.3,
+    "p95": 10.5,
+    "max": 11.1
+   },
+   "operadora": {
+    "total": 3233,
+    "p50": 7.5,
+    "p95": 8.8,
+    "max": 9
+   },
+   "operadora + desfecho": {
+    "total": 1848,
+    "p50": 6.6,
+    "p95": 8.5,
+    "max": 8.7
+   },
+   "busca pelo número": {
+    "total": 1000,
+    "p50": 20.1,
+    "p95": 22.1,
+    "max": 24.1
+   },
+   "busca pelo paciente": {
+    "total": 5,
+    "p50": 19.3,
+    "p95": 23.2,
+    "max": 23.6
+   },
+   "página 100": {
+    "total": 10000,
+    "p50": 18.1,
+    "p95": 19.6,
+    "max": 20.1
+   }
+  },
+  "p95Geral": 20.8
+ },
+ "xml": {
+  "lote": {
+   "modo": "lote",
+   "rssInicialMb": 74,
+   "lote100": {
+    "consulta": {
+     "bytes": 120246,
+     "primeiraMs": 106,
+     "seguintesP95Ms": 34
+    },
+    "sp_sadt": {
+     "bytes": 654846,
+     "primeiraMs": 42.2,
+     "seguintesP95Ms": 41.3
+    }
+   },
+   "rssPicoMb": 149
+  },
+  "mil": {
+   "modo": "mil",
+   "rssInicialMb": 74,
+   "mil": {
+    "bytes": 1091775,
+    "ms": 148.6
+   },
+   "rssPicoMb": 126
+  }
+ },
+ "pdf": {
+  "consulta": {
+   "primeiroMs": 278.7,
+   "seguintesP95Ms": 164.9
+  },
+  "sp_sadt": {
+   "primeiroMs": 538,
+   "seguintesP95Ms": 475
+  }
+ }
+}

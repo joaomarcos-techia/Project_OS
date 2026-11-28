@@ -1,0 +1,13 @@
+# scripts/security/migration-final-order-db.ts — 27/11/2026, Postgres 17.5 descartável local (Windows)
+# PR64_REF=74823d64 (0168 lida do #64) · PR59_REF=c6e91bf1 (candidata do #59 na posição 0172, só no descartável)
+PASS 1: bytes: 0168 (#64 74823d64), 0169–0171 e a do #59 (c6e91bf1) iguais ao manifesto
+PASS 2: 173 arquivos aplicados na ordem 0000–0167 (com a 0159) → 0168 → 0169 → 0170 → 0171 → 0172; objetos de cada uma presentes
+PASS 3: um verificador, duas trilhas: clínica ok (15 relações) e plataforma ok (1)
+PASS 4: audit_events e super_admin_actions: INSERT continua; UPDATE, DELETE e TRUNCATE recusados (42501) para o dono, com e sem replica
+PASS 5: 5 adulterações do dono na trilha da plataforma acusadas pelo verificador e desfeitas
+PASS 6: reversão da 0171 remove só a barreira da clínica; a da plataforma (0172) continua instalada e recusando
+ORDEM FINAL: 6/6 PASS
+
+# Observação da rodada: UPDATE sem mudança real (SET action = action) em audit_events NÃO é recusado — a 0171 só
+# recusa alteração de conteúdo (a anonimização LGPD é a única alteração aceita; linha idêntica não altera nada).
+# A prova usa alteração real (SET action = 'adulterado').

@@ -1,5 +1,6 @@
 'use server';
 
+import { historicalCoveragePort } from '@/contexts/health-insurance';
 import { importAppointmentHistory } from '@/contexts/scheduling/actions';
 
 export type ImportHistoryState = {
@@ -40,10 +41,21 @@ export async function importAppointmentHistoryForm(
   }
 
   try {
-    const result = await importAppointmentHistory({ source, justification, items }, idempotencyKey);
+    // P4.7-b: o Convênios valida e grava as linhas de convênio histórico (nunca gera guia nem cobrança).
+    const result = await importAppointmentHistory(
+      { source, justification, items },
+      idempotencyKey,
+      {
+        historicalCoverage: historicalCoveragePort,
+      },
+    );
+    const convenio =
+      result.historicalCoverages > 0
+        ? ` ${result.historicalCoverages} de convênio, registrado(s) só como histórico (sem guia e sem cobrança).`
+        : '';
     return {
       error: null,
-      message: `Lote ${result.batchId}: ${result.importedAppointments} atendimento(s) importado(s).`,
+      message: `Lote ${result.batchId}: ${result.importedAppointments} atendimento(s) importado(s).${convenio}`,
     };
   } catch (error) {
     return {

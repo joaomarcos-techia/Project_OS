@@ -1,0 +1,4 @@
+PASS 1: cinco atendimentos de convênio, um por estado administrativo (pronta, incompleta, aguardando autorização, negada, senha vencida), com a pendência e o responsável
+PASS 2: em todos os estados o atendimento passa por chegada, atendimento, prontuário assinado e conclusão pelo caminho real, sem recusa vinda de Convênios
+PASS 3: depois da conclusão, a pronta vira guia pronta para conferir; as outras viram pendência de faturamento com o responsável (no máximo guia "pendente de dados", nunca conferível; sem cobrança ao paciente); todos continuam "atendido"
+3/3 provas dos estados administrativos da cobertura (P5.1).

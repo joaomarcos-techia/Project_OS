@@ -416,7 +416,7 @@ export default async function FinanceiroPage({ searchParams }: { searchParams: P
                   {diasVencido(l) === 0 && l.status === 'parcial' ? (
                     <Badge tone="blue">
                       <CircleDot aria-hidden="true" className="size-3 shrink-0" />
-                      Parcial · {formatBRL(l.valor - l.valorPago)} em aberto
+                      Parcial · {formatBRL(l.valor - l.valorPago - l.valorGlosado)} em aberto
                     </Badge>
                   ) : (
                     <PaymentStatusBadge

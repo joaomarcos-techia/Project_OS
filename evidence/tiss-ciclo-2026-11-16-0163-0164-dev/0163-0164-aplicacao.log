@@ -1,0 +1,12 @@
+[launcher] variáveis no ambiente do aplicador: APPDATA, ComSpec, DATABASE_URL, HOMEDRIVE, HOMEPATH, LOCALAPPDATA, NODE_ENV, NUMBER_OF_PROCESSORS, OS, PATH, PATHEXT, PROCESSOR_ARCHITECTURE, Path, SYSTEMROOT, SystemRoot, TEMP, TMP, USERPROFILE, windir
+[migrate:dev-limited] 2026-11-16T07:23:57.915Z alvo: postgresql://postgres.pqhkirrszzpwezdaqrai:***@aws-1-us-west-1.pooler.supabase.com:5432/postgres?sslmode=require
+[migrate:dev-limited] 2026-11-16T07:23:59.947Z exceções externas: 0136_trial_resource_limits, 0137_trial_service_role_privileges, 0138_saas_gateway_bindings, 0139_saas_gateway_recontracts, 0140_saas_recurring_payment_observations, 0141_saas_scheduled_plan_changes, 0142_saas_review_replays, 0159_saas_period_snapshot
+[migrate:dev-limited] 2026-11-16T07:24:04.213Z composição antes: ok, pendentes 2
+[migrate:dev-limited] 2026-11-16T07:24:04.389Z ledger antes: 163 linhas, última 1795296173857 (0162_hi_permission_matrix)
+[migrate:dev-limited] 2026-11-16T07:24:04.389Z pendentes (2): 0163_hi_payout_reviews, 0164_hi_module_switch_guard
+[migrate:dev-limited] 2026-11-16T07:24:04.916Z sessão: lock_timeout=2s statement_timeout=1min
+[migrate:dev-limited] 2026-11-16T07:24:15.904Z ledger depois: 165 linhas, última 1795468973857 (0164_hi_module_switch_guard) em 10814 ms
+[migrate:dev-limited] 2026-11-16T07:24:20.308Z composição depois: ok, pendentes 0
+[migrate:dev-limited] 2026-11-16T07:24:20.308Z ok
+[launcher] aplicador terminou com código 0 em 24126 ms
+[observador] 12 amostras (2 s); máx. sessões esperando lock: 0; maior espera: 0 s; amostras com AccessExclusive do migrador: 4

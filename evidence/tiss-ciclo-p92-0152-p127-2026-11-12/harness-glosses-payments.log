@@ -1,0 +1,18 @@
+PASS: glosa parcial do demonstrativo (item, tabela 38): guia "parcialmente glosada"; glosa em aberto NÃO é perda (pendente continua R$ 150,00)
+PASS: retorno duplicado e reprocessamento: a mesma glosa (mesma chave) entra uma vez; a mesma chave com outro valor é conflito, nunca soma
+PASS: sem dupla contagem: pago + glosa em aberto + glosa definitiva nunca passa do faturado, por item e por guia (a glosa de R$ 50 reserva R$ 50)
+PASS: pagamento parcial nunca quita: guia "parcialmente paga" com R$ 60 pendentes; conciliar é recusado enquanto houver pendente ou glosa em aberto
+PASS: glosa definitiva: só uma pessoa aceita, com motivo (o sistema não); só ela reduz o que a operadora deve; decidida não volta; pago + definitiva = faturado → conciliada por uma pessoa e encerrada; guia encerrada não recebe mais nada
+PASS: glosa integral → recurso com justificativa de uma pessoa (sistema e texto curto recusados; mesma chave não duplica) → apresentado só com protocolo ou evidência → resposta parcial: R$ 90 revertidos, R$ 60 definitivos → pagamento depois do recurso fecha a conta (pendente 0)
+PASS: glosa revertida: valor volta a ser devido (pendente R$ 150) e a guia volta a "em análise" até o pagamento — revertida não é paga
+PASS: pagamento integral → "paga"; o mesmo pagamento (mesma chave) entra uma vez; o mesmo demonstrativo com outra chave é recusado; estorno é lançamento COMPENSATÓRIO (a alocação original fica, imutável), idempotente, e a guia volta a "em análise"
+PASS: pagamento por lote: valor diferente do saldo NÃO é rateado (fica "não conciliado", divergência visível); valor exato quita cada guia; a conciliação posterior por guia é idempotente e nunca aloca mais que o recebido
+PASS: concorrência: 6 operações simultâneas (3 pagamentos e 3 glosas de R$ 150) na mesma guia → 1 vence, as outras são recusadas pelo saldo (guia travada); 3 registros simultâneos com a mesma chave → 1 pagamento
+PASS: falha transacional no meio do pagamento: nem o pagamento, nem a alocação, nem o estado da guia ficam; reprocessado com a mesma chave, entra uma vez
+PASS: lote cancelado antes do envio e guia substituída: glosa e pagamento recusados (só guia enviada num lote enviado e ainda viva recebe desfecho)
+PASS: acesso entre clínicas: a função recusa clínica fora da sessão (42501); a clínica B não acha a guia da A (23503) nem estorna pagamento dela; RLS: B não vê glosa, pagamento, conta nem histórico da A
+PASS: runtime não escreve nas tabelas de glosa, pagamento e conta (só pelas funções), nem leva a guia a "paga" por fora
+PASS: D24 (preservação): com a assinatura cancelada (novas operações negadas: "subscription_cancelled"), glosa do demonstrativo e conciliação de pagamento de lote já enviado continuam aceitas
+PASS: nenhum lançamento em `lancamentos` em todo o ciclo (a ponte com o livro financeiro é da P1.10/P10.2, ainda não aplicada); histórico sem nome de paciente nem carteirinha
+
+OK — 16/16 provas da 0152 (glosas, recursos, pagamentos e conta da guia) em Postgres descartável.

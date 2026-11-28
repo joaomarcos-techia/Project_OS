@@ -1,0 +1,50 @@
+// SOMENTE LEITURA, PRODUÇÃO: leitura final da observação do R61-B (24 h depois do deploy do #53).
+// Uma transação READ ONLY conferida dentro dela, sem SET de sessão (pooler de transação), uma conexão.
+// Só contagens, percentis, durações e chaves: nenhum id, payload, clinic_id ou texto de erro sai daqui.
+import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+
+const PROD_REF = 'shlcbxawrxuaebazuiue';
+const require = createRequire('C:/dev/Qoro_convenios_tiss_20261110/package.json');
+const postgres = require('postgres');
+const txt = readFileSync('C:/dev/ClinicaOS_V2/.env.local', 'utf8');
+const line = txt.split(/\r?\n/).find((l) => /^\s*DATABASE_URL_PROD\s*=/.test(l));
+if (!line) throw new Error('DATABASE_URL_PROD ausente');
+const raw = line.replace(/^\s*DATABASE_URL_PROD\s*=\s*/, '').replace(/^['"]|['"]$/g, '');
+const u = new URL(raw);
+if (!(u.hostname + ' ' + decodeURIComponent(u.username)).includes(PROD_REF)) throw new Error('não é o projeto de produção esperado');
+if (!u.searchParams.has('sslmode')) u.searchParams.set('sslmode', 'require');
+
+const sql = postgres(u.toString(), { connect_timeout: 45, max: 1, prepare: false, idle_timeout: 5, onnotice: () => {} });
+try {
+  const out = await sql.begin('READ ONLY', async (tx) => {
+    const [ro] = await tx`select current_setting('transaction_read_only') as ro, now()::text as agora`;
+    if (ro.ro !== 'on') throw new Error('transação não é read only');
+    const porStatus = await tx`select status::text, count(*)::int n from public.outbox group by 1 order by 1`;
+    const [janela] = await tx`select
+        count(*) filter (where created_at > now() - interval '24 hours')::int criados_24h,
+        count(*) filter (where status = 'processed' and processed_at > now() - interval '24 hours')::int processados_24h,
+        count(*) filter (where status = 'skipped' and created_at > now() - interval '24 hours')::int pulados_24h,
+        count(*) filter (where status = 'failed' and created_at > now() - interval '24 hours')::int falhos_24h,
+        count(*) filter (where attempts > 1 and created_at > now() - interval '24 hours')::int retentativas_24h,
+        count(*) filter (where last_error is not null and coalesce(last_failed_at, created_at) > now() - interval '24 hours')::int com_erro_24h,
+        count(*) filter (where last_error like '%[reclaimed: stuck > 5min]%' and coalesce(last_failed_at, processing_started_at, created_at) > now() - interval '24 hours')::int devolvidos_janitor_24h,
+        count(*) filter (where status = 'pending' and next_attempt_at <= now())::int pendentes_vencidos,
+        count(*) filter (where status = 'processing')::int em_processamento,
+        coalesce(percentile_cont(0.5) within group (order by extract(epoch from processed_at - created_at)) filter (where status = 'processed' and processed_at > now() - interval '24 hours'), 0)::numeric(10,1)::text latencia_p50_s,
+        coalesce(percentile_cont(0.95) within group (order by extract(epoch from processed_at - created_at)) filter (where status = 'processed' and processed_at > now() - interval '24 hours'), 0)::numeric(10,1)::text latencia_p95_s
+      from public.outbox`;
+    const [dup] = await tx`select count(*)::int n from (select idempotency_key from public.outbox group by 1 having count(*) > 1) d`;
+    const tipos24 = await tx`select event_type, status::text, count(*)::int n from public.outbox where created_at > now() - interval '24 hours' group by 1, 2 order by 1, 2`;
+    const hbs = await tx`select job, extract(epoch from now() - last_run_at)::int ha_s, last_status,
+        (detail->>'duration_ms') duration_ms, (detail->>'processed') processed, (detail->>'empty') empty,
+        (detail->>'failed') failed, (detail->>'skipped') skipped, (detail->>'skipped_bulk') skipped_bulk,
+        (detail->>'stuck_reclaimed') stuck, (detail->>'circuit_paused') paused,
+        array(select jsonb_object_keys(coalesce(detail, '{}'::jsonb)) order by 1) chaves
+      from public.cron_heartbeats order by job`;
+    return { agora: ro.agora, porStatus, janela, idempotencia_duplicada: dup.n, tipos24, heartbeats: hbs };
+  });
+  console.log(JSON.stringify(out, null, 1));
+} finally {
+  await sql.end();
+}

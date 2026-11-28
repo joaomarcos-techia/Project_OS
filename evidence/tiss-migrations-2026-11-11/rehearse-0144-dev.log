@@ -1,0 +1,28 @@
+ok  conexão — postgres | PostgreSQL 17.6 on aarch64-unknown-linux
+ok  migration executada (59 comandos)
+ok  FK composta: plano de B ligado à operadora de A [esperado 23503, obtido 23503] — insert or update on table "hi_plans" violates foreign key constraint "hi_plans_insurer_fk"
+ok  FK composta: credenciamento de A com plano de B [esperado 23503, obtido 23503] — insert or update on table "hi_credentials" violates foreign key constraint "hi_credentials_plan_fk"
+ok  CHECK: registro ANS com 5 dígitos [esperado 23514, obtido 23514] — new row for relation "hi_insurers" violates check constraint "hi_insurers_ans_chk"
+ok  CHECK: CNPJ do prestador fora do formato TISS [esperado 23514, obtido 23514] — new row for relation "hi_insurers" violates check constraint "hi_insurers_provider_id_chk"
+ok  CHECK: flag ligada sem quem/quando [esperado 23514, obtido 23514] — new row for relation "hi_clinic_settings" violates check constraint "hi_clinic_settings_enabled_chk"
+ok  CHECK: coparticipação fixa maior que o valor [esperado 23514, obtido 23514] — new row for relation "hi_procedure_contracts" violates check constraint "hi_procedure_contracts_copay_chk"
+ok  gatilho: profissional de outra clínica [esperado 23503, obtido 23503] — Profissional não pertence à clínica.
+ok  gatilho: profissional da mesma clínica [esperado ok, obtido ok] — []
+ok  EXCLUDE: primeiro credenciamento ativo [esperado ok, obtido ok] — []
+ok  EXCLUDE: segundo credenciamento ativo sobreposto [esperado 23P01, obtido 23P01] — conflicting key value violates exclusion constraint "hi_credentials_no_overlap"
+ok  EXCLUDE: vigência seguinte sem sobreposição [esperado ok, obtido ok] — []
+ok  append-only: UPDATE de contrato pelo dono (gatilho) [esperado 55000, obtido 55000] — Contrato de convênio é imutável; registre uma nova versão.
+ok  append-only: nova versão que substitui a anterior [esperado ok, obtido ok] — []
+ok  append-only: segunda substituição da mesma versão [esperado 23505, obtido 23505] — duplicate key value violates unique constraint "hi_procedure_contracts_supersedes_once"
+ok  RLS: authenticated de A vê só as operadoras de A [esperado predicado, obtido ok] — [{"clinic_id":"<uuid>"}]
+ok  RLS: authenticated de A grava operadora de B [esperado 42501, obtido 42501] — new row violates row-level security policy for table "hi_insurers"
+ok  RLS: authenticated de A grava operadora própria [esperado ok, obtido ok] — []
+ok  RLS: authenticated de A altera operadora de B (0 linhas) [esperado predicado, obtido ok] — []
+ok  privilégio: authenticated faz UPDATE em contrato [esperado 42501, obtido 42501] — permission denied for table hi_procedure_contracts
+ok  privilégio: authenticated faz DELETE em contrato [esperado 42501, obtido 42501] — permission denied for table hi_procedure_contracts
+ok  privilégio: authenticated lê contratos de A [esperado predicado, obtido ok] — [{"id":"<uuid>"},{"id":"<uuid>"}]
+ok  privilégio: anon lê operadoras [esperado 42501, obtido 42501] — permission denied for table hi_insurers
+ok  privilégio: authenticated executa função de gatilho [esperado 42501, obtido 42501] — permission denied for function hi_block_contract_update
+ok  depois do ROLLBACK: tabela, journal do banco e _schema_version — {"t":null,"n":144,"v":0}
+RESUMO 26/26 em 35.4 s
+exit=0

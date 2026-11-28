@@ -1,0 +1,3 @@
+# XSDs oficiais da ANS: bytes idênticos ao pacote (CRLF, ISO-8859-1).
+# Sem conversão de fim de linha, senão o SHA-256 do MANIFEST.json não confere.
+* -text

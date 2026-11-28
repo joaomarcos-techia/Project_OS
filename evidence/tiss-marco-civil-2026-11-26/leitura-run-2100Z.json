@@ -1,0 +1,42 @@
+{
+ "agora": "2026-11-26 21:01:16.323437+00",
+ "heartbeat": [
+  {
+   "job": "data-retention",
+   "last_run_at": "2026-11-01 05:00:24.714354+00",
+   "last_status": "success",
+   "detalhe": "{\"outbox\": 46, \"ai_messages\": 0, \"login_attempts\": 0, \"ai_conversations\": 0, \"idempotency_keys\": 16, \"outbound_messages\": 0, \"inbound_messages_raw\": 0, \"provider_status_events_raw\": 0, \"whatsapp_business_app_echoes\": 0}"
+  }
+ ],
+ "heartbeat_cols": [
+  "job",
+  "last_run_at",
+  "last_status",
+  "detail",
+  "updated_at"
+ ],
+ "idempotency_keys": {
+  "total": 33,
+  "vencidas": 33,
+  "vencidas_em_andamento": 0,
+  "mais_antiga_em_andamento": null
+ },
+ "idades": [
+  {
+   "t": "outbox",
+   "mais_antigo": "2026-10-08"
+  },
+  {
+   "t": "inbound_messages_raw",
+   "mais_antigo": "2026-08-10"
+  },
+  {
+   "t": "provider_status_events_raw",
+   "mais_antigo": "2026-08-10"
+  },
+  {
+   "t": "ai_messages_vencidas",
+   "mais_antigo": "72"
+  }
+ ]
+}

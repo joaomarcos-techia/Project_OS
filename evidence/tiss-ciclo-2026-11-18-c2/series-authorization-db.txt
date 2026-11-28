@@ -1,0 +1,6 @@
+PASS 1: série semanal de 3 consultas de convênio: cobertura registrada em cada ocorrência pela função que a agenda usa para a série
+PASS 2: autorização de 2 consultas: duas guias ligam a autorização e consomem uma unidade cada; a terceira fica "pendente de dados" com saldo esgotado
+PASS 3: reentrega dos eventos de conclusão: nenhum consumo nem guia a mais
+PASS 4: corrida: duas consultas concluídas juntas com autorização de 1 unidade — só uma consome; a outra fica pendente (o gatilho trava o item)
+4/4 provas da série recorrente com autorização (P4.7).
+Mutação (serviço antigo): AssertionError [ERR_ASSERTION]: [["ready_for_review","auth"],["ready_for_review","auth"],["ready_for_review","auth"]]

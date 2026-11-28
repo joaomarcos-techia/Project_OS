@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
+import { QORO_DATE_TIME_ZONE } from '@/lib/format';
 import {
   acceptWaitlistOffer,
   cancelWaitlistEntry,
@@ -35,11 +36,13 @@ const STATUS_LABEL: Record<WaitlistEntryDTO['status'], string> = {
   cancelled: 'Cancelado',
 };
 
+// Fuso explícito (R51): sem ele o servidor (UTC) e o navegador formatavam horas diferentes.
 const slotFmt = new Intl.DateTimeFormat('pt-BR', {
   day: '2-digit',
   month: '2-digit',
   hour: '2-digit',
   minute: '2-digit',
+  timeZone: QORO_DATE_TIME_ZONE,
 });
 
 function formatSlot(iso: string): string {

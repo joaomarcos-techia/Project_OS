@@ -1,0 +1,72 @@
+[
+ {
+  "t": "2026-11-16T07:55:26.035Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 0
+ },
+ {
+  "t": "2026-11-16T07:55:28.223Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 0
+ },
+ {
+  "t": "2026-11-16T07:55:30.401Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 0
+ },
+ {
+  "t": "2026-11-16T07:55:32.587Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 0
+ },
+ {
+  "t": "2026-11-16T07:55:34.772Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 0
+ },
+ {
+  "t": "2026-11-16T07:55:36.949Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 13
+ },
+ {
+  "t": "2026-11-16T07:55:39.128Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 13
+ },
+ {
+  "t": "2026-11-16T07:55:41.306Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 1,
+  "migrator_access_exclusive": 13
+ },
+ {
+  "t": "2026-11-16T07:55:43.487Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 0
+ },
+ {
+  "t": "2026-11-16T07:55:45.665Z",
+  "waiting": 0,
+  "max_wait_s": "0.00",
+  "migrator_active": 0,
+  "migrator_access_exclusive": 0
+ }
+]

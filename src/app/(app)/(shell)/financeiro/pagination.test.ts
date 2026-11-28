@@ -22,6 +22,13 @@ describe('paginação do financeiro', () => {
     expect(financeiroPageHref(filters, 1)).toBe('/financeiro?tipo=receber&status=pendente');
   });
 
+  it('P10.6: a origem (paciente × operadora) é filtro e acompanha a navegação', () => {
+    expect(financeiroPageHref({ tipo: 'receber', origem: 'operadora' }, 3)).toBe(
+      '/financeiro?tipo=receber&origem=operadora&page=3',
+    );
+    expect(financeiroPageHref({ origem: 'paciente' }, 1)).toBe('/financeiro?origem=paciente');
+  });
+
   it('não carrega parâmetros transitórios que não são filtros', () => {
     expect(financeiroPageHref({}, 1)).toBe('/financeiro');
   });

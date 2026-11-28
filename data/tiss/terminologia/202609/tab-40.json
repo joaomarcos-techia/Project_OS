@@ -1,0 +1,45 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "40",
+  "title": "Tabela 40 - Terminologia de origem da guia",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 5,
+  "terms": [
+    {
+      "code": "1",
+      "term": "Rede Contratada, referenciada ou credenciada",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "2",
+      "term": "Rede Própria - Cooperados",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "3",
+      "term": "Rede Própria - Demais prestadores",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "4",
+      "term": "Reembolso ao beneficiário",
+      "startsOn": "2012-10-10",
+      "endsOn": null,
+      "implantationEndsOn": "2014-08-31"
+    },
+    {
+      "code": "5",
+      "term": "Prestador eventual",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    }
+  ]
+}

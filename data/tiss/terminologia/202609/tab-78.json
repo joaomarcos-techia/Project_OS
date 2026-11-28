@@ -1,0 +1,24 @@
+{
+  "standard": "TUSS — Terminologia Unificada da Saúde Suplementar",
+  "version": "202609",
+  "table": "78",
+  "title": "Tabela 78 - Terminologia de Tipo de Pagamento",
+  "source": "TUSS - Demais terminologias - VERSÃO 202609.xlsx",
+  "count": 2,
+  "terms": [
+    {
+      "code": "1",
+      "term": "Inicial",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    },
+    {
+      "code": "2",
+      "term": "Recurso",
+      "startsOn": "2021-08-01",
+      "endsOn": null,
+      "implantationEndsOn": "2023-04-30"
+    }
+  ]
+}

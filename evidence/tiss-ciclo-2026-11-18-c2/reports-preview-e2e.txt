@@ -1,0 +1,6 @@
+  ✓  1 [chromium] › e2e/convenios-reports-preview.spec.ts:74:1 › gestora: resumo por operadora, filtro e CSV seguro baixado pela sessão (19.5s)
+  ✓  2 [chromium] › e2e/convenios-reports-preview.spec.ts:100:1 › financeiro: vê o relatório e exporta (9.7s)
+  ✓  3 [chromium] › e2e/convenios-reports-preview.spec.ts:110:3 › sadt-recepcao: sem acesso na tela e o CSV direto devolve 404 (5.6s)
+  ✓  4 [chromium] › e2e/convenios-reports-preview.spec.ts:110:3 › sadt-medica: sem acesso na tela e o CSV direto devolve 404 (5.4s)
+  ✓  5 [chromium] › e2e/convenios-reports-preview.spec.ts:119:1 › outra clínica: não vê a operadora desta; o CSV com o id dela sai só com o cabeçalho; sem sessão, nada (9.1s)
+  5 passed (53.9s)

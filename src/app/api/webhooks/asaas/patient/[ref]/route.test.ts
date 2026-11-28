@@ -19,6 +19,9 @@ const mocks = vi.hoisted(() => ({
   reconcileRefundIntentsForPayment: vi.fn(),
   classifyPatientPaymentRisk: vi.fn(),
   reconcilePatientPaymentRisk: vi.fn(),
+  scheduleSettlementFollowUp: vi.fn(),
+  scheduleRefundFollowUp: vi.fn(),
+  reconcileExternalRefund: vi.fn(),
 }));
 
 vi.mock('server-only', () => ({}));
@@ -33,6 +36,19 @@ vi.mock('@/lib/audit/request-context', () => ({
 vi.mock('@/lib/payments/account-store', () => ({ resolvePatientWebhookAccount: mocks.resolve }));
 vi.mock('@/contexts/payments/internal/charge-store', () => ({
   markDepositPaid: mocks.markDepositPaid,
+}));
+vi.mock('../settlement-follow-up', () => ({
+  scheduleSettlementFollowUp: mocks.scheduleSettlementFollowUp,
+  scheduleRefundFollowUp: mocks.scheduleRefundFollowUp,
+}));
+vi.mock('@/contexts/payments/internal/external-refund', () => ({
+  reconcileExternalRefund: mocks.reconcileExternalRefund,
+}));
+vi.mock('@/contexts/payments', () => ({
+  PAYMENTS_EVENTS: {
+    EXTERNAL_REFUND_RECOGNIZED: 'payments.patient_refund.external_recognized',
+    EXTERNAL_REFUND_REVIEW_REQUIRED: 'payments.patient_refund.external_review_required',
+  },
 }));
 vi.mock('@/contexts/payments/internal/excess-refund', () => ({
   reconcileRefundIntentsForPayment: mocks.reconcileRefundIntentsForPayment,
@@ -64,6 +80,14 @@ function request(opts?: { token?: string | null; body?: string; contentLength?: 
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.reconcileExternalRefund.mockResolvedValue({
+    outcome: 'unchanged',
+    externalRefundId: null,
+    chargeId: null,
+    appointmentId: null,
+    eventKey: null,
+    amount: 0,
+  });
   mocks.parseWebhook.mockReturnValue({
     eventId: 'evt_1',
     event: 'PAYMENT_RECEIVED',
@@ -187,6 +211,7 @@ describe('estorno e risco financeiro', () => {
     const res = await POST(request(), params());
 
     expect(res.status).toBe(200);
+    expect(mocks.listPaymentRefunds).toHaveBeenCalledTimes(1);
     expect(mocks.listPaymentRefunds).toHaveBeenCalledWith('pay_1', { attempts: 1 });
     expect(mocks.reconcileRefundIntentsForPayment).toHaveBeenCalledWith({
       clinicId: 'clinic-1',
@@ -194,6 +219,144 @@ describe('estorno e risco financeiro', () => {
       loadRefunds: expect.any(Function),
     });
     expect(mocks.markDepositPaid).not.toHaveBeenCalled();
+  });
+
+  it('R54: depois das intenções do Qoro, o resto vai para o estorno externo com a MESMA leitura', async () => {
+    mocks.parseWebhook.mockReturnValue({
+      eventId: 'evt_ext',
+      event: 'PAYMENT_REFUNDED',
+      paymentId: 'pay_1',
+      checkoutId: null,
+    });
+    const payment = {
+      paymentId: 'pay_1',
+      status: 'REFUNDED',
+      value: 150,
+      dueDate: '2026-09-01',
+      invoiceUrl: null,
+      subscriptionId: null,
+      billingType: 'PIX',
+      externalReference: null,
+    };
+    mocks.getPayment.mockResolvedValue(payment);
+    const refunds = [{ refundId: null, status: 'DONE', value: 150 }];
+    mocks.listPaymentRefunds.mockResolvedValue(refunds);
+    mocks.reconcileRefundIntentsForPayment.mockResolvedValue(0);
+    mocks.reconcileExternalRefund.mockResolvedValue({
+      outcome: 'recorded',
+      externalRefundId: 'ext-1',
+      chargeId: 'charge-1',
+      appointmentId: 'appt-1',
+      eventKey: 'external-refund:ext-1',
+      amount: 150,
+    });
+
+    const res = await POST(request(), params());
+
+    expect(res.status).toBe(200);
+    expect(mocks.reconcileExternalRefund).toHaveBeenCalledWith({
+      clinicId: 'clinic-1',
+      providerPaymentId: 'pay_1',
+      payment,
+      refunds,
+      source: 'webhook',
+      asaasEventId: 'evt_ext',
+    });
+    expect(mocks.reconcileRefundIntentsForPayment.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.reconcileExternalRefund.mock.invocationCallOrder[0]!,
+    );
+    expect(mocks.scheduleRefundFollowUp).toHaveBeenCalledWith({
+      clinicId: 'clinic-1',
+      chargeId: 'charge-1',
+      appointmentId: 'appt-1',
+      eventKey: 'external-refund:ext-1',
+      eventType: 'payments.patient_refund.external_recognized',
+    });
+    expect(mocks.markDepositPaid).not.toHaveBeenCalled();
+  });
+
+  it('R54: revisão manual também agenda o passo pós-resposta (só a pendência)', async () => {
+    mocks.parseWebhook.mockReturnValue({
+      eventId: 'evt_rev',
+      event: 'PAYMENT_PARTIALLY_REFUNDED',
+      paymentId: 'pay_1',
+      checkoutId: null,
+    });
+    mocks.listPaymentRefunds.mockResolvedValue([{ refundId: null, status: 'DONE', value: 20 }]);
+    mocks.reconcileExternalRefund.mockResolvedValue({
+      outcome: 'manual_review',
+      externalRefundId: null,
+      chargeId: 'charge-1',
+      appointmentId: 'appt-1',
+      eventKey: 'external-refund-review:charge-1:open_refund_intent:2000:0',
+      amount: 20,
+      reason: 'open_refund_intent',
+    });
+
+    const res = await POST(request(), params());
+
+    expect(res.status).toBe(200);
+    expect(mocks.scheduleRefundFollowUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'payments.patient_refund.external_review_required',
+        eventKey: 'external-refund-review:charge-1:open_refund_intent:2000:0',
+      }),
+    );
+  });
+
+  it('R54: entrega atrasada de "pago" que já encontra o pagamento devolvido não dá baixa e concilia o estorno', async () => {
+    mocks.parseWebhook.mockReturnValue({
+      eventId: 'evt_late',
+      event: 'PAYMENT_CONFIRMED',
+      paymentId: 'pay_1',
+      checkoutId: null,
+    });
+    mocks.getPayment.mockResolvedValue({
+      paymentId: 'pay_1',
+      status: 'REFUNDED',
+      value: 150,
+      dueDate: '2026-09-01',
+      invoiceUrl: null,
+      subscriptionId: null,
+      billingType: 'PIX',
+      externalReference: null,
+    });
+    mocks.listPaymentRefunds.mockResolvedValue([{ refundId: null, status: 'DONE', value: 150 }]);
+    mocks.reconcileRefundIntentsForPayment.mockResolvedValue(0);
+
+    const res = await POST(request(), params());
+
+    expect(res.status).toBe(200);
+    expect(mocks.reconcileExternalRefund).toHaveBeenCalledTimes(1);
+    expect(mocks.markDepositPaid).not.toHaveBeenCalled();
+  });
+
+  it('R54: falha ao conciliar o estorno externo devolve 500 (o Asaas reentrega) sem baixa', async () => {
+    mocks.parseWebhook.mockReturnValue({
+      eventId: 'evt_err',
+      event: 'PAYMENT_REFUNDED',
+      paymentId: 'pay_1',
+      checkoutId: null,
+    });
+    mocks.listPaymentRefunds.mockResolvedValue([]);
+    mocks.reconcileRefundIntentsForPayment.mockResolvedValue(0);
+    mocks.reconcileExternalRefund.mockRejectedValue(new Error('serialização'));
+
+    const res = await POST(request(), params());
+
+    expect(res.status).toBe(500);
+    expect(mocks.scheduleRefundFollowUp).not.toHaveBeenCalled();
+    expect(mocks.markDepositPaid).not.toHaveBeenCalled();
+  });
+
+  it('R54: pagamento comum (sem estorno) não lê estornos nem chama a conciliação externa', async () => {
+    mocks.markDepositPaid.mockResolvedValue('paid');
+
+    const res = await POST(request(), params());
+
+    expect(res.status).toBe(200);
+    expect(mocks.listPaymentRefunds).not.toHaveBeenCalled();
+    expect(mocks.reconcileExternalRefund).not.toHaveBeenCalled();
   });
 
   it('chargeback usa o pagamento verificado e não entra no fluxo de baixa', async () => {
@@ -356,6 +519,8 @@ describe('conciliação', () => {
       providerInstallmentId: null,
       providerInstallmentNumber: null,
     });
+    // Baixa e coparticipação logo depois da resposta, pelo pagamento VERIFICADO (R49/P10.5).
+    expect(mocks.scheduleSettlementFollowUp).toHaveBeenCalledWith('clinic-1', 'pay_1');
   });
 
   it('CHECKOUT_PAID resolve a cobrança pela sessão antes de conciliar', async () => {
@@ -429,6 +594,15 @@ describe('conciliação', () => {
     const res = await POST(request(), params());
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ outcome: 'ignored' });
+    // O mesmo evento não reagenda nada.
+    expect(mocks.scheduleSettlementFollowUp).not.toHaveBeenCalled();
+  });
+
+  it('outra entrega do mesmo PAGAMENTO (evento novo) retoma a baixa que tenha ficado para trás', async () => {
+    mocks.markDepositPaid.mockResolvedValue('already_paid');
+    const res = await POST(request(), params());
+    expect(res.status).toBe(200);
+    expect(mocks.scheduleSettlementFollowUp).toHaveBeenCalledWith('clinic-1', 'pay_1');
   });
 
   it('pagamento de cobrança desconhecida responde 200 sem quebrar', async () => {
@@ -477,6 +651,7 @@ describe('conciliação', () => {
 
     await POST(request(), params());
     expect(mocks.markDepositPaid).not.toHaveBeenCalled();
+    expect(mocks.scheduleSettlementFollowUp).not.toHaveBeenCalled();
   });
 });
 

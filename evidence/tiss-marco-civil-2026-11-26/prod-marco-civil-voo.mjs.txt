@@ -1,0 +1,48 @@
+// SOMENTE LEITURA, PRODUÇÃO — pré-voo e pós-voo do hotfix do Marco Civil (login_attempts 186 dias).
+// Uma transação READ ONLY conferida dentro dela, sem SET de sessão. Só datas mínimas, contagens e
+// presença de IP por faixa de idade: nenhum e-mail, hash, IP, id ou texto sai daqui.
+import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+
+const PROD_REF = 'shlcbxawrxuaebazuiue';
+const require = createRequire('C:/dev/Qoro_convenios_tiss_20261110/package.json');
+const postgres = require('postgres');
+const txt = readFileSync('C:/dev/ClinicaOS_V2/.env.local', 'utf8');
+const line = txt.split(/\r?\n/).find((l) => /^\s*DATABASE_URL_PROD\s*=/.test(l));
+if (!line) throw new Error('DATABASE_URL_PROD ausente');
+const raw = line.replace(/^\s*DATABASE_URL_PROD\s*=\s*/, '').replace(/^['"]|['"]$/g, '');
+const u = new URL(raw);
+if (!(u.hostname + ' ' + decodeURIComponent(u.username)).includes(PROD_REF)) throw new Error('não é o projeto de produção esperado');
+if (!u.searchParams.has('sslmode')) u.searchParams.set('sslmode', 'require');
+const sql = postgres(u.toString(), { connect_timeout: 45, max: 1, prepare: false, idle_timeout: 5, onnotice: () => {} });
+// Uso: node --use-system-ca prod-marco-civil-voo.mjs [pre|pos]. Só agregados: nenhum e-mail, hash, IP ou id.
+// pré-voo: tudo que a purga de 01/12 05h UTC atingiria com 90 dias. pós-voo (depois de 01/12 05h UTC): o run de 01/12
+// rodou e NÃO apagou registro dentro dos 6 meses (o mais antigo continua 10/08/2026 e o lote 10/08–30/08 está inteiro).
+const mode = process.argv[2] === 'pos' ? 'pos' : 'pre';
+const CUT = "timestamptz '2026-12-01 05:00:00+00'";
+try {
+  const out = await sql.begin('READ ONLY', async (tx) => {
+    const [ro] = await tx`select current_setting('transaction_read_only') as ro, now()::text as agora`;
+    if (ro.ro !== 'on') throw new Error('transação não é read only');
+    const [hb] = await tx`select last_run_at::text, last_status, left(coalesce(detail::text,''), 400) as detalhe from public.cron_heartbeats where job = 'data-retention'`;
+    const [la] = await tx.unsafe(`select count(*)::int as total,
+        min(attempted_at)::date::text as mais_antigo,
+        count(*) filter (where attempted_at < ${CUT} - interval '90 days')::int as lote_que_90_dias_apagaria,
+        count(*) filter (where attempted_at < ${CUT} - interval '90 days' and attempted_at + interval '6 months' > ${CUT})::int as dentro_dos_6_meses,
+        count(*) filter (where attempted_at + interval '6 months' <= now())::int as ja_fora_dos_6_meses
+      from public.login_attempts`);
+    let veredito;
+    if (mode === 'pre') veredito = la.dentro_dos_6_meses > 0 ? 'PRÉ-VOO: há registros dentro dos 6 meses que a regra de 90 dias apagaria; o hotfix precisa estar em Production antes de 01/12 05h UTC' : 'PRÉ-VOO: nada dentro dos 6 meses seria apagado';
+    else {
+      const ranEm0112 = hb && hb.last_run_at >= '2026-12-01 05:00';
+      const lote = la.lote_que_90_dias_apagaria;
+      veredito = !ranEm0112 ? 'PÓS-VOO INCONCLUSIVO: o run de 01/12 ainda não está no heartbeat'
+        : hb.last_status === 'success' && lote >= 125 ? 'PÓS-VOO OK: o run de 01/12 rodou e o lote 10/08–30/08 continua inteiro'
+        : 'PÓS-VOO FALHOU: o run de 01/12 rodou e o lote dentro dos 6 meses diminuiu — acionar restauração do backup';
+    }
+    return { modo: mode, agora: ro.agora, heartbeat: hb ?? null, login_attempts: la, veredito };
+  });
+  console.log(JSON.stringify(out, null, 1));
+} finally {
+  await sql.end({ timeout: 5 });
+}

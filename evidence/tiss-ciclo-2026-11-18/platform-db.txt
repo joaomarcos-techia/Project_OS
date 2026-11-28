@@ -1,0 +1,7 @@
+PASS 1: nada ligado por padrão: clínica nova aparece "não instalada, desligada"; a lista só leva id, nome, situação, estado do módulo e o motivo comercial
+PASS 2: desligar A pela plataforma: trilha da própria clínica com autor e motivo; B continua ligada; com A desligada a classe A é recusada
+PASS 3: ligar A de novo volta a operar (autor gravado); repetir o pedido é idempotente, sem trilha nova
+PASS 4: clínica em avaliação: ligar é recusado pelo serviço (D24) e pelo banco no caminho direto; nada muda, nenhuma trilha
+PASS 5: clínica que nunca configurou Convênios: a linha nasce ligada com autor e data; clínica inexistente é recusada
+PASS 6: lista paginada: limite respeitado e continuação pelo id, sem repetir clínica
+6/6 provas do interruptor de Convênios pela plataforma (P1.13).

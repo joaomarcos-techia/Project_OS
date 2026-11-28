@@ -1,0 +1,38 @@
+// SOMENTE LEITURA, PRODUÇÃO: guarda dos registros de acesso (Marco Civil, art. 15; ANS req. 84).
+// Uma transação READ ONLY conferida dentro dela, sem SET de sessão. Só datas mínimas, contagens e
+// presença de IP por faixa de idade: nenhum e-mail, hash, IP, id ou texto sai daqui.
+import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+
+const PROD_REF = 'shlcbxawrxuaebazuiue';
+const require = createRequire('C:/dev/Qoro_convenios_tiss_20261110/package.json');
+const postgres = require('postgres');
+const txt = readFileSync('C:/dev/ClinicaOS_V2/.env.local', 'utf8');
+const line = txt.split(/\r?\n/).find((l) => /^\s*DATABASE_URL_PROD\s*=/.test(l));
+if (!line) throw new Error('DATABASE_URL_PROD ausente');
+const raw = line.replace(/^\s*DATABASE_URL_PROD\s*=\s*/, '').replace(/^['"]|['"]$/g, '');
+const u = new URL(raw);
+if (!(u.hostname + ' ' + decodeURIComponent(u.username)).includes(PROD_REF)) throw new Error('não é o projeto de produção esperado');
+if (!u.searchParams.has('sslmode')) u.searchParams.set('sslmode', 'require');
+const sql = postgres(u.toString(), { connect_timeout: 45, max: 1, prepare: false, idle_timeout: 5, onnotice: () => {} });
+try {
+  const out = await sql.begin('READ ONLY', async (tx) => {
+    const [ro] = await tx`select current_setting('transaction_read_only') as ro, now()::text as agora`;
+    if (ro.ro !== 'on') throw new Error('transação não é read only');
+    const hb = await tx`select job, last_run_at::text, last_status, left(coalesce(detail::text,''), 400) as detalhe from public.cron_heartbeats where job = 'data-retention'`;
+    const cols = await tx`select column_name from information_schema.columns where table_schema='public' and table_name='cron_heartbeats' order by ordinal_position`;
+    const [idem] = await tx`select count(*)::int as total,
+        count(*) filter (where expires_at < now())::int as vencidas,
+        count(*) filter (where expires_at < now() and status_code is null)::int as vencidas_em_andamento,
+        min(expires_at) filter (where status_code is null)::date::text as mais_antiga_em_andamento
+      from public.idempotency_keys`;
+    const ages = await tx`select 'outbox' as t, min(created_at)::date::text as mais_antigo from public.outbox where status in ('processed','skipped')
+      union all select 'inbound_messages_raw', min(received_at)::date::text from public.inbound_messages_raw
+      union all select 'provider_status_events_raw', min(received_at)::date::text from public.provider_status_events_raw
+      union all select 'ai_messages_vencidas', count(*)::text from public.ai_messages where expires_at < now()`;
+    return { agora: ro.agora, heartbeat: hb, heartbeat_cols: cols.map((c) => c.column_name), idempotency_keys: idem, idades: ages };
+  });
+  console.log(JSON.stringify(out, null, 1));
+} finally {
+  await sql.end({ timeout: 5 });
+}

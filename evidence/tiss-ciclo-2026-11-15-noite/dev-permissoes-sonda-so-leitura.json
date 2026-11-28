@@ -1,0 +1,98 @@
+{
+ "ledger": [
+  {
+   "n": 162,
+   "last": "1795209773857"
+  }
+ ],
+ "catalog": [
+  {
+   "n": 28,
+   "new_codes": 0
+  }
+ ],
+ "bundles": [
+  {
+   "role": "attendant",
+   "n": 10,
+   "view_financial": true,
+   "manage_financial": false
+  },
+  {
+   "role": "doctor",
+   "n": 13,
+   "view_financial": false,
+   "manage_financial": false
+  },
+  {
+   "role": "financial",
+   "n": 6,
+   "view_financial": true,
+   "manage_financial": true
+  },
+  {
+   "role": "gestor",
+   "n": 27,
+   "view_financial": true,
+   "manage_financial": true
+  },
+  {
+   "role": "owner",
+   "n": 28,
+   "view_financial": true,
+   "manage_financial": true
+  }
+ ],
+ "profiles": [
+  {
+   "role": "attendant",
+   "n": 2,
+   "ativos": 2
+  },
+  {
+   "role": "doctor",
+   "n": 10,
+   "ativos": 10
+  },
+  {
+   "role": "gestor",
+   "n": 4,
+   "ativos": 4
+  },
+  {
+   "role": "owner",
+   "n": 17,
+   "ativos": 17
+  }
+ ],
+ "overrides": [],
+ "overridesTotal": [
+  {
+   "n": 0
+  }
+ ],
+ "view": [
+  {
+   "view_md5": "d55694e4a8d62d6d3b26caf2c2efc8ef"
+  }
+ ],
+ "hook": [
+  {
+   "hook_md5": "192e4e4dcda4cc2957f0cb63e0deca18"
+  }
+ ],
+ "triggers": [
+  {
+   "tgname": "trg_role_permissions_bump_claims_version",
+   "rel": "role_permissions"
+  },
+  {
+   "tgname": "trg_overrides_bump_claims_version",
+   "rel": "user_permission_overrides"
+  },
+  {
+   "tgname": "trg_user_permission_overrides_updated_at",
+   "rel": "user_permission_overrides"
+  }
+ ]
+}

@@ -1,0 +1,11 @@
+S5 / P12.10 — interoperação do selo com TSAs públicas e gratuitas (RFC 3161), 28/11/2026 08:38 UTC.
+
+Pedido: um resumo SHA-256 ALEATÓRIO (sintético; nada do Qoro, nenhuma linha de trilha), pelo
+`requestTimestamp` de scripts/security/audit-anchor-tsa.ts; conferência pelo `verifyTimestamp`
+(openssl ts -verify) com as raízes públicas do pacote de certificados do sistema.
+
+{"tsa":"http://timestamp.digicert.com","granted":true,"digestMatches":true,"stampedAt":"2026-11-28T08:38:35.000Z","signature":"ok","bytes":6007}
+{"tsa":"http://timestamp.sectigo.com","granted":true,"digestMatches":true,"stampedAt":"2026-11-28T08:38:35.000Z","signature":"ok","bytes":6635}
+
+Sem conta, sem custo, sem credencial. As provas de adulteração/indisponibilidade/recuperação rodam com
+TSAs locais (scripts/security/audit-anchor-seal-tsa.ts, 8/8), para não depender de serviço externo na CI.

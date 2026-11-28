@@ -1,0 +1,32 @@
+{
+ "paga": {
+  "status": "active",
+  "billing": "active",
+  "enforce": false,
+  "denial": null
+ },
+ "perfis": {
+  "gestor": {
+   "ativo": true,
+   "slugPrefix": "e2e-hi-paga"
+  },
+  "recepcao": {
+   "ativo": true,
+   "slugPrefix": "e2e-hi-paga"
+  },
+  "medica": {
+   "ativo": true,
+   "slugPrefix": "e2e-hi-paga"
+  },
+  "cfg-gestor": {
+   "ativo": true,
+   "slugPrefix": "e2e-hi-config-mw"
+  }
+ },
+ "cfgGuides": [
+  {
+   "status": "partially_glossed",
+   "idSuffix": "e050"
+  }
+ ]
+}

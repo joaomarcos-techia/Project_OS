@@ -1,0 +1,14 @@
+PASS: prestador: PJ + declaração de ausência de CNES gravados; CNES 9999999 recusado; módulo continua DESLIGADO; outra clínica não vê
+PASS: operadora: rascunho → ativa → suspensa → arquivada → reativada; ANS travado fora do rascunho; ANS/CNPJ/CPF inválidos e duplicado recusados; CNPJ alfanumérico normalizado; outra clínica não altera
+PASS: plano: cadastrado; nome duplicado na operadora recusado
+PASS: contrato: TUSS inexistente e fora de vigência recusados; procedimento de outra clínica, plano de outra operadora, coparticipação acima do valor e sobreposição recusados; descrição oficial da TUSS
+PASS: reajuste a partir de 01/12: atendimento de 20/11 continua a R$ 150,00 (versão encerrada na véspera); de 15/12 sai a R$ 180,00 — a seleção REAL da guia confere
+PASS: duas revisões simultâneas do mesmo item: uma vence, a outra recebe "já revisado"; a linha original segue imutável no banco (UPDATE → 55000)
+PASS: perfil TISS: conselho, UF e CBO só da terminologia oficial; 999999 recusado; profissional de outra clínica recusado; edição sobrescreve o mesmo perfil
+PASS: carteirinha: número só cifrado (decifra igual ao normalizado), HMAC D21 clínica:ANS:número, final 4; ativa em outro paciente recusada; mesma numeração em outra clínica tem hash diferente
+PASS: carteirinha: uma preferencial por paciente; substituição encadeada (antiga replaced → nova, preferencial herdada); mesmo número recusado; substituída não reativa; desativar/reativar; validade e titularidade editáveis
+PASS: trial: a clínica cadastra a operadora (preparação), mas a carteirinha é recusada pelo bloqueio comercial do banco (D24)
+PASS: agenda: escolha conferida antes (módulo, operadora ativa, carteirinha do paciente); atendimento nasce "convenio" pelo core real; cobertura ready com coparticipação ESTIMADA (R$ 45.00); recebível do valor cheio recusado pelo banco; particular continua particular
+PASS: remarcar mantém a forma de atendimento (convênio continua convênio) e o novo horário aparece "sem cobertura" para a recepção registrar — antes, a remarcação o transformava em particular
+PASS: leituras das telas: prontidão, detalhe com versões, carteirinhas só com o final; outra clínica recebe "não encontrado"
+13/13 provas da configuração de Convênios passaram.

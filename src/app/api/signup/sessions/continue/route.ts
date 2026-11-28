@@ -1,3 +1,5 @@
+import { readTissFootprintLazy } from '@/app/(app)/_lib/tiss-footprint';
+import { tissPasswordPolicyError } from '@/lib/auth/security-profile/password-policy';
 import { NextResponse } from 'next/server';
 
 import {
@@ -75,6 +77,13 @@ export async function POST(req: Request): Promise<Response> {
     }
     const input = signupContinuationSchema.safeParse(parsed);
     if (!input.success) return json({ error: 'invalid_body' }, 400);
+    // S3 (requisito 67 da ANS): sem clínica ainda, só no modo plataforma do perfil TISS.
+    const tissPasswordError = await tissPasswordPolicyError(
+      input.data.password,
+      null,
+      readTissFootprintLazy,
+    );
+    if (tissPasswordError) return json({ error: 'password_policy' }, 422);
 
     const signupRef = hashSignupToken(rawToken);
     const limit = await assertSignupContinuationAllowed(

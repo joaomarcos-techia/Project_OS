@@ -55,6 +55,15 @@ export const PERMISSIONS = {
   // (owner/gestor/attendant → ambas; doctor → só view) em migration 0051.
   VIEW_CONVERSATIONS: 'view:conversations',
   MANAGE_CONVERSATIONS: 'manage:conversations',
+  // Convênios/TISS (matriz I.2, P1.12; ADR-072). Seed + bundles na migration 0162:
+  // owner/gestor → os cinco; attendant → view + operate; financial → view + ver/gerir
+  // faturamento; doctor → view (só as próprias guias: filtro de posse no servidor, não
+  // permissão por instância). O Caixa e o Financeiro continuam com view/manage:financial.
+  VIEW_CONVENIOS: 'view:convenios',
+  MANAGE_CONVENIOS: 'manage:convenios',
+  OPERATE_CONVENIOS: 'operate:convenios',
+  VIEW_FATURAMENTO_CONVENIO: 'view:faturamento_convenio',
+  MANAGE_FATURAMENTO_CONVENIO: 'manage:faturamento_convenio',
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

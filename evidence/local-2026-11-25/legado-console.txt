@@ -1,0 +1,25 @@
+PASS    74s  Recurso de glosa: XML no XSD oficial
+PASS    17s  Autorizações (P6.1): domínio, consumo e anexos
+PASS    79s  Lote: exportação assíncrona
+PASS   107s  Lotes (0150): formar, validar, exportar, enviar, retorno
+PASS    30s  Faturamento: pendência e reconcile (P7.4)
+PASS    10s  Configuração da clínica (0144)
+PASS    14s  Concorrência das operações de Convênios (P14.2)
+PASS    16s  Configuração por operadora e contratos
+PASS    16s  Dados da Guia de Consulta (0161)
+PASS    13s  Importação de contratos
+PASS    21s  Coparticipação: cobrança (gateway simulado)
+PASS    13s  Cobertura e coparticipação (0148)
+PASS    14s  Credenciamento (P2.2)
+PASS    80s  Glosas e pagamentos (0152)
+PASS    19s  Emissão com snapshot cifrado
+PASS    17s  Serviço da Guia de Consulta
+PASS    17s  Guias (0147)
+PASS    74s  Ponte com o livro (0153) e separação paciente × operadora (P10.6)
+PASS    20s  Troca de modalidade pela agenda
+PASS    20s  Bloqueio comercial D24 (0151)
+PASS    81s  Importação de demonstrativos (P9.5)
+PASS    79s  Leituras das telas
+PASS    25s  Cadeia unida main + #53 + #55
+PASS    81s  R38: equivalência do livro (soma por clínica)
+PASS   141s  P15.6: pré-auditoria financeira (12 casos do roteiro, dossiê no resumo)

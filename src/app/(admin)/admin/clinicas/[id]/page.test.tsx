@@ -28,6 +28,11 @@ vi.mock('./impersonate-form', () => ({
     </button>
   ),
 }));
+vi.mock('./convenios-module-section', () => ({
+  ConveniosModuleSection: ({ clinicId }: { clinicId: string }) => (
+    <div data-convenios-module-section={clinicId} />
+  ),
+}));
 vi.mock('./export-form', () => ({
   ExportAuditForm: ({ clinicId }: { clinicId: string }) => (
     <form aria-label="Exportar auditoria" data-clinic-id={clinicId} />

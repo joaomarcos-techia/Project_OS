@@ -1,0 +1,18 @@
+{
+ "before": {
+  "payment": "pay_0_u1…iroo",
+  "paymentStatus": "CONFIRMED",
+  "refunds": [],
+  "doneTotal": 0
+ },
+ "request": {
+  "value": 4
+ },
+ "response": {
+  "http": 400,
+  "refundsNow": [],
+  "errors": [
+   "Esta transação só pode ser estornada parcialmente no próximo dia."
+  ]
+ }
+}

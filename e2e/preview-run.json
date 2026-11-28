@@ -1,0 +1,34 @@
+{
+  "note": "Pedido de E2E no Preview (navegador remoto). Mudar este arquivo dispara convenios-preview-e2e.yml. HS25-55F: head final do #55 (com os documentos da missão de 25/11) — P7.5 (HS25Z), estados da guia (HS25ZB) e P8.4 da conferência (HS25ZC, fixture sem as sessões da agenda: --sem-agenda). HS25-55E (35730f46): 5/5, 13/13, 7/7.",
+  "run": "HS25-55F",
+  "groups": [
+    [
+      "e2e/convenios-p75-preview.spec.ts"
+    ],
+    [
+      "e2e/convenios-guide-states-preview.spec.ts"
+    ],
+    [
+      "e2e/convenios-p84-preview.spec.ts"
+    ]
+  ],
+  "env": {
+    "E2E_HI_ACCOUNTS": "e2e-hi-accounts.json",
+    "E2E_HI_FIXTURE_CMD": "e2e/preview-fixture-relay.mjs"
+  },
+  "groupEnv": [
+    {
+      "E2E_HI_P75_ACCOUNTS": "e2e-hi-p75-accounts.json",
+      "E2E_HI_P75": "e2e-hi-p75-hs25z.json"
+    },
+    {
+      "E2E_HI_CFG_ACCOUNTS": "e2e-hi-cfg-accounts.json",
+      "E2E_HI_STATES": "e2e-hi-states-hs25zb.json",
+      "E2E_HI_CFG_GUIDE": "e2e-hi-cfg-guide.json"
+    },
+    {
+      "E2E_HI_P84_ACCOUNTS": "e2e-hi-p84-accounts.json",
+      "E2E_HI_P84": "e2e-hi-p84-hs25zc.json"
+    }
+  ]
+}

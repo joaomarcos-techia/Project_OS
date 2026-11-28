@@ -47,6 +47,7 @@
 import 'server-only';
 
 import { cache } from 'react';
+import { cookies } from 'next/headers';
 
 import { eq, sql } from 'drizzle-orm';
 
@@ -63,6 +64,14 @@ import { dbAdmin } from '@/lib/db';
 import { resolveImpersonation } from '@/lib/impersonation';
 
 import { parseClaims } from './claims';
+import { isTissProfileEnforced } from './security-profile/tiss-scope';
+import {
+  SESSION_ACTIVITY_COOKIE,
+  decideSessionLock,
+  decodeSessionActivity,
+  sessionActivitySecret,
+  sessionClaimsFrom,
+} from './session-activity';
 import { ALL_PERMISSIONS, type Permission } from './permissions';
 import { type Role } from './roles';
 import { metrics } from '@/lib/observability/metrics';
@@ -96,6 +105,11 @@ export type AuthDenialReason =
   | 'USER_DELETED'
   /** Convite ainda não aceito (invite_accepted_at IS NULL) — a sessão só define a senha (I-3). */
   | 'INVITE_PENDING'
+  /**
+   * S2 / requisito 83 da ANS: perfil TISS e 10 min sem atividade (ou sem registro de atividade desta sessão).
+   * O token continua válido; a sessão não serve mais para nada até um novo login.
+   */
+  | 'SESSION_LOCKED'
   // --- política (produzido pelos require*) ---
   | 'MFA_REQUIRED'
   | 'ROLE_DENIED'
@@ -156,6 +170,8 @@ export interface CurrentUser {
       startedAt: string;
     };
   };
+  /** `session_id` do JWT verificado (S2: o cookie de atividade é preso à sessão). */
+  sessionId?: string | null;
   /**
    * ISO — quando esta identidade foi revalidada contra o banco (ADR-037). É sempre
    * "neste request": não existe identidade não-validada depois de `authenticate()`.
@@ -289,6 +305,23 @@ export const authenticate = cache(async (): Promise<IdentityResult> => {
     return { ok: false, reason: 'CLAIMS_OUTDATED' };
   }
 
+  // S2 / requisito 83 (perfil de segurança TISS, desligado por padrão): o servidor é a autoridade da inatividade.
+  // Só confere a assinatura do cookie de atividade (nenhuma consulta nova); ver `session-activity.ts`.
+  if (isTissProfileEnforced(process.env)) {
+    const lock = decideSessionLock({
+      activity: decodeSessionActivity(
+        (await cookies()).get(SESSION_ACTIVITY_COOKIE)?.value,
+        sessionActivitySecret(),
+      ),
+      claims: sessionClaimsFrom(raw),
+      now: Date.now(),
+    });
+    if (lock.kind === 'locked') {
+      metrics.emit('auth.session.locked', { reason: lock.reason });
+      return { ok: false, reason: 'SESSION_LOCKED' };
+    }
+  }
+
   const identity: CurrentUser = {
     userId,
     name: profile.nome,
@@ -301,6 +334,7 @@ export const authenticate = cache(async (): Promise<IdentityResult> => {
     claimsVersion: claims.claims_version,
     isSuperAdmin: claims.super_admin === true || claims.app_role === 'super_admin',
     aal: claims.aal ?? null,
+    sessionId: typeof raw.session_id === 'string' ? raw.session_id : null,
     validatedAt: new Date().toISOString(),
   };
 
@@ -361,6 +395,7 @@ const AUTH_ERROR_MESSAGE: Record<string, string> = {
   USER_DISABLED: 'Acesso desativado. Contate o administrador da clínica.',
   USER_DELETED: 'Conta removida.',
   INVITE_PENDING: 'Defina sua senha para concluir o convite.',
+  SESSION_LOCKED: 'Sessão bloqueada por inatividade. Entre novamente.',
 };
 
 export async function requireUser(): Promise<CurrentUser> {

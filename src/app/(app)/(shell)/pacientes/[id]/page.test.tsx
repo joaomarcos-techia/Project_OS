@@ -37,6 +37,9 @@ vi.mock('@/contexts/clinical/queries', () => ({
 }));
 vi.mock('@/lib/auth/page-guard', () => ({ pageGate }));
 vi.mock('next/navigation', () => ({ notFound, redirect }));
+vi.mock('../../convenios/_lib/patient-insurance-tab', () => ({
+  PatientInsuranceTab: (props: { patientId: string }) => ({ insuranceTabFor: props.patientId }),
+}));
 
 import { PERMISSIONS } from '@/lib/auth/permissions';
 
@@ -160,6 +163,8 @@ describe('/pacientes/[id] CRM', () => {
       canSignProntuario: false,
       canViewDocuments: false,
       canCreateDocuments: false,
+      canViewInsurance: false,
+      canOperateInsurance: false,
     });
   });
 
@@ -179,6 +184,8 @@ describe('/pacientes/[id] CRM', () => {
       canSignProntuario: false,
       canViewDocuments: false,
       canCreateDocuments: false,
+      canViewInsurance: false,
+      canOperateInsurance: false,
     });
     expect(patientPageCapabilities({ isSuperAdmin: true, aal: 'aal2', permissions: [] })).toEqual({
       canEditPatient: true,
@@ -189,6 +196,53 @@ describe('/pacientes/[id] CRM', () => {
       canSignProntuario: true,
       canViewDocuments: true,
       canCreateDocuments: true,
+      canViewInsurance: true,
+      canOperateInsurance: true,
     });
+  });
+
+  it('aba Convênios só com view:convenios (matriz I.2); o deep-link sem permissão cai na visão geral', async () => {
+    /** Componentes e a flag da aba no elemento devolvido (sem renderizar os filhos assíncronos). */
+    const render = async () => {
+      const names: string[] = [];
+      const flags: unknown[] = [];
+      const seen = new Set<unknown>();
+      const walk = (n: unknown): void => {
+        if (!n || typeof n !== 'object' || seen.has(n)) return;
+        seen.add(n);
+        if (Array.isArray(n)) return n.forEach(walk);
+        const el = n as { type?: unknown; props?: Record<string, unknown> };
+        if (typeof el.type === 'function') names.push((el.type as { name: string }).name);
+        if (el.props) {
+          if ('canViewInsurance' in el.props) flags.push(el.props.canViewInsurance);
+          walk(el.props.children);
+        }
+      };
+      walk(
+        await PacienteDetailPage({
+          params: Promise.resolve({ id: PATIENT_ID }),
+          searchParams: Promise.resolve({ tab: 'convenios' }),
+        }),
+      );
+      return { names, flags };
+    };
+    const denied = await render();
+    expect(denied.flags).toEqual([false]);
+    expect(denied.names).not.toContain('PatientInsuranceTab');
+    expect(denied.names).toContain('DadosTab');
+
+    pageGate.mockResolvedValue({
+      allowed: true,
+      clinicId: 'clinic-a',
+      user: {
+        isSuperAdmin: false,
+        aal: 'aal1',
+        permissions: [PERMISSIONS.VIEW_PATIENT, PERMISSIONS.VIEW_CONVENIOS],
+      },
+    });
+    const allowed = await render();
+    expect(allowed.flags).toEqual([true]);
+    expect(allowed.names).toContain('PatientInsuranceTab');
+    expect(allowed.names).not.toContain('DadosTab');
   });
 });

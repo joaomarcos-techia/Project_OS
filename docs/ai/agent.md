@@ -17,11 +17,12 @@ Canonical — runtime, tools, segurança conversacional e persistência.
 - contexto recente: até 10 mensagens; inbound limitado a 4.000 caracteres; prompt limitado a 10.000;
 - tools têm input/output Zod e whitelist fixa.
 
-## Tools de produção (15)
+## Tools de produção (16)
 
 | Grupo | Tools |
 | --- | --- |
 | Informação | `provide_clinic_info`, `provide_procedure_price` |
+| Convênio (P11) | `list_insurance_options` (só leitura; a marcação pelo convênio é `prepare_appointment` com `insurer_name`) |
 | Humano | `request_human_handoff` |
 | Agenda | `list_slots`, `prepare_appointment`, `confirm_appointment`, `list_my_appointments`, `cancel_appointment`, `reschedule_appointment`, `confirm_pending_action` |
 | Financeiro | `list_pending_payments` |

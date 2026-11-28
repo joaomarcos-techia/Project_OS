@@ -1,0 +1,13 @@
+FAIL   692s  Typecheck
+PASS   369s  Lint
+PASS    83s  Arch check (madge — circular deps)
+PASS    24s  Arch DB check (AST connection-origin guard)
+PASS     8s  Migration safety gate (anti-destructive)
+PASS     6s  Observability drift gate (docs ⇔ vercel.json ⇔ eventos)
+PASS    41s  Handler registry gate (catalog ⇔ registry)
+FAIL   636s  Test + coverage gate
+PASS    78s  Security inventory (AST and explicit guard review)
+PASS    51s  Two-tenant isolation (temporary local Postgres)
+PASS    28s  Convênios — isolamento de todas as tabelas do módulo (temporary local Postgres, P12.1)
+
+9 PASS, 2 FAIL, 6 SKIPPED em 2016s → ..\Qoro_convenios_tiss_20261110\evidence\local-2026-11-25\composicao
