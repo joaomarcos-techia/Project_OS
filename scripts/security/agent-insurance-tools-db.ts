@@ -426,7 +426,22 @@ try {
     const [pending] = await sql`select status from public.ai_pending_actions
       where clinic_id = ${A.clinicId}::uuid and conversation_id = ${conv}::uuid order by created_at desc limit 1`;
     assert.equal(pending!.status, 'pending');
-    // Operadora suspensa também não casa no prepare (só ativas): "não está entre as que a clínica agenda".
+    // Com a única operadora ativa suspensa, a clínica fica sem convênio para agendar: indisponível (o texto do
+    // servidor), não "informe outra".
+    const none = response(
+      await call(
+        A,
+        conv,
+        patientA,
+        'prepare_appointment',
+        { insurer_name: 'Unimed Sintética', procedure_name: 'Consulta Sintética' },
+        'pela Unimed Sintética',
+      ),
+    );
+    assert.equal(none.status, 'appointment_unavailable');
+    await sql`update public.hi_insurers set status = 'active' where id = ${UNIMED_A}::uuid`;
+    // Com outra ativa, a operadora suspensa também não casa no prepare (só ativas): "não está entre as que a
+    // clínica agenda".
     const again = response(
       await call(
         A,
@@ -438,7 +453,6 @@ try {
       ),
     );
     assert.equal(again.status, 'appointment_information_required');
-    await sql`update public.hi_insurers set status = 'active' where id = ${UNIMED_A}::uuid`;
     pass(
       7,
       'jornada 3: operadora suspensa entre o resumo e o SIM → recusa na confirmação e nada criado; suspensa nunca casa no prepare',

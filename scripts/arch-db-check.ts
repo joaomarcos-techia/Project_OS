@@ -65,6 +65,9 @@ const ALLOWED_POSTGRES_IMPORTS = new Set([
   // Reset operacional one-shot: não pode usar o pool do runtime porque recebe
   // DATABASE_URL_PROD após opt-in explícito e gera backup antes da transação.
   'scripts/reset-prod-data.ts',
+  // S5: ancoragem das trilhas, ferramenta do operador SÓ LEITURA (sql.begin('READ ONLY'),
+  // sem SET de sessão, URL própria em ANCHOR_DATABASE_URL, nenhuma escrita).
+  'scripts/security/audit-anchor.ts',
 ]);
 // O migrador guardado do DEV usa o migrador do Drizzle (o mesmo código do `drizzle-kit migrate`).
 const ALLOWED_DRIZZLE_PG_IMPORTS = new Set([
