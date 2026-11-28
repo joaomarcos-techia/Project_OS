@@ -251,3 +251,9 @@ jobs:
         run: |
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55641 NODE_OPTIONS=--conditions=react-server \
             pnpm exec tsx scripts/security/agent-insurance-journeys-db.ts
+
+      - name: "P11.1 — ferramentas reais do agente com Convênios, ponta a ponta no banco (10 provas)"
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55642 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/agent-insurance-tools-db.ts

@@ -8,7 +8,9 @@ import { metrics } from '@/lib/observability/metrics';
 /* eslint-disable boundaries/element-types -- schedulingApiV1 e a política de sinal são as APIs públicas entre contextos. */
 import { getDepositPolicy } from '@/contexts/payments';
 import { schedulingApiV1 } from '@/contexts/scheduling';
+import { checkSchedulingChoice, recordSchedulingCoverage } from '@/contexts/health-insurance';
 /* eslint-enable boundaries/element-types */
+import { agentRequestContext } from '@/lib/agent/actor';
 
 import { aiPendingActions } from '../schema';
 import type { ToolContext } from '../tools/registry';
@@ -43,6 +45,20 @@ const PendingActionPayloadSchema = z.discriminatedUnion('type', [
      * confirmação; quem decide e cobra continua sendo o Payments, depois.
      */
     depositAmount: z.number().finite().positive().optional(),
+    /**
+     * P11 (28/11/2026) — marcação pelo convênio, resolvida e conferida no servidor por
+     * prepare_appointment. Presente = o atendimento nasce convênio (sem sinal) e a
+     * cobertura é registrada logo depois; ausente = particular, como sempre.
+     */
+    insurance: z
+      .object({
+        insurerId: z.string().uuid(),
+        planId: z.string().uuid().nullable(),
+        membershipId: z.string().uuid().nullable(),
+        guideType: z.enum(['consulta', 'sp_sadt']),
+      })
+      .strict()
+      .optional(),
   }),
   z.object({
     type: z.literal('confirm_appointment'),
@@ -59,6 +75,22 @@ const PendingActionPayloadSchema = z.discriminatedUnion('type', [
     newScheduledAt: z.string().datetime({ offset: true }),
   }),
 ]);
+
+/** Convênio não tem sinal nem preço por meio de pagamento (P4.2/P11). */
+const PendingActionPayloadChecked = PendingActionPayloadSchema.superRefine((value, ctx) => {
+  if (
+    value.type === 'schedule_appointment' &&
+    value.insurance &&
+    (value.depositAmount !== undefined || value.commercialPrice !== undefined || !value.patientId)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        'agendamento de convênio exige paciente identificado e não tem sinal nem preço por meio',
+      path: ['insurance'],
+    });
+  }
+});
 
 export type PendingActionPayload = z.infer<typeof PendingActionPayloadSchema>;
 export type PendingActionName = PendingActionPayload['type'];
@@ -386,6 +418,22 @@ async function assertPendingActionStillValid(
     if (!payload.patientId && !(await anonymousSchedulingAllowed(ctx))) {
       throw new Error('paciente não identificado: cadastre/identifique antes de agendar');
     }
+    // P11 — entre o resumo e o "SIM" a operadora pode ter sido desativada, o módulo
+    // desligado ou a assinatura encerrada: a escolha é conferida de novo, como na agenda.
+    if (payload.insurance) {
+      const refusal = payload.patientId
+        ? await checkSchedulingChoice(ctx.clinicId, payload.patientId, payload.insurance)
+        : 'paciente não identificado';
+      if (refusal) {
+        metrics.emit('ai_agent.insurance.refused', {
+          clinicId: ctx.clinicId,
+          aiRequestId: ctx.aiRequestId,
+          reason: refusal,
+          stage: 'confirmation',
+        });
+        throw new Error('o convênio escolhido não está mais disponível para agendamento');
+      }
+    }
     return;
   }
   const appointment = await schedulingApiV1.lookupAppointment(ctx.clinicId, payload.appointmentId);
@@ -395,7 +443,7 @@ async function assertPendingActionStillValid(
 }
 
 export function parsePendingActionPayload(value: unknown): PendingActionPayload {
-  return PendingActionPayloadSchema.parse(value);
+  return PendingActionPayloadChecked.parse(value);
 }
 
 /**
@@ -520,6 +568,8 @@ export interface PendingActionExecutionResult {
   scheduledAt?: string;
   /** Sinal previsto quando o agendamento foi preparado (só `schedule_appointment`). */
   depositAmount?: number;
+  /** P11 — marcado pelo convênio (sem sinal); a cobertura foi registrada ou ficou pendente. */
+  billingMode?: 'convenio';
 }
 
 export async function executePendingAction(
@@ -592,9 +642,40 @@ export async function executePendingAction(
         procedureId: payload.procedureId,
         patientId: payload.patientId,
         scheduledAt: payload.scheduledAt,
+        ...(payload.insurance ? { billingMode: 'convenio' as const } : {}),
       },
       idempotencyKey,
     );
+    // P11 — cobertura logo depois da criação, como na agenda da recepção (o atendimento
+    // já nasceu convênio). Nunca lança: sem carteirinha ou com falha, fica a pendência
+    // da recepção em Convênios, e o paciente não é cobrado.
+    if (payload.insurance && payload.patientId && appointment) {
+      const coverage = await recordSchedulingCoverage({
+        clinicId: ctx.clinicId,
+        userId: null,
+        patientId: payload.patientId,
+        procedureId: payload.procedureId,
+        appointments: [
+          {
+            id: appointment.id,
+            date: new Intl.DateTimeFormat('en-CA', {
+              timeZone: ctx.clinicTimeZone,
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+            }).format(new Date(appointment.scheduledAt)),
+          },
+        ],
+        choice: payload.insurance,
+        requestContext: agentRequestContext(actor),
+      });
+      metrics.emit('ai_agent.insurance.scheduled', {
+        clinicId: ctx.clinicId,
+        aiRequestId: ctx.aiRequestId,
+        coverageStatus: coverage.status ?? 'not_recorded',
+        coverageError: coverage.error !== null,
+      });
+    }
   } else if (payload.type === 'confirm_appointment') {
     appointment = await schedulingApiV1.confirmAsAgent(
       actor,
@@ -641,6 +722,9 @@ export async function executePendingAction(
     scheduledAt: appointment.scheduledAt,
     ...(payload.type === 'schedule_appointment' && payload.depositAmount
       ? { depositAmount: payload.depositAmount }
+      : {}),
+    ...(payload.type === 'schedule_appointment' && payload.insurance
+      ? { billingMode: 'convenio' as const }
       : {}),
   };
 }

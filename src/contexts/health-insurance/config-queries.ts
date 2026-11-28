@@ -723,6 +723,34 @@ export async function procedureRequiresAuthorization(
   });
 }
 
+/**
+ * P11 (agente) — tipo de guia e exigência de autorização do procedimento nesta operadora/plano, pelos contratos
+ * VIGENTES. O agente não escolhe o tipo de guia: com contrato vigente de um só tipo, é ele; com os dois ou nenhum,
+ * `consulta` (o mesmo padrão da tela da agenda; a recepção ajusta). A autorização é a do tipo escolhido.
+ */
+export async function schedulingTermsForProcedure(
+  clinicId: string,
+  q: { insurerId: string; planId: string | null; procedureId: string; on?: string },
+): Promise<{ guideType: 'consulta' | 'sp_sadt'; requiresAuthorization: boolean }> {
+  return withTenant(clinicId, async (tx) => {
+    const r = await rows(
+      tx,
+      sql`SELECT c.guide_type, coalesce(bool_or(c.requires_authorization), false) AS required
+            FROM public.hi_procedure_contracts c
+           WHERE c.clinic_id = ${clinicId}::uuid
+             AND c.insurer_id = ${q.insurerId}::uuid
+             AND c.procedure_id = ${q.procedureId}::uuid
+             AND (c.plan_id IS NULL OR c.plan_id = ${q.planId}::uuid)
+             AND c.valid_from <= coalesce(${q.on ?? null}::date, current_date)
+             AND (c.valid_until IS NULL OR c.valid_until >= coalesce(${q.on ?? null}::date, current_date))
+           GROUP BY c.guide_type`,
+    );
+    const byType = new Map(r.map((x) => [String(x.guide_type), x.required === true]));
+    const guideType = byType.size === 1 && byType.has('sp_sadt') ? 'sp_sadt' : 'consulta';
+    return { guideType, requiresAuthorization: byType.get(guideType) ?? false };
+  });
+}
+
 export interface SchedulingCard {
   id: string;
   insurerId: string;

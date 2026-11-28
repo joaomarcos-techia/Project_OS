@@ -113,11 +113,12 @@ export interface SchedulingCoverageOutcome {
 /**
  * Registra a cobertura dos atendimentos recém-criados (um ou a série inteira) numa
  * transação, com a pessoa da sessão e auditoria. Nunca lança: o resultado diz o que
- * aconteceu, porque o atendimento já existe.
+ * aconteceu, porque o atendimento já existe. `userId: null` = o agente de IA (P11), que
+ * não tem pessoa na sessão: a cobertura nasce como automação e a auditoria sem usuário.
  */
 export async function recordSchedulingCoverage(args: {
   clinicId: string;
-  userId: string;
+  userId: string | null;
   patientId: string;
   procedureId: string;
   appointments: ReadonlyArray<{ id: string; date: string }>;
@@ -141,7 +142,7 @@ export async function recordSchedulingCoverage(args: {
             planId: args.choice.planId,
             membershipId: args.choice.membershipId,
             authorizationId: null,
-            actor: { kind: 'user', userId: args.userId },
+            actor: args.userId ? { kind: 'user', userId: args.userId } : { kind: 'automation' },
           });
           await logAudit(tx, {
             clinicId: args.clinicId,

@@ -34,6 +34,7 @@ const INTENTS: readonly { value: string; label: string }[] = [
   { value: 'list_pending_payments', label: 'Pagamentos pendentes' },
   { value: 'provide_clinic_info', label: 'Informações da clínica' },
   { value: 'provide_procedure_price', label: 'Preço de procedimento' },
+  { value: 'list_insurance_options', label: 'Convênios para agendar' },
   { value: 'collect_patient_data', label: 'Coletar dados do paciente' },
   { value: 'patient_lookup', label: 'Buscar paciente' },
   { value: 'request_human_handoff', label: 'Falar com humano' },

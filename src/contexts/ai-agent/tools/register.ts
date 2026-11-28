@@ -26,9 +26,10 @@ import './lgpd-export-request';
 import './lgpd-delete-request';
 import './patient-lookup';
 import './collect-patient-data';
+import './list-insurance-options';
 
 /**
- * Nomes das 15 tools de produção (3 da C11 + 12 da C12).
+ * Nomes das 16 tools de produção (3 da C11 + 12 da C12 + 1 da P11 do Convênios).
  *
  * F-12 (auditoria 2026-08-14): `schedule_appointment` saiu do catálogo. Ela
  * aceitava doctor_id/procedure_id arbitrários do modelo, NÃO checava
@@ -55,4 +56,7 @@ export const PRODUCTION_TOOL_NAMES = [
   'lgpd_delete_request',
   'patient_lookup',
   'collect_patient_data',
+  // P11 (28/11/2026): convênios pelos quais a clínica agenda por aqui (só leitura; a marcação segue em
+  // prepare_appointment com insurer_name).
+  'list_insurance_options',
 ] as const;
