@@ -15,6 +15,8 @@
  * A entrega do e-mail é conferida pelo destinatário (fora do alcance desta ferramenta). HTTP 401/403 = para, sem
  * tentar outro caminho.
  */
+export {};
+
 const ORG = process.env.SENTRY_ORG_SLUG ?? 'qoro-1v';
 const PROJECT = process.env.SENTRY_PROJECT_SLUG ?? 'qoro';
 const API = 'https://sentry.io/api/0';
@@ -87,7 +89,7 @@ const before = rule.lastTriggered ?? null;
 const u = new URL(dsn);
 const projectId = u.pathname.replace(/^\//u, '');
 const eventId = crypto.randomUUID().replace(/-/gu, '');
-const event = {
+const syntheticEvent = {
   event_id: eventId,
   timestamp: new Date().toISOString(),
   platform: 'node',
@@ -96,9 +98,9 @@ const event = {
   tags: { flow: 'cron.insurance-maintenance.synthetic' },
 };
 const envelope = [
-  JSON.stringify({ event_id: eventId, sent_at: event.timestamp }),
+  JSON.stringify({ event_id: eventId, sent_at: syntheticEvent.timestamp }),
   JSON.stringify({ type: 'event' }),
-  JSON.stringify(event),
+  JSON.stringify(syntheticEvent),
 ].join('\n');
 const sent = await fetch(`${u.protocol}//${u.host}/api/${projectId}/envelope/`, {
   method: 'POST',
