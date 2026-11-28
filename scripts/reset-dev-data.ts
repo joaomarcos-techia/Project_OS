@@ -41,6 +41,20 @@ const profs = (await dbAdmin.execute(
   sql`SELECT id::text AS id FROM public.profiles WHERE role <> 'super_admin'`,
 )) as unknown as Array<{ id: string }>;
 
+// 2b. S5/0171: com a barreira append-only instalada, o CASCADE de clínica com histórico
+//     TISS (hi_account_events) é recusado pelo banco e a trilha da clínica não pode ser
+//     apagada (requisito 85 da ANS). Recusa ANTES de apagar qualquer coisa, com o motivo,
+//     em vez de falhar no meio com um erro do gatilho. Teardown com a barreira = decisão.
+const [{ barrier } = { barrier: false }] = (await dbAdmin.execute(
+  sql`SELECT exists(SELECT 1 FROM pg_trigger WHERE tgname = 'audit_events_append_only_row') AS barrier`,
+)) as unknown as Array<{ barrier: boolean }>;
+if (barrier) {
+  console.error(
+    '[reset:dev] recusado: a barreira append-only das trilhas (0171) está instalada neste banco. Apagar clínicas com trilha TISS não é permitido; use clínicas sintéticas novas (as fixtures já fazem assim) ou registre a decisão de teardown.',
+  );
+  process.exit(1);
+}
+
 // 3. Apagar as clínicas primeiro: CASCADE limpa profiles e contratos juntos.
 const [{ n: clinicCount } = { n: 0 }] = (await dbAdmin.execute(
   sql`SELECT count(*)::int AS n FROM public.clinics`,

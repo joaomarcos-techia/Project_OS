@@ -25,15 +25,19 @@ const BACKUPS_DIR = resolve(process.cwd(), 'backups');
 
 // This is an allowlist, not discovery by information_schema. New tables are
 // therefore never silently deleted just because someone added a migration.
-const TRANSIENT_TABLES = [
-  'audit_events',
+//
+// `audit_events` and `login_attempts` stay OUT (S5/0171 and Marco Civil art. 15):
+// the clinic trail is append-only (ANS requirement 85) and the access log must be
+// kept for 6 months (the purge cron keeps 186 days). With the 0171 barrier applied,
+// deleting `audit_events` would abort the whole reset transaction anyway.
+// Guarded by src/lib/operations/reset-prod-data.test.ts.
+export const TRANSIENT_TABLES = [
   'outbox',
   'idempotency_keys',
   'super_admin_actions',
   'impersonation_sessions',
   'cron_heartbeats',
   'system_metrics_daily',
-  'login_attempts',
   'inbound_messages_orphaned',
   'clinic_invites',
   'checkout_sessions',

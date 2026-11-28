@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   RESET_CONFIRMATION,
+  TRANSIENT_TABLES,
   assertApplyArgs,
   isPreservedSuperAdmin,
   parseResetArgs,
@@ -10,6 +11,11 @@ import {
 const USER_ID = '5d7da268-292b-4035-9fc0-972232dd7234';
 
 describe('reset-prod-data guards', () => {
+  it('never deletes the clinic audit trail nor the access log (S5/0171, Marco Civil art. 15)', () => {
+    expect(TRANSIENT_TABLES).not.toContain('audit_events');
+    expect(TRANSIENT_TABLES).not.toContain('login_attempts');
+  });
+
   it('defaults to dry-run and requires the exact preserved user id', () => {
     expect(parseResetArgs(['--preserve-user-id', USER_ID])).toEqual({
       apply: false,

@@ -55,8 +55,9 @@ const outFile = arg('out');
  *   set-active --account <chave> --active true|false perfil ativo/desativado de uma conta e2e-hi-*
  *   guide-state --guide <id>                         status, versão, ajuste e eventos (só leitura)
  *   setup-s2 --accounts <arquivo>                    uma conta dedicada ao E2E do S2 (bloqueio por inatividade)
+ *   setup-s34 --accounts <arquivo>                   contas do E2E de S3/S4 (política, histórico e validade da senha)
  */
-const COMMANDS = ['setup', 'setup-config', 'cleanup', 'setup-states', 'setup-authorizations', 'setup-i2', 'deliver-alerts', 'setup-p75', 'setup-sadt', 'complete-sadt', 'setup-r54', 'setup-p84', 'p84-state', 'set-state', 'set-active', 'guide-state', 'setup-s2', 'setup-p113'];
+const COMMANDS = ['setup', 'setup-config', 'cleanup', 'setup-states', 'setup-authorizations', 'setup-i2', 'deliver-alerts', 'setup-p75', 'setup-sadt', 'complete-sadt', 'setup-r54', 'setup-p84', 'p84-state', 'set-state', 'set-active', 'guide-state', 'setup-s2', 'setup-p113', 'setup-s34'];
 if (!COMMANDS.includes(command ?? '') || !expectedRef || !accountsFile || !outFile) {
   throw new Error(`uso: ${COMMANDS.join('|')} --expected-ref <ref> --accounts <arquivo> --out <ids.json>`);
 }
@@ -452,6 +453,47 @@ async function setupS2() {
   writeFileSync(accountsFile!, JSON.stringify(accounts, null, 1));
   writeFileSync(outFile!, JSON.stringify({ clinicId, patientId: patient!.id, otherClinicId: outra }, null, 1));
   console.log(`[hi-dev-e2e-fixture] S2 pronta: 3 contas (paga: gestora e médica; outra clínica: médica) e o paciente do rascunho; senhas só em ${accountsFile}`);
+}
+
+/**
+ * S3/S4 (política, histórico das 10 últimas e validade de 90 dias da senha no perfil TISS). Duas clínicas
+ * sintéticas NOVAS e dedicadas, sem tocar a e2e-hi-paga (capacidade de equipe):
+ *   - `e2e-hi-s34`: paga, módulo LIGADO (rastro TISS = no alcance); `s34` (gestora: troca a senha pelo fluxo de
+ *     recuperação, então ganha histórico) e `s34exp` (recepção: nunca troca pelo fluxo, então não tem histórico e,
+ *     com `TISS_SECURITY_PROFILE_ACTIVATED_AT` do Preview há mais de 90 dias, a senha está vencida);
+ *   - `e2e-hi-s34-fora`: paga, módulo DESLIGADO e sem dado TISS (fora do alcance); `s34fora` (gestora).
+ * As senhas trocadas pelo admin aqui NÃO entram no histórico (só o fluxo do app grava): reexecutar é seguro.
+ */
+async function setupS34() {
+  type Account = { email: string; password: string; userId: string; clinic: string; role: string };
+  const accounts: Record<string, Account> = {};
+  const add = async (key: string, clinicKey: string, clinicId: string, role: string, nome: string) => {
+    const email = `e2e-hi-${key}@example.com`;
+    const pass = password();
+    const userId = await ensureUser(email, pass);
+    await profile(userId, clinicId, nome, role);
+    await exec(sql`UPDATE public.profiles SET invite_accepted_at = coalesce(invite_accepted_at, now()) WHERE id = ${userId}::uuid`);
+    accounts[key] = { email, password: pass, userId, clinic: clinicKey, role };
+  };
+  const dentro = await clinic('e2e-hi-s34', 'Clínica Sintética E2E S3/S4');
+  await subscription(dentro, 'paid');
+  await exec(sql`
+    INSERT INTO public.hi_clinic_settings (clinic_id, enabled, enabled_at, enabled_by, cnes_status)
+    VALUES (${dentro}::uuid, true, now(), ${SYS}::uuid, 'unknown')
+    ON CONFLICT (clinic_id) DO UPDATE SET enabled = true, enabled_at = coalesce(public.hi_clinic_settings.enabled_at, now())`);
+  await add('s34', 'dentro', dentro, 'gestor', 'Gestora Sintética E2E S3/S4');
+  await add('s34exp', 'dentro', dentro, 'attendant', 'Recepção Sintética E2E S4 Validade');
+  const fora = await clinic('e2e-hi-s34-fora', 'Clínica Sintética E2E S3/S4 Fora do Alcance');
+  await subscription(fora, 'paid');
+  await exec(sql`UPDATE public.hi_clinic_settings SET enabled = false WHERE clinic_id = ${fora}::uuid AND enabled`);
+  await add('s34fora', 'fora', fora, 'gestor', 'Gestora Sintética E2E Fora do Alcance');
+  const [footprint] = await exec<{ data: boolean }>(sql`
+    SELECT EXISTS (SELECT 1 FROM public.hi_guides WHERE clinic_id = ${fora}::uuid)
+        OR EXISTS (SELECT 1 FROM public.hi_memberships WHERE clinic_id = ${fora}::uuid) AS data`);
+  if (footprint?.data) throw new Error('e2e-hi-s34-fora tem dado TISS: não serve como clínica fora do alcance');
+  writeFileSync(accountsFile!, JSON.stringify(accounts, null, 1));
+  writeFileSync(outFile!, JSON.stringify({ dentro, fora }, null, 1));
+  console.log(`[hi-dev-e2e-fixture] S3/S4 pronta: 3 contas (dentro: s34, s34exp; fora: s34fora); senhas só em ${accountsFile}`);
 }
 
 /**
@@ -1710,6 +1752,7 @@ const main =
   : command === 'setup-p84' ? setupP84
   : command === 'setup-s2' ? setupS2
   : command === 'setup-p113' ? setupP113
+  : command === 'setup-s34' ? setupS34
   : command === 'p84-state' ? p84State
   : command === 'set-state' ? setState
   : command === 'set-active' ? setActive
