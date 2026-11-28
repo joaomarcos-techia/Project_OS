@@ -32,7 +32,18 @@ export const AGENT_INSURANCE_TEXT = {
     'Não consegui consultar os convênios da clínica agora. Posso agendar como particular ou passar você para a recepção.',
   registrationNeeded:
     'Para agendar pelo convênio, preciso primeiro do seu cadastro na clínica. Qual é o seu nome completo?',
+  /** O modelo propôs uma operadora que o paciente não escreveu: nada é preparado, pergunta antes. */
+  insurerNotDeclared:
+    'Você quer agendar pelo convênio ou como particular? Se for pelo convênio, me diga o nome dele, por favor.',
 } as const;
+
+/** O paciente citou operadora(s) ativa(s), mas a marcação veio sem ela (ou com "particular" na mesma frase). */
+export function insurerOrPrivateReply(insurers: ReadonlyArray<{ name: string }>): string {
+  const names = [...new Set(insurers.map((i) => i.name))].join(' ou ');
+  return names
+    ? `Você quer agendar pelo convênio ${names} ou como particular?`
+    : AGENT_INSURANCE_TEXT.insurerNotDeclared;
+}
 
 export type AgentInsuranceOptions =
   | { kind: 'not_available'; reply: string }
@@ -70,11 +81,67 @@ const fold = (s: string) =>
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 
-/** Nome inteiro (≥ 3 letras) contido na fala, comparado sem caixa, acento nem pontuação. */
-const saidName = (said: string, name: string) => {
-  const n = fold(name);
-  return n.length >= 3 && said.includes(` ${n} `);
-};
+/**
+ * Nome inteiro (≥ 3 letras) contido na fala, sem caixa, acento nem pontuação. Os nomes ditos na fala, do mais longo para o mais curto: cada nome encontrado é retirado da fala antes de procurar
+ * os menores. Assim "Unimed Sintética Plus" casa só com ela (e não também com "Unimed Sintética"), mas a fala que diz
+ * os dois nomes separados casa com os dois (ambíguo).
+ */
+function namesSaid<T extends { name: string }>(text: string, items: readonly T[]): T[] {
+  let rest = ` ${fold(text)} `;
+  const out: T[] = [];
+  // Nomes iguais (duas operadoras "Vida") casam juntos: continuam ambíguos.
+  const names = [...new Set(items.map((i) => fold(i.name)))].sort((x, y) => y.length - x.length);
+  for (const name of names) {
+    if (name.length < 3 || !rest.includes(` ${name} `)) continue;
+    out.push(...items.filter((i) => fold(i.name) === name));
+    rest = rest.split(` ${name} `).join('  ');
+  }
+  return out;
+}
+
+/** "particular", "sem convênio", "sem plano": o paciente escolheu particular nesta fala. */
+const SAID_PRIVATE = /(^| )(particular|sem convenio|sem plano)( |$)/;
+
+/**
+ * P11 — o que o PACIENTE disse sobre convênio nas falas dele (turno e últimas mensagens, em ordem), e não o que o
+ * modelo propôs. Vale a última fala que cita uma operadora ativa ou "particular":
+ *   - `none`: nunca citou operadora ativa;
+ *   - `private`: "particular" depois da última operadora (ou sem operadora nenhuma);
+ *   - `insurer`: as operadoras da última menção, sem "particular" depois;
+ *   - `unclear`: operadora e "particular" na mesma fala ("não quero particular, é pela Unimed"): perguntar.
+ */
+export type PatientInsuranceIntent =
+  | { kind: 'none' }
+  | { kind: 'private' }
+  | { kind: 'insurer' | 'unclear'; insurers: Array<{ id: string; name: string }> };
+
+export function patientInsuranceIntent(
+  options: AgentInsuranceOptions,
+  patientTexts: readonly string[],
+): PatientInsuranceIntent {
+  const insurers = options.kind === 'options' ? options.insurers : [];
+  let intent: PatientInsuranceIntent = { kind: 'none' };
+  for (const text of patientTexts) {
+    const hits = namesSaid(text, insurers).map((i) => ({ id: i.id, name: i.name }));
+    const privateSaid = SAID_PRIVATE.test(` ${fold(text)} `);
+    if (hits.length > 0) intent = { kind: privateSaid ? 'unclear' : 'insurer', insurers: hits };
+    else if (privateSaid) intent = { kind: 'private' };
+  }
+  return intent;
+}
+
+/** Planos ATIVOS da operadora cujo nome o paciente escreveu em alguma das falas. */
+export function plansSaidByPatient(
+  options: AgentInsuranceOptions,
+  insurerId: string,
+  patientTexts: readonly string[],
+): Array<{ id: string; name: string }> {
+  if (options.kind !== 'options') return [];
+  const insurer = options.insurers.find((i) => i.id === insurerId);
+  if (!insurer) return [];
+  const ids = new Set(patientTexts.flatMap((t) => namesSaid(t, insurer.plans).map((p) => p.id)));
+  return insurer.plans.filter((p) => ids.has(p.id)).map((p) => ({ id: p.id, name: p.name }));
+}
 
 export type InsurerResolution =
   | { kind: 'match'; insurer: { id: string; name: string } }
@@ -91,8 +158,7 @@ export function resolveInsurerFromPatientText(
   text: string,
 ): InsurerResolution {
   if (options.kind !== 'options') return { kind: 'none' };
-  const said = ` ${fold(text)} `;
-  const hits = options.insurers.filter((i) => saidName(said, i.name));
+  const hits = namesSaid(text, options.insurers);
   if (hits.length === 1)
     return { kind: 'match', insurer: { id: hits[0]!.id, name: hits[0]!.name } };
   return hits.length > 1 ? { kind: 'ambiguous' } : { kind: 'none' };
@@ -121,8 +187,7 @@ export function resolvePlanFromPatientText(
   const insurer = options.insurers.find((i) => i.id === insurerId);
   if (!insurer) return undefined;
   if (!text?.trim()) return insurer.plans.length === 1 ? insurer.plans[0]! : null;
-  const said = ` ${fold(text)} `;
-  const hits = insurer.plans.filter((p) => saidName(said, p.name));
+  const hits = namesSaid(text, insurer.plans);
   return hits.length === 1 ? hits[0]! : undefined;
 }
 

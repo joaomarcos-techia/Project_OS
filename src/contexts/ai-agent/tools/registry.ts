@@ -40,6 +40,9 @@ export type ToolContext = {
   // Texto ORIGINAL do turno. Gates server-side (ex.: confirmação explícita)
   // nunca confiam em um argumento que o próprio LLM poderia fabricar.
   currentMessage: string;
+  // P11 — as falas do PACIENTE nas últimas mensagens da conversa (em ordem, sem a do turno). Com elas o servidor
+  // separa a operadora que o paciente disse da que o modelo propôs. Ausente (chamada direta da ferramenta) = só o turno.
+  recentPatientTexts?: readonly string[];
   // Configuração autoritativa usada pelas tools, não apenas pelo prompt.
   canScheduleAnonymous: boolean;
   maxDaysAhead: number;

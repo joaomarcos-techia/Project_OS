@@ -1157,6 +1157,9 @@ async function processInbound(ctx: DetachedHandlerCtx<InboundReceivedPayload>): 
       identityAmbiguous: conversation.identityAmbiguous,
       verifiedPhone: fromNumber,
       currentMessage: turnText,
+      recentPatientTexts: promptCtx.history
+        .filter((entry) => entry.direction === 'in')
+        .map((entry) => entry.text),
       canScheduleAnonymous: promptCtx.aiConfig.canScheduleAnonymous,
       maxDaysAhead: promptCtx.aiConfig.maxDaysAhead,
       clinicTimeZone: promptCtx.clinic.timezone,

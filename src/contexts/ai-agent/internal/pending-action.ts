@@ -59,6 +59,17 @@ const PendingActionPayloadSchema = z.discriminatedUnion('type', [
       })
       .strict()
       .optional(),
+    /**
+     * P11 — de onde veio a escolha: a operadora SEMPRE dita pelo paciente (o servidor recusa a que só o modelo
+     * propôs); o plano dito, o único ativo, o da carteirinha ou nenhum. Obrigatório com `insurance`.
+     */
+    insuranceSource: z
+      .object({
+        insurer: z.literal('patient_text'),
+        plan: z.enum(['patient_text', 'single_active', 'card', 'none']),
+      })
+      .strict()
+      .optional(),
   }),
   z.object({
     type: z.literal('confirm_appointment'),
@@ -88,6 +99,16 @@ const PendingActionPayloadChecked = PendingActionPayloadSchema.superRefine((valu
       message:
         'agendamento de convênio exige paciente identificado e não tem sinal nem preço por meio',
       path: ['insurance'],
+    });
+  }
+  if (
+    value.type === 'schedule_appointment' &&
+    Boolean(value.insurance) !== Boolean(value.insuranceSource)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'convênio sem a origem da escolha (ou origem sem convênio)',
+      path: ['insuranceSource'],
     });
   }
 });
@@ -674,6 +695,8 @@ export async function executePendingAction(
         aiRequestId: ctx.aiRequestId,
         coverageStatus: coverage.status ?? 'not_recorded',
         coverageError: coverage.error !== null,
+        insurerSource: payload.insuranceSource?.insurer ?? null,
+        planSource: payload.insuranceSource?.plan ?? null,
       });
     }
   } else if (payload.type === 'confirm_appointment') {

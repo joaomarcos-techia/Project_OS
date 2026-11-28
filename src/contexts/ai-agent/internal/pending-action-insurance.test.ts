@@ -86,6 +86,8 @@ const insurance = {
   membershipId: null,
   guideType: 'consulta' as const,
 };
+/** A operadora dita pelo paciente (o prepare recusa a que só o modelo propôs). */
+const insuranceSource = { insurer: 'patient_text' as const, plan: 'patient_text' as const };
 
 const prepared = (
   extra: Partial<Extract<PendingActionPayload, { type: 'schedule_appointment' }>>,
@@ -116,7 +118,7 @@ beforeEach(() => {
 
 describe('P11.1 — execução da marcação pelo convênio', () => {
   it('reconfere a escolha, cria como convênio e registra a cobertura como automação, na data da clínica', async () => {
-    prepared({ insurance });
+    prepared({ insurance, insuranceSource });
     const result = await executePendingAction(ctx());
 
     expect(mocks.checkSchedulingChoice).toHaveBeenCalledWith(CLINIC, PATIENT, insurance);
@@ -140,7 +142,7 @@ describe('P11.1 — execução da marcação pelo convênio', () => {
   });
 
   it('operadora desativada entre o resumo e o SIM: recusa, nada é criado nem registrado', async () => {
-    prepared({ insurance });
+    prepared({ insurance, insuranceSource });
     mocks.checkSchedulingChoice.mockResolvedValue(
       'A operadora não está ativa no cadastro da clínica.',
     );
@@ -152,7 +154,7 @@ describe('P11.1 — execução da marcação pelo convênio', () => {
   });
 
   it('falha ao registrar a cobertura não desfaz o atendimento (vira pendência da recepção)', async () => {
-    prepared({ insurance });
+    prepared({ insurance, insuranceSource });
     mocks.recordSchedulingCoverage.mockResolvedValue({
       recorded: 0,
       status: null,
@@ -163,8 +165,14 @@ describe('P11.1 — execução da marcação pelo convênio', () => {
   });
 
   it.each([
-    ['com sinal', { insurance, depositAmount: 50 }],
-    ['sem paciente identificado', { insurance, patientId: null }],
+    ['com sinal', { insurance, insuranceSource, depositAmount: 50 }],
+    ['sem paciente identificado', { insurance, insuranceSource, patientId: null }],
+    ['sem a origem da escolha', { insurance }],
+    [
+      'com origem de operadora que não veio do paciente',
+      { insurance, insuranceSource: { ...insuranceSource, insurer: 'model' } },
+    ],
+    ['com origem e sem convênio', { insuranceSource }],
   ])('payload de convênio %s é inválido: nada é criado', async (_l, extra) => {
     prepared(extra as never);
     await expect(executePendingAction(ctx())).rejects.toThrow();

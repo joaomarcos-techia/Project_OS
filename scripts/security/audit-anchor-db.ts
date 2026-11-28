@@ -9,7 +9,8 @@
  *      data retroativa e mudar uma chave que não é dado pessoal são acusados no dia certo, com a quantidade;
  *   5. a trilha da plataforma: mudar o payload de uma ação do super admin é acusado;
  *   6. a sequência guardada fora editada (um dia retirado) é acusada como cadeia quebrada;
- *   7. nada disso escreve: o cálculo roda numa transação READ ONLY.
+ *   7. nada disso escreve: o cálculo roda numa transação READ ONLY;
+ *   8. apagar a partição inteira de um mês (DETACH + DROP pelo dono do banco) é acusado em cada dia dela.
  *
  *   SECURITY_PG_BIN=... PORT=55643 NODE_OPTIONS=--conditions=react-server npx tsx scripts/security/audit-anchor-db.ts
  */
@@ -186,8 +187,26 @@ try {
   assert.deepEqual(after, before);
   pass('cálculo e conferência rodam em transação READ ONLY; nenhuma linha muda');
 
-  console.log(`\naudit-anchor-db: ${passed}/7 PASS`);
-  assert.equal(passed, 7);
+  // ── 8. apagar a partição inteira (o dono do banco, por fora da aplicação) ──
+  await sql.unsafe(`alter table audit_events detach partition audit_events_2027_09`);
+  await sql.unsafe(`drop table audit_events_2027_09`);
+  assert.deepEqual(
+    (await anchor.verifyAnchors(q, anchor.CLINIC_AUDIT_ANCHOR, clinicAnchors)).map((f) =>
+      f.kind === 'day_changed' ? [f.day, f.storedCount, f.currentCount] : f.kind,
+    ),
+    [
+      [DAYS[0], 2, 0],
+      [DAYS[1], 1, 0],
+      [DAYS[2], 1, 0],
+      [DAYS[3], 1, 0],
+    ],
+  );
+  pass(
+    'apagar a partição inteira (DETACH + DROP pelo dono do banco) é acusado em cada dia: as linhas somem, o resumo guardado fora não',
+  );
+
+  console.log(`\naudit-anchor-db: ${passed}/8 PASS`);
+  assert.equal(passed, 8);
 } finally {
   await dbAdmin.$client.end({ timeout: 5 }).catch(() => undefined);
   await cluster.stop();
