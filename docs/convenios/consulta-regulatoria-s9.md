@@ -119,3 +119,16 @@ com norma, dispositivo, URL, interpretação, medida e evidência, está em `QOR
 
 **S9 RESEARCH:** completa no escopo documental; duas questões com incerteza material residual (1 e 5) e uma
 controversa (4). Nenhuma delas impede o trabalho técnico; cada uma está reduzida a uma pergunta exata.
+
+## Decisão técnica de 28/11/2026 sobre o requisito 43 (a pergunta 4 continua para a ANS)
+
+| Ponto | O que o Qoro faz | Prova |
+| --- | --- | --- |
+| Memorização pelo sistema | nenhuma: sem "lembrar login", nada de credencial em `localStorage`/`sessionStorage`/cookie de cliente | varredura do `login/` (nenhum acesso a storage); sessão só em cookie HttpOnly |
+| Visualização de dados anteriores | o Qoro não lista logins anteriores; a senha nunca aparece (mascarada por padrão) | `login/page.tsx` (`type="password"`) |
+| Campo depois de erro | a senha sai do DOM depois de tentativa rejeitada | `clear-password-field.test.ts` (3 testes) |
+| `autocomplete="off"` literal | **não adotado**: navegadores modernos ignoram `off` em campos de login ([MDN](https://developer.mozilla.org/en-US/docs/Web/Security/Practical_implementation_guides/Turning_off_form_autocompletion)); os tokens `email` e `current-password` identificam o propósito do campo, exigido pela acessibilidade ([WCAG 2.1, 1.3.5, nível AA](https://www.w3.org/WAI/WCAG21/Understanding/identify-input-purpose.html)); e o NIST SP 800-63B-4 manda permitir gerenciadores | — |
+
+Conclusão: a parte técnica que o texto exige do **sistema** está cumprida e testada. Trocar para `autocomplete="off"`
+pioraria acessibilidade e segurança sem impedir o gerenciador do usuário. A única decisão aberta é a leitura literal
+(pergunta 4), que fica com a ANS/fundador — P12.12 segue parcial só por ela e pela aprovação do S8.

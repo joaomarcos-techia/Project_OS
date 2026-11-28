@@ -208,3 +208,15 @@ resolve. Decisões que restam, reduzidas ao mínimo:
    regra "só no próximo dia" que o Sandbox devolve **não está documentada**. A pergunta ao suporte continua a de
    `homologacao-r54-sandbox.md`, com um acréscimo: "o cartão no Sandbox chega a `RECEIVED` ou fica em `CONFIRMED`, e o
    estorno parcial exige `RECEIVED`?". Nenhuma nova tentativa foi feita.
+
+## P12.6 — o que falta para o alerta do Sentry (28/11/2026)
+
+- **Causa do 401:** o `SENTRY_AUTH_TOKEN` do `.env.local` contém uma URL (provavelmente o DSN). DSN só **envia** eventos;
+  não administra regras. Não usar DSN como token.
+- **O titular cria um token restrito** (não vai ao GitHub, não vai a log): Sentry → *Settings* → *Developer Settings* →
+  *Internal Integration* (ou *User Auth Tokens*), escopos mínimos **`alerts:write`**, **`project:read`** e **`org:read`**;
+  guardar só no `.env.local` como `SENTRY_AUTH_TOKEN` e avisar. Alternativa sem token: criar a regra pela tela.
+- **A regra (pronta para criar):** alerta de *issue* no projeto do Qoro, ambiente `preview` primeiro; condição "evento
+  novo" com filtro de tag/mensagem `insurance.` (as métricas e erros de Convênios já saem com esse prefixo); ação: e-mail
+  para o fundador. Teste: um evento sintético `insurance.alert_test` enviado do Preview e a confirmação de entrega no
+  e-mail. Só então P12.6 = PASS.
