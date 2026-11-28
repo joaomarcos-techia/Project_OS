@@ -108,6 +108,27 @@ export async function confirmSignupEmailCode(rawToken: string, input: unknown): 
       throw new Error('signup_code_other_session_live');
     const initialPassword = hasInitialSignupPassword(account.user, reservation.signupRef);
     const admin = createAdminClient();
+    // P-28 (18/11/2026): o Supabase Auth apaga, na prova de recovery, a senha de um usuário ainda
+    // não confirmado (`recoverVerify` → `ClearUnconfirmedPassword`, proteção contra conta
+    // pré-criada por quem não é dono do e-mail). Aqui a posse do e-mail já está provada pelo código
+    // desta reserva, e a senha inicial foi definida por esta mesma sessão de cadastro
+    // (`initial_password_ref` = `signupRef`). Confirmar o e-mail pelo admin antes da prova mantém
+    // essa senha. Sem senha inicial desta sessão, nada muda e a proteção do Auth continua valendo.
+    if (initialPassword && !account.user.email_confirmed_at) {
+      const confirmed = await admin.auth.admin.updateUserById(account.user.id, {
+        email_confirm: true,
+      });
+      // O admin confirma o endereço ATUAL da conta: ele precisa ser o mesmo que o código provou.
+      if (
+        confirmed.error ||
+        confirmed.data.user?.id !== account.user.id ||
+        confirmed.data.user.email?.toLowerCase() !== parsed.data.email.toLowerCase() ||
+        !confirmed.data.user.email_confirmed_at ||
+        !hasInitialSignupPassword(confirmed.data.user, reservation.signupRef)
+      ) {
+        throw new Error('signup_code_confirmation_unavailable');
+      }
+    }
     const generated = await admin.auth.admin.generateLink({
       type: 'recovery',
       email: parsed.data.email,

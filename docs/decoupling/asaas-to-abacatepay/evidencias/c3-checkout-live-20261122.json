@@ -1,0 +1,188 @@
+{
+  "observedAt": "2026-11-22T18:20:34.569Z",
+  "classification": "B_GATE_A_PASS_PILOT_PROVISIONED_AWAITING_HUMAN_PAYMENT",
+  "applicationSha": "e3cf8bbde70e922d66980d32a8be31aab97f19b1",
+  "prHead": "bc955f4ed633aa7e07dc1cf3423a14c2fbed4493",
+  "prDraft": true,
+  "sourceChanges": 0,
+  "migrations": 0,
+  "merge": false,
+  "identity": {
+    "clinicId": "10bfc9a6-b210-4ad8-b645-074a8ed62afa",
+    "userId": "4fcff640-3aa1-4f45-ad4f-aa30ecc3fa31",
+    "clinicName": "teste",
+    "ownerName": "cec",
+    "founderConfirmedActualNames": true,
+    "emailConfirmed": true,
+    "passwordStoredAsBcrypt": true,
+    "passwordBindingState": "set",
+    "role": "owner",
+    "inviteCompleted": true,
+    "userReportedSignupComplete": true,
+    "operatorDidNotImpersonateUser": true
+  },
+  "contract": {
+    "subscriptionId": "6638f7ae-a1bb-47e1-a945-3cfe1fc1a119",
+    "plan": "consultorio_2026",
+    "amountMinor": 19700,
+    "currency": "BRL",
+    "cycle": "monthly",
+    "doctors": 1,
+    "staff": 3,
+    "billingStatus": "trial",
+    "trialEndsAt": "2026-12-06T17:56:08.672Z",
+    "trialFromAuthCreation": true,
+    "jsMillisecondPrecisionDifferenceMs": 0.512,
+    "trialPoliciesReleased": false
+  },
+  "checkout": {
+    "id": "bill_eeHjDX0GzNMDYxTQHXJ2Z42a",
+    "externalId": "qoro-initial-6638f7ae-a1bb-47e1-a945-3cfe1fc1a119",
+    "providerCreatedAt": "2026-11-22T18:15:22.247Z",
+    "environment": "production",
+    "amountMinor": 19700,
+    "productId": "prod_SsBGWnFA5Qk1dED3DLRkzSDT",
+    "status": "PENDING",
+    "financialPosts": 1,
+    "operationId": "3de9f1d1-d3ba-4443-8ef0-d1549571a22f",
+    "journal": "confirmed",
+    "boundToSubscription": true,
+    "providerCheckoutCount": 1,
+    "providerSubscriptionCount": 0,
+    "invoices": 0,
+    "paid": false,
+    "rightsReleased": false,
+    "paymentUrlOrigin": "https://app.abacatepay.com",
+    "expirationNotGuaranteed": true,
+    "immediateFullChargeUponHumanPayment": true,
+    "noNativeTrial": true,
+    "paymentUrlDelivery": "prepared_for_founder_chat"
+  },
+  "deployments": {
+    "previousPrivate": "dpl_6wv8nHVjT2nMWpqpwferz5caB48w",
+    "restricted": "dpl_BNkdQWgK64gTCyTt7d9CK23shEau",
+    "restrictedPromotedAt": "2026-11-22T18:13:31.123Z",
+    "closed": "dpl_EUJWn37i3dGhjsmjT45Vi3aCfqaT",
+    "closedPromotedAt": "2026-11-22T18:17:13.679Z",
+    "sourceUnchanged": true,
+    "packageManifestSha256": "10d76582ae62f418d908e1db0d33788fe05656bded874269f825efcd7e28ea3a",
+    "crons": 21,
+    "globalEnvironmentNotModified": true,
+    "newAcquisitionClosed": true,
+    "privateAdmissionClosed": true,
+    "consumersPreserved": true,
+    "intermediateImmutableRetainsOnlyApprovedUuid": true,
+    "initialObligationUniqueJournalConstraint": true
+  },
+  "buildAttestation": {
+    "status": "PASS",
+    "centralMasterKeyAndLocalRedisCustodyMatched": true,
+    "exactOneClinicAllowlistChecked": true,
+    "fiveLiveProductsAndWebhookVerified": true,
+    "sourceSha256": "71489fa7a33f3aace275a54ff69191c1fcf09a3ed91226bfee9fabcb9f10c44d",
+    "syntheticChecks": 24,
+    "clinicIdEchoRedactedByVercel": true
+  },
+  "tests": {
+    "financialCommandUnitTests": {
+      "passed": 42,
+      "failed": 0,
+      "skipped": 0
+    },
+    "operatorPostGuards": {
+      "status": "PASS",
+      "checks": 8,
+      "financialCalls": 0
+    },
+    "fullCiNotRepeated": true,
+    "applicationCi": "44835695236",
+    "documentationHeadCi": "44856642443"
+  },
+  "database": {
+    "asaasSubscriptions": 5,
+    "abacateSubscriptions": 1,
+    "bindings": 1,
+    "inbox": 0,
+    "legacyFingerprintsUnchanged": true,
+    "fingerprints": {
+      "subscriptions": "63684436db128630ca929ee7e75a2bba",
+      "invoices": "b0802b695ebd2217a62577b1c6f1bfa5",
+      "prices": "a370d49a7ce7bde05e7083b9c745befb",
+      "plans": "480cb03f2eb064e37ee5e75da5fb052c"
+    },
+    "heartbeats": [
+      {
+        "job": "financial-reconcile",
+        "last_run_at": "2026-11-22T18:15:07.347Z",
+        "last_status": "success"
+      },
+      {
+        "job": "outbox",
+        "last_run_at": "2026-11-22T18:18:29.783Z",
+        "last_status": "success"
+      },
+      {
+        "job": "payments-deposit",
+        "last_run_at": "2026-11-22T18:15:18.519Z",
+        "last_status": "success"
+      }
+    ],
+    "outbox": [
+      {
+        "status": "processed",
+        "count": 726
+      },
+      {
+        "status": "skipped",
+        "count": 41
+      }
+    ],
+    "tls": "verify-full"
+  },
+  "health": [
+    {
+      "path": "/api/health/auth-hook",
+      "httpStatus": 200,
+      "checks": null
+    },
+    {
+      "path": "/api/health?deep=1",
+      "httpStatus": 200,
+      "checks": {
+        "db": "ok",
+        "gemini": "ok",
+        "meta": "ok",
+        "asaas": "ok",
+        "redis": "ok",
+        "outbox": "ok",
+        "signup": "ok"
+      }
+    }
+  ],
+  "incidents": [
+    {
+      "kind": "provider_precheck_timeout",
+      "financialPostsAtFailure": 0,
+      "reconciledExternalCheckouts": 0,
+      "action": "read-only recovery; first financial POST still not attempted before subsequent initial call"
+    },
+    {
+      "kind": "operator_readback_assumption",
+      "cause": "financial reader DTO intentionally omits externalId",
+      "afterFinancialPost": true,
+      "commandJournalAlreadyConfirmed": true,
+      "resolution": "native provider GET validates externalId; canonical binding attachment only",
+      "additionalFinancialPosts": 0,
+      "applicationCodeChanged": false
+    }
+  ],
+  "pending": [
+    "human payment",
+    "authoritative paid provider readback",
+    "authentic webhook and inbox processing",
+    "exactly one paid invoice",
+    "paid period, trial release and plan quotas",
+    "automatic live checkout closure",
+    "R1-R4/R51 remain limited pilot risks; B1-B not verified; C4 not authorized"
+  ]
+}

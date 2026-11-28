@@ -40,6 +40,10 @@ const REPO_ROOT = process.cwd();
 const DB_ORIGIN = 'src/lib/db/index.ts';
 
 const ALLOWED_POSTGRES_IMPORTS = new Set([
+  // Exact DEV ref, frozen hashes, read-only default; one reviewed migrator session.
+  'scripts/security/abacatepay-dev-release.ts',
+  // One-shot Pix migrator: exact DEV ref, pinned journal/hash and session lock.
+  'scripts/abacatepay-pix-dev-apply.ts',
   'src/lib/db/index.ts',
   // Cluster temporário próprio, loopback fixo e data_directory conferido antes do DDL.
   'scripts/security/tenant-isolation.ts',
@@ -60,7 +64,13 @@ const ALLOWED_POSTGRES_IMPORTS = new Set([
   // DATABASE_URL_PROD após opt-in explícito e gera backup antes da transação.
   'scripts/reset-prod-data.ts',
 ]);
-const ALLOWED_DRIZZLE_PG_IMPORTS = new Set(['src/lib/db/index.ts']);
+const ALLOWED_DRIZZLE_PG_IMPORTS = new Set([
+  'src/lib/db/index.ts',
+  'scripts/security/abacatepay-dev-release.ts',
+  'scripts/abacatepay-pix-dev-apply.ts',
+  // Disposable PostgreSQL fixture; the shared scratch-schema owns its loopback pool.
+  'scripts/security/abacatepay-pix-release-db.ts',
+]);
 const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
   db: new Set(['src/lib/db/tenant.ts']),
   dbAdmin: new Set([
@@ -122,6 +132,14 @@ const ALLOWED_DB_VALUE_IMPORTS: Record<string, Set<string>> = {
     'src/contexts/onboarding/internal/signup-billing.ts',
     // O-6: consome signup_sessions e cria o tenant na mesma tx (ADR-027).
     'src/contexts/onboarding/internal/signup-provision.ts',
+    // ADR-069: exact GLOBAL PROTECTED seams; scope checked before any grant/POST.
+    'src/contexts/onboarding/internal/signup-free-trial.ts',
+    // ADR-069 C3: private pre-tenant invitation/identity; no tenant exists yet.
+    'src/contexts/onboarding/internal/signup-pilot-repository.ts',
+    'src/contexts/onboarding/internal/signup-pilot.ts',
+    'src/contexts/billing/internal/deferred-checkout.ts',
+    'src/contexts/billing/internal/abacatepay-processing.ts',
+    'src/app/api/webhooks/abacatepay/route.ts',
     // Fase 2 (ADR-032): convite de funcionário insere profile via dbAdmin — profiles
     // não tem INSERT p/ authenticated (D31). Mesma justificativa da saga de onboarding.
     'src/contexts/identity/internal/members.ts',

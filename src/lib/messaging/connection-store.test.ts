@@ -5,6 +5,9 @@
  */
 import { PgDialect } from 'drizzle-orm/pg-core';
 import type { SQL } from 'drizzle-orm';
+import { assertTrialPaidFeatureTx } from '@/lib/trial-access';
+import { TrialAccessError } from '@/lib/trial-access/policy';
+vi.mock('@/lib/trial-access', () => ({ assertTrialPaidFeatureTx: vi.fn(async () => {}) }));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // vi.hoisted: a fábrica do vi.mock é içada acima dos imports; expor o spy por aqui
@@ -19,6 +22,7 @@ vi.mock('@/lib/audit/log', () => ({ logAudit: vi.fn(async () => 'audit-1') }));
 import { logAudit } from '@/lib/audit/log';
 
 import {
+  deactivateConnectionsForRemovedPartner,
   deactivateTenantConnection,
   listConnectionsDueForMessagingHealth,
   loadConnectionForMessagingHealth,
@@ -59,7 +63,39 @@ const baseInput: UpsertTenantConnectionInput = {
 
 beforeEach(() => vi.clearAllMocks());
 
+describe('partner removal SQL boundary', () => {
+  it('binds the external WABA ID as a parameter', async () => {
+    const { tx } = makeTx([[]]);
+    runWithTx(tx);
+    const wabaId = "waba' OR true --";
+
+    await expect(
+      deactivateConnectionsForRemovedPartner({
+        wabaId,
+        reason: null,
+        initiatedBy: null,
+        requestContext: ctx,
+      }),
+    ).resolves.toEqual({ deactivated: 0 });
+
+    const query = dialect.sqlToQuery(tx.execute.mock.calls[0]![0] as SQL);
+    expect(query.sql).toMatch(/meta_business_id = \$1 AND active = true/);
+    expect(query.sql).not.toContain(wabaId);
+    expect(query.params).toEqual([wabaId]);
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+});
+
 describe('upsertTenantConnection (Caso 4)', () => {
+  it('trial denies persistence without changing an existing connection', async () => {
+    const { tx } = makeTx([]);
+    runWithTx(tx);
+    vi.mocked(assertTrialPaidFeatureTx).mockRejectedValueOnce(new TrialAccessError('whatsapp'));
+    await expect(upsertTenantConnection(baseInput)).rejects.toMatchObject({
+      code: 'trial_access_restricted',
+    });
+    expect(tx.execute).not.toHaveBeenCalled();
+  });
   it('número já existe (reconexão) → UPDATE in-place, sem INSERT, desativa outras', async () => {
     const { tx, sqls } = makeTx([[{ id: 'found-1' }], [], []]);
     runWithTx(tx);

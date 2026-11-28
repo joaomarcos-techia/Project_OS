@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 
 import { setOpenHandoffCount } from '@/components/painel/handoff-store';
@@ -21,6 +21,11 @@ const MAX_INDIVIDUAL_TOASTS = 3;
  */
 const HANDOFF_TOAST_MS = 5_000;
 
+/** Lista ou conversa aberta: a fila já está na tela. */
+function naTelaDeConversas(pathname: string | null): boolean {
+  return pathname === '/conversas' || (pathname?.startsWith('/conversas/') ?? false);
+}
+
 /**
  * Avisa quem atende que um paciente pediu uma pessoa.
  *
@@ -36,12 +41,24 @@ const HANDOFF_TOAST_MS = 5_000;
 export function HandoffWatcher() {
   const router = useRouter();
   const seen = useRef<Set<string> | null>(null);
+  // O polling nasce uma vez; a rota atual chega por ref, sem reiniciar o ciclo.
+  const pathname = usePathname();
+  const rota = useRef(pathname);
+  useEffect(() => {
+    rota.current = pathname;
+  }, [pathname]);
 
   useEffect(() => {
     let cancelled = false;
+    // Uma consulta por vez (incidente de /conversas, 14/11/2026 —
+    // `docs/otimização_ui_final.md`): com o servidor lento, a resposta levou até
+    // 28 s e o intervalo de 20 s disparava outra antes da anterior voltar,
+    // empilhando trabalho no mesmo pool de conexões da tela.
+    let inFlight = false;
 
     const check = async () => {
-      if (document.visibilityState !== 'visible') return;
+      if (document.visibilityState !== 'visible' || inFlight) return;
+      inFlight = true;
       let result;
       try {
         result = await fetchOpenHandoffs();
@@ -49,6 +66,8 @@ export function HandoffWatcher() {
         // Rede instável não pode virar toast de erro: quem atende não tem o que
         // fazer com isso, e o próximo ciclo tenta de novo.
         return;
+      } finally {
+        inFlight = false;
       }
       if (cancelled) return;
       if (!result.ok) {
@@ -64,7 +83,9 @@ export function HandoffWatcher() {
       // Primeira carga: estabelece o baseline e resume o que já espera.
       if (seen.current === null) {
         seen.current = new Set(pending.map((h) => h.conversationId));
-        if (pending.length > 0) {
+        // UX-016: em Conversas a lista e o contador já mostram a fila; o resumo
+        // só cobria o primeiro item no celular. Pedido NOVO continua avisando.
+        if (pending.length > 0 && !naTelaDeConversas(rota.current)) {
           toast.info(
             pending.length === 1
               ? 'Uma conversa aguarda atendimento'

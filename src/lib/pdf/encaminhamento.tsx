@@ -18,7 +18,7 @@ export async function renderEncaminhamentoPDF(
         <Text style={styles.label}>Motivo do encaminhamento</Text>
         <Text>{data.motivo}</Text>
       </View>
-      <Text style={styles.dateLine}>Data: {formatDate(data.issuedAt)}</Text>
+      <Text style={styles.dateLine}>Data: {formatDate(data.issuedAt, data.timeZone)}</Text>
     </DocShell>,
   );
 }

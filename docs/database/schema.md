@@ -10,7 +10,11 @@ Canonical — schema versionado e modelo de acesso a dados.
 2. `src/contexts/*/schema.ts` e `src/lib/db/schema` para contratos TypeScript.
 3. `src/lib/db/index.ts`, `tenant.ts` e `rls.ts` para execução.
 
-O repositório contém 80 migrations SQL (`0000`–`0079`) e 90 tabelas Drizzle. Isso não comprova, sozinho, que um ambiente externo aplicou todas elas.
+O journal versionado é a fonte da sequência desta branch. A contagem isolada não comprova aplicação externa nem equivalência de hashes. As contagens abaixo pertencem ao checkpoint datado de agosto e não são inventário corrente.
+
+### Candidato financeiro privado — 12/11/2026
+
+O schema `billing_gateway` usa SQL explícito e repositórios privados; suas tabelas não são exportadas como API Drizzle para o tenant. O SQL adicional de recuperação e scanner permanece em `docs/decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql`, fora do journal até o acordo da cauda TISS e autorização específica de aplicação. O pacote descartável é prova de composição, não histórico aplicado. A [ADR-069](../adr/069-abacatepay-trial-origin-and-initial-access.md#extensão-técnica--recuperação-incremental-12112026) registra `statement_scans`/`statement_scan_items`: tabelas globais protegidas, FORCE RLS, nenhum acesso de tenant, serviço sem DELETE, FK de conta/finalidade e checkpoints atômicos. Inventário remoto/hashes e testes das duas ordens estão na [evidência financeira](../decoupling/asaas-to-abacatepay/evidencias/recuperacao-financeira-20261111.json).
 
 ## Evidência conectada — DEV, 2026-08-18
 

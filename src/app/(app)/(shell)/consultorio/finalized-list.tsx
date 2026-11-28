@@ -14,10 +14,12 @@ import { formatHora } from './format';
  */
 export function FinalizedList({
   cards,
+  timeZone,
   selectedId,
   onOpen,
 }: {
   cards: BoardCardDTO[];
+  timeZone: string;
   selectedId: string | null;
   onOpen: (id: string) => void;
 }) {
@@ -37,7 +39,9 @@ export function FinalizedList({
             )}
           >
             <span className="flex items-center gap-2">
-              <span className="font-mono text-xs text-fg-subtle">{formatHora(c.horario)}</span>
+              <span className="font-mono text-xs text-fg-subtle">
+                {formatHora(c.horario, timeZone)}
+              </span>
               <span className="min-w-0 flex-1 truncate text-sm font-semibold">
                 {c.pacienteNome}
               </span>

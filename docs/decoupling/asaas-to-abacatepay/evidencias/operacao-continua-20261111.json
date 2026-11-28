@@ -1,0 +1,898 @@
+{
+  "observedAt": "2026-11-11T11:51:18.794Z",
+  "status": "PARTIAL",
+  "scope": "continuous_billing_hardening_no_production_activation",
+  "baseline": {
+    "sha": "d91802286865eebaeb90884c797ce6c59baac8ce",
+    "ci": "43005109295",
+    "unitPassed": 6921,
+    "e2ePassed": 18,
+    "skip": 0
+  },
+  "historicalInitialPayments": {
+    "source": "checkouts-lote-20261111.json",
+    "scenarios": 5,
+    "preserved": true,
+    "repeated": 0
+  },
+  "recovery": {
+    "observedAt": "2026-11-11T11:47:29.083Z",
+    "environment": "loopback_synthetic",
+    "migrations": 143,
+    "results": [
+      {
+        "name": "H3 timeout before remote processing is retained across retries without another POST",
+        "status": "PASS",
+        "durationMs": 268
+      },
+      {
+        "name": "H3 response lost after provider processing recovers the original checkout without a second creation",
+        "status": "PASS",
+        "durationMs": 155
+      },
+      {
+        "name": "H3 durable running reservation with lost journal acknowledgement is recoverable by GET",
+        "status": "PASS",
+        "durationMs": 81
+      },
+      {
+        "name": "H3 concurrent read-only recovery confirms one original operation and one recovery audit",
+        "status": "PASS",
+        "durationMs": 298
+      },
+      {
+        "name": "H3 database failure rolls back journal, attachment and audit; retry does not repeat POST",
+        "status": "PASS",
+        "durationMs": 145
+      },
+      {
+        "name": "H3 a paid checkout is attached without granting access; separate payment readback applies one invoice",
+        "status": "PASS",
+        "durationMs": 224
+      },
+      {
+        "name": "H3 ambiguity, wrong tenant and API failure preserve the unknown obligation",
+        "status": "PASS",
+        "durationMs": 208
+      },
+      {
+        "name": "H5 bounded scanner applies authoritative recovery with durable backoff and no new command",
+        "status": "PASS",
+        "durationMs": 121
+      },
+      {
+        "name": "INITIAL-consultorio_2026 first checkout freezes the exact price and releases only its paid quota",
+        "status": "PASS",
+        "durationMs": 193
+      },
+      {
+        "name": "INITIAL-consultorio_2026 underpayment cannot release the trial or create a second checkout",
+        "status": "PASS",
+        "durationMs": 151
+      },
+      {
+        "name": "INITIAL-clinica_2026_2 first checkout freezes the exact price and releases only its paid quota",
+        "status": "PASS",
+        "durationMs": 171
+      },
+      {
+        "name": "INITIAL-clinica_2026_2 underpayment cannot release the trial or create a second checkout",
+        "status": "PASS",
+        "durationMs": 61
+      },
+      {
+        "name": "INITIAL-clinica_2026_3 first checkout freezes the exact price and releases only its paid quota",
+        "status": "PASS",
+        "durationMs": 113
+      },
+      {
+        "name": "INITIAL-clinica_2026_3 underpayment cannot release the trial or create a second checkout",
+        "status": "PASS",
+        "durationMs": 62
+      },
+      {
+        "name": "INITIAL-clinica_2026_4 first checkout freezes the exact price and releases only its paid quota",
+        "status": "PASS",
+        "durationMs": 108
+      },
+      {
+        "name": "INITIAL-clinica_2026_4 underpayment cannot release the trial or create a second checkout",
+        "status": "PASS",
+        "durationMs": 62
+      },
+      {
+        "name": "INITIAL-clinica_2026_5 first checkout freezes the exact price and releases only its paid quota",
+        "status": "PASS",
+        "durationMs": 115
+      },
+      {
+        "name": "INITIAL-clinica_2026_5 underpayment cannot release the trial or create a second checkout",
+        "status": "PASS",
+        "durationMs": 76
+      },
+      {
+        "name": "ACTIVATION-network bounded readback or lease recovery never creates another charge",
+        "status": "PASS",
+        "durationMs": 192
+      },
+      {
+        "name": "ACTIVATION-503 bounded readback or lease recovery never creates another charge",
+        "status": "PASS",
+        "durationMs": 192
+      },
+      {
+        "name": "ACTIVATION-expired_lease bounded readback or lease recovery never creates another charge",
+        "status": "PASS",
+        "durationMs": 93
+      },
+      {
+        "name": "CONSUMED-active old paid checkout cannot reactivate or grant another period under concurrent replay",
+        "status": "PASS",
+        "durationMs": 90
+      },
+      {
+        "name": "CONSUMED-past_due old paid checkout cannot reactivate or grant another period under concurrent replay",
+        "status": "PASS",
+        "durationMs": 106
+      },
+      {
+        "name": "CONSUMED-cancelled old paid checkout cannot reactivate or grant another period under concurrent replay",
+        "status": "PASS",
+        "durationMs": 119
+      },
+      {
+        "name": "ROLLOUT kill switch blocks new obligations but not reconciliation of a paid checkout",
+        "status": "PASS",
+        "durationMs": 92
+      },
+      {
+        "name": "ROLLOUT exact clinic cohort refuses another tenant before any financial operation",
+        "status": "PASS",
+        "durationMs": 56
+      },
+      {
+        "name": "PENDING overview reflects a durable event without claiming payment or releasing quotas",
+        "status": "PASS",
+        "durationMs": 44
+      },
+      {
+        "name": "INITIAL-ATOMIC-invoice database failure rolls back activation and retries without another charge",
+        "status": "PASS",
+        "durationMs": 83
+      },
+      {
+        "name": "INITIAL-ATOMIC-trial_quota_release database failure rolls back activation and retries without another charge",
+        "status": "PASS",
+        "durationMs": 89
+      }
+    ],
+    "networkCalls": 0,
+    "fixtureCalls": 553,
+    "syntheticPostAttempts": 29,
+    "productionWrites": 0,
+    "status": "PASS"
+  },
+  "renewal": {
+    "observedAt": "2026-11-11T11:59:42.133Z",
+    "environment": "loopback_synthetic",
+    "migrations": 143,
+    "additionalCandidateDdl": "saas_period_snapshot.candidate.sql; loopback only, not in migration journal",
+    "results": [
+      {
+        "name": "REN-001 verified renewal records a second invoice and advances the original calendar once",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-002/020 duplicate event and charge do not extend the same period twice",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-003/004/018 older distinct charge keeps financial evidence without regressing the current period",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-005 unknown event or subscription cannot create a financial effect",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-006 authenticated references cannot be rebound to another tenant",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-007 gateway/environment/store mismatch is rejected before writes",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-008 cancellation intent wins over automatic renewal access and keeps paid evidence",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-009/010 API outage remains retryable, then the same legitimate event regularizes once",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-011 transaction rollback preserves state and permits a later successful replay",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-012 twelve concurrent applications produce one invoice and paid cycle",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-013/014/015 database calendar checks reject a shifted month even under another timezone",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-016 unsupported annual readback does not create a new annual sale or advance access",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-017 changed product or partial amount is reviewed before duplicate acknowledgement",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-019 absent renewal references are not invented from the initial PAID checkout",
+        "status": "PASS"
+      },
+      {
+        "name": "real receiver + HMAC + inbox + HTTP readback + DB application survives duplicate and concurrent reconcile",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-003/004 late earlier cycle records its own invoice without resetting the current access",
+        "status": "PASS"
+      },
+      {
+        "name": "REN-017 a local price change does not grant the pending plan from the old payment",
+        "status": "PASS"
+      },
+      {
+        "name": "failure/refund/dispute after success stays in review without undoing paid access",
+        "status": "PASS"
+      },
+      {
+        "name": "support-confirmed checkout.lost records bound review once without a subscription reference or access change",
+        "status": "PASS"
+      },
+      {
+        "name": "L3 negative event already bound to another tenant cannot be rebound by remote identifiers",
+        "status": "PASS"
+      },
+      {
+        "name": "L1 an expired worker lease recovers the same renewal after process interruption",
+        "status": "PASS"
+      },
+      {
+        "name": "L6 interruption of the final lease moves to review without an eleventh provider read",
+        "status": "PASS"
+      },
+      {
+        "name": "L3 a negative-event worker that loses its lease cannot commit an audit or grace change",
+        "status": "PASS"
+      },
+      {
+        "name": "L3 negative-event audit failure rolls back access policy and inbox, then replay commits once",
+        "status": "PASS"
+      },
+      {
+        "name": "L3 a negative notification in the Asaas namespace cannot affect AbacatePay or trigger remote reads",
+        "status": "PASS"
+      },
+      {
+        "name": "H2 full/partial refund observations are idempotent and never cancel access or alter the paid invoice",
+        "status": "PASS"
+      },
+      {
+        "name": "H2 a verified refund of an older cycle cannot shorten a newer paid cycle",
+        "status": "PASS"
+      },
+      {
+        "name": "H2 a reversal is recorded as ambiguous rather than a won dispute or restored payment",
+        "status": "PASS"
+      },
+      {
+        "name": "H4 extra doctor is scheduled once under concurrency and released only by its full paid renewal",
+        "status": "PASS"
+      },
+      {
+        "name": "H4 Consultorio to Clinica upgrade keeps the original plan until full next-cycle payment",
+        "status": "PASS"
+      },
+      {
+        "name": "H4 downgrade reserves target capacity and applies only its lower fully paid cycle",
+        "status": "PASS"
+      },
+      {
+        "name": "L2 cancellation during a plan command preserves paid evidence without releasing the target quota",
+        "status": "PASS"
+      },
+      {
+        "name": "H4 lost plan-change response retains one obligation and never overwrites it with another POST",
+        "status": "PASS"
+      },
+      {
+        "name": "H4 another tenant, stale generation and cancelled contract cannot submit a plan command",
+        "status": "PASS"
+      },
+      {
+        "name": "H4 old amount, partial payment and early target payment cannot release the new plan",
+        "status": "PASS"
+      },
+      {
+        "name": "H4 rollback keeps both plan and pending intent before a successful payment replay",
+        "status": "PASS"
+      },
+      {
+        "name": "L3 integrity scan observes a healthy recurrence without altering any financial state",
+        "status": "PASS"
+      },
+      {
+        "name": "L3 sixteen integrity workers reserve one scan and record one duplicate-recurrence incident",
+        "status": "PASS"
+      },
+      {
+        "name": "L4 integrity API outage is audited and resumes after backoff without granting or charging",
+        "status": "PASS"
+      },
+      {
+        "name": "L3 integrity review persistence failure rolls back observation and permits a later retry",
+        "status": "PASS"
+      },
+      {
+        "name": "L5 unexpected cancellation signals review without revoking paid access",
+        "status": "PASS"
+      },
+      {
+        "name": "L5 an owned cancellation is not reported as an unexpected remote cancellation",
+        "status": "PASS"
+      },
+      {
+        "name": "L4 provider records for another tenant cannot be rebound by the integrity scanner",
+        "status": "PASS"
+      },
+      {
+        "name": "L4 scan with insufficient time performs neither provider reads nor an audit reservation",
+        "status": "PASS"
+      },
+      {
+        "name": "L3 pending recontract and old generation are inspected separately without granting a new trial",
+        "status": "PASS"
+      },
+      {
+        "name": "L4 bounded integrity batch signals remaining work instead of claiming every checkout is clean",
+        "status": "PASS"
+      },
+      {
+        "name": "schema is private, FORCE RLS, service_role read/insert only",
+        "status": "PASS"
+      },
+      {
+        "name": "financial and access snapshots are immutable",
+        "status": "PASS"
+      },
+      {
+        "name": "H4 pending plan snapshots are immutable, private and deny destructive service privileges",
+        "status": "PASS"
+      },
+      {
+        "name": "paid period cannot reference an invoice belonging to another tenant",
+        "status": "PASS"
+      },
+      {
+        "name": "anon/authenticated cannot read private financial evidence, and service cannot update it",
+        "status": "PASS"
+      },
+      {
+        "name": "OPS-001 one audited replay preserves all financial fields and cumulative attempts",
+        "status": "PASS"
+      },
+      {
+        "name": "OPS-002 review recovery verifies the same remote payment and grants exactly one cycle",
+        "status": "PASS"
+      },
+      {
+        "name": "OPS-003 concurrent operators authorize only once from the same snapshot",
+        "status": "PASS"
+      },
+      {
+        "name": "OPS-004 clinic owners cannot authorize a platform financial replay",
+        "status": "PASS"
+      },
+      {
+        "name": "OPS-005 stale snapshots and cross-tenant requests never queue an event",
+        "status": "PASS"
+      },
+      {
+        "name": "OPS-006 applied/processing events cannot be manually reopened",
+        "status": "PASS"
+      },
+      {
+        "name": "OPS-007 three manual attempts per day are enforced without financial override",
+        "status": "PASS"
+      },
+      {
+        "name": "OPS-008 private replay evidence denies anon, authenticated and service mutation",
+        "status": "PASS"
+      },
+      {
+        "name": "OPS-009 no duplicate renewal incident under parallel scans and no access changes",
+        "status": "PASS"
+      },
+      {
+        "name": "OPS-010 a verified renewal resolves the incident without replaying financial effects",
+        "status": "PASS"
+      },
+      {
+        "name": "OPS-011 cancelled contracts and future periods never report an expected renewal",
+        "status": "PASS"
+      },
+      {
+        "name": "OPS-012 trial without paid evidence and Asaas legacy are outside the monitor",
+        "status": "PASS"
+      },
+      {
+        "name": "OPS-013 a failed audit transaction rolls back the authorization and queue atomically",
+        "status": "PASS"
+      },
+      {
+        "name": "OPS-014 two manually retried event IDs for one payment never grant two cycles",
+        "status": "PASS"
+      },
+      {
+        "name": "OPS-015 operator repository exposes quarantined references without an authorization path",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-3 exact catalog amount, concurrent upgrade, paid quota and downgrade",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-3 old_amount cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-3 partial cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-3 overpaid cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-3 wrong_product cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-3 early cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-4 exact catalog amount, concurrent upgrade, paid quota and downgrade",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-4 old_amount cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-4 partial cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-4 overpaid cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-4 wrong_product cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-4 early cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-5 exact catalog amount, concurrent upgrade, paid quota and downgrade",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-5 old_amount cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-5 partial cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-5 overpaid cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-5 wrong_product cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX-5 early cannot release a higher quota",
+        "status": "PASS"
+      },
+      {
+        "name": "MATRIX unknown, legacy and current plan are refused without provider commands",
+        "status": "PASS"
+      },
+      {
+        "name": "PERIOD missing webhook is detected independently by authenticated provider period with no fabricated event or entitlement",
+        "status": "PASS"
+      },
+      {
+        "name": "PERIOD schema N/N-1 keeps shared-checkout renewal in review before candidate DDL",
+        "status": "PASS"
+      },
+      {
+        "name": "PERIOD candidate DDL preserves all existing subscriptions and invoices and private RLS",
+        "status": "PASS"
+      },
+      {
+        "name": "PERIOD two original-checkout renewals have distinct payment ledgers and one effect per cycle",
+        "status": "PASS"
+      },
+      {
+        "name": "PERIOD database refuses shared checkout without paid-period evidence",
+        "status": "PASS"
+      },
+      {
+        "name": "PERIOD late original-checkout payment preserves the original anniversary calendar",
+        "status": "PASS"
+      },
+      {
+        "name": "PERIOD a distinct-checkout proof cannot smuggle unaudited provider-period metadata",
+        "status": "PASS"
+      }
+    ],
+    "networkCalls": 0,
+    "fixtureHttpCalls": 352,
+    "productionWrites": 0,
+    "status": "PASS"
+  },
+  "targetedTests": {
+    "passed": 965,
+    "files": 53,
+    "scope": "final focused financial, checkout, UI, environment and Sentry tests; overlapping with full CI"
+  },
+  "authoritativeApiRead": {
+    "observedAt": "2026-11-11T11:23:16.877Z",
+    "resources": [
+      {
+        "plan": "consultorio_2026",
+        "http": 200,
+        "devMode": true,
+        "presentFieldNames": [
+          "amount",
+          "checkoutId",
+          "coupons",
+          "createdAt",
+          "currentPeriodEnd",
+          "currentPeriodStart",
+          "customerId",
+          "devMode",
+          "id",
+          "method",
+          "nextChargeAt",
+          "retryPolicy",
+          "status",
+          "trialDays",
+          "trialEndsAt",
+          "updatedAt"
+        ],
+        "periodFields": {
+          "currentPeriodStart": "2026-11-11",
+          "currentPeriodEnd": "2026-12-11",
+          "nextChargeAt": "2026-12-11"
+        }
+      },
+      {
+        "plan": "clinica_2026_5",
+        "http": 200,
+        "devMode": true,
+        "presentFieldNames": [
+          "amount",
+          "checkoutId",
+          "coupons",
+          "createdAt",
+          "currentPeriodEnd",
+          "currentPeriodStart",
+          "customerId",
+          "devMode",
+          "id",
+          "method",
+          "nextChargeAt",
+          "retryPolicy",
+          "status",
+          "trialDays",
+          "trialEndsAt",
+          "updatedAt"
+        ],
+        "periodFields": {
+          "currentPeriodStart": "2026-11-11",
+          "currentPeriodEnd": "2026-12-11",
+          "nextChargeAt": "2026-12-11"
+        }
+      }
+    ],
+    "mutations": 0,
+    "sourceDocs": [
+      {
+        "file": "llms.txt",
+        "http": 200,
+        "claimsPaidPeriod": true,
+        "claimsLinkInvalidation": true
+      },
+      {
+        "file": "pages/subscriptions/get.mdx",
+        "http": 200,
+        "claimsPaidPeriod": true,
+        "claimsLinkInvalidation": false
+      },
+      {
+        "file": "pages/subscriptions/checkouts-delete.mdx",
+        "http": 200,
+        "claimsPaidPeriod": false,
+        "claimsLinkInvalidation": true
+      }
+    ]
+  },
+  "latency": {
+    "before": {
+      "scope": "Real paid Sandbox 4/5 doctors",
+      "source": "checkouts-lote-20261111.json",
+      "seconds": [316.13, 316.39],
+      "workerAttempts": 3
+    },
+    "after": {
+      "scope": "Loopback PostgreSQL and synthetic provider only; not a new external payment",
+      "samples": [
+        {
+          "name": "ACTIVATION-network bounded readback or lease recovery never creates another charge",
+          "status": "PASS",
+          "durationMs": 192
+        },
+        {
+          "name": "ACTIVATION-503 bounded readback or lease recovery never creates another charge",
+          "status": "PASS",
+          "durationMs": 192
+        },
+        {
+          "name": "ACTIVATION-expired_lease bounded readback or lease recovery never creates another charge",
+          "status": "PASS",
+          "durationMs": 93
+        }
+      ]
+    },
+    "targets": {
+      "healthyReadBudgetMs": 20000,
+      "lateActivationSignalMs": 120000,
+      "targetHealthyCommitSeconds": 30,
+      "externalP95": "NOT_PROVEN",
+      "fallback": "provider redelivery plus existing daily cron; no new scheduling configuration"
+    }
+  },
+  "observability": {
+    "readOnlyInvestigation": {
+      "observedAt": "2026-11-11T11:19:25.764Z",
+      "scope": "read_only_metadata_no_configuration_change",
+      "logs": [
+        {
+          "ts": "2026-11-11T10:26:28.100Z",
+          "event": "billing.abacatepay.event_reconciled",
+          "outcome": "applied"
+        },
+        {
+          "ts": "2026-11-11T10:25:59.739Z",
+          "event": "billing.abacatepay.webhook_failed",
+          "reason": "authentication_failed"
+        },
+        {
+          "ts": "2026-11-11T10:25:55.930Z",
+          "event": "billing.abacatepay.event_reconciled",
+          "outcome": "applied"
+        },
+        {
+          "ts": "2026-11-11T10:24:29.478Z",
+          "event": "billing.abacatepay.webhook_failed",
+          "reason": "authentication_failed"
+        },
+        {
+          "ts": "2026-11-11T10:22:07.535Z",
+          "event": "billing.abacatepay.webhook_failed",
+          "reason": "authentication_failed"
+        },
+        {
+          "ts": "2026-11-11T10:21:19.587Z",
+          "event": "billing.abacatepay.reconcile_failed",
+          "reason": "authoritative_readback_or_transaction"
+        },
+        {
+          "ts": "2026-11-11T10:21:11.260Z",
+          "event": "billing.abacatepay.reconcile_failed",
+          "reason": "authoritative_readback_or_transaction"
+        },
+        {
+          "ts": "2026-11-11T10:20:47.540Z",
+          "event": "billing.abacatepay.reconcile_failed",
+          "reason": "authoritative_readback_or_transaction"
+        },
+        {
+          "ts": "2026-11-11T10:20:39.442Z",
+          "event": "billing.abacatepay.reconcile_failed",
+          "reason": "authoritative_readback_or_transaction"
+        },
+        {
+          "ts": "2026-11-11T10:20:23.606Z",
+          "event": "billing.abacatepay.event_reconciled",
+          "outcome": "applied"
+        },
+        {
+          "ts": "2026-11-11T10:19:58.900Z",
+          "event": "billing.abacatepay.event_reconciled",
+          "outcome": "applied"
+        }
+      ],
+      "sentry": {
+        "organizationsHttp": 401
+      },
+      "logQuery": "completed"
+    },
+    "probe": {
+      "observedAt": "2026-11-11T11:43:25.996Z",
+      "status": "INGEST_ACCEPTED",
+      "httpStatus": 200,
+      "eventId": "fc2862ce570d48c6966747db2022aa5b",
+      "runId": "f4b90206-b481-4764-a227-4bc8066aa9d1",
+      "environment": "preview",
+      "scope": "One synthetic Sentry ingestion probe, not an application webhook or financial event",
+      "notificationReceipt": "NOT_VERIFIED",
+      "adminApiHttp": 401,
+      "patients": 0,
+      "payments": 0,
+      "configurationChanges": 0,
+      "productionWrites": 0
+    },
+    "mfa": {
+      "observedAt": "2026-11-11T11:37:16.157Z",
+      "environment": "DEV",
+      "active_platform_operators": 2,
+      "marked_mfa_enrolled": 2,
+      "native_verified_factor": 2,
+      "readOnly": true,
+      "identitiesDisclosed": 0,
+      "status": "PASS"
+    },
+    "githubMfa": "NOT_VERIFIED; own-user API omitted the value",
+    "vercelAndProviderMfa": "NOT_VERIFIED; no interactive security settings changed",
+    "notificationReceipt": "NOT_VERIFIED",
+    "ownerReadback": {
+      "source": "Founder supplied Sentry issue export and explicit reply in this session",
+      "probeIssueId": "7842026780",
+      "probeVisible": true,
+      "notificationOutsideDashboard": "NOT_RECEIVED_BY_OWNER",
+      "alertRuleRouting": "NOT_VERIFIED",
+      "historicalIssues": [
+        {
+          "id": "7590707702",
+          "environment": "development",
+          "scope": "localhost_dashboard_connection_timeout",
+          "rootCause": "NOT_ESTABLISHED"
+        },
+        {
+          "id": "7730223576",
+          "environment": "preview_url_mislabeled_production",
+          "scope": "React418_then_parentNode",
+          "rootCause": "NOT_REPRODUCED"
+        }
+      ]
+    },
+    "browserEnvironment": {
+      "implementation": "NEXT_PUBLIC_VERCEL_ENV with NODE_ENV fallback",
+      "source": "Automatic public Vercel framework metadata; no external env configuration",
+      "affectedUnitPassed": 58,
+      "overlapsPreviousTests": true,
+      "previewValidation": "See final PR #53 evidence",
+      "fixes": "Environment classification only; not the historical hydration root cause"
+    }
+  },
+  "candidateDdl": {
+    "file": "docs/decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql",
+    "journalRegistered": false,
+    "localApplied": true,
+    "remoteApplied": false,
+    "reason": "PR55 now contains 0143-0146; no version or historical SQL overwritten",
+    "preserves": "subscriptions, invoices, prices, private RLS and per-payment/per-cycle uniqueness"
+  },
+  "controls": {
+    "newCheckoutsEnabled": "ABACATEPAY_NEW_CHECKOUTS_ENABLED",
+    "clinicCohort": "ABACATEPAY_CHECKOUT_CLINIC_IDS",
+    "productionRuntime": "still forbidden",
+    "envChanges": 0
+  },
+  "remaining": {
+    "missingAllRenewalEvents": "Independent detection implemented. Automatic financial recovery without an authenticated source event is not implemented; no fabricated event or inferred charge.",
+    "checkoutClosure": "Current official source documents URL invalidation. Paid checkout was not deleted; history/readback after deletion not externally proven.",
+    "liveComposition": "NOT_IMPLEMENTED; cohort/kill controls are prepared in the guarded Sandbox composition",
+    "mfaAndAlertReceipt": "Owner session/administrative access required"
+  },
+  "sourceHashes": {
+    "e2e/abacatepay-plan-ui.spec.ts": "48722514102022845ff3743620aebe8eb50f6225234aed2c4e9e1a5df8879072",
+    "scripts/security/abacatepay-checkout-recovery-db.ts": "30e9a80e50d963ce1edb1e04a71b6f3c89f30395109e94cc36cc124fef6b6610",
+    "scripts/security/abacatepay-renewal-db.ts": "7245e4d5fb44adb9fb21bb5c72dc7b4812a80876f101cca504a3188048d705ab",
+    "scripts/security/local-build.ts": "efa933cd3ee13009eeddedbd3b1d0f7da543b4ede23b9e2beb46fe11f124acb5",
+    "sentry.edge.config.ts": "6729414f7eb3a85745dd771365cacb9a04ea1cb6621b301c949966e50033d6b3",
+    "sentry.server.config.ts": "4c344952a5e8a6ed934042b5d00d676967a939fb2978002dab8ed2455ff09704",
+    "src/app/(app)/(shell)/configuracoes/assinatura/deferred-subscription.test.tsx": "fffc0c0404a3b09df94a0affa885c24533a02328975b05b38d6057d4f79067e7",
+    "src/app/(app)/(shell)/configuracoes/assinatura/deferred-subscription.tsx": "c5f247c4e4895f9d36deab9915b46c030169705dc3f55cedbd35bd44113b7365",
+    "src/app/api/webhooks/abacatepay/route.test.ts": "f3663f8d02c996217081c77a10a9914782d22578e96a4550d9f85eeb3a40b16a",
+    "src/app/api/webhooks/abacatepay/route.ts": "07849088aa63ec1a5119a38d1429b728c24a46063db3449511704eda85d7b18a",
+    "src/contexts/billing/internal/abacatepay-integrity.ts": "64a265122a632a16507e978a98be0705661892c033058cf08d6b660264df4bd4",
+    "src/contexts/billing/internal/abacatepay-management.ts": "469c6088448fbe8829b26462fc065d87cd14b79d81f4dba5809bb4f691e88fc1",
+    "src/contexts/billing/internal/abacatepay-processing.test.ts": "2dfdabc085975903a778d7afb24c4c940d0df09285a1b70d678c9d178ca93f94",
+    "src/contexts/billing/internal/abacatepay-processing.ts": "2cfe12d47c6a9249373b073b9466b0617bb30c9af2622988baa570777460b205",
+    "src/contexts/billing/internal/abacatepay-recurring-observations.ts": "cbf7265313411ee4a0ce9f23d870a6a15d8c857296276c2d0f67a40b844d1dda",
+    "src/contexts/billing/internal/abacatepay-renewal-period.test.ts": "24f1470fc268f2ac02aaeaa0a6806d9a3dd7cd4ff72a2711017cfdba5f3013aa",
+    "src/contexts/billing/internal/abacatepay-renewal-period.ts": "f6d446e374154105e97d2b3edb1e73762a320bf5a9df3f30423ac7af34b748b6",
+    "src/contexts/billing/internal/abacatepay-renewals.ts": "3f6a81acc32d61b24fc316d7df1729e68f196d8a3b732f97b29b6551bff7a739",
+    "src/contexts/billing/internal/deferred-checkout.ts": "9c4fad5e926a3d21a303c67035f634af02569d63603b0179a13335a390130629",
+    "src/lib/env.ts": "e7f561847cc74365cbcf5988102b532614b042c5a158ededc93afd5232abdd94",
+    "src/lib/payments/abacatepay/checkout-integrity.ts": "e861195420f8101ac5419bacdf93c462ca77eacae11242efd9c6c115ad62513b",
+    "src/lib/payments/abacatepay/reader.test.ts": "8f4d629b29e6f9ca059198ddbb30f814e5baa70e6a843ab46b18acf85b3164f1",
+    "src/lib/payments/abacatepay/reader.ts": "90cd46a778da0d3b1920f8ca78b0b68d55778b58ae2a8f47909276049dec32e0",
+    "src/lib/payments/abacatepay/renewal-payment.test.ts": "7313eb3d9f16647f0a3f33fe8e65492e461912575109d7f6d6cad9b2a93438a3",
+    "src/lib/payments/abacatepay/renewal-payment.ts": "c3874ae484efd8283466cb0d5a0f94c6dea66f0d6c5b7c1cfb278bea4868329b",
+    "src/lib/payments/abacatepay/transport.test.ts": "ee956997ea93c44e4f42bfca2b9e7e5dbef0b72ac5889cd672ae064b0766a281",
+    "src/lib/payments/abacatepay/transport.ts": "e181d4d76995dc2b871d46e75e19ff757a2bb7921cc8c0f78dfe94b8110d71c1",
+    "src/lib/payments/saas/acquisition.test.ts": "18bb06396425fc1785b1bb351259cf095e36d3a8d2a829a1c03af987f5daed38",
+    "src/lib/payments/saas/acquisition.ts": "1e44c59d58f3e9e423d202fbee619936632e4c15b06b47adec4d2d121064f90d",
+    "src/lib/payments/saas/recurrence-integrity.ts": "4fc4d1e2fb587f89985430bc7a9c052c7ee94faa731a3f162645b5ea95afa8ec",
+    "src/lib/payments/saas/recurring-payment.ts": "6d4a4e1ef7b069b55c28f99925b7662505a0ba2bd540d4744bbb012891a2cba5",
+    "src/lib/observability/sentry-environment.test.ts": "c3fa7c9fe0353d818e114ea6b99036270d8da053ad40778d84fc68391cb62991",
+    "src/lib/payments/saas/acquisition-env.test.ts": "c0c79efc46368c6465e9ac3264b5c4d74a34223d37bd81dc67436d4dd515c5a0",
+    "docs/decoupling/asaas-to-abacatepay/migrations/saas_period_snapshot.candidate.sql": "96e043c9b751a1af3c2a770be63edc2ea06a20854e21560d935802bb3c18ebd9",
+    "src/instrumentation-client.ts": "e1c9cda611c6d1a592b6920fc1cc856e32f625bf082638332339e59739226c8a",
+    "scripts/security/public-env-registry.ts": "862b4abd1d1189895d6b6591d1d95df8e8daf45bcc4493e2123570a556d6f90b",
+    "e2e/abacatepay-trial-preview.spec.ts": "1d1f90af31d136df3eb09e3e8ad05a880d882c2b7434a1fb43c2d9954bc207a5"
+  },
+  "productionWrites": 0,
+  "newExternalCheckouts": 0,
+  "newExternalPayments": 0,
+  "remoteMigrations": 0,
+  "externalNotifications": "One synthetic preview Sentry envelope accepted; no lead/patient message",
+  "prState": "draft",
+  "finalLocalObservedAt": "2026-11-11T12:05:41.010Z",
+  "currentCodeSha": "68de428c20f9e7f6fe0964665d5541991d2b6c7a",
+  "previewRegression": {
+    "observedAt": "2026-11-11T12:10:54.443Z",
+    "sha": "68de428c20f9e7f6fe0964665d5541991d2b6c7a",
+    "origin": "https://project-6xv2jd9kf-clinic-os-v2-s-projects.vercel.app",
+    "status": "PASS",
+    "browserRuns": 1,
+    "widths": [1440, 390],
+    "scope": "Existing paid synthetic fixture: login, authenticated DB/domain readback, paid UI, repeated checkout denied 409, integration/invite gates. This is not a new payment or webhook delivery.",
+    "stages": [
+      "real_browser_login",
+      "paid_domain_records_verified",
+      "paid_ui_1440",
+      "paid_ui_390",
+      "paid_checkout_repeat_denied",
+      "paid_whatsapp_gate_released",
+      "paid_asaas_gate_released",
+      "real_sandbox_webhook_invoice_receipt_and_paid_ui",
+      "paid_checkout_repeat_denied_and_integration_invite_gates_released"
+    ],
+    "newExternalCheckouts": 0,
+    "newExternalPayments": 0,
+    "historicalManifestChanged": false
+  },
+  "remoteQuality": {
+    "status": "IN_PROGRESS_AT_SNAPSHOT",
+    "runId": "43017429283",
+    "sha": "68de428c20f9e7f6fe0964665d5541991d2b6c7a",
+    "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/43017429283",
+    "finalResult": "See the PR #53 checks for the final documentation-only commit; no PASS inherited from baseline"
+  }
+}

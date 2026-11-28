@@ -1,3 +1,4 @@
+import { CircleQuestionMark } from 'lucide-react';
 import { redirect } from 'next/navigation';
 
 import { PageHeader } from '@/components/ui/page-header';
@@ -24,7 +25,7 @@ import { RestartTour } from './restart-tour';
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Central de ajuda | Qoro',
+  title: 'Central de ajuda',
   description:
     'Passo a passo para usar agenda, pacientes, WhatsApp, cobranças e gestão da sua clínica.',
 };
@@ -38,15 +39,20 @@ export default async function DocumentacaoPage() {
     <>
       <MarkDocsVisited />
       <PageHeader
-        crumbs={[{ label: 'Ajuda' }]}
+        crumbs={[
+          {
+            label: (
+              <>
+                <CircleQuestionMark aria-hidden="true" />
+                Ajuda
+              </>
+            ),
+          },
+        ]}
         title="Central de ajuda"
-        description="Encontre instruções simples para usar a Qoro no dia a dia da sua clínica."
+        description="Respostas curtas para as dúvidas mais comuns"
         {...(onboarding ? { actions: <RestartTour state={onboarding.tourState} /> } : {})}
       />
-      <p className="mb-5 text-pretty text-(length:--fs-sm) text-fg-muted">
-        As opções disponíveis dependem do seu plano e das permissões da sua conta. Se precisar de
-        acesso a uma função, fale com o responsável pela clínica.
-      </p>
       <HelpIndex topics={DOC_TOPICS} />
     </>
   );

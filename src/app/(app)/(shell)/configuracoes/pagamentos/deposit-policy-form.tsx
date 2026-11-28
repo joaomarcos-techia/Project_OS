@@ -113,13 +113,12 @@ export function DepositPolicyForm({ policy, hasAccount }: Props) {
               horário é liberado.
             </li>
             <li>
-              O restante pode ser pago na clínica, inclusive em dinheiro. No Caixa, use “Pagou o
-              restante em dinheiro”: se o link do restante já tiver sido enviado, ele deixa de
-              valer.
+              O restante pode ser pago na clínica, inclusive em dinheiro. No Caixa, use “Restante em
+              dinheiro”: se o link do restante já tiver sido enviado, ele deixa de valer.
             </li>
             <li>
               Com o sinal desligado, o agendamento não exige pagamento antecipado. No Caixa, use
-              “Pagou em dinheiro” quando o paciente pagar na recepção.
+              “Recebido em dinheiro” quando o paciente pagar na recepção.
             </li>
           </ul>
         </div>

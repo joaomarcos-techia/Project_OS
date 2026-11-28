@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { PageHeader } from '@/components/ui/page-header';
 import { PanelCard } from '@/components/ui/panel-card';
 import {
@@ -17,6 +18,8 @@ import { StatCard } from '../_components/stat-card';
 import { guardAdminAccess } from '../_lib/guard';
 import { formatNumber, formatUSD } from '../_lib/format';
 import { adminMetricsRepository } from '../_lib/repositories/metrics.repo';
+
+export const metadata: Metadata = { title: 'Métricas' };
 
 export const dynamic = 'force-dynamic';
 

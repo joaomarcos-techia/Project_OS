@@ -41,8 +41,9 @@ describe('DepositPolicyForm — como o paciente paga', () => {
 
   it('cita as ações que existem no Caixa', () => {
     render(<DepositPolicyForm policy={{ ...POLICY, enabled: false }} hasAccount />);
-    expect(screen.getByText(/Pagou o\s+restante em dinheiro/)).toBeTruthy();
-    expect(screen.getByText(/“Pagou em dinheiro”/)).toBeTruthy();
+    // UX-015: os nomes acompanham os botões do Caixa.
+    expect(screen.getByText(/“Restante\s+em dinheiro”/)).toBeTruthy();
+    expect(screen.getByText(/“Recebido em dinheiro”/)).toBeTruthy();
   });
 
   it('define retorno apenas depois de consulta concluída', () => {

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { Search } from 'lucide-react';
 import Link from 'next/link';
 
@@ -39,6 +40,8 @@ import {
   type FeedbackCategoryFilter,
   type FeedbackStatusFilter,
 } from '../_lib/repositories/feedback.repo';
+
+export const metadata: Metadata = { title: 'Feedbacks' };
 
 export const dynamic = 'force-dynamic';
 

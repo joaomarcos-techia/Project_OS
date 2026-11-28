@@ -12,6 +12,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type * as EnvModule from '@/lib/env';
 import type * as AsaasProviderModule from '@/lib/payments/asaas';
 
 const {
@@ -34,10 +35,19 @@ const {
 
 vi.mock('@/lib/db', () => ({ dbAdmin: { transaction: transactionMock } }));
 vi.mock('@/lib/observability/metrics', () => ({ metrics: { emit } }));
-vi.mock('@/lib/env', async (orig) => ({
-  ...(await orig<Record<string, unknown>>()),
-  assertBillingWebhookReady: () => {},
-}));
+vi.mock('@/lib/env', async (orig) => {
+  const actual = await orig<typeof EnvModule>();
+  return {
+    ...actual,
+    env: {
+      ...actual.env,
+      SIGNUP_ENABLED: false,
+      ABACATEPAY_NEW_CHECKOUTS_ENABLED: false,
+      ABACATEPAY_ENVIRONMENT: undefined,
+    },
+    assertBillingWebhookReady: () => {},
+  };
+});
 vi.mock('@/lib/payments/asaas', async (orig) => {
   const actual = await orig<typeof AsaasProviderModule>();
   return {

@@ -1,0 +1,10 @@
+[Unit]
+Description=Hourly Qoro recovery freshness and integrity check
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+Unit=qoro-recovery-health.service
+
+[Install]
+WantedBy=timers.target

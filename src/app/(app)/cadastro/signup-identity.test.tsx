@@ -39,6 +39,30 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe('identity and destination continuity', () => {
+  it('preserva a identidade e o endereço fixados no convite piloto', () => {
+    render(
+      <SignupIdentity
+        saved={false}
+        rowVersion={5}
+        pilotIdentity={{
+          ownerName: 'Titular piloto',
+          clinicName: 'Clínica piloto',
+          email: 'pilot@example.test',
+        }}
+        onCredentialsPrepared={vi.fn()}
+        onCredentialsCleared={vi.fn()}
+        onEmailPending={pending}
+        onReconcile={vi.fn()}
+        onGone={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText('Seu nome')).toHaveProperty('value', 'Titular piloto');
+    expect(screen.getByLabelText('Nome da clínica')).toHaveProperty('value', 'Clínica piloto');
+    expect(screen.getByLabelText('E-mail')).toHaveProperty('value', 'pilot@example.test');
+    expect(screen.getByLabelText('Seu nome')).toHaveProperty('readOnly', true);
+    expect(screen.getByLabelText('Nome da clínica')).toHaveProperty('readOnly', true);
+    expect(screen.getByLabelText('E-mail')).toHaveProperty('readOnly', true);
+  });
   it('requires a deliberate typo choice before any save/send', async () => {
     mount();
     fill('ana@gmail.comq');

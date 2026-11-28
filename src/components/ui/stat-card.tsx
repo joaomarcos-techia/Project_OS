@@ -1,8 +1,9 @@
 import { TrendingDown, TrendingUp } from 'lucide-react';
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/ui/cn';
-import { Card } from './card';
+import { cardSurfaceClassName } from './card';
 
 /**
  * Direção da variação (para onde a seta aponta) e o TOM (se isso é bom ou ruim)
@@ -27,6 +28,7 @@ export function StatCard({
   icon,
   emphasis = false,
   valueTone = 'default',
+  href,
   className,
 }: {
   label: ReactNode;
@@ -44,13 +46,22 @@ export function StatCard({
    * entre dinheiro que existe e dinheiro que falta.
    */
   valueTone?: 'default' | 'warning' | 'positive' | 'negative';
+  /**
+   * Indicador que leva ao lugar onde o número se resolve (ex.: "Aguardando" →
+   * Consultório). Vira link inteiro, sem prefetch: um painel com vários
+   * indicadores não deve renderizar as telas de destino em segundo plano.
+   */
+  href?: string;
   className?: string;
 }) {
-  return (
-    <Card
-      data-slot="stat-card"
-      className={cn('flex min-w-0 flex-col gap-2 p-(--card-pad)', className)}
-    >
+  const rootClassName = cn(
+    cardSurfaceClassName,
+    'flex min-w-0 flex-col gap-2 p-(--card-pad)',
+    href && 'text-fg no-underline transition-colors duration-(--dur-fast) hover:bg-surface-hover',
+    className,
+  );
+  const content = (
+    <>
       {/* Label à esquerda, ícone à direita: à esquerda o ícone empurrava o
           rótulo e desalinhava a coluna de labels entre os cards da fileira. */}
       <div data-slot="stat-label" className="flex items-start justify-between gap-2">
@@ -97,8 +108,20 @@ export function StatCard({
           {delta.label}
         </span>
       ) : hint ? (
-        <span className="text-(length:--fs-xs) text-fg-subtle">{hint}</span>
+        <span data-slot="stat-hint" className="text-(length:--fs-xs) text-fg-subtle">
+          {hint}
+        </span>
       ) : null}
-    </Card>
+    </>
+  );
+
+  return href ? (
+    <Link href={href} prefetch={false} data-slot="stat-card" className={rootClassName}>
+      {content}
+    </Link>
+  ) : (
+    <div data-slot="stat-card" className={rootClassName}>
+      {content}
+    </div>
   );
 }

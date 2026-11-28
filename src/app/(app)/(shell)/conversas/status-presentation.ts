@@ -67,13 +67,23 @@ export function apresentacaoDoStatus(conversa: {
 }
 
 /**
- * Prazo do SLA em tempo RELATIVO ("há 6 min", "em 9 min").
+ * Prazo de atendimento em tempo RELATIVO ("há 6 min", "em 9 min").
  *
  * Um horário absoluto ("até 13:58") obriga quem lê a fazer a subtração de
  * cabeça, e a pergunta que a fila responde é "quanto tempo esta pessoa já
  * esperou" — não "que horas eram".
+ *
+ * UX-014 — era "SLA vencido". O que o sistema mede (`ai_handoff_queue.due_at`):
+ * o prazo começa quando a IA passa a conversa para a equipe e só se cumpre
+ * quando ela volta ao agente. Responder não fecha o prazo, então o texto diz
+ * "prazo de atendimento", nunca "de resposta". `longo` inclui o "de atendimento"
+ * onde há espaço (faixa da conversa); na lista o contexto já diz de quê.
  */
-export function prazoRelativo(dueAt: string, agora = new Date()): string {
+export function prazoRelativo(
+  dueAt: string,
+  agora = new Date(),
+  { longo = false }: { longo?: boolean } = {},
+): string {
   const minutos = Math.round((new Date(dueAt).getTime() - agora.getTime()) / 60_000);
   const atrasado = minutos < 0;
   const abs = Math.abs(minutos);
@@ -83,5 +93,6 @@ export function prazoRelativo(dueAt: string, agora = new Date()): string {
       : abs < 1440
         ? `${Math.round(abs / 60)} h`
         : `${Math.round(abs / 1440)} d`;
-  return atrasado ? `SLA vencido há ${quanto}` : `SLA em ${quanto}`;
+  const prazo = longo ? 'Prazo de atendimento' : 'Prazo';
+  return atrasado ? `${prazo} vencido há ${quanto}` : `${prazo} vence em ${quanto}`;
 }

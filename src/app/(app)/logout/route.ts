@@ -20,8 +20,6 @@
  * global concluído — melhor devolver erro e o usuário tentar de novo do que
  * limpar o browser e deixar as outras sessões vivas achando que saiu.
  */
-import { redirect } from 'next/navigation';
-
 import { bumpSessionEpoch } from '@/lib/auth/session-epoch';
 import { clearSupabaseSessionSelector, createServerClient } from '@/lib/auth/supabase-server';
 import { getCurrentUser } from '@/lib/auth/tenant-context';
@@ -62,5 +60,7 @@ export async function POST(): Promise<Response> {
     return new Response('Não foi possível encerrar a sessão. Tente novamente.', { status: 503 });
   }
   await clearSupabaseSessionSelector();
-  redirect('/login');
+  // A POST must become a GET at /login. Next's default redirect is 307 and
+  // repeats the POST there, where the page correctly responds with 405.
+  return new Response(null, { status: 303, headers: { Location: '/login' } });
 }

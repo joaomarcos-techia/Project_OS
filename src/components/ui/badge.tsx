@@ -26,6 +26,12 @@ export const badgeVariants = cva(
         violet:
           'border-[color-mix(in_oklch,var(--viz-3)_30%,transparent)] bg-[color-mix(in_oklch,var(--viz-3)_12%,var(--surface))] text-[oklch(0.44_0.12_300)] dark:bg-[color-mix(in_oklch,var(--viz-3)_20%,transparent)] dark:text-[oklch(0.83_0.09_300)]',
         ai: 'border-(--ai-border) bg-(--ai-soft) text-brand-accent-700 dark:text-brand-accent-200',
+        // Tons do app v5 (status de consulta): "Finalizada" é marinho, "Falta"
+        // é laranja e "Cancelada" é só contorno — sem cor de alerta.
+        navy: 'border-border bg-surface-inset text-fg',
+        orange:
+          'border-[color-mix(in_oklch,var(--warning-600)_32%,transparent)] bg-warning-50 text-warning-700 dark:text-warning-200',
+        line: 'border-border bg-surface text-fg-muted',
       },
     },
     defaultVariants: { tone: 'gray' },
@@ -37,9 +43,20 @@ type BadgeProps = ComponentProps<'span'> &
     dot?: boolean;
   };
 
+/**
+ * `data-tone`/`data-dot` deixam o app da clínica desenhar o badge na gramática
+ * v5 (ponto + texto em fundo neutro; etiqueta sem ponto) só por CSS, sem tocar
+ * no visual do /admin.
+ */
 export function Badge({ className, tone, dot = false, children, ...props }: BadgeProps) {
   return (
-    <span className={cn(badgeVariants({ tone }), className)} {...props}>
+    <span
+      data-slot="badge"
+      data-tone={tone ?? 'gray'}
+      data-dot={dot ? 'true' : undefined}
+      className={cn(badgeVariants({ tone }), className)}
+      {...props}
+    >
       {dot ? <span className="size-1.5 rounded-full bg-current" aria-hidden="true" /> : null}
       {children}
     </span>

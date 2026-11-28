@@ -5,7 +5,6 @@ import { z } from 'zod';
 
 import { signupSessions } from '@/contexts/onboarding/schema';
 import { hashEmail } from '@/lib/auth/email-hash';
-import { createAdminClient } from '@/lib/auth/supabase-admin';
 import { dbAdmin } from '@/lib/db';
 
 import { hashSignupToken } from './signup-session';
@@ -43,30 +42,6 @@ export async function bindPendingSignupCodeUser(input: {
     )
     .returning({ id: signupSessions.id });
   if (!row) throw new Error('[signup] stale pending identity');
-}
-
-/** Only the exact short-lived browser cookie may retrieve its own destination. */
-export async function readSignupCodeDestination(rawToken: string): Promise<string | null> {
-  if (!/^[A-Za-z0-9_-]{43}$/u.test(rawToken)) return null;
-  const [row] = await dbAdmin
-    .select({ userId: signupSessions.pendingAuthUserId, emailHash: signupSessions.emailHash })
-    .from(signupSessions)
-    .where(
-      and(
-        eq(signupSessions.tokenHash, hashSignupToken(rawToken)),
-        eq(signupSessions.verificationFlowVersion, 2),
-        eq(signupSessions.status, 'email_pending'),
-        isNull(signupSessions.consumedAt),
-        gt(signupSessions.idleExpiresAt, sql`now()`),
-        gt(signupSessions.absoluteExpiresAt, sql`now()`),
-      ),
-    )
-    .limit(1);
-  if (!row?.userId || !row.emailHash) return null;
-  const account = await createAdminClient().auth.admin.getUserById(row.userId);
-  const address = account.data.user?.email;
-  if (account.error || !address || hashEmail(address) !== row.emailHash) return null;
-  return address;
 }
 
 export type SignupCodeReservation =

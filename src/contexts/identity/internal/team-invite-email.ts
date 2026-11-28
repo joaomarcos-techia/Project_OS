@@ -5,7 +5,7 @@ import { createHmac } from 'node:crypto';
 import { sendTransactionalEmail } from '@/lib/email/resend';
 import { renderTeamInviteEmail } from '@/lib/email/templates/team-invite';
 import { env } from '@/lib/env';
-import { createAuthConfirmationUrl } from '@/lib/http/application-url';
+import { createAuthConfirmationUrl, resolveAuthLinkOrigin } from '@/lib/http/application-url';
 import { metrics } from '@/lib/observability/metrics';
 
 type DeliveryStage = 'initial' | 'resend';
@@ -31,7 +31,7 @@ export async function deliverTeamInviteEmail(input: {
   const link = createAuthConfirmationUrl(input.tokenHash, 'recovery');
   const content = renderTeamInviteEmail({
     inviteUrl: link,
-    expectedOrigin: env.APP_BASE_URL ?? '',
+    expectedOrigin: resolveAuthLinkOrigin() ?? '',
     inviteeName: input.inviteeName,
     clinicName: input.clinicName,
     roleLabel: input.roleLabel,

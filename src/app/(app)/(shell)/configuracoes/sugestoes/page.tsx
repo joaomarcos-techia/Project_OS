@@ -1,12 +1,17 @@
+import type { Metadata } from 'next';
 import { Lightbulb } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { requirePageUser } from '@/lib/auth/page-guard';
+import { requireClinicId } from '@/lib/auth/tenant-context';
 import { listOwnFeedbackSuggestions } from '@/contexts/feedback/internal/suggestions';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 
 import { FeedbackForm } from './feedback-form';
+
+export const metadata: Metadata = { title: 'Sugestões' };
 
 export const dynamic = 'force-dynamic';
 
@@ -24,9 +29,12 @@ const STATUS: Record<
 };
 
 export default async function SugestoesPage() {
-  const user = await requireUser();
+  const user = await requirePageUser();
   const clinicId = await requireClinicId();
-  const suggestions = await listOwnFeedbackSuggestions(clinicId, user.userId);
+  const [suggestions, timeZone] = await Promise.all([
+    listOwnFeedbackSuggestions(clinicId, user.userId),
+    getClinicTimezone(clinicId),
+  ]);
 
   return (
     <>
@@ -68,7 +76,9 @@ export default async function SugestoesPage() {
                         {suggestion.title}
                       </h3>
                       <p className="mt-1 text-(length:--fs-xs) text-fg-muted">
-                        {new Intl.DateTimeFormat('pt-BR').format(new Date(suggestion.createdAt))}
+                        {new Intl.DateTimeFormat('pt-BR', { timeZone }).format(
+                          new Date(suggestion.createdAt),
+                        )}
                       </p>
                     </div>
                     <Badge tone={status.tone}>{status.label}</Badge>

@@ -761,8 +761,10 @@ describe('WhatsappConnect', () => {
 
     const pin = screen.getByLabelText(/PIN de ativação do WhatsApp/) as HTMLInputElement;
     expect(pin.required).toBe(true);
-    expect(pin.getAttribute('aria-describedby')).toBe('whatsapp-registration-pin-help');
-    expect(document.getElementById('whatsapp-registration-pin-help')?.textContent).toContain(
+    // Uma referência só: a ajuda é o hint do Field. Duas apontando para o mesmo texto faziam o
+    // leitor de tela repetir a frase (P-21).
+    expect(pin.getAttribute('aria-describedby')).toBe('whatsapp-registration-pin-hint');
+    expect(document.getElementById('whatsapp-registration-pin-hint')?.textContent).toContain(
       'não é salvo pela Qoro',
     );
 

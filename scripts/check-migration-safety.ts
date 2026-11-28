@@ -20,6 +20,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { z } from 'zod';
 
 const MIGRATIONS_DIR = resolve(process.cwd(), 'drizzle/migrations');
 const APPROVAL_MARKER = /migration:destructive-approved/i;
@@ -70,6 +71,34 @@ export interface Finding {
   text: string;
 }
 
+/** Drizzle compares logical timestamps, not filename prefixes, when choosing pending DDL. */
+export function assertMigrationJournalOrder(raw: unknown): void {
+  const journal = z
+    .object({
+      entries: z
+        .array(
+          z.object({
+            idx: z.number().int().nonnegative(),
+            when: z.number().int().nonnegative(),
+            tag: z.string().regex(/^\d{4}_[a-z0-9_]+$/),
+          }),
+        )
+        .min(1),
+    })
+    .parse(raw);
+  for (const [index, entry] of journal.entries.entries()) {
+    const previous = journal.entries[index - 1];
+    if (
+      entry.idx !== index ||
+      !entry.tag.startsWith(`${String(index).padStart(4, '0')}_`) ||
+      (previous && entry.when <= previous.when)
+    )
+      throw new Error(
+        `Migration journal order invalid at index ${index}; preserve applied history and fix only unapplied entries`,
+      );
+  }
+}
+
 /** Remove a parte de comentário (`-- ...`) para não casar keywords em docs/comentários. */
 function stripComment(line: string): string {
   const i = line.indexOf('--');
@@ -112,6 +141,9 @@ export function scanSql(file: string, raw: string): Finding[] {
 }
 
 export function scanMigrations(): { findings: Finding[]; approved: string[] } {
+  assertMigrationJournalOrder(
+    JSON.parse(readFileSync(resolve(MIGRATIONS_DIR, 'meta/_journal.json'), 'utf8')),
+  );
   const files = readdirSync(MIGRATIONS_DIR)
     .filter((f) => f.endsWith('.sql'))
     .sort();

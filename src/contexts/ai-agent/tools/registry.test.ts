@@ -3,7 +3,10 @@
  * rejeitado SEM executar) + G9 (tool desconhecida = security event, nunca
  * executa) + R5 (output do handler validado — LLM nunca recebe lixo).
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { assertOperationalModuleAccessTx } from '@/lib/entitlements';
+import { OperationalAccessError } from '@/lib/entitlements/policy';
+vi.mock('@/lib/entitlements', () => ({ assertOperationalModuleAccessTx: vi.fn(async () => {}) }));
 import { z } from 'zod';
 
 import type { Tx } from '@/lib/db';
@@ -55,6 +58,17 @@ function registerEcho(opts?: { badOutput?: boolean; throws?: boolean }): { calls
 }
 
 describe('validateAndExecute (11.6.2 — Zod no input)', () => {
+  it('refuses an otherwise valid tool after the subscription gate closes', async () => {
+    const state = registerEcho();
+    vi.mocked(assertOperationalModuleAccessTx).mockRejectedValueOnce(
+      new OperationalAccessError('ai_agents', 'period_expired'),
+    );
+    expect(
+      await validateAndExecute({ name: 'echo_tool', args: { reason: 'oi' } }, ctx),
+    ).toMatchObject({ ok: false, kind: 'handler_error' });
+    expect(state.calls).toBe(0);
+    expect(assertOperationalModuleAccessTx).toHaveBeenCalledWith(ctx.tx, ctx.clinicId, 'ai_agents');
+  });
   it('payload malformado do LLM → rejeitado SEM executar o handler', async () => {
     const state = registerEcho();
     const malformed = [

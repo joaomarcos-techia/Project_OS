@@ -23,7 +23,12 @@ describe('P-15 — fallbacks de autenticação', () => {
     // lucide, nao que sejam os unicos icones da lista de import.
     expect(login).toMatch(/import \{[^}]*\bEye\b[^}]*\bEyeOff\b[^}]*\} from 'lucide-react'/u);
     expect(login).not.toContain('function EyeIcon');
-    expect(mfa).toContain('<Logo');
+    const frame = readFileSync(
+      resolve(process.cwd(), 'src/components/shared/login-frame.tsx'),
+      'utf8',
+    );
+    expect(mfa).toContain('<LoginFrame');
+    expect(frame).toContain('<Logo');
     expect(mfa).not.toContain('Clinica<b');
   });
 
@@ -34,16 +39,19 @@ describe('P-15 — fallbacks de autenticação', () => {
       'utf8',
     );
 
-    expect(login).toContain('<ForgotPasswordForm />');
-    expect(recovery).toContain('Esqueci a senha');
+    expect(login).toContain('<ForgotPasswordForm');
+    expect(login).toContain('Esqueci a senha');
     expect(recovery).toContain('forgotPasswordAction');
     expect(recovery).not.toContain('href="/reset-password"');
   });
 
   it('liga o convite de cadastro do login ao início do fluxo autônomo', () => {
-    const login = readFileSync(resolve(process.cwd(), 'src/app/(app)/login/page.tsx'), 'utf8');
+    const frame = readFileSync(
+      resolve(process.cwd(), 'src/components/shared/login-frame.tsx'),
+      'utf8',
+    );
 
-    expect(login).toMatch(/href="\/cadastro"[\s\S]*Cadastre-se/u);
+    expect(frame).toMatch(/href="\/cadastro"[\s\S]*Criar conta/u);
   });
 
   it('orienta links expirados para a recuperação autônoma disponível no login', () => {

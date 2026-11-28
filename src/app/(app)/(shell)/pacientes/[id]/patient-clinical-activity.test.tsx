@@ -57,6 +57,26 @@ const document: ClinicalDocumentFeedItem = {
 afterEach(cleanup);
 
 describe('PatientClinicalActivity', () => {
+  it('mostra o horário no fuso da clínica', () => {
+    render(
+      <PatientClinicalActivity
+        patientId="patient-1"
+        records={[record]}
+        documents={[]}
+        canViewRecords
+        canViewDocuments={false}
+        canCreateRecord={false}
+        canCreateDocuments={false}
+        initialCreate={null}
+        deceased={false}
+        timeZone="Asia/Tokyo"
+      />,
+    );
+
+    // 10:00Z é 19:00 em Tóquio e 07:00 em São Paulo.
+    expect(screen.getByText('18/08/2026, 19:00:00')).toBeTruthy();
+  });
+
   it('mostra somente registros reais recebidos e ordena o mais recente primeiro', () => {
     render(
       <PatientClinicalActivity
@@ -69,6 +89,7 @@ describe('PatientClinicalActivity', () => {
         canCreateDocuments={false}
         initialCreate={null}
         deceased={false}
+        timeZone="America/Sao_Paulo"
       />,
     );
 
@@ -95,6 +116,7 @@ describe('PatientClinicalActivity', () => {
         canCreateDocuments
         initialCreate="prescricao"
         deceased
+        timeZone="America/Sao_Paulo"
       />,
     );
 
@@ -114,6 +136,7 @@ describe('PatientClinicalActivity', () => {
         canCreateDocuments={false}
         initialCreate={null}
         deceased={false}
+        timeZone="America/Sao_Paulo"
       />,
     );
 
@@ -133,6 +156,7 @@ describe('PatientClinicalActivity', () => {
         canCreateDocuments={false}
         initialCreate={null}
         deceased={false}
+        timeZone="America/Sao_Paulo"
       />,
     );
 
@@ -152,6 +176,7 @@ describe('PatientClinicalActivity', () => {
         canCreateDocuments
         initialCreate="prescricao"
         deceased={false}
+        timeZone="America/Sao_Paulo"
       />,
     );
 

@@ -35,15 +35,14 @@ const STATUS_LABEL: Record<WaitlistEntryDTO['status'], string> = {
   cancelled: 'Cancelado',
 };
 
-const slotFmt = new Intl.DateTimeFormat('pt-BR', {
-  day: '2-digit',
-  month: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-});
-
-function formatSlot(iso: string): string {
-  return slotFmt.format(new Date(iso));
+function formatSlot(iso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone,
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(iso));
 }
 
 export function WaitlistManager({
@@ -51,11 +50,13 @@ export function WaitlistManager({
   patients,
   procedures,
   doctors,
+  timeZone,
 }: {
   initial: WaitlistEntryDTO[];
   patients: NamedOption[];
   procedures: NamedOption[];
   doctors: NamedOption[];
+  timeZone: string;
 }) {
   const router = useRouter();
   const [patient, setPatient] = useState<ComboboxItem | null>(null);
@@ -241,7 +242,7 @@ export function WaitlistManager({
         </div>
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-fg-muted">
+      <label className="flex min-h-(--hit-target) w-fit items-center gap-2 text-sm text-fg-muted">
         <input
           type="checkbox"
           disabled={!interactive}
@@ -274,7 +275,7 @@ export function WaitlistManager({
                 </div>
                 {entry.status === 'offered' && entry.offeredScheduledAt ? (
                   <p className="mt-1 text-sm text-fg-muted">
-                    Vaga oferecida: {formatSlot(entry.offeredScheduledAt)}
+                    Vaga oferecida: {formatSlot(entry.offeredScheduledAt, timeZone)}
                   </p>
                 ) : null}
               </div>

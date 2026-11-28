@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useRef } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -38,25 +38,47 @@ export function ConsentCard({
   patientId,
   purposes,
   canEdit,
+  timeZone,
 }: {
   patientId: string;
   purposes: ConsentPurposeView[];
   /** `edit:patient` — a mesma permissão que as actions de domínio exigem. */
   canEdit: boolean;
+  timeZone: string;
 }) {
   const [grantState, grant, granting] = useActionState(grantConsentForm, INITIAL);
   const [revokeState, revoke, revoking] = useActionState(revokeConsentForm, INITIAL);
   const state = grantState.error || grantState.message ? grantState : revokeState;
   const busy = granting || revoking;
+  // A chave é da operação, não da renderização. Antes ela saía de `uuidv4()` no render: o HTML do
+  // servidor e o navegador tinham valores diferentes (divergência na hidratação) e cada nova
+  // renderização trocava a chave, então repetir depois de uma resposta perdida podia gravar uma
+  // versão a mais. Agora ela nasce no envio e vale enquanto a decisão for a mesma; a versão
+  // nova que volta do servidor depois do sucesso abre outra operação.
+  const chaves = useRef(new Map<string, string>());
+  const comChave = (acao: (fd: FormData) => void, pedido: string) => (fd: FormData) => {
+    let chave = chaves.current.get(pedido);
+    if (!chave) {
+      chave = uuidv4();
+      chaves.current.set(pedido, chave);
+    }
+    fd.set('idempotencyKey', chave);
+    acao(fd);
+  };
 
   return (
     <Card className="p-(--card-pad)">
       <h2 className="mb-1 text-balance text-(length:--fs-h4) font-semibold">
         Consentimentos (LGPD)
       </h2>
+      {/* UX-014 — quem decide é o paciente; a equipe só registra a decisão dele.
+          O texto não torna válido um consentimento que não foi pedido: a regra de
+          cada finalidade (e a confirmação exigida para WhatsApp) continua no
+          servidor, igual. */}
       <p className="mb-4 text-pretty text-(length:--fs-xs) text-fg-muted">
-        Decisão vigente por finalidade. Cada alteração cria uma nova versão — o histórico é
-        preservado. Ter o telefone cadastrado não autoriza nem dispara mensagens por WhatsApp.
+        Registre aqui a decisão que o paciente tomou para cada finalidade. Cada registro cria uma
+        nova versão e o histórico fica guardado. Ter o telefone cadastrado não autoriza nem dispara
+        mensagens por WhatsApp.
       </p>
 
       {state.error ? (
@@ -86,7 +108,8 @@ export function ConsentCard({
               <p className="text-pretty text-(length:--fs-xs) text-fg-muted">{p.description}</p>
               {p.recordedAt ? (
                 <p className="text-(length:--fs-2xs) text-fg-subtle tabular-nums">
-                  versão {p.version} · {new Date(p.recordedAt).toLocaleString('pt-BR')}
+                  versão {p.version} ·{' '}
+                  {new Date(p.recordedAt).toLocaleString('pt-BR', { timeZone })}
                 </p>
               ) : (
                 <p className="text-(length:--fs-2xs) text-fg-subtle">Sem decisão registrada.</p>
@@ -94,10 +117,15 @@ export function ConsentCard({
             </div>
 
             {canEdit ? (
-              <form action={p.granted ? revoke : grant} className="shrink-0">
+              <form
+                action={comChave(
+                  p.granted ? revoke : grant,
+                  `${p.granted ? 'revogar' : 'conceder'}:${patientId}:${p.purpose}:${p.version}`,
+                )}
+                className="shrink-0"
+              >
                 <input type="hidden" name="id" value={patientId} />
                 <input type="hidden" name="purpose" value={p.purpose} />
-                <input type="hidden" name="idempotencyKey" value={uuidv4()} />
                 {!p.granted &&
                 (p.purpose === 'agendamento_whatsapp' || p.purpose === 'cobranca_whatsapp') ? (
                   <label className="mb-2 flex max-w-64 items-start gap-2 text-(length:--fs-xs) text-fg-muted">
@@ -105,14 +133,19 @@ export function ConsentCard({
                     Confirmo que o paciente autorizou esta finalidade pelo WhatsApp.
                   </label>
                 ) : null}
+                {/* "Conceder" dizia que a equipe concedia. A finalidade entra
+                    no nome acessível: seis botões iguais não dizem a qual
+                    linha cada um pertence (WCAG 2.4.6). O texto visível abre o
+                    nome (WCAG 2.5.3). */}
                 <Button
                   type="submit"
                   size="sm"
                   variant={p.granted ? 'ghost' : 'secondary'}
                   className="min-h-(--hit-target)"
+                  aria-label={`${p.granted ? 'Registrar revogação' : 'Registrar consentimento'}: ${p.label}`}
                   disabled={busy}
                 >
-                  {p.granted ? 'Revogar' : 'Conceder'}
+                  {p.granted ? 'Registrar revogação' : 'Registrar consentimento'}
                 </Button>
               </form>
             ) : null}

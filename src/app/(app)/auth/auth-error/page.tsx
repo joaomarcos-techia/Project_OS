@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 /**
  * Tela de erro dos fluxos de link de e-mail (`/auth/confirm` redireciona pra cá
  * quando o token falha). Matriz de motivos do plano.
@@ -6,6 +7,8 @@ import { Logo } from '@/components/shared/logo';
 import { Alert } from '@/components/ui/alert';
 import { buttonVariants } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+
+export const metadata: Metadata = { title: 'Link inválido' };
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +41,8 @@ export default async function AuthErrorPage({
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-canvas px-4 py-12">
+      {/* UX-017: a página não tinha h1; o título visível continua no Alert. */}
+      <h1 className="sr-only">{info.title}</h1>
       <div className="w-full max-w-sm">
         <div className="mb-6 flex flex-col items-center gap-3 text-center">
           <Logo className="h-7 w-auto" />

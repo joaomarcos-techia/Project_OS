@@ -48,6 +48,7 @@ async function main(): Promise<void> {
       ],
       observacoes: 'Uso contínuo. Retornar em 30 dias.',
       issuedAt: new Date().toISOString(),
+      timeZone: 'America/Sao_Paulo',
     },
     branding,
     doctor,

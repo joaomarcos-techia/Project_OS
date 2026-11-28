@@ -1,16 +1,16 @@
+import type { Metadata } from 'next';
 import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 import { listEmployees } from '@/contexts/identity/queries';
 import { listLgpdRequestHistory, listLgpdRequests } from '@/contexts/patient/queries';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { PERMISSIONS } from '@/lib/auth/permissions';
-import {
-  AuthError,
-  requireClinicId,
-  requireFreshPermission,
-  requireUser,
-} from '@/lib/auth/tenant-context';
+import { requirePageUser } from '@/lib/auth/page-guard';
+import { AuthError, requireClinicId, requireFreshPermission } from '@/lib/auth/tenant-context';
 
 import { LgpdWorkQueue } from './lgpd-work-queue';
+
+export const metadata: Metadata = { title: 'Solicitações LGPD' };
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +19,7 @@ export default async function LgpdOperationsPage({
 }: {
   searchParams: Promise<{ solicitacao?: string }>;
 }) {
-  await requireUser();
+  await requirePageUser();
   // A lista contém dados de solicitações de titulares. Antes de qualquer query,
   // a negativa precisa ser uma tela segura — não uma exceção/Sentry esperada.
   try {
@@ -44,10 +44,11 @@ export default async function LgpdOperationsPage({
   }
 
   const clinicId = await requireClinicId();
-  const [requests, employees, params] = await Promise.all([
+  const [requests, employees, params, timeZone] = await Promise.all([
     listLgpdRequests(clinicId),
     listEmployees(clinicId),
     searchParams,
+    getClinicTimezone(clinicId),
   ]);
   const managers = employees.filter(
     (employee) =>
@@ -80,6 +81,7 @@ export default async function LgpdOperationsPage({
         history={history}
         managers={managers}
         names={names}
+        timeZone={timeZone}
       />
     </>
   );

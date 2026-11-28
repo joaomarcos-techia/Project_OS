@@ -1,20 +1,24 @@
+import type { Metadata } from 'next';
 /**
  * /relatorios — painéis Solo: faturamento · no-show · ocupação (promessa do
  * plano base). Sem lib de gráfico (decisão): KPIs + barras CSS. Leitura
  * tenant-scoped; faturamento exige view:financial (gate no loader). Ocupação usa
  * o slot-resolver canônico (ver data.ts), nunca contagem ingênua.
  */
-import { Ban, CalendarCheck, Check, FileDown, Sheet, UserX } from 'lucide-react';
+import { Ban, CalendarCheck, ChartColumn, Check, FileDown, Sheet, UserX } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 import { billingApiV1 } from '@/contexts/billing/api';
 import { getCurrentPractitioner } from '@/contexts/identity/internal/practitioner';
-import { requireClinicId, requireUser } from '@/lib/auth/tenant-context';
+import { requirePageUser } from '@/lib/auth/page-guard';
+import { requireClinicId } from '@/lib/auth/tenant-context';
 import { PERMISSIONS } from '@/lib/auth/permissions';
 import { buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { LinkSegmented } from '@/components/ui/link-segmented';
 import { PanelCard } from '@/components/ui/panel-card';
+import { PageActions } from '@/components/ui/page-actions';
 import { PageHeader } from '@/components/ui/page-header';
 import {
   Table,
@@ -23,12 +27,15 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableScroll,
 } from '@/components/ui/table';
 import { formatBRL } from '@/lib/format';
 import { cn } from '@/lib/ui/cn';
 
 import { getRelatorios, PERIODS, resolvePeriod } from './data';
 import styles from './reports.module.css';
+
+export const metadata: Metadata = { title: 'Relatórios' };
 
 export const dynamic = 'force-dynamic';
 
@@ -40,7 +47,7 @@ export default async function RelatoriosPage({
 }: {
   searchParams: Promise<{ periodo?: string }>;
 }) {
-  const user = await requireUser();
+  const user = await requirePageUser();
   const clinicId = await requireClinicId();
   const { periodo } = await searchParams;
   const period = resolvePeriod(periodo);
@@ -60,60 +67,44 @@ export default async function RelatoriosPage({
   return (
     <>
       <PageHeader
-        crumbs={[{ label: 'Gestão' }, { label: 'Relatórios' }]}
+        icon={<ChartColumn aria-hidden="true" />}
         title="Relatórios"
-        description="Indicadores do período"
-        meta={<span className="font-mono tabular-nums">{data.timezone}</span>}
+        headline={PERIODS.find((p) => p.key === period.key)?.label}
+        description={`De ${data.fromLabel} a ${data.toLabel}, no fuso da clínica`}
+        controls={
+          <LinkSegmented
+            label="Período do relatório"
+            items={PERIODS.map((p) => ({
+              label: p.label,
+              href: `/relatorios?periodo=${p.key}`,
+              active: p.key === period.key,
+            }))}
+          />
+        }
         actions={
-          <a
-            href={`/relatorios/pdf?periodo=${period.key}`}
-            target="_blank"
-            rel="noopener"
-            className={cn(
-              buttonVariants({ variant: 'secondary', size: 'sm' }),
-              'min-h-(--hit-target)',
-            )}
-          >
-            <FileDown aria-hidden="true" className="size-4" />
-            Exportar PDF
-          </a>
+          // UX-012: no celular, "Ver repasses por mês" entra em "Mais ações" e o
+          // PDF fica à vista — eram duas linhas de botões a 375 px.
+          <PageActions
+            label="Ações dos relatórios"
+            secondary={
+              canManagePayouts || canSeeOwnPayouts
+                ? [{ href: '/relatorios/repasses', label: 'Ver repasses por mês', prefetch: false }]
+                : []
+            }
+            primary={
+              <a
+                href={`/relatorios/pdf?periodo=${period.key}`}
+                target="_blank"
+                rel="noopener"
+                className={buttonVariants()}
+              >
+                <FileDown aria-hidden="true" className="size-4" />
+                Exportar PDF
+              </a>
+            }
+          />
         }
       />
-
-      <nav aria-label="Período do relatório" className="qoro-toolbar">
-        {PERIODS.map((p) => (
-          <Link
-            key={p.key}
-            href={`/relatorios?periodo=${p.key}`}
-            aria-current={p.key === period.key ? 'page' : undefined}
-            className={cn(
-              'inline-flex min-h-(--hit-target) shrink-0 items-center rounded-(--r-sm) px-3 text-(length:--fs-sm) font-medium transition-[background-color,color,box-shadow] duration-(--dur-fast)',
-              p.key === period.key
-                ? 'bg-surface text-fg shadow-(--elev-raised)'
-                : 'text-fg-muted hover:text-fg',
-            )}
-          >
-            {p.label}
-          </Link>
-        ))}
-
-        {/* O intervalo saiu da descrição do título: ali ele competia com o nome
-            da tela, e aqui fica colado no controle que o define. */}
-        <span className="ml-3 border-l border-border pl-3 font-mono text-(length:--fs-sm) font-medium tabular-nums text-fg">
-          {data.fromLabel} – {data.toLabel}
-        </span>
-        <span className="ml-auto text-(length:--fs-sm) text-fg-subtle">
-          Dados consolidados no fuso da clínica
-        </span>
-      </nav>
-
-      {canManagePayouts || canSeeOwnPayouts ? (
-        <p className="mb-5">
-          <Link href="/relatorios/repasses" className="font-semibold text-(--text-link)">
-            Ver repasses por mês
-          </Link>
-        </p>
-      ) : null}
 
       {/* A referência agrupa por PERGUNTA — dinheiro, faltas, ocupação — em vez de
           alinhar cartões soltos. Cada seção responde uma, e o título diz qual;
@@ -177,6 +168,20 @@ export default async function RelatoriosPage({
               note: 'ocupadas de disponíveis',
             },
           ]}
+          {...(data.ocupacao.taxa == null
+            ? {}
+            : {
+                footer: (
+                  <div
+                    className={styles.meter}
+                    role="img"
+                    aria-label={`Ocupação de ${pct(data.ocupacao.taxa)}`}
+                  >
+                    <span style={{ flexGrow: Math.round(data.ocupacao.taxa * 100) }} />
+                    <span style={{ flexGrow: 100 - Math.round(data.ocupacao.taxa * 100) }} />
+                  </div>
+                ),
+              })}
         />
       </div>
 
@@ -286,42 +291,53 @@ export default async function RelatoriosPage({
                         />
                       )}
                       <span className={styles.weekLabel ?? ''}>{semana.label}</span>
+                      {/* Coluna estreita: o intervalo por extenso viraria "0…". */}
+                      <span className={styles.weekLabelShort ?? ''}>
+                        {semana.weekStart.slice(8, 10)}/{semana.weekStart.slice(5, 7)}
+                      </span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <Table className={styles.weekTable ?? ''}>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Semana</TableHead>
-                    <TableHead>Recebido</TableHead>
-                    <TableHead>Pago</TableHead>
-                    <TableHead>Saldo</TableHead>
-                    <TableHead>Atendidas</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {/* A semana futura fica só no gráfico, onde serve de contexto.
-                      Na TABELA ela seria uma linha inteira de "sem dado" sobre
-                      dias que ainda não chegaram — ruído com cara de lacuna. */}
-                  {data.semanas
-                    .filter((semana) => !semana.futura)
-                    .map((semana) => (
-                      <TableRow key={semana.weekStart}>
-                        <TableCell className="font-medium">{semana.label}</TableCell>
-                        <TableCell>{moedaOuVazio(semana.recebido)}</TableCell>
-                        <TableCell>{moedaOuVazio(semana.pago)}</TableCell>
-                        <TableCell className="font-semibold text-fg">
-                          {moedaOuVazio(semana.saldo)}
-                        </TableCell>
-                        <TableCell>
-                          {semana.atendido == null ? SEM_DADO : semana.atendido}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
+              <TableScroll>
+                <Table className={styles.weekTable ?? ''}>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Semana</TableHead>
+                      <TableHead>Recebido</TableHead>
+                      <TableHead>Pago</TableHead>
+                      <TableHead>Saldo</TableHead>
+                      <TableHead>Atendidas</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {/* A semana futura fica só no gráfico, onde serve de contexto.
+                        Na TABELA ela seria uma linha inteira de "sem dado" sobre
+                        dias que ainda não chegaram — ruído com cara de lacuna. */}
+                    {data.semanas
+                      .filter((semana) => !semana.futura)
+                      .map((semana) => (
+                        <TableRow key={semana.weekStart}>
+                          <TableCell className="font-medium">
+                            {semana.label}
+                            {semana.emCurso ? (
+                              <span className={styles.weekRowOngoing ?? ''}> · em curso</span>
+                            ) : null}
+                          </TableCell>
+                          <TableCell>{moedaOuVazio(semana.recebido)}</TableCell>
+                          <TableCell>{moedaOuVazio(semana.pago)}</TableCell>
+                          <TableCell className="font-semibold text-fg">
+                            {moedaOuVazio(semana.saldo)}
+                          </TableCell>
+                          <TableCell>
+                            {semana.atendido == null ? SEM_DADO : semana.atendido}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </TableScroll>
             </>
           )}
         </PanelCard>
@@ -415,10 +431,12 @@ function ReportSection({
   title,
   action,
   cells,
+  footer,
 }: {
   title: string;
   action?: ReactNode;
   cells: { label: string; value: string; note?: string; tone?: CellTone }[];
+  footer?: ReactNode;
 }) {
   return (
     <section aria-label={title} className={styles.section ?? ''}>
@@ -437,6 +455,7 @@ function ReportSection({
           </div>
         ))}
       </div>
+      {footer}
     </section>
   );
 }

@@ -20,7 +20,7 @@ export function RefreshButton() {
 
   return (
     <Button
-      variant="secondary"
+      variant="ghost"
       loading={pending}
       onClick={() => start(() => router.refresh())}
       aria-label="Atualizar os dados do turno"

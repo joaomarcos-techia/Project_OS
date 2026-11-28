@@ -7,6 +7,7 @@
  * detalhe de exceção é dica para quem estiver do outro lado.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { TrialAccessError } from '@/lib/trial-access/policy';
 
 import {
   PaymentCredentialRejectedError,
@@ -14,6 +15,10 @@ import {
 } from '@/contexts/payments';
 
 import { fail, ok } from './pagamentos-types';
+it('maps the trial prerequisite as a controlled result', () => {
+  const error = new TrialAccessError('asaas');
+  expect(fail(error)).toEqual({ ok: false, code: error.code, message: error.message });
+});
 
 afterEach(() => vi.restoreAllMocks());
 

@@ -15,6 +15,7 @@ import {
   isCaptchaError,
   readCaptchaToken,
 } from '@/lib/auth/captcha';
+import { AUTH_UNAVAILABLE_MESSAGE, isAuthServiceUnavailable } from '@/lib/auth/auth-availability';
 import { createServerClient } from '@/lib/auth/supabase-server';
 import { readAuthoritativeProfile } from '@/lib/auth/tenant-context';
 import { hashEmail } from '@/lib/auth/email-hash';
@@ -130,6 +131,17 @@ export async function loginAction(
     if (isCaptchaError(error)) {
       metrics.emit('auth.login.failed', { reason: 'captcha_failed' });
       return { error: CAPTCHA_ERROR_MESSAGE };
+    }
+    // UX-002: serviço de autenticação fora do ar também NÃO é tentativa de
+    // credencial. Dizer "senha inválida" aqui levava a pessoa a trocar a senha
+    // e a cair no limite de tentativas por uma queda que não era dela.
+    if (isAuthServiceUnavailable(error)) {
+      metrics.emit('auth.login.failed', { reason: 'auth_unavailable' });
+      logger.warn('auth.login.service_unavailable', {
+        status: typeof error?.status === 'number' ? error.status : 0,
+        name: error?.name ?? 'unknown',
+      });
+      return { error: AUTH_UNAVAILABLE_MESSAGE };
     }
     await recordLoginAttempt(emailHash, ip, false);
     // A1: alimenta a saved-search de brute-force (> N/5min). `reason` distingue

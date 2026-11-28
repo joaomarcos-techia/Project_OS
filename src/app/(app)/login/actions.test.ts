@@ -225,6 +225,55 @@ describe('repasse do captchaToken', () => {
     expect(result.error).not.toMatch(/senha/i);
   });
 
+  // UX-002 (docs/otimização_ui_final.md): falha do serviço não vira "senha inválida".
+  it.each([
+    [
+      'rede (AuthRetryableFetchError, status 0)',
+      { name: 'AuthRetryableFetchError', status: 0, message: 'fetch failed' },
+    ],
+    [
+      'gateway (AuthRetryableFetchError, 503)',
+      { name: 'AuthRetryableFetchError', status: 503, message: 'Service Unavailable' },
+    ],
+    [
+      'erro interno do GoTrue (500)',
+      { name: 'AuthApiError', status: 500, message: 'Internal Server Error' },
+    ],
+  ])(
+    'serviço fora do ar (%s) não conta como tentativa e explica a falha',
+    async (_caso, authError) => {
+      mocks.signInWithPassword.mockResolvedValue({ data: { user: null }, error: authError });
+
+      const { loginAction } = await import('./actions');
+      const result = await loginAction({ error: null }, loginForm());
+
+      expect(mocks.recordLoginAttempt).not.toHaveBeenCalled();
+      expect(mocks.metricsEmit).toHaveBeenCalledWith('auth.login.failed', {
+        reason: 'auth_unavailable',
+      });
+      expect(result.error).toMatch(/serviço de login/i);
+      expect(result.error).toMatch(/não foi verificada/i);
+    },
+  );
+
+  it('credencial errada (400) continua com a mensagem genérica, não a de serviço', async () => {
+    mocks.signInWithPassword.mockResolvedValue({
+      data: { user: null },
+      error: {
+        name: 'AuthApiError',
+        status: 400,
+        code: 'invalid_credentials',
+        message: 'Invalid login credentials',
+      },
+    });
+
+    const { loginAction } = await import('./actions');
+    const result = await loginAction({ error: null }, loginForm());
+
+    expect(mocks.recordLoginAttempt).toHaveBeenCalledWith('email-hash', '203.0.113.7', false);
+    expect(result).toEqual({ error: 'Email ou senha inválidos.' });
+  });
+
   it('credencial inválida continua contando e com a mensagem genérica', async () => {
     const { loginAction } = await import('./actions');
     const result = await loginAction({ error: null }, loginForm());

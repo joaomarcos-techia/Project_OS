@@ -2,18 +2,21 @@ import type { ComponentProps } from 'react';
 
 import { cn } from '@/lib/ui/cn';
 
+const SHIMMER =
+  'animate-shimmer rounded-(--r-sm) bg-[linear-gradient(100deg,var(--surface-inset)_30%,var(--surface-2)_50%,var(--surface-inset)_70%)] bg-[length:200%_100%]';
+
 /** Skeleton shimmer — DS v2 §sk. Dimensione via className (ex.: h-4 w-32). */
 export function Skeleton({ className, ...props }: ComponentProps<'div'>) {
-  return (
-    <div
-      aria-hidden="true"
-      className={cn(
-        'animate-shimmer rounded-(--r-sm) bg-[linear-gradient(100deg,var(--surface-inset)_30%,var(--surface-2)_50%,var(--surface-inset)_70%)] bg-[length:200%_100%]',
-        className,
-      )}
-      {...props}
-    />
-  );
+  return <div aria-hidden="true" className={cn(SHIMMER, className)} {...props} />;
+}
+
+/**
+ * O mesmo brilho num `<span>` em bloco, para onde só cabe texto: o `headline` e a
+ * descrição do `PageHeader` são `<p>`, e `<div>` dentro de `<p>` é HTML inválido
+ * (o navegador fecha o parágrafo e a hidratação reclama).
+ */
+export function SkeletonText({ className }: { className?: string | undefined }) {
+  return <span aria-hidden="true" className={cn('block', SHIMMER, className)} />;
 }
 
 /** Pré-composição: card em carregamento (para loading.tsx). */

@@ -33,7 +33,8 @@ export function backupConnectionEnv(databaseUrl: string): NodeJS.ProcessEnv {
     PGUSER: decodeURIComponent(url.username),
     PGPASSWORD: decodeURIComponent(url.password),
     PGDATABASE: decodeURIComponent(url.pathname.slice(1)),
-    PGSSLMODE: 'require',
+    // Encrypt AND verify server identity; a missing/untrusted CA must fail closed.
+    PGSSLMODE: 'verify-full',
     PGOPTIONS: '-c default_transaction_read_only=on',
     PGCONNECT_TIMEOUT: '10',
   };

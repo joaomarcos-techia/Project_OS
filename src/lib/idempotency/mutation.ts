@@ -12,6 +12,7 @@ import { assertClinicCanWriteTx, shouldEnforceWriteGate } from '@/lib/tenant-acc
 import { runWithContext } from '@/lib/observability/context';
 import { isLockTimeout } from '@/lib/outbox/errors';
 import { capJsonSize } from '@/lib/sanitize/cap';
+import { trialAccessErrorFrom } from '@/lib/trial-access/policy';
 
 import {
   IdempotencyConflictError,
@@ -325,7 +326,9 @@ export async function idempotentMutation<T>(
         }
 
         // 2. Business mutation in the SAME tx.
-        const result = await fn(tx);
+        const result = await fn(tx).catch((error: unknown) => {
+          throw trialAccessErrorFrom(error) ?? error;
+        });
 
         // A1: o que é PERSISTIDO (audit.after + resposta idempotente) passa pela
         // projeção; o que é RETORNADO ao caller continua sendo o `result` completo.

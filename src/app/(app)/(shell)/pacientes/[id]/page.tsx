@@ -1,10 +1,11 @@
+import type { Metadata } from 'next';
 /**
  * /pacientes/[id] — HUB do paciente: Dados | Prontuários em abas (?tab=…),
  * sem navegar de tela. THE decryption happens here via
  * getPatientWithDecryptedFields (the single decrypt point). RLS + key derivation
  * make a cross-tenant id both unreadable and undecryptable.
  */
-import { FileText } from 'lucide-react';
+import { ArrowLeft, FileText } from 'lucide-react';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { Suspense } from 'react';
@@ -24,7 +25,9 @@ import {
   listCurrentConsentDecisions,
   listPatientRelationships,
 } from '@/contexts/patient/queries';
+import { getClinicTimezone } from '@/contexts/tenancy/queries';
 import { Alert } from '@/components/ui/alert';
+import { initialsFrom } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -42,6 +45,8 @@ import { PatientDeathForm } from './patient-death-form';
 import { PatientProfileCard } from './patient-profile-card';
 import { PatientRelationshipsCard } from './patient-relationships-card';
 import { NovoProntuarioButton } from './prontuarios/novo-prontuario-button';
+
+export const metadata: Metadata = { title: 'Ficha do paciente' };
 
 export const dynamic = 'force-dynamic';
 
@@ -86,10 +91,10 @@ function HubTabs({
       href={`/pacientes/${patientId}?tab=${t}`}
       aria-current={active === t ? 'page' : undefined}
       className={cn(
-        'relative shrink-0 px-3.5 py-2.5 text-(length:--fs-sm) font-medium transition-colors duration-(--dur-fast)',
-        'after:absolute after:right-2 after:-bottom-px after:left-2 after:h-0.5 after:bg-primary after:transition-opacity',
+        'relative inline-flex h-10 shrink-0 items-center px-2.5 text-(length:--fs-base) font-medium transition-colors duration-(--dur-fast)',
+        'after:absolute after:right-0 after:-bottom-px after:left-0 after:h-0.5 after:bg-(--text-link) after:transition-opacity',
         active === t
-          ? 'text-primary after:opacity-100'
+          ? 'font-semibold text-fg after:opacity-100'
           : 'text-fg-muted after:opacity-0 hover:text-fg',
       )}
     >
@@ -98,7 +103,7 @@ function HubTabs({
   );
   return (
     <nav
-      className="mb-(--sp-5) flex gap-0.5 overflow-x-auto border-b border-border"
+      className="mb-(--sp-5) flex gap-1 overflow-x-auto border-b border-border"
       aria-label="Seções do paciente"
     >
       {tab('dados', 'Visão geral')}
@@ -169,12 +174,27 @@ export default async function PacienteDetailPage({
       <PageHeader
         crumbs={[{ label: 'Pacientes', href: '/pacientes' }, { label: p.nome }]}
         title={p.nome}
-        description="Visão operacional, histórico clínico e governança do cadastro."
-        actions={
-          <Link
-            href="/pacientes"
-            className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'min-h-(--hit-target)')}
+        description="Cadastro, histórico de atendimentos, consentimentos e pedidos LGPD do paciente."
+        leading={
+          <span
+            aria-hidden="true"
+            className="grid size-14 place-items-center rounded-full bg-(--primary-soft) font-semibold text-(--text-link)"
           >
+            {initialsFrom(p.nome)}
+          </span>
+        }
+        titleAside={
+          p.obitoEm ? (
+            <Badge tone="line">Óbito registrado</Badge>
+          ) : (
+            <Badge tone="green" dot>
+              Cadastro ativo
+            </Badge>
+          )
+        }
+        actions={
+          <Link href="/pacientes" className={buttonVariants({ variant: 'secondary' })}>
+            <ArrowLeft aria-hidden="true" className="size-4" />
             Voltar
           </Link>
         }
@@ -277,11 +297,12 @@ export async function PatientClinicalActivityData({
     return null;
   }
 
-  const [prontuarios, documents] = await Promise.all([
+  const [prontuarios, documents, timeZone] = await Promise.all([
     canViewProntuario ? listRecentProntuariosByPatient(clinicId, patientId) : Promise.resolve([]),
     canViewDocuments
       ? listClinicalDocumentFeed(clinicId, { patientId, limit: 8 })
       : Promise.resolve([]),
+    getClinicTimezone(clinicId),
   ]);
 
   return (
@@ -295,6 +316,7 @@ export async function PatientClinicalActivityData({
       canCreateDocuments={canCreateDocuments}
       initialCreate={initialCreate}
       deceased={deceased}
+      timeZone={timeZone}
     />
   );
 }
@@ -322,10 +344,11 @@ export async function DadosTab({
   canCreateDocuments: boolean;
   initialCreate: 'prescricao' | 'documento' | null;
 }) {
-  const [endereco, relationships, decisions] = await Promise.all([
+  const [endereco, relationships, decisions, timeZone] = await Promise.all([
     getPrincipalAddress(clinicId, p.id),
     listPatientRelationships(clinicId, p.id),
     listCurrentConsentDecisions(clinicId, p.id),
+    getClinicTimezone(clinicId),
   ]);
   const decisionByPurpose = new Map(decisions.map((d) => [d.purpose, d]));
   const consentPurposes: ConsentPurposeView[] = CONSENT_PURPOSES.map((c) => {
@@ -388,7 +411,12 @@ export async function DadosTab({
             />
           </Suspense>
         ) : null}
-        <ConsentCard patientId={p.id} purposes={consentPurposes} canEdit={canEditPatient} />
+        <ConsentCard
+          patientId={p.id}
+          purposes={consentPurposes}
+          canEdit={canEditPatient}
+          timeZone={timeZone}
+        />
       </aside>
 
       <PatientRelationshipsCard
@@ -434,6 +462,7 @@ async function ProntuariosTab({
   canSign: boolean;
 }) {
   const list = await listProntuariosByPatient(clinicId, patientId);
+  const timeZone = await getClinicTimezone(clinicId);
   return (
     <div className="flex flex-col gap-(--sp-4)">
       {deceased || !canCreate ? null : (
@@ -457,7 +486,7 @@ async function ProntuariosTab({
               >
                 <Badge tone={pr.status === 'assinado' ? 'green' : 'amber'}>{pr.status}</Badge>
                 <span className="text-sm text-fg-muted">
-                  {new Date(pr.createdAt).toLocaleString('pt-BR')}
+                  {new Date(pr.createdAt).toLocaleString('pt-BR', { timeZone })}
                 </span>
                 {pr.needsReturn ? (
                   <span className="text-xs text-fg-subtle">retorno em {pr.returnDays}d</span>

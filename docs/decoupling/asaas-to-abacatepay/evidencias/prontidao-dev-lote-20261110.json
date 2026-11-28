@@ -1,0 +1,324 @@
+{
+  "observedAt": "2026-11-10T18:03:44.603Z",
+  "scope": "DEV and Sandbox readiness; no new external identity, checkout or payment",
+  "sourceBaseline": "fd90ded7ad6d67332fbcf5216fe2b048f19f2378",
+  "ci": {
+    "observedAt": "2026-11-10T17:31:49.023Z",
+    "status": "PASS",
+    "runId": "42851519029",
+    "sha": "fd90ded7ad6d67332fbcf5216fe2b048f19f2378",
+    "url": "https://github.com/joaomarcos-techia/Project_OS/actions/runs/42851519029",
+    "unitPassed": 6897,
+    "publicE2E": {
+      "passed": 18,
+      "skipped": 0
+    },
+    "steps": [
+      {
+        "name": "Set up job",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run actions/checkout@v4",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run pnpm/action-setup@v4",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run actions/setup-node@v4",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Install dependencies",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Prod dependency audit gate (high+)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Typecheck",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Lint",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Arch check (madge — circular deps)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Arch DB check (AST connection-origin guard)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Migration safety gate (anti-destructive)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Observability drift gate (docs ⇔ vercel.json ⇔ eventos)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Handler registry gate (catalog ⇔ registry)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Test + coverage gate",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Security inventory (AST and explicit guard review)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Two-tenant isolation (temporary local Postgres)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Build",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Client bundle secrets and local HTTP boundaries",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Install Playwright browser (chromium)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "E2E gate (superfície pública, sem credencial)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Upload E2E report on failure",
+        "status": "completed",
+        "conclusion": "skipped"
+      },
+      {
+        "name": "Complete job",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "productionWrites": 0
+  },
+  "database": {
+    "status": "PASS",
+    "observedAt": "2026-11-10T17:37:53.615Z",
+    "projectRef": "pqhkirrszzpwezdaqrai",
+    "scope": "read-only system aggregates and approved non-secret settings; no row-level patient data",
+    "settings": [
+      {
+        "name": "max_connections",
+        "setting": "60"
+      },
+      {
+        "name": "superuser_reserved_connections",
+        "setting": "3"
+      }
+    ],
+    "sessions": [
+      {
+        "backend_type": "client backend",
+        "state": "active",
+        "wait_event_type": null,
+        "n": 1
+      },
+      {
+        "backend_type": "client backend",
+        "state": "idle",
+        "wait_event_type": "Client",
+        "n": 5
+      },
+      {
+        "backend_type": "pg_cron launcher",
+        "state": null,
+        "wait_event_type": "Extension",
+        "n": 1
+      },
+      {
+        "backend_type": "pg_net 0.20.3 worker",
+        "state": "idle",
+        "wait_event_type": "Extension",
+        "n": 1
+      }
+    ],
+    "postgrest": [
+      {
+        "state": "idle",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead",
+        "n": 2
+      }
+    ],
+    "locks": [
+      {
+        "waiting": 0
+      }
+    ],
+    "roles": [
+      {
+        "rolname": "anon",
+        "rolcanlogin": false,
+        "rolconnlimit": -1
+      },
+      {
+        "rolname": "authenticated",
+        "rolcanlogin": false,
+        "rolconnlimit": -1
+      },
+      {
+        "rolname": "authenticator",
+        "rolcanlogin": true,
+        "rolconnlimit": -1
+      },
+      {
+        "rolname": "service_role",
+        "rolcanlogin": false,
+        "rolconnlimit": -1
+      }
+    ],
+    "configs": [],
+    "migrations": 144,
+    "latest": [
+      {
+        "id": 161,
+        "hash": "9f9b483aaeff60a9ca4f5b182c3b071408a7d3eec9ecea7cfe8f98bcf602e807",
+        "created_at": "1794330000000"
+      },
+      {
+        "id": 160,
+        "hash": "410c61834e2a1eb1bf11331b71f7660205fa426b76d1a9fa566e6b13d7d3fb3d",
+        "created_at": "1794326400000"
+      },
+      {
+        "id": 159,
+        "hash": "a13faef1aa291981c3e4c337cbde868225d9d1433bdeed8dd320fd7a74fdf5fd",
+        "created_at": "1794222981810"
+      },
+      {
+        "id": 158,
+        "hash": "98269c83b754785a7e9ecf0b2b4b142ff121cc22b56b8f3055575299ba8ca330",
+        "created_at": "1794199882765"
+      }
+    ],
+    "productionWrites": 0
+  },
+  "restPrivacy": {
+    "observedAt": "2026-11-10T17:52:44.677Z",
+    "status": "PASS",
+    "projectRef": "pqhkirrszzpwezdaqrai",
+    "privateBillingSchemaDenied": true,
+    "checks": [
+      {
+        "table": "profiles",
+        "http": 401,
+        "anonymousRowsDenied": true
+      },
+      {
+        "table": "patients",
+        "http": 401,
+        "anonymousRowsDenied": true
+      }
+    ],
+    "recordsRead": 0,
+    "productionWrites": 0
+  },
+  "requestLogAggregates": {
+    "observedAt": "2026-11-10T17:52:49.538Z",
+    "status": "PASS",
+    "deployment": "project-12rylgozs-clinic-os-v2-s-projects.vercel.app",
+    "scope": "Preview CDN request aggregates only, not provider response logs",
+    "sampledRecords": 8,
+    "groups": [
+      {
+        "path": "/api/webhooks/abacatepay",
+        "method": "POST",
+        "status": 401,
+        "n": 2
+      },
+      {
+        "path": "/api/signup/runtime-fingerprint",
+        "method": "POST",
+        "status": 200,
+        "n": 6
+      }
+    ],
+    "rawLogsPersisted": false,
+    "productionWrites": 0
+  },
+  "providerRead": {
+    "observedAt": "2026-11-10T17:46:59.311Z",
+    "status": "PASS",
+    "stage": "read_only_stores_get",
+    "http": 200,
+    "durationMs": 912,
+    "retryAfter": null,
+    "productionWrites": 0
+  },
+  "diagnosis": {
+    "confirmed": "Founder reported Data API disabled; founder enabled it; subsequent catalog REST returned 200",
+    "postgresTimeout": "Recovered on repeated reads; historical cause not established",
+    "dataApiSettingChangedByAgent": false
+  },
+  "localTests": {
+    "operatorAndEnv": {
+      "passed": 56
+    },
+    "financialOnboarding": {
+      "passed": 2247,
+      "files": 125
+    },
+    "proof": "Vitest local; HTTP doubles where used. Not external payment."
+  },
+  "checkoutCreationDeferredUntil": "crie os checkouts",
+  "pendingInitialPlans": [
+    {
+      "plan": "consultorio_2026",
+      "amountMinor": 19700
+    },
+    {
+      "plan": "clinica_2026_3",
+      "amountMinor": 54400
+    },
+    {
+      "plan": "clinica_2026_4",
+      "amountMinor": 69100
+    },
+    {
+      "plan": "clinica_2026_5",
+      "amountMinor": 83800
+    }
+  ],
+  "createdAuthUsers": 0,
+  "createdCheckouts": 0,
+  "financialMutations": 0,
+  "migrationsApplied": 0,
+  "productionWrites": 0,
+  "configurationChanges": 0
+}

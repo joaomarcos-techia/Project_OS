@@ -1,79 +1,203 @@
 'use client';
 
+import Link, { useLinkStatus } from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Laptop, LogOut, Moon, Sun, X } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { Laptop, LogOut, Menu, Moon, PanelLeft, Sun, X } from 'lucide-react';
 
-import {
-  MobileNavButton,
-  ShellScrim,
-  ShellSidebar,
-  SidebarUserMenu,
-  SideNavDisabled,
-  SideNavGroupLabel,
-  SideNavLink,
-  Wordmark,
-} from '@/components/shared/shell-chrome';
+import { QoroMark } from '@/components/shared/qoro-mark';
+import { SidebarUserMenu } from '@/components/shared/shell-chrome';
 import { resolvePageLayout } from '@/components/shared/page-layout';
 import { useTheme } from '@/components/shared/use-theme';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { Button } from '@/components/ui/button';
 import { initialsFrom } from '@/components/ui/avatar';
 
 import { useOpenHandoffCount } from './handoff-store';
 import { Icon } from './icons';
 import { GROUPS, MODULES } from './modules';
+import { RailAnimated } from './rail-animations';
+import { useRailPinned } from './use-rail-pinned';
+
+/** Até esta largura o menu é a barra do topo; `globals.css` usa o mesmo corte. */
+const MOBILE_BAR_QUERY = '(max-width: 720px)';
+
+/** Elementos que recebem foco por Tab dentro da gaveta do celular. */
+const FOCUSABLE =
+  'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"]), input, select, textarea';
+
+/** O botão de tema é remontado a cada troca (o `key` muda a animação). */
+function refocusThemeButton() {
+  requestAnimationFrame(() => {
+    document.querySelector<HTMLButtonElement>('[data-rail-theme]')?.focus({ preventScroll: true });
+  });
+}
 
 /**
- * Chrome do painel tenant — DS v2 §side/topbar em Tailwind (ADR-031).
- * O topbar perdeu a busca ⌘K fake e o sino sem feature (UX honesta); o bloco
- * de usuário virou menu REAL (Segurança da conta + Sair, rotas existentes).
+ * Mostra que a troca de tela começou. Algumas rotas levam mais de 1 s para
+ * responder e, sem isto, o clique parecia não ter sido aceito.
+ */
+function RailPending() {
+  const { pending } = useLinkStatus();
+  return pending ? <span className="qoro-rail-pending" aria-hidden="true" /> : null;
+}
+
+function conversationsWaiting(count: number): string {
+  return `${count} ${count === 1 ? 'conversa aguardando atendimento' : 'conversas aguardando atendimento'}`;
+}
+
+/**
+ * Chrome do app da clínica — Qoro App v5 (novembro/2026).
+ *
+ * O menu fica sobre o fundo do app, fora do painel branco de conteúdo:
+ * trilho de 72 px só com ícones, que abre por cima ao passar o mouse (com um
+ * instante de intenção, para não abrir ao cruzar a borda) ou focar pelo
+ * teclado, e que o usuário pode fixar aberto (216 px, empurra o painel). Os
+ * grupos têm título: aberto, o nome; recolhido, um traço no mesmo espaço, então
+ * nada pula de lugar ao abrir.
+ *
+ * No celular o topo é só a marca, a clínica e o botão "Menu"; a navegação
+ * inteira, com títulos, tema, conta e Sair, abre numa gaveta que prende o foco,
+ * fecha com Esc, na máscara ou ao trocar de tela, e devolve o foco ao botão.
+ *
+ * As peças são só do tenant (classes `qoro-rail*` em `globals.css`): o
+ * `shell-chrome` continua servindo o /admin sem mudança. O menu da conta
+ * (`SidebarUserMenu`) é reaproveitado — é o único caminho para "Perfil da
+ * clínica" e "Segurança da conta".
  */
 export function PainelShell({
   children,
   userName = 'Você',
   userRole = '',
+  clinicName = 'Qoro',
   settingsHref,
   clinicSettingsHref,
+  allowedModuleIds,
 }: {
   children: ReactNode;
   userName?: string;
   userRole?: string;
+  /** Nome da clínica no topo do menu. Sem ele, a marca. */
+  clinicName?: string;
   /** Categoria inicial acessível; evita Link cliente para uma rota de redirect. */
   settingsHref: string;
   /** Só vem preenchido para quem tem `manage:settings` (ver o layout do shell). */
   clinicSettingsHref?: string;
+  /**
+   * Módulos que a pessoa consegue abrir (`visibleModuleIds`). Ausente, mostra
+   * todos — o gate de cada página continua valendo de qualquer forma.
+   */
+  allowedModuleIds?: readonly string[];
 }) {
   const pathname = usePathname();
   const { theme, toggle } = useTheme();
+  const rail = useRailPinned();
   // 0 quando o usuário não tem `view:conversations`: o watcher não é montado e
-  // ninguém alimenta o store, então o badge simplesmente não aparece.
+  // ninguém alimenta o store, então o contador simplesmente não aparece.
   const handoffCount = useOpenHandoffCount();
   const [navOpen, setNavOpen] = useState(false);
   const pageLayout = resolvePageLayout(pathname);
+  const railInnerRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const toggleButtonRef = useRef<HTMLButtonElement>(null);
+  const idBase = useId();
+  // Só volta ao botão de menu quem fechou a gaveta (X, máscara ou Esc). Na troca
+  // de rota o foco não é puxado de volta para o menu.
+  const refocusToggleOnClose = useRef(false);
 
-  // fecha o drawer mobile ao trocar de rota
+  const closeNav = useCallback(() => {
+    refocusToggleOnClose.current = true;
+    setNavOpen(false);
+  }, []);
+
+  // fecha a gaveta do celular ao trocar de rota
   useEffect(() => {
     setNavOpen(false);
   }, [pathname]);
 
+  // Depois de escolher um destino no menu aberto por cima, ele recolhe mesmo com
+  // o mouse ainda em cima: senão o painel ficava cobrindo a esquerda da tela nova
+  // até a pessoa tirar o ponteiro dali. Volta a abrir quando o ponteiro sai e
+  // entra de novo, ou com qualquer tecla dentro do menu.
+  const railRef = useRef<HTMLElement>(null);
+
+  // Em telas baixas a lista rola em vez de espremer os itens (sidebar, 18/11): o destino atual
+  // fica sempre à vista, sem animação e só dentro da lista (a página não se move).
+  useEffect(() => {
+    const nav = railRef.current?.querySelector<HTMLElement>('.qoro-rail-nav');
+    const ativo = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!nav || !ativo || nav.scrollHeight <= nav.clientHeight) return;
+    const topo = ativo.offsetTop - nav.offsetTop;
+    if (topo < nav.scrollTop || topo + ativo.offsetHeight > nav.scrollTop + nav.clientHeight) {
+      nav.scrollTop = Math.max(0, topo - (nav.clientHeight - ativo.offsetHeight) / 2);
+    }
+  }, [pathname]);
+
+  const [peekOff, setPeekOff] = useState(false);
+  const lastPathname = useRef(pathname);
+  useEffect(() => {
+    if (lastPathname.current === pathname) return;
+    lastPathname.current = pathname;
+    const rail = railRef.current;
+    if (!rail) return;
+    let engaged = rail.matches(':hover');
+    try {
+      engaged ||= rail.matches(':has(:focus-visible)');
+    } catch {
+      // Navegador sem `:has()` em `matches`: fica só o caso do mouse.
+    }
+    if (engaged) setPeekOff(true);
+  }, [pathname]);
+
   useEffect(() => {
     if (!navOpen) return;
+    const root = document.documentElement;
+    const toggleButton = toggleButtonRef.current;
+    const previousOverflow = root.style.overflow;
+    root.style.overflow = 'hidden';
+    closeButtonRef.current?.focus();
+
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      setNavOpen(false);
-      requestAnimationFrame(() => {
-        document
-          .querySelector<HTMLButtonElement>(
-            '[data-qoro-shell="tenant"] button[aria-label="Abrir navegação"]',
-          )
-          ?.focus();
-      });
+      // `defaultPrevented`: o Esc já fechou uma dica ou o menu da conta.
+      if (event.key === 'Escape' && !event.defaultPrevented) {
+        closeNav();
+        return;
+      }
+      // Prende o Tab na gaveta: o painel por trás está `inert`, mas o link de
+      // pular conteúdo e o fim do documento ainda receberiam o foco.
+      const drawer = railInnerRef.current;
+      if (event.key !== 'Tab' || !drawer || !drawer.contains(document.activeElement)) return;
+      const focusables = Array.from(drawer.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+        (el) => el.getClientRects().length > 0,
+      );
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    // Girar o aparelho pode passar de 720 px, onde não há gaveta nem como fechá-la.
+    const mobileBar = window.matchMedia(MOBILE_BAR_QUERY);
+    const onViewportChange = () => {
+      if (!mobileBar.matches) setNavOpen(false);
     };
     document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [navOpen]);
+    mobileBar.addEventListener('change', onViewportChange);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      mobileBar.removeEventListener('change', onViewportChange);
+      root.style.overflow = previousOverflow;
+      if (refocusToggleOnClose.current) {
+        refocusToggleOnClose.current = false;
+        toggleButton?.focus();
+      }
+    };
+  }, [navOpen, closeNav]);
 
   const isActive = (href?: string) =>
     !!href &&
@@ -81,88 +205,194 @@ export function PainelShell({
       (href === settingsHref && pathname.startsWith('/configuracoes/')));
 
   const userInitials = initialsFrom(userName);
+  // Curto para caber na pílula aberta (176 px): "Fixar menu aberto" encostava na borda.
+  const pinLabel = rail.pinned ? 'Recolher menu' : 'Fixar menu';
   const themeLabel =
     theme === 'dark' ? 'Tema escuro' : theme === 'system' ? 'Tema do sistema' : 'Tema claro';
   const ThemeIcon = theme === 'dark' ? Moon : theme === 'system' ? Laptop : Sun;
+  const themeAnimation = theme === 'dark' ? 'dark' : theme === 'system' ? 'system' : 'light';
+  const visibleModules = MODULES.filter(
+    (m) => !m.soon && m.href && (!allowedModuleIds || allowedModuleIds.includes(m.id)),
+  );
+  const visibleGroups = GROUPS.filter((group) => visibleModules.some((m) => m.group === group));
+  const handoffText = handoffCount > 9 ? '9+' : String(handoffCount);
+  const showHandoff =
+    handoffCount > 0 && visibleModules.some((module) => module.id === 'conversas');
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div data-qoro-shell="tenant">
+      <div data-qoro-shell="tenant" className="qoro-app" data-nav-open={navOpen ? 'true' : 'false'}>
         <a className="qoro-skip-link" href="#qoro-main">
           Pular para o conteúdo
         </a>
-        <MobileNavButton open={navOpen} onClick={() => setNavOpen((v) => !v)} />
-        <ShellScrim show={navOpen} onClick={() => setNavOpen(false)} />
 
-        <div className="qoro-shell-grid min-h-dvh nav:grid nav:grid-cols-[var(--sidebar-w)_1fr]">
-          <ShellSidebar open={navOpen}>
-            <div className="flex items-center justify-between pr-3">
-              <Wordmark />
-              <Button
-                variant="subtle"
-                size="sm"
-                icon
-                className="nav:hidden"
+        <aside
+          ref={railRef}
+          data-slot="tenant-rail"
+          className="qoro-rail"
+          data-peek={peekOff ? 'off' : undefined}
+          onPointerLeave={peekOff ? () => setPeekOff(false) : undefined}
+          onKeyDown={peekOff ? () => setPeekOff(false) : undefined}
+        >
+          <div
+            ref={railInnerRef}
+            className="qoro-rail-inner"
+            {...(navOpen ? { role: 'dialog', 'aria-modal': true, 'aria-label': 'Navegação' } : {})}
+          >
+            <div className="qoro-rail-top">
+              <Link
+                href="/"
+                prefetch={false}
+                className="qoro-rail-clinic"
+                aria-label={`${clinicName} — início`}
+              >
+                <span className="qoro-rail-mark" aria-hidden="true">
+                  <QoroMark />
+                </span>
+                <span className="qoro-rail-clinic-name qoro-rail-label">{clinicName}</span>
+              </Link>
+              <button
+                ref={closeButtonRef}
+                type="button"
+                className="qoro-rail-close"
                 aria-label="Fechar navegação"
-                onClick={() => setNavOpen(false)}
+                onClick={closeNav}
               >
                 <X aria-hidden="true" className="size-4" />
-              </Button>
+              </button>
             </div>
 
-            <nav
-              className="min-h-0 flex-1 overflow-y-auto px-(--sp-3)"
-              aria-label="Navegação principal"
-            >
-              {GROUPS.map((g) => {
-                const mods = MODULES.filter((m) => m.group === g);
-                if (!mods.length) return null;
+            <nav className="qoro-rail-nav" aria-label="Navegação principal">
+              {visibleGroups.map((group, index) => {
+                const headingId = `${idBase}-grupo-${index}`;
                 return (
-                  <div key={g} data-nav-group={g} className="mt-(--sp-4) first:mt-(--sp-2)">
-                    <SideNavGroupLabel>{g}</SideNavGroupLabel>
-                    {mods.map((m) => {
-                      const href = m.id === 'config' ? settingsHref : m.href;
-                      return m.soon || !href ? (
-                        <SideNavDisabled key={m.id} icon={<Icon name={m.icon} />} label={m.label} />
-                      ) : (
-                        <SideNavLink
-                          key={m.id}
-                          href={href}
-                          active={isActive(href)}
-                          icon={<Icon name={m.icon} />}
-                          label={m.label}
-                          trailing={
-                            m.id === 'conversas' && handoffCount > 0 ? (
-                              // Vermelho porque pede ação de alguém, e com o
-                              // NÚMERO: "3" diz o tamanho da fila, um ponto não.
-                              <span
-                                aria-label={`${handoffCount} ${
-                                  handoffCount === 1
-                                    ? 'conversa aguardando atendimento'
-                                    : 'conversas aguardando atendimento'
-                                }`}
-                                className="qoro-handoff-badge grid min-w-4.5 place-items-center rounded-full bg-danger-600 px-1 text-(length:--fs-3xs) font-semibold text-(--text-inverse)"
+                  <div
+                    key={group}
+                    role="group"
+                    aria-labelledby={headingId}
+                    data-nav-group={group}
+                    className="qoro-rail-group"
+                  >
+                    <span className="qoro-rail-heading">
+                      <span id={headingId} className="qoro-rail-heading-text qoro-rail-label">
+                        {group}
+                      </span>
+                    </span>
+                    {visibleModules
+                      .filter((m) => m.group === group)
+                      .map((m) => {
+                        const href = m.id === 'config' ? settingsHref : m.href!;
+                        const withCount = m.id === 'conversas' && showHandoff;
+                        return (
+                          <RailAnimated
+                            key={m.id}
+                            name={m.icon}
+                            size={27}
+                            fallback={<Icon name={m.icon} size={20} sw={1.75} />}
+                          >
+                            {(icon, events) => (
+                              <Link
+                                {...events}
+                                href={href}
+                                // Sem prefetch: com o modo automático, abrir qualquer
+                                // aba renderizava todas as outras em segundo plano
+                                // (medido no Preview, até 1,4 s por destino).
+                                prefetch={false}
+                                data-slot="rail-link"
+                                className="qoro-rail-item"
+                                aria-current={isActive(href) ? 'page' : undefined}
+                                // Nome curto no menu, nome inteiro para o leitor de
+                                // tela (o visível está contido nele).
+                                {...(m.navLabel ? { 'aria-label': m.label } : {})}
                               >
-                                {handoffCount > 9 ? '9+' : handoffCount}
-                              </span>
-                            ) : m.badge ? (
-                              <span className="grid min-w-4.5 place-items-center rounded-full bg-(--primary-soft) px-1 text-(length:--fs-3xs) font-semibold text-(--primary-active) dark:text-fg">
-                                {m.badge}
-                              </span>
-                            ) : undefined
-                          }
-                        />
-                      );
-                    })}
+                                {icon}
+                                <span className="qoro-rail-label">{m.navLabel ?? m.label}</span>
+                                {withCount ? (
+                                  <>
+                                    {/* Um número só para leitura; o ponto sobre o
+                                    ícone é a cópia visual do trilho recolhido. */}
+                                    <span
+                                      className="qoro-rail-count qoro-rail-label"
+                                      aria-label={conversationsWaiting(handoffCount)}
+                                    >
+                                      {handoffText}
+                                    </span>
+                                    <span className="qoro-rail-dot" aria-hidden="true">
+                                      {handoffText}
+                                    </span>
+                                  </>
+                                ) : null}
+                                <RailPending />
+                              </Link>
+                            )}
+                          </RailAnimated>
+                        );
+                      })}
                   </div>
                 );
               })}
             </nav>
 
-            {/* Conta, tema e saída no rodapé da referência. O mesmo form atende
-              tanto ao botão direto quanto ao item do menu renderizado em Portal. */}
-            <div className="qoro-sidebar-footer border-t border-border p-(--sp-2)">
-              <form id="painel-logout" action="/logout" method="post" className="hidden" />
+            <span className="qoro-rail-spacer" aria-hidden="true" />
+
+            <div className="qoro-rail-foot">
+              <RailAnimated name="pin" size={27} fallback={<PanelLeft aria-hidden="true" />}>
+                {(icon, events) => (
+                  <button
+                    {...events}
+                    type="button"
+                    className="qoro-rail-item"
+                    data-pressed={rail.pinned ? 'true' : 'false'}
+                    onClick={(event) => {
+                      events?.onClick(event);
+                      rail.toggle();
+                    }}
+                  >
+                    {icon}
+                    <span className="qoro-rail-label">{pinLabel}</span>
+                  </button>
+                )}
+              </RailAnimated>
+              <RailAnimated
+                key={themeAnimation}
+                name={themeAnimation}
+                size={27}
+                fallback={<ThemeIcon aria-hidden="true" />}
+              >
+                {(icon, events) => (
+                  <button
+                    {...events}
+                    type="button"
+                    data-rail-theme
+                    className="qoro-rail-item"
+                    onClick={(event) => {
+                      events?.onClick(event);
+                      toggle();
+                      // Enter e Espaço chegam com `detail` 0. No clique do mouse o
+                      // foco não volta: deixaria o menu aberto depois do clique.
+                      if (event.detail === 0) refocusThemeButton();
+                    }}
+                    aria-label={`${themeLabel}. Alternar tema`}
+                  >
+                    {icon}
+                    <span className="qoro-rail-label">{themeLabel}</span>
+                  </button>
+                )}
+              </RailAnimated>
+              {/* Logout é mutação: POST de formulário, nunca GET. O mesmo form
+                  atende ao item do menu da conta, que vive num portal. */}
+              <form id="painel-logout" action="/logout" method="post" hidden />
+              <RailAnimated name="logout" size={27} fallback={<LogOut aria-hidden="true" />}>
+                {(icon, events) => (
+                  <button {...events} type="submit" form="painel-logout" className="qoro-rail-item">
+                    {icon}
+                    <span className="qoro-rail-label">Sair</span>
+                  </button>
+                )}
+              </RailAnimated>
+            </div>
+
+            <div className="qoro-rail-user">
               <SidebarUserMenu
                 userName={userName}
                 userRole={userRole}
@@ -174,32 +404,47 @@ export function PainelShell({
                 logoutFormId="painel-logout"
                 showThemeControl={false}
               />
-              <div className="qoro-sidebar-actions">
-                <Button
-                  variant="subtle"
-                  onClick={toggle}
-                  aria-label={`${themeLabel}. Alternar tema`}
-                >
-                  <ThemeIcon aria-hidden="true" className="size-3.5" />
-                  {themeLabel}
-                </Button>
-                <Button variant="subtle" icon type="submit" form="painel-logout" aria-label="Sair">
-                  <LogOut aria-hidden="true" className="size-3.5" />
-                </Button>
-              </div>
             </div>
-          </ShellSidebar>
-
-          <div className="flex min-w-0 flex-col bg-canvas">
-            <main
-              id="qoro-main"
-              tabIndex={-1}
-              data-page-layout={pageLayout}
-              className="mx-auto w-full max-w-(--page-maxw) flex-1 px-(--page-px) pt-(--page-pt) pb-(--page-pb) max-nav:pt-(--page-pt-mobile)"
-            >
-              {children}
-            </main>
           </div>
+
+          <button
+            ref={toggleButtonRef}
+            type="button"
+            className="qoro-rail-toggle"
+            aria-label="Abrir navegação"
+            aria-expanded={navOpen}
+            {...(showHandoff ? { 'aria-describedby': `${idBase}-pendentes` } : {})}
+            // Aberta, a gaveta cobre o botão: ele sai da ordem de foco.
+            inert={navOpen}
+            onClick={() => setNavOpen((open) => !open)}
+          >
+            <Menu aria-hidden="true" className="size-5" />
+            <span className="qoro-rail-toggle-text" aria-hidden="true">
+              Menu
+            </span>
+            {showHandoff ? (
+              <span className="qoro-rail-toggle-count" aria-hidden="true">
+                {handoffText}
+              </span>
+            ) : null}
+          </button>
+          {showHandoff ? (
+            <span id={`${idBase}-pendentes`} hidden>
+              {conversationsWaiting(handoffCount)}
+            </span>
+          ) : null}
+        </aside>
+        <div className="qoro-rail-scrim" aria-hidden="true" onClick={closeNav} />
+
+        <div className="qoro-panel" inert={navOpen}>
+          <main
+            id="qoro-main"
+            tabIndex={-1}
+            data-page-layout={pageLayout}
+            className="w-full min-w-0 flex-1 px-(--page-px) pt-(--page-pt) pb-(--page-pb)"
+          >
+            {children}
+          </main>
         </div>
         <Toaster />
       </div>

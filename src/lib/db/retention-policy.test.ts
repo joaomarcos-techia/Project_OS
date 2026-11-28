@@ -6,6 +6,7 @@
  * saúde justamente no cenário que o alerta existe para pegar.
  */
 import { describe, expect, it } from 'vitest';
+import { PgDialect } from 'drizzle-orm/pg-core';
 
 import {
   buildPurgeStatement,
@@ -31,6 +32,15 @@ describe('retention-policy — registro é a fonte única', () => {
     expect(tables).toContain('outbox');
     expect(tables).toContain('login_attempts');
     expect(tables).toContain('idempotency_keys');
+  });
+
+  it('login_attempts guarda o registro de acesso pelos 6 meses do Marco Civil (art. 15)', () => {
+    const p = RETENTION_POLICIES.find((x) => x.table === 'login_attempts')!;
+    expect(p.days).toBeGreaterThanOrEqual(184);
+    expect(p.days).toBeLessThanOrEqual(200);
+    const query = new PgDialect().sqlToQuery(buildPurgeStatement(p, 5000));
+    expect(query.sql).toContain('attempted_at < now() - make_interval(days => $1)');
+    expect(query.params).toEqual([186, 5000]);
   });
 
   it('não tem tabela duplicada', () => {

@@ -121,8 +121,9 @@ test.describe.serial('telas de configuração do tenant', () => {
     let primaryError: unknown;
     try {
       await page.getByRole('button', { name: 'Novo modelo' }).click();
-      await page.getByPlaceholder('Nome *').fill(nome);
-      await page.getByPlaceholder('Medicamento *').first().fill('Medicamento de teste');
+      // UX-019: os campos ganharam rótulo persistente; o placeholder virou exemplo.
+      await page.getByLabel('Nome do modelo').fill(nome);
+      await page.getByLabel('Medicamento 1').fill('Medicamento de teste');
       await page.getByRole('button', { name: 'Salvar' }).click();
 
       await expect(linhaDoModelo(), 'o modelo não apareceu depois de salvar').toBeVisible({

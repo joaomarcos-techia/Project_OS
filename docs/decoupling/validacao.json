@@ -1,0 +1,48 @@
+{
+  "date": "2026-11-06",
+  "appSourceCommit": "534995b0a41d3b856fa0310e9e4359245a44589a",
+  "landingSourceCommit": "deb670bbf3dd5c3e5ba521318f052d312f0193bb",
+  "scope": "documentacao e caracterizacao local; sem migracao",
+  "characterization": {
+    "runner": "vitest 2.1.9",
+    "filesPassed": 12,
+    "testsPassed": 216,
+    "testsFailed": 0,
+    "exitCode": 0,
+    "durationSeconds": 49.7,
+    "providerIntegrationProof": false
+  },
+  "architecture": {
+    "generator": "scripts/arch-graphs.ts",
+    "elements": 58,
+    "importEdges": 316,
+    "moduleCycles": 0,
+    "events": 72,
+    "eventsWithoutConsumer": 41,
+    "checkExitCode": 0
+  },
+  "documents": {
+    "markdownFiles": 25,
+    "localLinksChecked": 132,
+    "fileCategoryReferencesChecked": 141,
+    "tasks": 35,
+    "taskDependencyCycles": 0,
+    "scenarioIds": 79,
+    "validationErrors": 0
+  },
+  "mermaid": {
+    "toolVersion": "11.12.0",
+    "parsed": 15,
+    "errors": 0,
+    "visualReview": "NOT_RUN"
+  },
+  "formatting": "PASS_TARGETED",
+  "diffCheck": "PASS",
+  "newDocumentsSecretPatternScan": "NO_MATCHES",
+  "productCodeChanged": false,
+  "productionChanged": false,
+  "remoteDataRead": false,
+  "alternativeProviderExercise": "NOT_RUN",
+  "productionBuild": "NOT_RUN_DOCS_ONLY",
+  "productionE2E": "NOT_RUN"
+}

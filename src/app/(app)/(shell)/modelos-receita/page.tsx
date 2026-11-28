@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 /**
  * /modelos-receita — gestão dos modelos de receita do médico logado (Fase 2).
  * Pessoal por médico (doctor_id); RLS isola por clínica. CRUD via Server Actions
@@ -10,6 +11,8 @@ import { PageNoAccess } from '@/components/shared/page-no-access';
 import { PageHeader } from '@/components/ui/page-header';
 
 import { TemplatesManager } from './templates-manager';
+
+export const metadata: Metadata = { title: 'Modelos de receita' };
 
 export const dynamic = 'force-dynamic';
 
