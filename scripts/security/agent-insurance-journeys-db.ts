@@ -140,8 +140,14 @@ try {
 
   // 3 — módulo desligado.
   const optC = agent.agentInsuranceOptions(await getSchedulingInsuranceOptions(c.clinicId));
-  assert.deepEqual(optC, { kind: 'not_available', reply: agent.AGENT_INSURANCE_TEXT.notAccepted });
-  pass(3, 'módulo desligado: "não atende esse convênio pelo Qoro", nada oferecido');
+  assert.deepEqual(optC, {
+    kind: 'not_available',
+    reply: agent.AGENT_INSURANCE_TEXT.managedByReception,
+  });
+  pass(
+    3,
+    'módulo desligado: "o agendamento pelo convênio é feito pela recepção" (sem recusar convênio), nada oferecido',
+  );
 
   // 4 — jornada 2.
   const choice = {

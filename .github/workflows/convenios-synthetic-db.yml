@@ -240,6 +240,12 @@ jobs:
           SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55612 NODE_OPTIONS=--conditions=react-server \
             pnpm exec tsx scripts/security/audit-trails-append-only-db.ts
 
+      - name: S5 — ancoragem das duas trilhas por hash encadeado (7 provas, só leitura)
+        if: ${{ !cancelled() }}
+        run: |
+          SECURITY_PG_BIN="$(pg_config --bindir)" PORT=55643 NODE_OPTIONS=--conditions=react-server \
+            pnpm exec tsx scripts/security/audit-anchor-db.ts
+
       - name: Ordem final das migrations — DEV + 0168 (#64) + 0169–0171 + 0172 (#59), um verificador nas duas trilhas
         if: ${{ !cancelled() }}
         run: |

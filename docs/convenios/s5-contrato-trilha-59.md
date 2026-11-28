@@ -148,3 +148,38 @@ cadeia do DEV + 0168 + 0169–0171 + a candidata do #59 na posição 0172 e pass
    algum `installed && !ok` (e avisar se a barreira esperada não estiver instalada no ambiente);
 4. a ancoragem externa (hash encadeado ou cópia WORM) continua fora, como a ADR-075 decidiu: é a única defesa contra quem
    tem DDL e também mexe no catálogo.
+
+## Atualização de 28/11/2026 (tarde): ancoragem por hash encadeado, a parte técnica
+
+A "evidência externa" do item 3 acima saiu do papel, sem serviço novo e sem duplicar o #59:
+
+| Peça | O que faz |
+| --- | --- |
+| `src/lib/db/audit-anchor.ts` | resumo por dia (UTC) de cada trilha: hash de cada linha (TODAS as colunas, datas em UTC fixo, jsonb canônico do Postgres) encadeado ao resumo do dia anterior a partir de um gênese versionado; `verifyAnchors` confere uma sequência guardada fora contra o banco de agora e diz o dia que mudou (com a quantidade, que separa apagar/inserir de alterar) ou onde a sequência foi editada |
+| as duas trilhas | `audit_events` (clínica, particionada) e `super_admin_actions` (plataforma, a do #59) pela MESMA biblioteca; em `audit_events`, `before`/`after` entram sem as cinco chaves que a anonimização LGPD retira (a mesma lista do gatilho da 0171, com teste de drift): anonimizar não quebra a cadeia, adulterar qualquer outra coisa quebra |
+| `scripts/security/audit-anchor.ts` | ferramenta do operador, **só leitura** (transação READ ONLY, sem SET de sessão, URL própria em `ANCHOR_DATABASE_URL`): `compute` imprime uma linha JSON por dia; `verify --file` confere e sai com código 1 se algo mudou |
+
+**Provas:** `audit-anchor.test.ts` 7/7 e `scripts/security/audit-anchor-db.ts` (porta 55643, 7 provas, no workflow
+sintético e no gate de cobertura). O harness cobre:
+- resumos íntegros das duas trilhas;
+- determinismo em outra sessão (fuso de São Paulo, outro `datestyle`, READ ONLY);
+- anonimização LGPD real sem quebra;
+- apagar, alterar a ação, inserir retroativo e mudar chave não pessoal, cada um acusado no dia certo;
+- payload da trilha da plataforma reescrito;
+- sequência guardada com um dia retirado;
+- nenhuma escrita.
+
+**Limite honesto (o mesmo):** isto DETECTA depois, não impede. E só vale se os resumos ficarem onde o dono do banco
+não alcança.
+
+**O que depende de decisão (titular), sem custo novo:**
+1. **Destino dos resumos.** Opções grátis com o que já existe:
+   - (a) o operador roda `compute` toda semana e guarda o arquivo no Google Drive ou no e-mail do titular;
+   - (b) depois, automatizar com o cron e o e-mail que já existem. A ADR-075 evitou "cron novo", então a automação
+     precisa dessa decisão.
+2. **Quando começar a cadeia.** Recomendação: a partir do dia em que a 0171 for aplicada no ambiente, porque antes dela
+   a trilha ainda aceitava UPDATE/DELETE da aplicação.
+
+**Para o #59:** nada a mudar na branch dele. A trilha da plataforma já é coberta pela mesma biblioteca (spec
+`PLATFORM_AUDIT_ANCHOR`), como o verificador do catálogo já era. S5 segue **PARTIAL** só pelo merge do #59, pela 0171
+no ambiente e pela decisão do destino.

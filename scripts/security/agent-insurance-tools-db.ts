@@ -209,6 +209,8 @@ try {
     { name: 'Unimed Sintética', status: 'active' },
   ]);
   const patientA = await A.patient('Paciente Sintético A');
+  const UNIMED_A = A.insurerIds['Unimed Sintética']!;
+  const ENFERMARIA_A = A.planIds['Unimed Sintética/Enfermaria']!;
 
   // ── 1. lista: só ativas da própria clínica ─────────────────────────────────────
   {
@@ -218,10 +220,7 @@ try {
     );
     assert.equal(r.status, 'insurance_options');
     assert.deepEqual(r.insurers, [{ name: 'Unimed Sintética', plans: ['Enfermaria'] }]);
-    assert.ok(
-      !JSON.stringify(r).includes(A.insurerIds['Unimed Sintética']!),
-      'id não vai ao modelo',
-    );
+    assert.ok(!JSON.stringify(r).includes(UNIMED_A!), 'id não vai ao modelo');
     const rb = response(
       await call(B, await B.conversation(), null, 'list_insurance_options', {}, 'convênio?'),
     );
@@ -242,7 +241,7 @@ try {
         conv,
         patientA,
         'prepare_appointment',
-        { insurer_name: 'Operadora Só da B' },
+        { insurer_name: 'Operadora Só da B', procedure_name: 'Consulta Sintética' },
         'tenho Operadora Só da B',
       ),
     );
@@ -266,7 +265,7 @@ try {
         conv,
         pc,
         'prepare_appointment',
-        { insurer_name: 'Unimed Sintética' },
+        { insurer_name: 'Unimed Sintética', procedure_name: 'Consulta Sintética' },
         'quero marcar pela Unimed',
       ),
     );
@@ -298,8 +297,8 @@ try {
     assert.doesNotMatch(summary, /R\$|sinal|link|número/i);
     const payload = await lastPendingPayload(A, conv);
     assert.deepEqual(payload?.insurance, {
-      insurerId: A.insurerIds['Unimed Sintética'],
-      planId: A.planIds['Unimed Sintética/Enfermaria'],
+      insurerId: UNIMED_A,
+      planId: ENFERMARIA_A,
       membershipId: null,
       guideType: 'consulta',
     });
@@ -315,8 +314,8 @@ try {
       await sql`select insurer_id::text as insurer, plan_id::text as plan, membership_id, created_via, created_by
       from public.hi_appointment_coverages where appointment_id = ${convenioAppointment}::uuid`;
     assert.ok(cov, 'cobertura registrada');
-    assert.equal(cov.insurer, A.insurerIds['Unimed Sintética']);
-    assert.equal(cov.plan, A.planIds['Unimed Sintética/Enfermaria']);
+    assert.equal(cov.insurer, UNIMED_A);
+    assert.equal(cov.plan, ENFERMARIA_A);
     assert.equal(cov.membership_id, null);
     assert.equal(cov.created_via, 'automation');
     assert.equal(cov.created_by, null);
@@ -330,7 +329,7 @@ try {
       null,
     );
     const [g] =
-      await sql`select count(*)::int as n from public.hi_guides where appointment_id = ${convenioAppointment}::uuid`;
+      await sql`select count(*)::int as n from public.hi_guide_items where appointment_id = ${convenioAppointment}::uuid`;
     assert.equal(g!.n, 0);
     const [ch] =
       await sql`select count(*)::int as n from public.patient_charges where appointment_id = ${convenioAppointment}::uuid`;
@@ -346,7 +345,7 @@ try {
     const pt = await A.patient('Paciente Sintético Com Carteirinha');
     const [card] = await sql`insert into public.hi_memberships
         (clinic_id, patient_id, insurer_id, plan_id, card_number_encrypted, card_number_hash, card_last4, created_by)
-      values (${A.clinicId}::uuid, ${pt}::uuid, ${A.insurerIds['Unimed Sintética']}::uuid, ${A.planIds['Unimed Sintética/Enfermaria']}::uuid,
+      values (${A.clinicId}::uuid, ${pt}::uuid, ${UNIMED_A}::uuid, ${ENFERMARIA_A}::uuid,
         'AQAAAAAAAAAAAAAAAAAAAAAAAAAAAA==', ${randomUUID().replace(/-/g, '').padEnd(64, '0')}, '4321', ${SYS}::uuid) returning id`;
     const conv = await A.conversation();
     const prep = response(
@@ -417,7 +416,7 @@ try {
     );
     assert.equal(prep.status, 'appointment_prepared');
     const before = await counts(A);
-    await sql`update public.hi_insurers set status = 'suspended' where id = ${A.insurerIds['Unimed Sintética']}::uuid`;
+    await sql`update public.hi_insurers set status = 'suspended' where id = ${UNIMED_A}::uuid`;
     const out = await call(A, conv, patientA, 'confirm_pending_action', {}, 'SIM');
     // O registro devolve a falha do handler sem detalhe ao modelo; o motivo (a reconferência do convênio)
     // está no teste unitário da execução. Aqui vale o efeito: nada criado e a pendência não executada.
@@ -434,12 +433,12 @@ try {
         conv,
         patientA,
         'prepare_appointment',
-        { insurer_name: 'Saúde Suspensa' },
+        { insurer_name: 'Saúde Suspensa', procedure_name: 'Consulta Sintética' },
         'tenho Saúde Suspensa',
       ),
     );
     assert.equal(again.status, 'appointment_information_required');
-    await sql`update public.hi_insurers set status = 'active' where id = ${A.insurerIds['Unimed Sintética']}::uuid`;
+    await sql`update public.hi_insurers set status = 'active' where id = ${UNIMED_A}::uuid`;
     pass(
       7,
       'jornada 3: operadora suspensa entre o resumo e o SIM → recusa na confirmação e nada criado; suspensa nunca casa no prepare',
@@ -455,7 +454,7 @@ try {
         conv,
         null,
         'prepare_appointment',
-        { insurer_name: 'Unimed Sintética' },
+        { insurer_name: 'Unimed Sintética', procedure_name: 'Consulta Sintética' },
         'quero marcar pela Unimed Sintética',
       ),
     );

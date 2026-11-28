@@ -136,3 +136,9 @@ Ver no Preview é opcional (seção 1); não precisa repetir a bateria. **Até a
 12 conferências financeiras e 1 de isolamento, todas iguais ao esperado (diferença **R$ 0,00**); nenhum código do
 caminho do dinheiro mudou desde a pré-auditoria; sem ressalva material. **Recomendação técnica: aprovar.**
 **Campo de aceite: seção 7** — marcar "aprovado" ou "reprovado no caso F__". Até essa marcação, P15.6 = PENDING.
+
+**Validade em 28/11/2026 (tarde):** `git diff --stat 022063b0 HEAD -- src` filtrado pelos caminhos do dinheiro
+(faturamento, glosa, pagamento, repasse, coparticipação, livro, Caixa, lote, demonstrativo, conciliação) não traz
+nenhum arquivo. O único que casa no filtro por nome é o handler do agente (`inbound-received.ts`), que não toca valores. A
+P11.1 grava a cobertura do agendamento pelo agente como automação; coparticipação, recebível e livro seguem o mesmo
+caminho já provado. A evidência 13/13 continua válida; o campo de aceite continua na seção 7.
