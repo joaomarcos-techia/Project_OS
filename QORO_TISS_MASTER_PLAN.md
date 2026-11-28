@@ -39,7 +39,7 @@
 
 | Campo | Valor |
 | --- | --- |
-| Data da última atualização | 28/11/2026, noite (P11.1 e P11.2 concluídas; ancoragem S5; base comercial #68 `839e67ba`; ver o checkpoint de 28/11, noite) |
+| Data da última atualização | 28/11/2026, manhã (GO mestre executivo: P11 endurecida, selo RFC 3161 da S5, P12.6 pronta para um comando; ver o checkpoint de 28/11, manhã) |
 | Fase atual | **P1 concluída**; P9 (lotes, XMLs, recurso) e P12 (armazenamento) validadas; ponte financeira (P1.10/P10.2/P10.3) pronta como candidata 0153; interface (P7.7/P9.9) implementada e testada; P9.5, P8.7/P6.2, P10.4 e P10.5 pendentes |
 | Tarefa em andamento | **25/11 (noite):** missão de conformidade concluída no #55 (`022063b0` + docs); à espera da consolidação #53 → #56 (agora no #64, `92363ef1`) para o rebase final; **CI bloqueada pela cobrança do GitHub Actions**; patch do Marco Civil para o #53 com prazo em 01/12/2026 05h UTC |
 | Última tarefa concluída | **P15.1** (20/11): ajuda do TISS na central de documentação existente (5 tópicos, categoria Financeiro, testes 18/18), além de runbooks, domínio e known-limitations. Mesmo ciclo: P9.4 no teto "Testado" (envio pelo conector com recibo conferido, 7/7), destino do conector só público (P15.5), benchmark do outbox (25 rodadas no runner) |
@@ -121,6 +121,22 @@
 | Progresso | **68 de 117 (58,1%)** |
 | Coordenação | UI: janela de testes pesados aceita e usada (23:33–00:10); terminologia de guias decidida pela UI e aplicada; títulos de página nas 13 telas; divisão de arquivos (handoff-ui.md §8). #53: release congela a cauda TISS do `4d0ed1d5` |
 | Próximo passo exato | ver "Próxima ação exata" acima |
+
+### Checkpoint de 28/11/2026, manhã — GO mestre executivo: P11 endurecida, S5 com selo verificável
+
+| Item | Estado |
+| --- | --- |
+| CI do commit de documentação `22eb2fa2` | **PASS** (CI 46122560373, ADR advisory). As provas sintéticas não rodam num commit só de documentação, como o filtro manda |
+| Base comercial | #68 continua em `839e67ba`, draft. A composição verde foi feita sobre ele (Next 16.4.6, React 19.2.6, Vitest 4, `LOGIN_ATTEMPTS_DAYS = 186`, nenhuma mudança de Auth ou financeira desde `9823f026`). O check do Snyk falha no #68 e é da frente comercial. A main segue em `5620a098` |
+| **P11 (endurecimento)** | o convênio só vale se o PACIENTE escreveu a operadora, no turno ou nas últimas falas dele (`recentPatientTexts`). Operadora só do modelo, ou "particular" dito depois, faz o agente perguntar "convênio ou particular?" sem preparar nada. Plano só do modelo não vale. O inverso também pergunta: se o paciente citou o convênio e o modelo preparou particular, sai a pergunta, sem resumo nem sinal, e com o módulo ligado o resumo diz "como particular". O nome mais longo vence o contido nele. A origem da escolha (`insuranceSource`) é obrigatória no convênio. Unitários do agente: 934/934. Conversa: **8/8** no runner. P11.1 e P11.2 seguem **PASS** |
+| P11 com o Gemini real | **NOT RUN**: gasta tokens pagos, que não estão autorizados. Não faz parte do critério da P11.2 |
+| **S5 / P12.10** | selo das âncoras por **carimbo de tempo RFC 3161** de TSA de terceiro (`audit-anchor-seal.ts`, `audit-anchor-tsa.ts`, CLI `seal` e `verify-seal`), verificável sem o banco e sem confiar no lugar de guarda. Interoperação real com DigiCert e Sectigo, gratuitas e sem conta. Provas: selo **8/8** (TSAs locais), cadeia **8/8** (inclui a partição apagada) e unitários 13/13. Desenho com destino, frequência, acesso, retenção, detecção e resposta em `s5-contrato-trilha-59.md`. Segue **PARCIAL** por três coisas: merge do #59, 0171 no DEV e a decisão de quem guarda a 2ª cópia e onde roda o selo diário |
+| #59 e #28 | comentários de coordenação postados. Nenhuma mudança é pedida nas branches deles |
+| P12.6 | `scripts/ops/sentry-convenios-alert.ts`, para a organização `qoro-1v` e o projeto `qoro`. Cria a regra, envia o evento sintético e confere o disparo. Espera só o token restrito |
+| P15.6 | a ficha da seção 7 continua válida: nenhum arquivo do dinheiro mudou desde `022063b0` |
+| Postgres no notebook | restrição de 15/11 mantida por decisão do fundador. As provas de banco desta rodada rodaram só no runner gratuito; o selo, que não usa banco, rodou local |
+| CI final | #55 `7dce2759`: CI 46127059696 PASS (761/761, ramos 82,54%) e provas 46127054026 PASS. Composição `0704c14a`: CI 46127171353 PASS (869/869, **ramos 60,67%**) e provas 46127166401 PASS |
+| Contagem | **97/117**. Nenhuma tarefa nova fechou; o resto depende do comercial, do DEV ou de terceiros |
 
 ### Checkpoint de 28/11/2026, noite — P11.1 e P11.2 concluídas, ancoragem S5, base comercial #68 `839e67ba`
 
