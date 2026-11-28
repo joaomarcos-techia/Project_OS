@@ -183,3 +183,46 @@ não alcança.
 **Para o #59:** nada a mudar na branch dele. A trilha da plataforma já é coberta pela mesma biblioteca (spec
 `PLATFORM_AUDIT_ANCHOR`), como o verificador do catálogo já era. S5 segue **PARTIAL** só pelo merge do #59, pela 0171
 no ambiente e pela decisão do destino.
+
+## Atualização de 28/11/2026 (noite): ancoragem VERIFICÁVEL, com selo por carimbo de tempo RFC 3161
+
+**Objetivo (ADR-075, "Alternativas"):** a ancoragem externa é a única defesa contra o dono do banco com DDL. Ela
+DETECTA adulteração depois; não impede. **Adversário considerado:** quem altera o banco principal (DDL, dono,
+superusuário) e também os arquivos que o operador guarda. Guardar só os resumos no mesmo banco, num arquivo editável,
+num Drive ou num e-mail da mesma identidade não prova nada contra esse adversário. Por isso entra o selo.
+
+| # | Ponto | Decisão técnica |
+| --- | --- | --- |
+| 1 | Hash e formato canônico | SHA-256. Cada linha da trilha vira texto canônico calculado no próprio SQL: todas as colunas, datas em UTC fixo e jsonb canônico; em `audit_events`, sem as 5 chaves que a anonimização LGPD retira. O resumo do dia encadeia o anterior desde o gênese `qoro/audit-anchor/v1`. O enunciado do selo, `qoro/audit-seal/v1`, tem uma linha por trilha com o período e a cabeça da cadeia, que compromete todos os dias anteriores |
+| 2 | Verificação independente | carimbo de tempo **RFC 3161** de uma Autoridade de Carimbo de Tempo (TSA) de terceiro, que assina "este hash existia no instante T". Ficam duas TSAs independentes, para a falta de uma não impedir o selo. Provado em 28/11 com **DigiCert** e **Sectigo**, gratuitas, sem conta: carimbo concedido e assinatura conferida com as raízes públicas (`evidence/local-2026-11-28/s5-tsa-interoperacao.txt`). Quem reescreve a trilha depois não consegue carimbo com data antiga para a cadeia nova |
+| 3 | Destino | selo e âncoras em **duas cópias com donos diferentes**: (a) a do operador (Drive ou e-mail do titular) e (b) uma **fora da administração da plataforma**, com um segundo responsável. A integridade vem da assinatura da TSA; o lugar de guarda só precisa de disponibilidade. Nunca no repositório público |
+| 4 | Frequência | **selo diário** do dia anterior (janela de reescrita sem selo ≤ 48 h, o `--max-delay-hours` padrão) e **conferência semanal** do banco contra as âncoras, e também antes de cada release e em incidente. Começar com selo semanal manual só vale com o risco aceito por escrito: janela de até 7 dias |
+| 5 | Acesso | `compute` e `verify` usam uma URL só de leitura própria (`ANCHOR_DATABASE_URL`; recomendado um papel só leitura dedicado), numa transação READ ONLY; `seal` e `verify-seal` não abrem banco; nenhum segredo nos arquivos |
+| 6 | Retenção | âncoras e selos ficam enquanto a trilha existir, e nunca são apagados antes dela. O prazo da trilha é decisão de B6 |
+| 7 | Detecção | `verify-seal`: 0 íntegro; 1 selo não confere (arquivo editado, trilha reescrita); 3 **sem selo** (lugar de guarda perdido: nunca "ok"); 4 nenhum carimbo válido. `verify` contra o banco: o dia e a quantidade de linhas |
+| 8 | Resposta operacional | não "corrigir" a trilha; congelar e preservar as cópias; abrir incidente de integridade (`runbooks-operacionais.md` §5); delimitar trilha e dias; comparar com o backup; avaliar comunicação (LGPD/ANS) se houver dado afetado |
+| 9 | Dado pessoal | à TSA vai só o SHA-256 do enunciado (32 bytes); as âncoras têm hashes e contagem por dia, sem dado pessoal; nenhum evento bruto sai do banco |
+
+**Provas:**
+
+| Prova | Resultado |
+| --- | --- |
+| `audit-anchor-db.ts` (banco descartável) | **8 provas**, entre elas a nova: apagar a partição inteira (`DETACH` + `DROP` pelo dono) é acusado em cada dia |
+| `audit-anchor-seal-tsa.ts` (duas TSAs locais do OpenSSL no loopback, sem banco e sem rede) | **8/8**: selo com duas TSAs (só o resumo vai à TSA); trilha reescrita com âncoras recalculadas acusada; arquivo guardado editado acusado; selo forjado com o carimbo antigo recusado; TSA não confiável recusada; TSA fora do ar (com a outra no ar sai um carimbo; sem nenhuma, nada é gravado); recuperação com selo atrasado visível; sem selo = código 3 |
+| unitários | `audit-anchor-seal.test.ts` 6/6 e `audit-anchor.test.ts` 7/7 |
+
+**Limite honesto:**
+- isto detecta, não impede;
+- quem apaga TODAS as cópias apaga a prova. O código 3 deixa isso visível, mas não reconstrói nada; por isso a
+  segunda cópia fora da administração é parte do desenho;
+- o que existiu antes do primeiro selo não fica provado. Começar a cadeia no dia em que a 0171 for aplicada;
+- não há imutabilidade absoluta: o administrador ainda pode alterar o banco. O que ele não consegue é fazer isso
+  sem que a conferência acuse.
+
+**O que falta para a S5 virar PASS:**
+1. merge do #59 (0172). A trilha da plataforma já é coberta pelo mesmo código, sem mudança na branch dele;
+2. a 0171 no DEV, depois do comercial, e a primeira cadeia selada a partir dela;
+3. decisão do titular:
+   - quem guarda a segunda cópia;
+   - onde roda o selo diário. Rodar um workflow com segredo de leitura de Production num repositório PÚBLICO não é
+     recomendado. As opções são o computador do operador ou um workflow quando o repositório voltar a ser privado.

@@ -6,7 +6,7 @@ Escopo: AST de arquivos JS/TS de runtime sob `src` (test/spec excluídos); leitu
 
 **Limite da evidência:** `session` significa caminho de chamadas resolvido até `requireUser`, não prova de que esse guard precede todo efeito em todo ramo. Exceções públicas listam a chamada revisada; presença não substitui teste de rejeição. Props indiretas por estado/spread, dispatch dinâmico e chamadas por reflexão exigem teste de runtime. `REVIEW_REQUIRED` bloqueia o check; não equivale automaticamente a vulnerabilidade.
 
-Contagem: 292 actions (0 inline); 69 métodos em 65 handlers; 96 props com referência de action; 1096 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
+Contagem: 292 actions (0 inline); 69 métodos em 65 handlers; 96 props com referência de action; 1099 acessos diretos a process.env; 10 nomes NEXT_PUBLIC.
 
 O snapshot `inventory-before.json` registra o estado bruto inicial desta subfase. Não é regravado por `--write`. Correções de outras subfases podem preceder essa captura; não é apresentado como snapshot do HEAD original.
 
@@ -783,12 +783,15 @@ Tudo aqui é inlinado no bundle do cliente. A coluna de justificativa vem de `sc
 | `scripts/security/ai-handoff-reliability-db.ts:31`                                      | `<object>`                             | `process.env`                                                               |
 | `scripts/security/ai-handoff-reliability-db.ts:32`                                      | `<dynamic>`                            | `process.env[key]`                                                          |
 | `scripts/security/ai-handoff-reliability-db.ts:34`                                      | `<object>`                             | `process.env`                                                               |
-| `scripts/security/audit-anchor-db.ts:21`                                                | `PORT`                                 | `process.env.PORT`                                                          |
-| `scripts/security/audit-anchor-db.ts:26`                                                | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
-| `scripts/security/audit-anchor-db.ts:27`                                                | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
-| `scripts/security/audit-anchor-db.ts:28`                                                | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
-| `scripts/security/audit-anchor-db.ts:29`                                                | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
-| `scripts/security/audit-anchor.ts:33`                                                   | `ANCHOR_DATABASE_URL`                  | `process.env.ANCHOR_DATABASE_URL`                                           |
+| `scripts/security/audit-anchor-db.ts:22`                                                | `PORT`                                 | `process.env.PORT`                                                          |
+| `scripts/security/audit-anchor-db.ts:27`                                                | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
+| `scripts/security/audit-anchor-db.ts:28`                                                | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
+| `scripts/security/audit-anchor-db.ts:29`                                                | `NEXT_PUBLIC_SUPABASE_URL`             | `process.env.NEXT_PUBLIC_SUPABASE_URL`                                      |
+| `scripts/security/audit-anchor-db.ts:30`                                                | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                          |
+| `scripts/security/audit-anchor-seal-tsa.ts:135`                                         | `ANCHOR_OPENSSL`                       | `process.env.ANCHOR_OPENSSL`                                                |
+| `scripts/security/audit-anchor-seal-tsa.ts:188`                                         | `<object>`                             | `process.env`                                                               |
+| `scripts/security/audit-anchor-tsa.ts:16`                                               | `ANCHOR_OPENSSL`                       | `process.env.ANCHOR_OPENSSL`                                                |
+| `scripts/security/audit-anchor.ts:143`                                                  | `ANCHOR_DATABASE_URL`                  | `process.env.ANCHOR_DATABASE_URL`                                           |
 | `scripts/security/audit-trails-append-only-db.ts:35`                                    | `PORT`                                 | `process.env.PORT`                                                          |
 | `scripts/security/audit-trails-append-only-db.ts:43`                                    | `DATABASE_URL`                         | `process.env.DATABASE_URL`                                                  |
 | `scripts/security/audit-trails-append-only-db.ts:44`                                    | `DATABASE_URL_RUNTIME`                 | `process.env.DATABASE_URL_RUNTIME`                                          |
