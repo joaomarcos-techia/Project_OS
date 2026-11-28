@@ -121,3 +121,19 @@ Depois disso: refazer esta revisão sobre o SHA final e repetir o `/security-rev
 | Login (S8) | o limitador barrou o 5º login seguido da mesma conta contra o Upstash real do Preview ("Muitas tentativas") — prova incidental do R69 no caminho normal | rodadas 2 e 3 do E2E da S2 | OK |
 
 Continua aberto para a P15.5: S3 e S4 autenticados (dependem da 0170 no DEV) e a S5 aplicada num banco compartilhado.
+
+## Revisão de 28/11 (noite): agente com convênio, ancoragem das trilhas e resets
+
+| Área | O que foi conferido | Evidência | Resultado |
+| --- | --- | --- | --- |
+| Agente — isolamento | as três consultas de Convênios do agente usam o `clinicId` do contexto do turno (nunca argumento do modelo); `list_insurance_options` devolve só NOMES (nunca ids) das operadoras ativas da própria clínica; a da outra clínica não casa | `agent-insurance-tools-db.ts` provas 1–2; `agent-insurance-conversation-db.ts` prova 3 | OK |
+| Agente — escrita | nada é criado no turno que prepara; no "SIM" a escolha é conferida de novo (suspensa, módulo desligado ou assinatura encerrada entre os turnos = recusa, nada criado); a cobertura fica como automação, sem usuário fictício | provas 4 e 7 (ferramentas); 2 e 5 (conversa) | OK |
+| Agente — dinheiro | convênio sem prévia de sinal; o pedido de sinal que todo atendimento do agente publica é recusado como inelegível pelo handler REAL (antes de política, cobrança ou gateway); nenhuma guia, lote ou cobrança pelo agente | prova 2 da conversa (`payments.deposit.request_skipped_ineligible`) | OK |
+| Agente — o que ele diz | guarda de saída no texto livre do modelo troca qualquer afirmação de cobertura, autorização, elegibilidade, valor ou pedido do número da carteirinha pela frase fixa, com registro da falha; os textos do servidor são fixos | prova 4 da conversa; `agent-insurance.test.ts` | OK |
+| Agente — operadora escolhida pelo modelo | o nome da operadora vem do argumento do modelo, resolvido só contra as ativas da clínica (pelo nome inteiro; ambíguo pergunta de novo); o modelo poderia propor um convênio que o paciente não disse | resumo obrigatório com operadora e plano e "SIM" explícito antes de criar (o mesmo desenho do procedimento) | **Residual de desenho, não crítico** |
+| Ancoragem das trilhas (S5) | a ferramenta do operador só lê (`READ ONLY`, sem `SET` de sessão, URL própria em `ANCHOR_DATABASE_URL`), imprime só resumos (hash), nunca linhas; entrou na lista do `arch:db-check` com justificativa | `audit-anchor-db.ts` prova 7 (nenhuma linha muda); `arch-db-check` 0 achados | OK |
+| Resets operacionais | o reset de Production e o do DEV não apagam mais `audit_events` nem `login_attempts` (teste de guarda); o do DEV recusa antes de apagar qualquer coisa quando a barreira da 0171 está instalada | `reset-prod-data.test.ts` | OK |
+| E2E S3/S4 | contas sintéticas novas em clínicas novas (nada de conta real); link de recuperação gerado pela API admin do DEV e aberto no mesmo formato do e-mail; a chave de servidor só pela variável do processo do teste | `e2e/convenios-s3-s4-senhas-preview.spec.ts` (não executado: espera a 0170 no DEV) | preparado |
+
+Nenhum achado crítico aberto. Continua aberto para a P15.5: S3 e S4 autenticados e a S5 aplicada num banco
+compartilhado (0169–0171 no DEV, depois do comercial).
